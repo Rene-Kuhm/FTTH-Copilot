@@ -1,155 +1,682 @@
-import type {
-  OltSummary,
-  OnuSummary,
-  OnuDetail,
-  NetworkOverview,
-} from '@ftth-copilot/connectors-core';
+/**
+ * Fixtures for the SmartOLT mock connector.
+ *
+ * Models a typical mid-sized Argentine ISP FTTH network.
+ * Shape and values derived from public sources:
+ *   - SmartOLT Public API documentation (Postman workspace):
+ *     https://www.postman.com/smartolt/smartolt-s-public-workspace/
+ *   - SmartOLT setup guides for real OLT models (Huawei MA5680T, ZTE C600):
+ *     https://www.smartolt.com/huawei-olt-initial-setup.html
+ *     https://www.smartolt.com/zte-c6xx-olt-initial-setup.html
+ *   - Real-world ODB naming convention (F401-055-5) from sample responses
+ *   - Real-world signal ranges and ONT models (Huawei HG8145V5, ZTE F600)
+ *
+ * Customer labels ("CLI-XXXX") are anonymized placeholders, not real customers.
+ *
+ * ## Topology overview
+ * 5 OLTs across 4 Argentine localities + 42 ONUs distributed realistically.
+ * Intentional scenarios embedded:
+ *   - OLT-Este: 2 ONUs offline in same time window (planta externa event)
+ *   - OLT-Oeste: 2 ONUs offline (degraded OLT with high temp)
+ *   - 1 ONU with 10-day uptime (long-running stable connection)
+ *   - 1 degraded ONU with borderline signal (-26.5 dBm)
+ *
+ * To regenerate with different scenarios, edit the OLT/ONU definitions below
+ * and run `pnpm test:unit` to verify.
+ */
+import type { OltSummary, OnuSummary, OnuDetail, NetworkOverview } from '@ftth-copilot/connectors-core';
 
 /**
- * Fixtures realistas basados en respuestas típicas de SmartOLT.
- * Reemplazar por llamadas reales cuando consigamos acceso a la sandbox.
- *
- * Reglas semánticas para que las respuestas del agente sean coherentes:
- * - OLT-001 y OLT-002: healthy
- * - OLT-003: alta temperatura (alerta)
- * - Algunas ONUs en cada OLT están offline o con señal baja
+ * 5 OLTs covering a typical Argentine ISP scale.
+ * Mix of Huawei (most common in the region), ZTE, and Fiberhome.
  */
-
-export const FIXTURE_OLTS: OltSummary[] = [
+export const FIXTURE_OLTS: (OltSummary & {
+  vendor: string;
+  olt_hardware_version: string;
+  firmware: string;
+  location: string;
+  telnet_port: number;
+  snmp_port: number;
+})[] = [
   {
-    id: 'OLT-001',
-    name: 'OLT-Norte-Principal',
-    ip: '10.0.1.10',
-    status: 'online',
-    uptimeSeconds: 1234567,
-    temperatureCelsius: 42,
+    "id": "OLT-Norte-01",
+    "name": "OLT-Norte-Principal",
+    "ip": "10.0.1.10",
+    "vendor": "Huawei",
+    "olt_hardware_version": "MA5680T",
+    "firmware": "V800R018C10",
+    "status": "online",
+    "uptimeSeconds": 1234567,
+    "temperatureCelsius": 42,
+    "location": "POP Norte - BsAs",
+    "telnet_port": 2333,
+    "snmp_port": 2161
   },
   {
-    id: 'OLT-002',
-    name: 'OLT-Sur-Respaldo',
-    ip: '10.0.1.11',
-    status: 'online',
-    uptimeSeconds: 9876543,
-    temperatureCelsius: 38,
+    "id": "OLT-Sur-01",
+    "name": "OLT-Sur-Respaldo",
+    "ip": "10.0.1.11",
+    "vendor": "ZTE",
+    "olt_hardware_version": "C600",
+    "firmware": "V1.2.5P3",
+    "status": "online",
+    "uptimeSeconds": 9876543,
+    "temperatureCelsius": 38,
+    "location": "POP Sur - Lanus",
+    "telnet_port": 2333,
+    "snmp_port": 2161
   },
   {
-    id: 'OLT-003',
-    name: 'OLT-Este-Cobertura',
-    ip: '10.0.1.12',
-    status: 'degraded',
-    uptimeSeconds: 86400,
-    temperatureCelsius: 68,
+    "id": "OLT-Este-01",
+    "name": "OLT-Este-Cobertura",
+    "ip": "10.0.1.12",
+    "vendor": "Huawei",
+    "olt_hardware_version": "MA5800-X7",
+    "firmware": "V100R019C10",
+    "status": "online",
+    "uptimeSeconds": 86400,
+    "temperatureCelsius": 68,
+    "location": "POP Este - Quilmes",
+    "telnet_port": 2333,
+    "snmp_port": 2161
   },
+  {
+    "id": "OLT-Centro-01",
+    "name": "OLT-Centro-Central",
+    "ip": "10.0.1.13",
+    "vendor": "ZTE",
+    "olt_hardware_version": "C320",
+    "firmware": "V1.2.0P2",
+    "status": "online",
+    "uptimeSeconds": 5242880,
+    "temperatureCelsius": 41,
+    "location": "POP Centro - CABA",
+    "telnet_port": 2333,
+    "snmp_port": 2161
+  },
+  {
+    "id": "OLT-Oeste-01",
+    "name": "OLT-Oeste-Cobertura",
+    "ip": "10.0.1.14",
+    "vendor": "Fiberhome",
+    "olt_hardware_version": "AN5516-04",
+    "firmware": "RP0200",
+    "status": "degraded",
+    "uptimeSeconds": 432000,
+    "temperatureCelsius": 72,
+    "location": "POP Oeste - Moron",
+    "telnet_port": 2333,
+    "snmp_port": 2161
+  }
 ];
 
+/**
+ * 42 ONUs distributed across the 5 OLTs.
+ * Status distribution: 37 online, 4 offline, 1 degraded.
+ */
 export const FIXTURE_ONUS: OnuSummary[] = [
-  // OLT-001
   {
-    id: 'ONU-0001',
-    serial: 'SN-A1B2C3D4',
-    oltId: 'OLT-001',
-    customerName: 'Juan Pérez',
-    status: 'online',
-    rxPowerDbm: -19.5,
-    txPowerDbm: 2.1,
-    uptimeSeconds: 432000,
-    lastSeenAt: '2026-08-20T01:30:00Z',
+    "id": "ONU-OLT-Norte-01-1/1/1",
+    "serial": "SNHUA00000001",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0001",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
   },
   {
-    id: 'ONU-0002',
-    serial: 'SN-B2C3D4E5',
-    oltId: 'OLT-001',
-    customerName: 'María González',
-    status: 'online',
-    rxPowerDbm: -22.0,
-    txPowerDbm: 2.3,
-    uptimeSeconds: 864000,
-    lastSeenAt: '2026-08-20T01:30:00Z',
+    "id": "ONU-OLT-Norte-01-1/1/2",
+    "serial": "SNHUA00000002",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0002",
+    "status": "online",
+    "rxPowerDbm": -21.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
   },
   {
-    id: 'ONU-0003',
-    serial: 'SN-C3D4E5F6',
-    oltId: 'OLT-001',
-    customerName: 'Carlos López',
-    status: 'offline',
-    rxPowerDbm: -28.5,
-    uptimeSeconds: 0,
-    lastSeenAt: '2026-08-19T18:45:00Z',
-  },
-  // OLT-002
-  {
-    id: 'ONU-0010',
-    serial: 'SN-D4E5F6A7',
-    oltId: 'OLT-002',
-    customerName: 'Ana Martínez',
-    status: 'online',
-    rxPowerDbm: -20.1,
-    txPowerDbm: 1.9,
-    uptimeSeconds: 1296000,
-    lastSeenAt: '2026-08-20T01:30:00Z',
+    "id": "ONU-OLT-Norte-01-1/1/3",
+    "serial": "SNZTE00000003",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0003",
+    "status": "online",
+    "rxPowerDbm": -19.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
   },
   {
-    id: 'ONU-0011',
-    serial: 'SN-E5F6A7B8',
-    oltId: 'OLT-002',
-    customerName: 'Luis Rodríguez',
-    status: 'degraded',
-    rxPowerDbm: -25.5,
-    txPowerDbm: 2.0,
-    uptimeSeconds: 600000,
-    lastSeenAt: '2026-08-20T01:30:00Z',
-  },
-  // OLT-003 (con problemas)
-  {
-    id: 'ONU-0020',
-    serial: 'SN-F6A7B8C9',
-    oltId: 'OLT-003',
-    customerName: 'Pedro Sánchez',
-    status: 'offline',
-    rxPowerDbm: -30.0,
-    uptimeSeconds: 0,
-    lastSeenAt: '2026-08-19T15:20:00Z',
+    "id": "ONU-OLT-Norte-01-1/1/4",
+    "serial": "SNZTE00000004",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0004",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
   },
   {
-    id: 'ONU-0021',
-    serial: 'SN-A7B8C9D0',
-    oltId: 'OLT-003',
-    customerName: 'Sofía Fernández',
-    status: 'offline',
-    rxPowerDbm: -29.8,
-    uptimeSeconds: 0,
-    lastSeenAt: '2026-08-19T16:10:00Z',
+    "id": "ONU-OLT-Norte-01-1/1/5",
+    "serial": "SNFIB00000005",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0005",
+    "status": "online",
+    "rxPowerDbm": -21.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
   },
+  {
+    "id": "ONU-OLT-Norte-01-1/1/6",
+    "serial": "SNHUA00000006",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0006",
+    "status": "online",
+    "rxPowerDbm": -19.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Norte-01-1/1/7",
+    "serial": "SNHUA00000007",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0007",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Norte-01-1/1/8",
+    "serial": "SNZTE00000008",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0008",
+    "status": "online",
+    "rxPowerDbm": -21.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Norte-01-1/1/9",
+    "serial": "SNZTE00000009",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0009",
+    "status": "online",
+    "rxPowerDbm": -19.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Norte-01-1/1/10",
+    "serial": "SNFIB00000010",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0010",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/1",
+    "serial": "SNHUA00000011",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0011",
+    "status": "online",
+    "rxPowerDbm": -21.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/2",
+    "serial": "SNHUA00000012",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0012",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/3",
+    "serial": "SNZTE00000013",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0013",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/4",
+    "serial": "SNZTE00000014",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0014",
+    "status": "online",
+    "rxPowerDbm": -20.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/5",
+    "serial": "SNFIB00000015",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0015",
+    "status": "online",
+    "rxPowerDbm": -21.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/6",
+    "serial": "SNHUA00000016",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0016",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/7",
+    "serial": "SNHUA00000017",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0017",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/8",
+    "serial": "SNZTE00000018",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0018",
+    "status": "online",
+    "rxPowerDbm": -20.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/9",
+    "serial": "SNZTE00000019",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0019",
+    "status": "online",
+    "rxPowerDbm": -21.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/10",
+    "serial": "SNFIB00000020",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0020",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/11",
+    "serial": "SNHUA00000021",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0021",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Sur-01-1/1/12",
+    "serial": "SNHUA00000022",
+    "oltId": "OLT-Sur-01",
+    "customerName": "CLI-0022",
+    "status": "online",
+    "rxPowerDbm": -20.0,
+    "txPowerDbm": 2.3,
+    "uptimeSeconds": 604800,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/1",
+    "serial": "SNZTE00000023",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0023",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/2",
+    "serial": "SNZTE00000024",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0024",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/3",
+    "serial": "SNFIB00000025",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0025",
+    "status": "online",
+    "rxPowerDbm": -21.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/4",
+    "serial": "SNHUA00000026",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0026",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/5",
+    "serial": "SNHUA00000027",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0027",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/1/6",
+    "serial": "SNZTE00000028",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0028",
+    "status": "online",
+    "rxPowerDbm": -21.0,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 259200,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/7/4",
+    "serial": "SNZTE00000029",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0029",
+    "status": "offline",
+    "rxPowerDbm": -30.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-19T19:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/7/5",
+    "serial": "SNFIB00000030",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0030",
+    "status": "offline",
+    "rxPowerDbm": -30.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-19T19:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Este-01-1/8/1",
+    "serial": "SNHUA00000031",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0031",
+    "status": "degraded",
+    "rxPowerDbm": -26.5,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 1209600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/1",
+    "serial": "SNHUA00000032",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0032",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/2",
+    "serial": "SNZTE00000033",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0033",
+    "status": "online",
+    "rxPowerDbm": -24.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/3",
+    "serial": "SNZTE00000034",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0034",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/4",
+    "serial": "SNFIB00000035",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0035",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/5",
+    "serial": "SNHUA00000036",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0036",
+    "status": "online",
+    "rxPowerDbm": -24.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Centro-01-1/1/6",
+    "serial": "SNHUA00000037",
+    "oltId": "OLT-Centro-01",
+    "customerName": "CLI-0037",
+    "status": "online",
+    "rxPowerDbm": -22.0,
+    "txPowerDbm": 2.2,
+    "uptimeSeconds": 345600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Oeste-01-1/1/1",
+    "serial": "SNZTE00000038",
+    "oltId": "OLT-Oeste-01",
+    "customerName": "CLI-0038",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 86400,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Oeste-01-1/1/2",
+    "serial": "SNZTE00000039",
+    "oltId": "OLT-Oeste-01",
+    "customerName": "CLI-0039",
+    "status": "online",
+    "rxPowerDbm": -23.0,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 86400,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Oeste-01-1/1/3",
+    "serial": "SNFIB00000040",
+    "oltId": "OLT-Oeste-01",
+    "customerName": "CLI-0040",
+    "status": "offline",
+    "rxPowerDbm": -29.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-18T19:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Oeste-01-1/1/4",
+    "serial": "SNHUA00000041",
+    "oltId": "OLT-Oeste-01",
+    "customerName": "CLI-0041",
+    "status": "offline",
+    "rxPowerDbm": -29.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-18T19:30:00+00:00"
+  },
+  {
+    "id": "ONU-OLT-Norte-01-1/9/9",
+    "serial": "HUA1234567890",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0999",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 864000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00"
+  }
 ];
 
+/**
+ * Detailed view for ONUs with signal history or interesting cases.
+ * Keys are ONU IDs; values extend OnuSummary with the OnuDetail fields.
+ */
 export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
-  'ONU-0001': {
-    ...FIXTURE_ONUS[0]!,
-    model: 'HG8145V5',
-    vendor: 'Huawei',
-    oltPort: '0/1/1',
-    firmwareVersion: 'V3R019C10S135',
-    signalHistory: [
-      { timestamp: '2026-08-19T22:00:00Z', rxPowerDbm: -19.2 },
-      { timestamp: '2026-08-19T23:00:00Z', rxPowerDbm: -19.4 },
-      { timestamp: '2026-08-20T00:00:00Z', rxPowerDbm: -19.5 },
-      { timestamp: '2026-08-20T01:00:00Z', rxPowerDbm: -19.5 },
-    ],
+  "ONU-OLT-Este-01-1/7/4": {
+    "id": "ONU-OLT-Este-01-1/7/4",
+    "serial": "SNZTE00000029",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0029",
+    "status": "offline",
+    "rxPowerDbm": -30.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-19T19:30:00+00:00",
+    "model": "F670G",
+    "vendor": "ZTE",
+    "oltPort": "1/7/4",
+    "firmwareVersion": "V2.0.0P3",
+    "signalHistory": [
+      {
+        "timestamp": "2026-08-19T01:30:00+00:00",
+        "rxPowerDbm": -24.0
+      },
+      {
+        "timestamp": "2026-08-19T13:30:00+00:00",
+        "rxPowerDbm": -27.5
+      },
+      {
+        "timestamp": "2026-08-19T19:30:00+00:00",
+        "rxPowerDbm": -30.0
+      }
+    ]
   },
-  'ONU-0003': {
-    ...FIXTURE_ONUS[2]!,
-    model: 'HG8145V5',
-    vendor: 'Huawei',
-    oltPort: '0/1/3',
-    firmwareVersion: 'V3R019C10S135',
-    signalHistory: [
-      { timestamp: '2026-08-19T15:00:00Z', rxPowerDbm: -24.0 },
-      { timestamp: '2026-08-19T18:00:00Z', rxPowerDbm: -27.5 },
-      { timestamp: '2026-08-19T18:45:00Z', rxPowerDbm: -28.5 },
-    ],
+  "ONU-OLT-Este-01-1/7/5": {
+    "id": "ONU-OLT-Este-01-1/7/5",
+    "serial": "SNFIB00000030",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0030",
+    "status": "offline",
+    "rxPowerDbm": -30.0,
+    "txPowerDbm": 0,
+    "uptimeSeconds": 0,
+    "lastSeenAt": "2026-08-19T19:30:00+00:00",
+    "model": "HG680-L",
+    "vendor": "Fiberhome",
+    "oltPort": "1/7/5",
+    "firmwareVersion": "V1.0.0",
+    "signalHistory": [
+      {
+        "timestamp": "2026-08-19T01:30:00+00:00",
+        "rxPowerDbm": -24.0
+      },
+      {
+        "timestamp": "2026-08-19T13:30:00+00:00",
+        "rxPowerDbm": -27.5
+      },
+      {
+        "timestamp": "2026-08-19T19:30:00+00:00",
+        "rxPowerDbm": -30.0
+      }
+    ]
   },
+  "ONU-OLT-Este-01-1/8/1": {
+    "id": "ONU-OLT-Este-01-1/8/1",
+    "serial": "SNHUA00000031",
+    "oltId": "OLT-Este-01",
+    "customerName": "CLI-0031",
+    "status": "degraded",
+    "rxPowerDbm": -26.5,
+    "txPowerDbm": 2.0,
+    "uptimeSeconds": 1209600,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00",
+    "model": "HG8145V5",
+    "vendor": "Huawei",
+    "oltPort": "1/8/1",
+    "firmwareVersion": "V3R019C10S135"
+  },
+  "ONU-OLT-Norte-01-1/9/9": {
+    "id": "ONU-OLT-Norte-01-1/9/9",
+    "serial": "HUA1234567890",
+    "oltId": "OLT-Norte-01",
+    "customerName": "CLI-0999",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 864000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00",
+    "model": "HG8145V5",
+    "vendor": "Huawei",
+    "oltPort": "1/9/9",
+    "firmwareVersion": "V3R019C10S135"
+  }
 };
 
+/**
+ * Aggregated network-wide stats, computed once at module load.
+ */
 export function computeOverview(): NetworkOverview {
   const onlineOnus = FIXTURE_ONUS.filter((o) => o.status === 'online').length;
   const offlineOnus = FIXTURE_ONUS.filter((o) => o.status === 'offline').length;
