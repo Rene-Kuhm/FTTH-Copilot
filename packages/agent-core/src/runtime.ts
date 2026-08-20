@@ -17,7 +17,7 @@ export interface RunAgentOptions {
   maxIterations?: number;
 }
 
-const DEFAULT_MODEL = process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-6';
+const DEFAULT_MODEL = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M3';
 
 /**
  * Loop principal del agente: recibe el mensaje del usuario, le pide a Claude
@@ -25,12 +25,20 @@ const DEFAULT_MODEL = process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-6';
  * connector, y devuelve la respuesta final.
  */
 export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  const apiKey = process.env['MINIMAX_API_KEY'];
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY no está configurada');
+    throw new Error(
+      'MINIMAX_API_KEY no está configurada. Copiá .env.example a .env y completá la key.',
+    );
   }
 
-  const client = new Anthropic({ apiKey });
+  // MiniMax token-plan provider is Anthropic-API-compatible.
+  // Docs: https://platform.minimax.io/docs/token-plan/intro
+  const client = new Anthropic({
+    apiKey,
+    baseURL:
+      process.env['MINIMAX_BASE_URL'] ?? 'https://api.minimax.io/anthropic/v1',
+  });
   const model = opts.model ?? DEFAULT_MODEL;
   const connector = opts.connector ?? buildDefaultConnector();
   const tools = buildTools(connector);

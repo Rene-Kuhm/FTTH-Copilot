@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.MINIMAX_API_KEY) {
     return NextResponse.json(
       {
         error:
-          'ANTHROPIC_API_KEY no está configurada. Copiá .env.example a .env y completá la key.',
+          'MINIMAX_API_KEY no está configurada. Copiá .env.example a .env y completá la key.',
       },
       { status: 500 },
     );
