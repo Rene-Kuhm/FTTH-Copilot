@@ -5,7 +5,7 @@
  * The auth utilities are in this package so other workspaces can import them
  * without creating a separate @ftth-copilot/auth package.
  */
-import { PrismaClient } from './generated/client/index.js';
+import { PrismaClient } from './generated/client/index';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -23,8 +23,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Re-export Prisma models and enums for convenience.
-export * from './generated/client/index.js';
-export { Prisma } from './generated/client/index.js';
+export * from './generated/client/index';
+export { Prisma } from './generated/client/index';
 
 // Auth utilities (also part of this package — kept colocated for ergonomics).
 export {
@@ -36,6 +36,6 @@ export {
   COOKIE_NAME,
   TOKEN_TTL_SECONDS,
   type SessionClaims,
-} from './auth.js';
-export { sessionCookieAttributes } from './cookies.js';
-export { encryptApiKey, decryptApiKey } from './crypto.js';
+} from './auth';
+export { sessionCookieAttributes } from './cookies';
+export { encryptApiKey, decryptApiKey } from './crypto';
