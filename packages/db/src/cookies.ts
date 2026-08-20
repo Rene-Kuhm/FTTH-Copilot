@@ -3,7 +3,7 @@
  * JWT is sent as an httpOnly cookie scoped to the entire app.
  */
 import type { SerializeOptions } from 'cookie';
-import { COOKIE_NAME } from './auth.js';
+import { COOKIE_NAME } from './auth';
 
 const ONE_WEEK_SECONDS = 60 * 60 * 24 * 7;
 

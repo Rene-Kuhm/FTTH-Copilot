@@ -36,6 +36,6 @@ export {
   COOKIE_NAME,
   TOKEN_TTL_SECONDS,
   type SessionClaims,
-} from './auth.js';
-export { sessionCookieAttributes } from './cookies.js';
-export { encryptApiKey, decryptApiKey } from './crypto.js';
+} from './auth';
+export { sessionCookieAttributes } from './cookies';
+export { encryptApiKey, decryptApiKey } from './crypto';

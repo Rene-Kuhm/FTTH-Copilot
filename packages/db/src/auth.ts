@@ -14,7 +14,7 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import type { Role } from './generated/client/index.js';
+import type { Role } from './generated/client/index';
 
 const BCRYPT_COST = 12;
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days

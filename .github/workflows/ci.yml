@@ -130,6 +130,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        run: pnpm --filter @ftth-copilot/db exec prisma generate
+
       - name: Build all packages
         run: pnpm build
 
