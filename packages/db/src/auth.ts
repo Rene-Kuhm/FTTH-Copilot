@@ -7,9 +7,9 @@
  *   leak doesn't expose live sessions.
  * - Token contents: { sub: userId, tenantId, role, iat, exp }
  *
- * NOTE: The JWT_SECRET is intentionally read from env at runtime. In
- * production set a strong secret (32+ random bytes). Default is a dev-only
- * placeholder so the app boots out of the box.
+ * SECURITY: JWT_SECRET is read from env at runtime. In production the app
+ * refuses to start without it — no silent insecure fallback. Resolved lazily
+ * so Next.js build time can succeed even when env vars aren't set.
  */
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
@@ -20,9 +20,27 @@ const BCRYPT_COST = 12;
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const COOKIE_NAME = 'ftth_session';
 
-const JWT_SECRET =
-  process.env['JWT_SECRET'] ??
-  'dev-only-insecure-secret-replace-me-in-production-please-32bytes-min';
+function resolveSecret(envVar: string, devFallback: string): string {
+  const value = process.env[envVar];
+  if (value) return value;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      `${envVar} is not set. Refusing to start in production with an insecure default.`,
+    );
+  }
+  return devFallback;
+}
+
+let _jwtSecret: string | undefined;
+function getJwtSecret(): string {
+  if (_jwtSecret === undefined) {
+    _jwtSecret = resolveSecret(
+      'JWT_SECRET',
+      'dev-only-insecure-secret-replace-me-in-production-please-32bytes-min',
+    );
+  }
+  return _jwtSecret;
+}
 
 export interface SessionClaims {
   sub: string;     // userId
@@ -51,7 +69,7 @@ export function issueToken(userId: string, tenantId: string, role: Role): {
 } {
   const token = jwt.sign(
     { sub: userId, tenantId, role } as Omit<SessionClaims, 'iat' | 'exp'>,
-    JWT_SECRET,
+    getJwtSecret(),
     { algorithm: 'HS256', expiresIn: TOKEN_TTL_SECONDS },
   );
   const tokenHash = hashToken(token);
@@ -61,7 +79,7 @@ export function issueToken(userId: string, tenantId: string, role: Role): {
 
 export function verifyToken(token: string): SessionClaims | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
     if (typeof decoded === 'string') return null;
     return decoded as unknown as SessionClaims;
   } catch {

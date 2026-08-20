@@ -6,6 +6,7 @@
  */
 import { prisma, encryptApiKey, decryptApiKey } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
+import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { NextResponse } from 'next/server';
 
 /** Read-only projection of NmsConnection (no key). */
@@ -44,6 +45,8 @@ export async function createConnector(input: {
 }) {
   const user = await getCurrentUser();
   if (!user) return null;
+  // Privilege guard: only roles with manage_connectors may create connectors.
+  if (!hasPermission(user.role, 'manage_connectors' as Permission)) return null;
 
   const { encryptedKey, iv } = encryptApiKey(input.apiKey);
 
@@ -64,6 +67,8 @@ export async function createConnector(input: {
 export async function deleteConnector(id: string) {
   const user = await getCurrentUser();
   if (!user) return null;
+  // Privilege guard: only roles with manage_connectors may delete connectors.
+  if (!hasPermission(user.role, 'manage_connectors' as Permission)) return null;
   const result = await prisma.nmsConnection.deleteMany({
     where: { id, tenantId: user.tenantId },
   });

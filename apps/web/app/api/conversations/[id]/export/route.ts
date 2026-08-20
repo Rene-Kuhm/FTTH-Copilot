@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
+import { hasPermission, type Permission } from '@/lib/auth/permissions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,15 @@ export async function GET(
   }
 
   const { id } = await params;
+  // IDOR guard: users without the view_all_conversations permission may only
+  // export their own conversations, even within the same tenant.
+  const canViewAll = hasPermission(user.role, 'view_all_conversations' as Permission);
   const conversation = await prisma.conversation.findFirst({
-    where: { id, tenantId: user.tenantId },
+    where: {
+      id,
+      tenantId: user.tenantId,
+      ...(canViewAll ? {} : { userId: user.id }),
+    },
     include: {
       messages: { orderBy: { createdAt: 'asc' } },
     },
