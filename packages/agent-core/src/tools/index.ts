@@ -93,6 +93,20 @@ export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
         ['thresholdDbm'],
       ),
     },
+    {
+      name: 'search_by_customer_name',
+      description: 'Busca ONUs por nombre del cliente. Útil cuando el usuario pregunta por un nombre de persona o empresa.',
+      input_schema: asJsonSchema(
+        'Nombre del cliente a buscar.',
+        {
+          customerName: {
+            type: 'string',
+            description: 'Nombre del cliente (búsqueda parcial, no distingue mayúsculas).',
+          },
+        },
+        ['customerName'],
+      ),
+    },
   ];
 }
 
@@ -135,6 +149,11 @@ export async function executeToolCall(
       case 'get_onus_with_low_signal': {
         const threshold = Number(args['thresholdDbm']);
         data = await connector.getOnusWithLowSignal(threshold);
+        break;
+      }
+      case 'search_by_customer_name': {
+        const name = String(args['customerName']);
+        data = await connector.searchByCustomerName(name);
         break;
       }
       default:

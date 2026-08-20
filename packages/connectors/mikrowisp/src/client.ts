@@ -174,6 +174,10 @@ export class MikrowispClient implements INmsConnector {
     return onus.filter((o) => (o.rxPowerDbm ?? 0) < thresholdDbm && o.rxPowerDbm !== undefined);
   }
 
+  async searchByCustomerName(name: string): Promise<OnuSummary[]> {
+    return [];
+  }
+
   // ── Mikrowisp-specific methods ──
 
   async listRouters(): Promise<MikrowispRouter[]> {

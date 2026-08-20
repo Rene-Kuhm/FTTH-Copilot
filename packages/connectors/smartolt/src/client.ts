@@ -201,6 +201,14 @@ export class SmartOltClient implements INmsConnector {
     return onus.filter((o) => (o.rxPowerDbm ?? 0) < thresholdDbm && o.rxPowerDbm !== undefined);
   }
 
+  async searchByCustomerName(name: string): Promise<OnuSummary[]> {
+    if (this.useMock) {
+      const lower = name.toLowerCase();
+      return FIXTURE_ONUS.filter(o => o.customerName?.toLowerCase().includes(lower));
+    }
+    return this.realFetch<OnuSummary[]>('/onus?customer_name=' + encodeURIComponent(name));
+  }
+
   // ── Helpers for mapping real SmartOLT responses to INmsConnector types ──
 
   private mapOnuSummary(o: Record<string, unknown>): OnuSummary {

@@ -4,11 +4,13 @@
  */
 import { useEffect, useState } from 'react';
 
+export type ClientRole = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
+
 export interface SessionUser {
   id: string;
   email: string;
   name: string | null;
-  role: 'OWNER' | 'MEMBER';
+  role: ClientRole;
   tenantId: string;
   tenant: { id: string; name: string; slug: string };
 }

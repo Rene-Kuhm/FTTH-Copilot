@@ -17,6 +17,7 @@ import {
   TOKEN_TTL_SECONDS,
   type SessionClaims,
 } from '@ftth-copilot/db';
+import type { Role } from '@ftth-copilot/db';
 
 export const runtime = 'nodejs';
 
@@ -40,7 +41,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string | null;
-  role: 'OWNER' | 'MEMBER';
+  role: Role;
   tenantId: string;
   tenant: { id: string; name: string; slug: string };
 }

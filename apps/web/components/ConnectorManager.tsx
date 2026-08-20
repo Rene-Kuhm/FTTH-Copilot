@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
+import { hasPermission, type Permission } from '@/lib/auth/permissions';
 
 interface Connector {
   id: string;
@@ -25,6 +26,8 @@ export function ConnectorManager() {
   const [baseUrl, setBaseUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const canManage = auth.user && hasPermission(auth.user.role, 'manage_connectors' as Permission);
 
   const refresh = async () => {
     if (!auth.user) return;
@@ -93,12 +96,14 @@ export function ConnectorManager() {
     <section className="mb-6 rounded-md border border-neutral-800 bg-bg-subtle p-4">
       <header className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-medium">NMS Connectors</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="text-xs text-fg-muted hover:text-fg"
-        >
-          {showForm ? 'Cancelar' : '+ Agregar connector'}
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="text-xs text-fg-muted hover:text-fg"
+          >
+            {showForm ? 'Cancelar' : '+ Agregar connector'}
+          </button>
+        )}
       </header>
 
       {connectors.length === 0 ? (
@@ -120,12 +125,14 @@ export function ConnectorManager() {
                   {c.baseUrl ? ` · ${c.baseUrl}` : ''}
                 </div>
               </div>
-              <button
-                onClick={() => void remove(c.id)}
-                className="text-xs text-red-400 hover:text-red-300"
-              >
-                Borrar
-              </button>
+              {canManage && (
+                <button
+                  onClick={() => void remove(c.id)}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Borrar
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -133,7 +140,7 @@ export function ConnectorManager() {
 
       {loading && <p className="mt-2 text-xs text-fg-muted">Cargando…</p>}
 
-      {showForm && (
+      {showForm && canManage && (
         <form onSubmit={(e) => void submit(e)} className="mt-3 space-y-2">
           <select
             value={provider}

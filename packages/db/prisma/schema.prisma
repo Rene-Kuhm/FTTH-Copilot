@@ -16,7 +16,9 @@ datasource db {
 
 enum Role {
   OWNER
-  MEMBER
+  ADMIN
+  OPERATOR
+  MEMBER  // legacy — treated as OPERATOR in permissions
 }
 
 enum NmsProvider {
