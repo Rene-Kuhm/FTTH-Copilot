@@ -1,5 +1,6 @@
 import ChatUI from '@/components/ChatUI';
 import { AuthBar } from '@/components/AuthBar';
+import { ConnectorManager } from '@/components/ConnectorManager';
 
 export default function HomePage() {
   return (
@@ -12,6 +13,7 @@ export default function HomePage() {
         </p>
       </header>
       <AuthBar />
+      <ConnectorManager />
       <ChatUI />
     </main>
   );

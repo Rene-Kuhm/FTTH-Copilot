@@ -23,6 +23,12 @@ importers:
       '@ftth-copilot/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../../packages/connectors/core
+      '@ftth-copilot/connectors-smartolt':
+        specifier: workspace:*
+        version: link:../../packages/connectors/smartolt
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../../packages/db
