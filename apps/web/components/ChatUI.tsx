@@ -4,6 +4,16 @@ import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { HistorySidebar, loadConversation } from './HistorySidebar';
+import {
+  ChartBarSquareIcon,
+  ChatBubbleLeftRightIcon,
+  CommandLineIcon,
+  CpuChipIcon,
+  PaperAirplaneIcon,
+  ServerStackIcon,
+  SignalIcon,
+  SparklesIcon,
+} from './icons';
 
 interface ToolCall {
   name: string;
@@ -19,11 +29,33 @@ interface ChatMessage {
   seq: number;
 }
 
-const SUGGESTED_QUESTIONS = [
-  '¿Cuántas ONUs están offline ahora?',
-  '¿Qué OLTs tienen temperatura alta?',
-  'Dame el detalle de la ONU con serial SN-001',
-  '¿Cuál es el uptime promedio de la red?',
+interface SuggestedQuestion {
+  text: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  tint: string;
+}
+
+const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
+  {
+    text: '¿Cuántas ONUs están offline ahora?',
+    Icon: SignalIcon,
+    tint: 'text-danger bg-danger/10 ring-danger/30',
+  },
+  {
+    text: '¿Qué OLTs tienen temperatura alta?',
+    Icon: CpuChipIcon,
+    tint: 'text-warning bg-warning/10 ring-warning/30',
+  },
+  {
+    text: 'Dame el detalle de la ONU con serial SN-001',
+    Icon: ServerStackIcon,
+    tint: 'text-accent bg-accent/10 ring-accent/30',
+  },
+  {
+    text: '¿Cuál es el uptime promedio de la red?',
+    Icon: ChartBarSquareIcon,
+    tint: 'text-success bg-success/10 ring-success/30',
+  },
 ];
 
 export default function ChatUI() {
@@ -35,7 +67,9 @@ export default function ChatUI() {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
-  function nextSeq() { return ++seqRef.current; }
+  function nextSeq() {
+    return ++seqRef.current;
+  }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -43,7 +77,8 @@ export default function ChatUI() {
     }
   }, [messages]);
 
-  const canChat = auth.user && hasPermission(auth.user.role, 'chat' as Permission);
+  const canChat =
+    auth.user && hasPermission(auth.user.role, 'chat' as Permission);
 
   async function sendMessage(text: string) {
     if (!canChat) return;
@@ -115,79 +150,132 @@ export default function ChatUI() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row">
-      <HistorySidebar
-        currentConversationId={conversationId}
-        onSelectConversation={handleSelectConversation}
-      />
-      <div className="flex flex-1 flex-col gap-4">
-      <div
-        ref={scrollRef}
-        className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-bg-subtle p-4"
-      >
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 py-8 text-fg-muted">
-            <p className="text-sm">
-              Hacé una pregunta sobre tu red FTTH. Ejemplos:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTED_QUESTIONS.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => void sendMessage(q)}
-                  disabled={isLoading || !canChat}
-                  className="rounded-md border border-neutral-700 px-3 py-1.5 text-left text-xs hover:border-accent hover:bg-neutral-900 disabled:opacity-50"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
-        )}
-        {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-fg-muted">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:150ms]" />
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:300ms]" />
-          </div>
-        )}
-      </div>
-
-      {!canChat && auth.user && (
-        <div className="rounded-md border border-yellow-800 bg-yellow-950/30 px-3 py-2 text-sm text-yellow-400">
-          Read-only mode — you do not have permission to send messages.
+    <section className="card overflow-hidden">
+      <header className="flex items-center gap-3 border-b border-neutral-800 px-5 py-4">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+          <ChatBubbleLeftRightIcon className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-fg">Copilot Chat</h2>
+          <p className="mt-0.5 text-xs text-fg-dim">
+            Preguntale a tu red FTTH en lenguaje natural
+          </p>
         </div>
-      )}
+      </header>
 
-      {error && (
-        <div className="rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-400">
-          {error}
-        </div>
-      )}
-
-      {canChat && (
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Preguntale algo a tu red..."
-            disabled={isLoading}
-            className="flex-1 rounded-md border border-neutral-700 bg-bg-subtle px-3 py-2 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+      <div className="flex flex-col lg:flex-row">
+        <HistorySidebar
+          currentConversationId={conversationId}
+          onSelectConversation={handleSelectConversation}
+        />
+        <div className="flex flex-1 flex-col gap-4 px-5 py-5">
+          <div
+            ref={scrollRef}
+            className="flex min-h-[320px] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-bg/60 p-4"
           >
-            Enviar
+            {messages.length === 0 ? (
+              <EmptyState
+                disabled={isLoading || !canChat}
+                onPick={(q) => void sendMessage(q)}
+              />
+            ) : (
+              messages.map((m) => <MessageBubble key={m.id} message={m} />)
+            )}
+            {isLoading && (
+              <div className="flex items-center gap-2 px-1 text-sm text-fg-muted">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:150ms]" />
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:300ms]" />
+                <span className="ml-1 text-xs text-fg-dim">
+                  Analizando tu red…
+                </span>
+              </div>
+            )}
+          </div>
+
+          {!canChat && auth.user && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+              <CommandLineIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>
+                Read-only mode — you do not have permission to send messages.
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+              {error}
+            </div>
+          )}
+
+          {canChat && (
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Preguntale algo a tu red…"
+                disabled={isLoading}
+                className="input"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="btn-primary px-4"
+                aria-label="Enviar mensaje"
+              >
+                <PaperAirplaneIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Enviar</span>
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EmptyState({
+  disabled,
+  onPick,
+}: {
+  disabled: boolean;
+  onPick: (q: string) => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+        <SparklesIcon className="h-7 w-7" />
+      </span>
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-fg">
+          Hacé tu primera pregunta
+        </h3>
+        <p className="mx-auto max-w-md text-sm text-fg-dim">
+          Tu copilot analiza tu red FTTH y responde con datos en vivo. Probá con
+          una de estas:
+        </p>
+      </div>
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+        {SUGGESTED_QUESTIONS.map((q) => (
+          <button
+            key={q.text}
+            type="button"
+            onClick={() => onPick(q.text)}
+            disabled={disabled}
+            className="group flex items-start gap-3 rounded-lg border border-neutral-800 bg-bg-subtle p-3 text-left transition-all hover:-translate-y-0.5 hover:border-neutral-700 hover:bg-bg-elevated disabled:opacity-50 disabled:hover:translate-y-0"
+          >
+            <span
+              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${q.tint}`}
+            >
+              <q.Icon className="h-4 w-4" />
+            </span>
+            <span className="flex-1 text-sm font-medium text-fg">
+              {q.text}
+            </span>
           </button>
-        </form>
-      )}
-    </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -195,13 +283,17 @@ export default function ChatUI() {
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   return (
-    <div className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+    <div
+      className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}
+    >
       {message.toolsUsed && message.toolsUsed.length > 0 && (
-        <div className="flex flex-wrap gap-1 text-xs text-fg-muted">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-dim">
+          <CommandLineIcon className="h-3.5 w-3.5" />
+          <span className="font-medium">Tools:</span>
           {message.toolsUsed.map((t, i) => (
             <span
               key={i}
-              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-0.5 font-mono"
+              className="rounded-md border border-neutral-700 bg-bg px-2 py-0.5 font-mono text-[11px] text-fg-muted"
             >
               {t.name}
             </span>
@@ -209,13 +301,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         </div>
       )}
       <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
-            ? 'bg-accent text-white'
-            : 'border border-neutral-800 bg-neutral-900'
+            ? 'rounded-br-md bg-accent text-white shadow-sm shadow-accent/20'
+            : 'rounded-bl-md border border-neutral-800 bg-bg-subtle text-fg'
         }`}
       >
-        {message.content}
+        <div className="whitespace-pre-wrap">{message.content}</div>
       </div>
     </div>
   );

@@ -3,9 +3,15 @@
 @theme {
   --color-bg: #0a0a0a;
   --color-bg-subtle: #171717;
+  --color-bg-elevated: #1c1c1c;
   --color-fg: #fafafa;
   --color-fg-muted: #a3a3a3;
+  --color-fg-dim: #737373;
   --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
 }
 
 @layer base {
@@ -15,9 +21,68 @@
     color: var(--color-fg);
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
       "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Subtle, scrollbar-friendly default */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #262626;
+    border-radius: 9999px;
+    border: 2px solid var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #404040;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-neutral-800 bg-bg-subtle shadow-lg shadow-black/20;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+           transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent
+           focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-hover;
+  }
+
+  .btn-ghost {
+    @apply btn text-fg-muted hover:bg-neutral-800 hover:text-fg;
+  }
+
+  .btn-outline {
+    @apply btn border border-neutral-700 text-fg hover:border-neutral-600 hover:bg-neutral-800/50;
+  }
+
+  .btn-danger {
+    @apply btn text-danger hover:bg-danger/10;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-neutral-700 bg-bg px-3 py-2 text-sm text-fg
+           placeholder:text-fg-dim
+           focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+           disabled:opacity-50;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium;
   }
 }
