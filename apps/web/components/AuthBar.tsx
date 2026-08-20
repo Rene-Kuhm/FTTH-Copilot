@@ -3,9 +3,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 
-export function AuthBar() {
+interface AuthBarProps {
+  initialMode?: 'login' | 'signup' | null;
+}
+
+export function AuthBar({ initialMode = null }: AuthBarProps) {
   const auth = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup' | null>(null);
+  const [mode, setMode] = useState<'login' | 'signup' | null>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
