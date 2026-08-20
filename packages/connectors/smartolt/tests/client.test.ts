@@ -15,27 +15,27 @@ describe('SmartOltClient (mock mode)', () => {
     expect(result.latencyMs).toBeGreaterThan(0);
   });
 
-  it('listOlts returns the 3 fixture OLTs', async () => {
+  it('listOlts returns the 5 fixture OLTs', async () => {
     const olts = await client.listOlts();
-    expect(olts).toHaveLength(3);
+    expect(olts).toHaveLength(5);
     const ids = olts.map((o) => o.id);
-    expect(ids).toContain('OLT-001');
-    expect(ids).toContain('OLT-002');
-    expect(ids).toContain('OLT-003');
+    expect(ids).toContain('OLT-Norte-01');
+    expect(ids).toContain('OLT-Sur-01');
+    expect(ids).toContain('OLT-Oeste-01');
   });
 
   it('OLT-003 is degraded (high temperature)', async () => {
     const olts = await client.listOlts();
-    const olt003 = olts.find((o) => o.id === 'OLT-003');
+    const olt003 = olts.find((o) => o.id === 'OLT-Oeste-01');
     expect(olt003?.status).toBe('degraded');
     expect(olt003?.temperatureCelsius).toBeGreaterThan(60);
   });
 
   it('getNetworkOverview reports at least one offline ONU', async () => {
     const overview = await client.getNetworkOverview();
-    expect(overview.totalOlts).toBe(3);
+    expect(overview.totalOlts).toBe(5);
     expect(overview.onusOffline).toBeGreaterThan(0);
-    expect(overview.oltsWithHighTemperature).toBe(1);
+    expect(overview.oltsWithHighTemperature).toBe(2);
   });
 
   it('listOnus can be filtered by oltId and status', async () => {
@@ -43,18 +43,18 @@ describe('SmartOltClient (mock mode)', () => {
     expect(offlineOnus.length).toBeGreaterThan(0);
     expect(offlineOnus.every((o) => o.status === 'offline')).toBe(true);
 
-    const olt003 = await client.listOnus({ oltId: 'OLT-003' });
+    const olt003 = await client.listOnus({ oltId: 'OLT-Oeste-01' });
     expect(olt003.length).toBeGreaterThan(0);
-    expect(olt003.every((o) => o.oltId === 'OLT-003')).toBe(true);
+    expect(olt003.every((o) => o.oltId === 'OLT-Oeste-01')).toBe(true);
   });
 
   it('getOnuDetail works by id and by serial number', async () => {
-    const byId = await client.getOnuDetail('ONU-0001');
+    const byId = await client.getOnuDetail('ONU-OLT-Este-01-1/7/4');
     expect(byId).not.toBeNull();
-    expect(byId?.serial).toBe('SN-A1B2C3D4');
+    expect(byId?.serial).toContain('SN');
 
-    const bySerial = await client.getOnuDetail('SN-A1B2C3D4');
-    expect(bySerial?.id).toBe('ONU-0001');
+    const bySerial = await client.getOnuDetail('SNZTE00000029');
+    expect(bySerial?.id).toBe('ONU-OLT-Este-01-1/7/4');
   });
 
   it('getOnuDetail returns null for unknown identifier', async () => {
@@ -69,8 +69,8 @@ describe('SmartOltClient (mock mode)', () => {
   });
 
   it('getOltDetail returns the OLT with onusConnected count', async () => {
-    const detail = await client.getOltDetail('OLT-001');
-    expect(detail.id).toBe('OLT-001');
-    expect(detail.onusConnected).toBeGreaterThan(0);
+    const detail = await client.getOltDetail('OLT-Norte-01');
+    expect(detail.id).toBe('OLT-Norte-01');
+    expect(detail.onusConnected).toBeGreaterThanOrEqual(10);
   });
 });
