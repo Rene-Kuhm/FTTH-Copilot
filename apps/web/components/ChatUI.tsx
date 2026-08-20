@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { HistorySidebar, loadConversation } from './HistorySidebar';
 
 interface ToolCall {
   name: string;
@@ -33,10 +34,13 @@ const SUGGESTED_QUESTIONS = [
 
 export default function ChatUI() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const seqRef = useRef(0);
+  function nextSeq() { return ++seqRef.current; }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -63,7 +67,7 @@ export default function ChatUI() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, conversationId }),
       });
 
       if (!res.ok) {
@@ -74,7 +78,9 @@ export default function ChatUI() {
       const data = (await res.json()) as {
         reply: string;
         toolsUsed: ToolCall[];
+        conversationId: string;
       };
+      if (data.conversationId) setConversationId(data.conversationId);
 
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -96,8 +102,27 @@ export default function ChatUI() {
     void sendMessage(input);
   }
 
+  function handleSelectConversation(id: string | undefined) {
+    setConversationId(id);
+    if (!id) {
+      setMessages([]);
+    } else {
+      void loadConversation(id).then((result: { messages: Array<{ id: string; role: 'user' | 'assistant'; content: string; toolsUsed?: Array<{ name: string; args: Record<string, unknown> }>; timestamp: number }> } | null) => {
+        if (result) {
+          const withSeq = result.messages.map((m, i) => ({ ...m, seq: i }));
+          setMessages(withSeq);
+        }
+      });
+    }
+  }
+
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-col lg:flex-row">
+      <HistorySidebar
+        currentConversationId={conversationId}
+        onSelectConversation={handleSelectConversation}
+      />
+      <div className="flex flex-1 flex-col gap-4">
       <div
         ref={scrollRef}
         className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-bg-subtle p-4"
@@ -156,6 +181,7 @@ export default function ChatUI() {
           Enviar
         </button>
       </form>
+    </div>
     </div>
   );
 }
