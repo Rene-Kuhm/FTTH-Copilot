@@ -140,6 +140,10 @@ export async function executeToolCall(
       default:
         return JSON.stringify({ error: `Tool desconocida: ${toolName}` });
     }
+    // Treat explicit null as "not found" so the agent doesn't read it as an error.
+    if (data === null || data === undefined) {
+      return 'No encontrado en el NMS. Verificá el identificador (ID, SN, o filtro).';
+    }
     return JSON.stringify(data, null, 2);
   } catch (err) {
     return JSON.stringify({
