@@ -141,7 +141,7 @@ export default function DocsPage() {
           <SubTitle>Autenticación</SubTitle>
           <p>
             La sesión se mantiene con una cookie HTTP-only <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">ftth_session</code> que contiene un
-            JWT firmado. El cliente la manda automáticamente con <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">credentials: 'include'</code>.
+            JWT firmado. El cliente la manda automáticamente con <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">credentials: {'include'}</code>.
           </p>
 
           <SubTitle>Endpoints de alto nivel</SubTitle>

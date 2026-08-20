@@ -37,20 +37,22 @@ export function OnboardingWizard() {
   const [step, setStep] = useState<Step>('welcome');
 
   useEffect(() => {
-    if (!auth.user) {
-      setConnectors(null);
-      setShow(false);
-      return;
-    }
-    if (typeof window !== 'undefined') {
-      const done = window.localStorage.getItem(storageKey(auth.user.id));
-      if (done === 'true') {
-        setShow(false);
-        return;
-      }
-    }
     let cancelled = false;
     (async () => {
+      if (!auth.user) {
+        if (!cancelled) {
+          setConnectors(null);
+          setShow(false);
+        }
+        return;
+      }
+      if (typeof window !== 'undefined') {
+        const done = window.localStorage.getItem(storageKey(auth.user.id));
+        if (done === 'true') {
+          if (!cancelled) setShow(false);
+          return;
+        }
+      }
       try {
         const r = await fetch('/api/connectors', { credentials: 'include' });
         const data = await r.json();
