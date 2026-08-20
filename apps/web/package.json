@@ -14,10 +14,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@ftth-copilot/agent-core": "workspace:*",
+    "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
     "next": "16.3.1",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
