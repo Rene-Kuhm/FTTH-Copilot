@@ -12,14 +12,15 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@ftth-copilot/agent-core": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
-    "@anthropic-ai/sdk": "^0.39.0",
     "next": "16.3.1",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.10.0",
     "@types/react": "19.0.7",
