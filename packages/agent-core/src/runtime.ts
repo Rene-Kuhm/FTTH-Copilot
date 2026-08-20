@@ -37,7 +37,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const client = new Anthropic({
     apiKey,
     baseURL:
-      process.env['MINIMAX_BASE_URL'] ?? 'https://api.minimax.io/anthropic/v1',
+      process.env['MINIMAX_BASE_URL'] ?? 'https://api.minimax.io/anthropic',
   });
   const model = opts.model ?? DEFAULT_MODEL;
   const connector = opts.connector ?? buildDefaultConnector();
