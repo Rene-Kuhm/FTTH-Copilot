@@ -107,6 +107,24 @@ export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
         ['customerName'],
       ),
     },
+    {
+      name: 'reboot_ont',
+      description: 'Reinicia remotamente una ONU/ONT. SOLO para uso en emergencias. Requiere confirmacion del usuario.',
+      input_schema: asJsonSchema(
+        'Identificador de la ONU a reiniciar.',
+        {
+          onuId: {
+            type: 'string',
+            description: 'ID de la ONU (ej. ONU-OLT-Norte-01-1/1/1) o serial.',
+          },
+          confirmed: {
+            type: 'boolean',
+            description: 'true si el usuario confirmó la acción.',
+          },
+        },
+        ['onuId', 'confirmed'],
+      ),
+    },
   ];
 }
 
@@ -154,6 +172,17 @@ export async function executeToolCall(
       case 'search_by_customer_name': {
         const name = String(args['customerName']);
         data = await connector.searchByCustomerName(name);
+        break;
+      }
+      case 'reboot_ont': {
+        const onuId = String(args['onuId']);
+        const confirmed = Boolean(args['confirmed']);
+        if (!confirmed) {
+          data = { status: 'pending_confirmation', message: `¿Confirmás el reinicio de la ONU ${onuId}? Esto interrumpirá la conexión del cliente temporalmente.` };
+        } else {
+          // Mock: simulate reboot
+          data = { status: 'success', message: `ONU ${onuId} reiniciada exitosamente. La reconexión tarda ~60 segundos.`, rebootTime: new Date().toISOString() };
+        }
         break;
       }
       default:
