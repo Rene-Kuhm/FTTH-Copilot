@@ -13,6 +13,6 @@ test.describe('Dashboard', () => {
 
   test('shows link back to chat', async ({ page }) => {
     await page.goto('http://localhost:3001/dashboard');
-    await expect(page.locator('a[href="/"]')).toBeVisible();
+    await expect(page.locator('a[href="/app"]')).toBeVisible();
   });
 });
