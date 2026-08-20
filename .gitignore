@@ -48,3 +48,4 @@ prisma/migrations/dev/
 # Misc
 .cache/
 .parcel-cache/
+apps/web/test-results/
