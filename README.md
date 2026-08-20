@@ -1,112 +1,74 @@
-# FTTH-Copilot
+# FTTH-Copilot — Diagnóstico de red FTTH en lenguaje natural
 
-> Agente de IA sobre SmartOLT/Mikrowisp que da diagnóstico en lenguaje natural y reportes automáticos para ISPs, **sin reemplazar el NMS existente**.
+Agente de IA que se conecta a tu NMS (SmartOLT, Mikrowisp, NetSense) y te explica en español qué está pasando en tu red. **No reemplaza el NMS** — agrega una capa conversacional encima.
 
-FTTH-Copilot es una capa de IA que se monta **encima** del NMS del ISP (SmartOLT, Mikrowisp, NetSense). Lee datos vía REST y agrega lo que esas plataformas no tienen: diagnóstico en lenguaje natural, reportes automáticos y un asistente conversacional para técnicos.
+## Quick path
 
----
+1. `pnpm install`
+2. `cp .env.example .env` y completá `MINIMAX_API_KEY`
+3. `pnpm dev` → abrí `http://localhost:3001`
+4. Escribí una pregunta de FTTH en el chat → el agente elige la tool correcta y te contesta
 
-## Estado actual
+## Details
 
-**Fase 1 — MVP técnico interno (en progreso).**
-
-Esta entrega es una **demo local** con datos mockeados de SmartOLT. El agente responde preguntas de diagnóstico usando fixtures realistas de la API pública. Sin UI de producción, sin auth, sin deploy público todavía.
-
----
-
-## Stack
-
-| Capa | Tecnología |
+| Área | Estado |
 |---|---|
-| Lenguaje | TypeScript 5.7 |
-| Monorepo | pnpm workspaces + Turborepo |
-| Frontend | Next.js 16 (App Router) + Tailwind CSS 4 |
-| Backend (cuando esté) | Node.js + Fastify (próxima fase) |
-| LLM | MiniMax Token Plan (`MiniMax-M3`, Anthropic-API-compatible) |
-| Connector | Mock fixtures (SmartOLT real en fase posterior) |
-| Tests | Vitest (próxima fase) |
+| Estado actual | MVP demo end-to-end con mocks de SmartOLT (3 OLTs, 7 ONUs, valores realistas) |
+| LLM | MiniMax-M3 (Anthropic-API-compatible, 1M context) |
+| Frontend | Next.js 16.3.1 + Tailwind 4.3.3 |
+| Tests | Vitest, 96.34% lines en `packages/connectors/smartolt` |
+| CI | GitHub Actions · lint + typecheck + tests + build · `CI Success` required |
+| Repo | Público, sin secrets en la historia (gitleaks clean) |
+| Multi-tenant | No todavía (fase 2) |
 
----
-
-## Estructura del monorepo
+## Estructura
 
 ```
-ftth-copilot/
-├── apps/
-│   └── web/                    # Next.js 15 + Tailwind — UI de chat
-├── packages/
-│   ├── agent-core/             # Claude tool-calling loop + prompts
-│   ├── connectors/
-│   │   ├── core/               # INmsConnector interface
-│   │   └── smartolt/           # Adapter de SmartOLT (mock por ahora)
-│   └── shared/                 # Tipos compartidos
-├── docs/
-│   └── api-samples/smartolt/   # Respuestas reales capturadas
-└── ...
+apps/web/                    → Next.js 15 + chat UI
+packages/agent-core/         → tool-calling loop contra MiniMax-M3
+packages/connectors/
+  ├─ core/                   → interface INmsConnector (provider-agnostic)
+  └─ smartolt/               → SmartOLT adapter (mock por ahora)
+packages/shared/             → tipos compartidos
 ```
 
----
-
-## Quick start
-
-### Requisitos
-
-- Node.js >= 22
-- pnpm >= 11
-
-### Setup
+## Quick path 2 — verificar el setup
 
 ```bash
-# 1. Instalar dependencias
-pnpm install
-
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Editar .env y poner tu ANTHROPIC_API_KEY
-
-# 3. Levantar la app en modo dev
-pnpm dev
+pnpm typecheck        # 5/5 paquetes verde
+pnpm test:unit        # 9 tests, todos verde
+pnpm build            # 3 rutas generadas
 ```
-
-Abrí [http://localhost:3000](http://localhost:3000) y empezá a chatear con el agente.
-
----
-
-## Scripts
-
-| Comando | Qué hace |
-|---|---|
-| `pnpm dev` | Levanta todos los paquetes en modo watch |
-| `pnpm build` | Compila todos los paquetes |
-| `pnpm lint` | Corre ESLint en todo el monorepo |
-| `pnpm typecheck` | Corre `tsc --noEmit` en todo |
-| `pnpm test` | Corre tests (Vitest) |
-| `pnpm clean` | Limpia artefactos + node_modules |
-
----
 
 ## Variables de entorno
 
-Ver [`.env.example`](./.env.example).
+Mínimas (ver `.env.example`):
 
-Las mínimas para arrancar:
-
-- `MINIMAX_API_KEY` — key del token plan de MiniMax (obligatoria)
-- `SMARTOLT_USE_MOCK=true` — usa fixtures en vez de la API real
-
----
+| Variable | Requerida | Notas |
+|---|---|---|
+| `MINIMAX_API_KEY` | sí | Key del LLM (Anthropic-API-compatible) |
+| `SMARTOLT_USE_MOCK` | no, default `true` | `false` para usar API real (no implementado todavía) |
 
 ## Roadmap
 
-- [x] **Fase 0** — Scaffold del monorepo + agente MiniMax-M3 con tool-calling mock (Next.js 16.3.1 + Tailwind 4.3.3)
-- [ ] **Fase 1** — Capturar respuestas reales de SmartOLT API, validar con 10 preguntas de diagnóstico
-- [ ] **Fase 2** — Auth multi-tenant + UI pulida + tests E2E + deploy staging
-- [ ] **Fase 3** — Piloto con 1-3 ISPs reales + reportes automáticos + facturación
+| Fase | Estado | Outcome |
+|---|---|---|
+| 0 — Validación con ISP | pendiente | 3+ ISPs confirman interés y precio |
+| 1 — MVP demo | **en progreso** | Demo end-to-end con mocks |
+| 2 — MVP producto | pendiente | Auth multi-tenant + UI pulida + deploy staging |
+| 3 — Piloto pago | pendiente | 1+ ISP paga y retiene 30 días |
+| 4 — Escalado | pendiente | Segundo connector, reducción costo LLM |
 
-Ver [PROJECT_GUIDE.md](./PROJECT_GUIDE.md) (cuando esté en el repo) para la guía completa.
+## Checklist para el próximo paso
 
----
+- [ ] Conectar el `SmartOltClient` con un sandbox real del ISP
+- [ ] Escribir los 10 escenarios de diagnóstico manual (QA log del agente)
+- [ ] Definir el tier de precios usando el feedback de los ISPs pilotos
 
 ## Licencia
 
 Privado — todos los derechos reservados a TecnoDespegue / René Kuhm.
+
+## Next step
+
+Terminá el demo de la **Quick path**, abrí una conversación con una pregunta de tu red real, y guardá el log. Eso te da los 10 escenarios de QA que la guía pide antes de Fase 1 → 2.
