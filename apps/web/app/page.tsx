@@ -3,6 +3,7 @@ import ChatUI from '@/components/ChatUI';
 import { AuthBar } from '@/components/AuthBar';
 import { ConnectorManager } from '@/components/ConnectorManager';
 import { UserManager } from '@/components/UserManager';
+import { AlertsPanel } from '@/components/AlertsPanel';
 
 export default function HomePage() {
   return (
@@ -24,6 +25,7 @@ export default function HomePage() {
       <AuthBar />
       <UserManager />
       <ConnectorManager />
+      <AlertsPanel />
       <ChatUI />
     </main>
   );

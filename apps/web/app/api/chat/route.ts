@@ -4,6 +4,7 @@ import { runAgent } from '@ftth-copilot/agent-core';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { ChatOltClient } from '@/lib/connectors/chat-client';
+import { logRequest } from '@/lib/logging';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 
 export const runtime = 'nodejs';
@@ -15,9 +16,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const start = Date.now();
   const raw = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
+    logRequest('POST', '/api/chat', 400, Date.now() - start);
     return NextResponse.json(
       { error: 'Invalid input', details: parsed.error.flatten() },
       { status: 400 },
@@ -62,6 +65,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('[ftth-copilot/api/chat] agent error', err);
+    logRequest('POST', '/api/chat', 500, Date.now() - start);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Internal error' },
       { status: 500 },
@@ -92,6 +96,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  logRequest('POST', '/api/chat', 200, Date.now() - start);
   return NextResponse.json({
     reply: result.text,
     toolsUsed: result.toolCalls.map((c) => ({ name: c.name, args: c.arguments })),
