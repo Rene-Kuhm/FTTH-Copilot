@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/connectors/*"
+allowBuilds:
+  esbuild: false
+  sharp: false
+  unrs-resolver: false
