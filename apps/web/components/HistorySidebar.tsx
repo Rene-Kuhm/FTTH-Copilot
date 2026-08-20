@@ -32,12 +32,14 @@ export function HistorySidebar({ currentConversationId, onSelectConversation }: 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const refresh = async () => {
+  const refresh = async (q?: string) => {
     if (!auth.user) return;
     setLoading(true);
     try {
-      const r = await fetch('/api/conversations', { credentials: 'include' });
+      const url = q ? `/api/conversations?q=${encodeURIComponent(q)}` : '/api/conversations';
+      const r = await fetch(url, { credentials: 'include' });
       const data = await r.json();
       setConversations(data.conversations ?? []);
     } catch {
@@ -71,6 +73,11 @@ export function HistorySidebar({ currentConversationId, onSelectConversation }: 
     setOpen(false);
   }
 
+  function handleExport(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    window.open('/api/conversations/' + id + '/export?format=text', '_blank');
+  }
+
   return (
     <>
       <button
@@ -95,12 +102,29 @@ export function HistorySidebar({ currentConversationId, onSelectConversation }: 
             </button>
           </div>
 
+          <div className="mb-2 flex gap-1">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                // Debounced fetch
+                clearTimeout((window as unknown as { _searchTimer?: ReturnType<typeof setTimeout> })._searchTimer);
+                (window as unknown as { _searchTimer?: ReturnType<typeof setTimeout> })._searchTimer = setTimeout(() => {
+                  void refresh(e.target.value);
+                }, 300);
+              }}
+              placeholder="Buscar..."
+              className="w-full rounded border border-neutral-700 bg-bg px-2 py-1 text-xs placeholder:text-fg-muted focus:border-accent focus:outline-none"
+            />
+          </div>
+
           {conversations.length === 0 ? (
             <p className="text-xs text-fg-muted">Sin conversaciones todavía.</p>
           ) : (
             <ul className="space-y-1">
               {conversations.map((c) => (
-                <li key={c.id}>
+                <li key={c.id} className="group relative">
                   <button
                     onClick={() => handleSelect(c.id)}
                     className={`w-full text-left rounded px-2 py-1.5 text-xs hover:bg-bg ${currentConversationId === c.id ? 'bg-bg border border-accent' : ''}`}
@@ -111,6 +135,13 @@ export function HistorySidebar({ currentConversationId, onSelectConversation }: 
                     <div className="text-fg-muted">
                       {c.messageCount} msg · {new Date(c.updatedAt).toLocaleDateString()}
                     </div>
+                  </button>
+                  <button
+                    onClick={(e) => handleExport(e, c.id)}
+                    title="Exportar conversacion"
+                    className="absolute right-1 top-1 hidden rounded p-1 text-fg-muted hover:text-fg group-hover:block"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   </button>
                 </li>
               ))}

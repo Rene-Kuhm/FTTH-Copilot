@@ -75,6 +75,9 @@ export interface INmsConnector {
 
   /** ONUs con señal RX por debajo del umbral (en dBm). */
   getOnusWithLowSignal(thresholdDbm: number): Promise<OnuSummary[]>;
+
+  /** Busca ONUs por nombre del cliente (búsqueda parcial, case-insensitive). */
+  searchByCustomerName(name: string): Promise<OnuSummary[]>;
 }
 
 export function isRateLimitError(err: unknown): err is RateLimitError {
