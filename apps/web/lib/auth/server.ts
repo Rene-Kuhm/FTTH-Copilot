@@ -105,6 +105,19 @@ export async function handleSignup(req: Request) {
     const user = await tx.user.create({
       data: { email, name: name ?? null, passwordHash, role: 'OWNER', tenantId: tenant.id },
     });
+    // Auto-create a default mock connector so the user has something to see
+    // in the ConnectorManager UI. The chat still uses mock fixtures as
+    // fallback when no real connector is configured.
+    await tx.nmsConnection.create({
+      data: {
+        tenantId: tenant.id,
+        provider: 'SMARTOLT',
+        label: 'SmartOLT (demo)',
+        encryptedKey: 'mock-placeholder',
+        encryptionMeta: 'mock-iv',
+        status: 'pending',
+      },
+    });
     return { user, tenant };
   });
 
