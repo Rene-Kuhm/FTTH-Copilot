@@ -34,7 +34,7 @@ export default function DocsPage() {
   return (
     <main className="mx-auto flex max-w-6xl gap-10 px-6 py-10">
       <aside className="hidden w-56 shrink-0 md:block">
-        <Link href="/" className="text-sm text-fg-muted hover:text-fg">
+        <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-50">
           ← FTTH-Copilot
         </Link>
         <nav className="mt-6 space-y-1 text-sm">
@@ -44,8 +44,8 @@ export default function DocsPage() {
               href={`#${s.id}`}
               className={`block rounded px-3 py-1.5 transition-colors ${
                 active === s.id
-                  ? 'border-l-2 border-accent bg-bg-subtle text-fg'
-                  : 'border-l-2 border-transparent text-fg-muted hover:text-fg'
+                  ? 'border-l-2 border-blue-500 bg-neutral-900 text-neutral-50'
+                  : 'border-l-2 border-transparent text-neutral-400 hover:text-neutral-50'
               }`}
             >
               {s.label}
@@ -57,7 +57,7 @@ export default function DocsPage() {
       <article className="min-w-0 flex-1">
         <header className="mb-10 border-b border-neutral-800 pb-6">
           <h1 className="text-3xl font-semibold tracking-tight">Docs para ISPs</h1>
-          <p className="mt-2 text-sm text-fg-muted">
+          <p className="mt-2 text-sm text-neutral-400">
             Cómo conectar tu NMS, qué podés hacer con FTTH-Copilot, y cómo resolver los
             problemas más comunes.
           </p>
@@ -71,25 +71,25 @@ export default function DocsPage() {
           </p>
 
           <SubTitle>1. Crear una cuenta</SubTitle>
-          <ol className="list-decimal space-y-1 pl-5 text-fg-muted">
-            <li>Entrá a <Link href={'/signup' as Route} className="text-accent hover:underline">/signup</Link>.</li>
+          <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
+            <li>Entrá a <Link href={'/signup' as Route} className="text-blue-500 hover:underline">/signup</Link>.</li>
             <li>Completá email, contraseña y el nombre de tu ISP.</li>
-            <li>Te logueás automáticamente y caés en <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">/app</code>.</li>
+            <li>Te logueás automáticamente y caés en <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/app</code>.</li>
             <li>Por ahora vas a ver un connector SmartOLT mockeado.</li>
           </ol>
 
           <SubTitle>2. Conectar SmartOLT</SubTitle>
-          <ol className="list-decimal space-y-1 pl-5 text-fg-muted">
-            <li>En <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">/app</code>, abrí la sección <strong>NMS Connectors</strong>.</li>
+          <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
+            <li>En <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/app</code>, abrí la sección <strong>NMS Connectors</strong>.</li>
             <li>Hacé clic en <em>+ Agregar connector</em>.</li>
-            <li>Completá: provider <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">SmartOLT</code>, una etiqueta, la API key y la base URL (ej. <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">https://demo.smartolt.com</code>).</li>
+            <li>Completá: provider <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">SmartOLT</code>, una etiqueta, la API key y la base URL (ej. <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">https://demo.smartolt.com</code>).</li>
             <li>La API key se guarda encriptada (AES-256-GCM) en el tenant.</li>
             <li>Probá la conexión con el endpoint de test (ver sección API).</li>
           </ol>
 
           <SubTitle>3. Conectar Mikrowisp</SubTitle>
-          <ol className="list-decimal space-y-1 pl-5 text-fg-muted">
-            <li>Mismo flujo: provider <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">Mikrowisp</code>.</li>
+          <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
+            <li>Mismo flujo: provider <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">Mikrowisp</code>.</li>
             <li>La API key de Mikrowisp tiene la forma de un token Bearer.</li>
             <li>El adapter HTTP real a Mikrowisp está en roadmap — por ahora el chat cae a fixtures mock cuando detecta este provider.</li>
           </ol>
@@ -100,7 +100,7 @@ export default function DocsPage() {
           <p>
             El agente responde preguntas operativas sobre tu red. Algunos ejemplos reales:
           </p>
-          <ul className="list-disc space-y-1 pl-5 text-fg-muted">
+          <ul className="list-disc space-y-1 pl-5 text-neutral-400">
             <li><em>¿Cuántas ONUs están offline ahora?</em></li>
             <li><em>¿Qué OLTs tienen temperatura alta?</em></li>
             <li><em>Dame el detalle de la ONU con serial SN-001.</em></li>
@@ -109,7 +109,7 @@ export default function DocsPage() {
 
           <SubTitle>Dashboard</SubTitle>
           <p>
-            En <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">/dashboard</code> ves el estado por OLT: cantidad de ONUs online/offline/degraded,
+            En <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/dashboard</code> ves el estado por OLT: cantidad de ONUs online/offline/degraded,
             uptime promedio, y temperatura. Los datos vienen del mismo connector que usa el
             chat.
           </p>
@@ -125,7 +125,7 @@ export default function DocsPage() {
           <p>
             Los owners y admins pueden invitar usuarios al tenant con roles diferenciados:
           </p>
-          <ul className="list-disc space-y-1 pl-5 text-fg-muted">
+          <ul className="list-disc space-y-1 pl-5 text-neutral-400">
             <li><strong>Owner</strong> — control total, no se puede degradar.</li>
             <li><strong>Admin</strong> — gestiona usuarios y connectors.</li>
             <li><strong>Operator</strong> — sólo chatea y ve la red.</li>
@@ -134,14 +134,14 @@ export default function DocsPage() {
 
         <Section id="api" title="API">
           <p>
-            Todos los endpoints son <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">POST/GET/PATCH/DELETE</code> sobre
-            <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">/api/*</code> y devuelven JSON.
+            Todos los endpoints son <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">POST/GET/PATCH/DELETE</code> sobre
+            <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/api/*</code> y devuelven JSON.
           </p>
 
           <SubTitle>Autenticación</SubTitle>
           <p>
-            La sesión se mantiene con una cookie HTTP-only <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">ftth_session</code> que contiene un
-            JWT firmado. El cliente la manda automáticamente con <code className="rounded bg-bg-subtle px-1 py-0.5 text-xs">credentials: {'include'}</code>.
+            La sesión se mantiene con una cookie HTTP-only <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">ftth_session</code> que contiene un
+            JWT firmado. El cliente la manda automáticamente con <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">credentials: {'include'}</code>.
           </p>
 
           <SubTitle>Endpoints de alto nivel</SubTitle>
@@ -182,7 +182,7 @@ export default function DocsPage() {
           />
         </Section>
 
-        <footer className="mt-16 border-t border-neutral-800 pt-6 text-xs text-fg-muted">
+        <footer className="mt-16 border-t border-neutral-800 pt-6 text-xs text-neutral-400">
           ¿Falta algo? Escribinos — esta doc se actualiza con cada release.
         </footer>
       </article>
@@ -219,23 +219,23 @@ function Endpoint({ method, path, desc }: { method: string; path: string; desc: 
     DELETE: 'border-red-800 text-red-400',
   };
   return (
-    <div className="rounded border border-neutral-800 bg-bg-subtle px-4 py-2">
+    <div className="rounded border border-neutral-800 bg-neutral-900 px-4 py-2">
       <div className="flex items-center gap-3">
-        <span className={`rounded border px-2 py-0.5 font-mono text-xs ${colors[method] ?? 'border-neutral-700 text-fg-muted'}`}>
+        <span className={`rounded border px-2 py-0.5 font-mono text-xs ${colors[method] ?? 'border-neutral-700 text-neutral-400'}`}>
           {method}
         </span>
         <code className="text-xs">{path}</code>
       </div>
-      <p className="mt-1 text-xs text-fg-muted">{desc}</p>
+      <p className="mt-1 text-xs text-neutral-400">{desc}</p>
     </div>
   );
 }
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (
-    <div className="rounded border border-neutral-800 bg-bg-subtle p-4">
+    <div className="rounded border border-neutral-800 bg-neutral-900 p-4">
       <div className="text-sm font-medium">{q}</div>
-      <p className="mt-2 text-sm text-fg-muted">{a}</p>
+      <p className="mt-2 text-sm text-neutral-400">{a}</p>
     </div>
   );
 }

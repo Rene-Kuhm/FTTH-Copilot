@@ -31,22 +31,22 @@ const ROLE_META: Record<
   OWNER: {
     label: 'Owner',
     className:
-      'bg-accent/15 text-accent ring-1 ring-inset ring-accent/30',
+      'bg-blue-500/15 text-blue-500 ring-1 ring-inset ring-blue-500/30',
   },
   ADMIN: {
     label: 'Admin',
     className:
-      'bg-success/15 text-success ring-1 ring-inset ring-success/30',
+      'bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30',
   },
   OPERATOR: {
     label: 'Operator',
     className:
-      'bg-neutral-800 text-fg-muted ring-1 ring-inset ring-neutral-700',
+      'bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-700',
   },
   MEMBER: {
     label: 'Member (legacy)',
     className:
-      'bg-neutral-800 text-fg-dim ring-1 ring-inset ring-neutral-700',
+      'bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-700',
   },
 };
 
@@ -159,12 +159,12 @@ export function UserManager() {
     <section className="card overflow-hidden">
       <header className="flex items-center justify-between gap-4 px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
             <UserGroupIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-fg">User Management</h2>
-            <p className="mt-0.5 text-xs text-fg-dim">
+            <h2 className="text-sm font-semibold text-neutral-50">User Management</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {users.length} member{users.length === 1 ? '' : 's'} in your tenant
             </p>
           </div>
@@ -191,9 +191,9 @@ export function UserManager() {
       <div className="border-t border-neutral-800">
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-            <UserGroupIcon className="h-8 w-8 text-fg-dim" />
-            <p className="text-sm font-medium text-fg">No users yet</p>
-            <p className="text-xs text-fg-dim">
+            <UserGroupIcon className="h-8 w-8 text-neutral-500" />
+            <p className="text-sm font-medium text-neutral-50">No users yet</p>
+            <p className="text-xs text-neutral-500">
               Add a teammate to give them access to your tenant.
             </p>
           </div>
@@ -201,7 +201,7 @@ export function UserManager() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 bg-bg/40 text-left text-xs uppercase tracking-wide text-fg-dim">
+                <tr className="border-b border-neutral-800 bg-neutral-950/40 text-left text-xs uppercase tracking-wide text-neutral-500">
                   <th className="px-5 py-2.5 font-medium">User</th>
                   <th className="px-3 py-2.5 font-medium">Role</th>
                   <th className="px-3 py-2.5 font-medium">Joined</th>
@@ -217,25 +217,25 @@ export function UserManager() {
                   return (
                     <tr
                       key={u.id}
-                      className="transition-colors hover:bg-bg/40"
+                      className="transition-colors hover:bg-neutral-950/40"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-bg-elevated text-fg-muted">
+                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-neutral-800 text-neutral-400">
                             <UserCircleIcon className="h-5 w-5" />
                           </span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="truncate font-medium text-fg">
+                              <span className="truncate font-medium text-neutral-50">
                                 {u.name ?? '—'}
                               </span>
                               {isSelf && (
-                                <span className="badge bg-bg-elevated text-fg-dim ring-1 ring-inset ring-neutral-800">
+                                <span className="badge bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-800">
                                   you
                                 </span>
                               )}
                             </div>
-                            <div className="truncate text-xs text-fg-dim">
+                            <div className="truncate text-xs text-neutral-500">
                               {u.email}
                             </div>
                           </div>
@@ -262,7 +262,7 @@ export function UserManager() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-xs text-fg-muted">
+                      <td className="px-3 py-3 text-xs text-neutral-400">
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-5 py-3 text-right">
@@ -276,7 +276,7 @@ export function UserManager() {
                             <span className="hidden sm:inline">Remove</span>
                           </button>
                         ) : (
-                          <span className="text-xs text-fg-dim">—</span>
+                          <span className="text-xs text-neutral-500">—</span>
                         )}
                       </td>
                     </tr>
@@ -288,19 +288,19 @@ export function UserManager() {
         )}
 
         {loading && (
-          <p className="px-5 py-3 text-xs text-fg-dim">Loading...</p>
+          <p className="px-5 py-3 text-xs text-neutral-500">Loading...</p>
         )}
       </div>
 
       {showForm && (
         <form
           onSubmit={(e) => void createUser(e)}
-          className="space-y-4 border-t border-neutral-800 bg-bg/40 px-5 py-4"
+          className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-fg-muted">
-                Name <span className="text-fg-dim">(optional)</span>
+              <span className="text-xs font-medium text-neutral-400">
+                Name <span className="text-neutral-500">(optional)</span>
               </span>
               <input
                 type="text"
@@ -311,7 +311,7 @@ export function UserManager() {
               />
             </label>
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-fg-muted">Email</span>
+              <span className="text-xs font-medium text-neutral-400">Email</span>
               <input
                 type="email"
                 placeholder="email@ejemplo.com"
@@ -322,8 +322,8 @@ export function UserManager() {
               />
             </label>
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-fg-muted">
-                Password <span className="text-fg-dim">(min 8)</span>
+              <span className="text-xs font-medium text-neutral-400">
+                Password <span className="text-neutral-500">(min 8)</span>
               </span>
               <input
                 type="password"
@@ -336,7 +336,7 @@ export function UserManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-fg-muted">Role</span>
+              <span className="text-xs font-medium text-neutral-400">Role</span>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as typeof role)}
@@ -352,7 +352,7 @@ export function UserManager() {
           </div>
 
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
               {error}
             </div>
           )}

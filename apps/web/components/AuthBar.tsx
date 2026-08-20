@@ -29,7 +29,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
 
   if (auth.loading) {
     return (
-      <div className="card px-5 py-4 text-sm text-fg-muted">Cargando sesión…</div>
+      <div className="card px-5 py-4 text-sm text-neutral-400">Cargando sesión…</div>
     );
   }
 
@@ -37,20 +37,20 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
     return (
       <div className="card flex items-center justify-between gap-4 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
             <UserCircleIcon className="h-6 w-6" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-fg">
+              <span className="truncate text-sm font-medium text-neutral-50">
                 {auth.user.email}
               </span>
-              <span className="badge bg-success/15 text-success ring-1 ring-inset ring-success/30">
+              <span className="badge bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 Active
               </span>
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-dim">
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
               <BuildingOfficeIcon className="h-3.5 w-3.5" />
               <span className="truncate">{auth.user.tenant.name}</span>
             </div>
@@ -72,8 +72,8 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
     return (
       <div className="card flex flex-col items-start justify-between gap-4 px-5 py-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-sm font-semibold text-fg">Inicia sesión</h2>
-          <p className="mt-0.5 text-xs text-fg-dim">
+          <h2 className="text-sm font-semibold text-neutral-50">Inicia sesión</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
             Accedé para chatear con tu red FTTH y gestionar tu tenant.
           </p>
         </div>
@@ -126,10 +126,10 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
     <form onSubmit={(e) => void submit(e)} className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-fg">
+          <h2 className="text-base font-semibold text-neutral-50">
             {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
           </h2>
-          <p className="mt-0.5 text-xs text-fg-dim">
+          <p className="mt-0.5 text-xs text-neutral-500">
             {isLogin
               ? 'Accedé a tu tenant para continuar.'
               : 'Creá tu cuenta y tenant en un solo paso.'}
@@ -205,7 +205,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+        <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
           {error}
         </div>
       )}
@@ -239,12 +239,12 @@ function Field({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="flex items-center justify-between text-xs font-medium text-fg-muted">
+      <span className="flex items-center justify-between text-xs font-medium text-neutral-400">
         <span className="inline-flex items-center gap-1.5">
-          <span className="text-fg-dim">{icon}</span>
+          <span className="text-neutral-500">{icon}</span>
           {label}
         </span>
-        {hint && <span className="text-fg-dim">{hint}</span>}
+        {hint && <span className="text-neutral-500">{hint}</span>}
       </span>
       {children}
     </label>

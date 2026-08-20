@@ -108,13 +108,13 @@ export function HistorySidebar({
       </button>
 
       <aside
-        className={`${open ? 'fixed inset-0 z-20 bg-bg/70 backdrop-blur-sm' : 'hidden'} lg:static lg:block lg:w-72 lg:flex-none lg:bg-transparent`}
+        className={`${open ? 'fixed inset-0 z-20 bg-neutral-950/70 backdrop-blur-sm' : 'hidden'} lg:static lg:block lg:w-72 lg:flex-none lg:bg-transparent`}
       >
         <div className="card flex h-full flex-col overflow-hidden lg:sticky lg:top-24">
           <header className="flex items-center justify-between gap-2 px-4 py-3.5">
             <div className="flex items-center gap-2">
-              <ChatBubbleLeftRightIcon className="h-4 w-4 text-fg-muted" />
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+              <ChatBubbleLeftRightIcon className="h-4 w-4 text-neutral-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
                 Historial
               </h3>
             </div>
@@ -131,7 +131,7 @@ export function HistorySidebar({
 
           <div className="border-t border-neutral-800 px-4 py-3">
             <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-dim" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               <input
                 type="text"
                 value={searchQuery}
@@ -161,11 +161,11 @@ export function HistorySidebar({
           <div className="flex-1 overflow-y-auto px-2 pb-3">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-                <ChatBubbleLeftRightIcon className="h-8 w-8 text-fg-dim" />
-                <p className="text-sm font-medium text-fg">
+                <ChatBubbleLeftRightIcon className="h-8 w-8 text-neutral-500" />
+                <p className="text-sm font-medium text-neutral-50">
                   {searchQuery ? 'Sin resultados' : 'Sin conversaciones'}
                 </p>
-                <p className="text-xs text-fg-dim">
+                <p className="text-xs text-neutral-500">
                   {searchQuery
                     ? 'Probá con otro término.'
                     : 'Hacé tu primera pregunta para empezar.'}
@@ -182,20 +182,20 @@ export function HistorySidebar({
                         onClick={() => handleSelect(c.id)}
                         className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                           isActive
-                            ? 'border-accent/60 bg-accent/10 text-fg'
-                            : 'border-transparent text-fg-muted hover:border-neutral-800 hover:bg-bg/60 hover:text-fg'
+                            ? 'border-blue-500/60 bg-blue-500/10 text-neutral-50'
+                            : 'border-transparent text-neutral-400 hover:border-neutral-800 hover:bg-neutral-950/60 hover:text-neutral-50'
                         }`}
                       >
                         <ChatBubbleLeftRightIcon
                           className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                            isActive ? 'text-accent' : 'text-fg-dim'
+                            isActive ? 'text-blue-500' : 'text-neutral-500'
                           }`}
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">
                             {c.title || 'Sin título'}
                           </span>
-                          <span className="mt-0.5 block text-xs text-fg-dim">
+                          <span className="mt-0.5 block text-xs text-neutral-500">
                             {c.messageCount} msg ·{' '}
                             {new Date(c.updatedAt).toLocaleDateString()}
                           </span>
@@ -206,7 +206,7 @@ export function HistorySidebar({
                         onClick={(e) => handleExport(e, c.id)}
                         title="Exportar conversación"
                         aria-label="Exportar conversación"
-                        className="absolute right-2 top-2 hidden rounded-md p-1.5 text-fg-dim transition-colors hover:bg-bg/80 hover:text-fg group-hover:flex"
+                        className="absolute right-2 top-2 hidden rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-950/80 hover:text-neutral-50 group-hover:flex"
                       >
                         <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                       </button>
@@ -217,7 +217,7 @@ export function HistorySidebar({
             )}
 
             {loading && (
-              <p className="mt-3 px-3 text-xs text-fg-dim">Cargando…</p>
+              <p className="mt-3 px-3 text-xs text-neutral-500">Cargando…</p>
             )}
           </div>
         </div>

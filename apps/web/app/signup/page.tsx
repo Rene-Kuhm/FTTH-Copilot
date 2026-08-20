@@ -20,18 +20,18 @@ export default function SignupPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-12">
       <header className="mb-8 text-center">
-        <Link href="/" className="inline-block text-sm text-fg-muted hover:text-fg">
+        <Link href="/" className="inline-block text-sm text-neutral-400 hover:text-neutral-50">
           ← FTTH-Copilot
         </Link>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">Crear cuenta</h1>
-        <p className="mt-1 text-sm text-fg-muted">
+        <p className="mt-1 text-sm text-neutral-400">
           Probalo gratis con datos mockeados. Después conectás tu NMS real.
         </p>
       </header>
       <AuthBar initialMode="signup" />
-      <p className="text-center text-xs text-fg-muted">
+      <p className="text-center text-xs text-neutral-400">
         ¿Ya tenés cuenta?{' '}
-        <Link href={'/login' as Route} className="text-accent hover:underline">
+        <Link href={'/login' as Route} className="text-blue-500 hover:underline">
           Iniciar sesión
         </Link>
       </p>

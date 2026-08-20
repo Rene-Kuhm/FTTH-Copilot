@@ -35,18 +35,18 @@ const STATUS_META: Record<
   connected: {
     label: 'Connected',
     className:
-      'bg-success/15 text-success ring-1 ring-inset ring-success/30',
+      'bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30',
     Icon: CheckCircleIcon,
   },
   error: {
     label: 'Error',
-    className: 'bg-danger/15 text-danger ring-1 ring-inset ring-danger/30',
+    className: 'bg-danger/15 text-red-500 ring-1 ring-inset ring-danger/30',
     Icon: XCircleIcon,
   },
   pending: {
     label: 'Pending',
     className:
-      'bg-warning/15 text-warning ring-1 ring-inset ring-warning/30',
+      'bg-warning/15 text-amber-500 ring-1 ring-inset ring-warning/30',
     Icon: ServerStackIcon,
   },
 };
@@ -136,12 +136,12 @@ export function ConnectorManager() {
     <section className="card overflow-hidden">
       <header className="flex items-center justify-between gap-4 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
             <ServerStackIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-fg">NMS Connectors</h2>
-            <p className="mt-0.5 text-xs text-fg-dim">
+            <h2 className="text-sm font-semibold text-neutral-50">NMS Connectors</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {connectors.length === 0
                 ? 'Sin connectors configurados'
                 : `${connectors.length} connector${connectors.length === 1 ? '' : 's'} configurado${connectors.length === 1 ? '' : 's'}`}
@@ -171,10 +171,10 @@ export function ConnectorManager() {
 
       <div className="border-t border-neutral-800 px-5 py-4">
         {connectors.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-bg/40 px-4 py-8 text-center">
-            <ServerStackIcon className="h-8 w-8 text-fg-dim" />
-            <p className="text-sm font-medium text-fg">No hay connectors</p>
-            <p className="max-w-md text-xs text-fg-dim">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-4 py-8 text-center">
+            <ServerStackIcon className="h-8 w-8 text-neutral-500" />
+            <p className="text-sm font-medium text-neutral-50">No hay connectors</p>
+            <p className="max-w-md text-xs text-neutral-500">
               El chat usa datos mock. Agregá un connector para conectar tu NMS real
               (SmartOLT, Mikrowisp, NetSense).
             </p>
@@ -187,22 +187,22 @@ export function ConnectorManager() {
               return (
                 <li
                   key={c.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-neutral-800 bg-bg/60 px-4 py-3 transition-colors hover:border-neutral-700 hover:bg-bg"
+                  className="flex items-center justify-between gap-4 rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3 transition-colors hover:border-neutral-700 hover:bg-neutral-950"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-bg-subtle text-fg-muted ring-1 ring-inset ring-neutral-800">
+                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-neutral-400 ring-1 ring-inset ring-neutral-800">
                       <ServerStackIcon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-fg">
+                        <span className="truncate text-sm font-medium text-neutral-50">
                           {c.label}
                         </span>
-                        <span className="badge bg-bg-elevated text-fg-muted ring-1 ring-inset ring-neutral-800">
+                        <span className="badge bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-800">
                           {c.provider}
                         </span>
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-dim">
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
                         <span className={status.className + ' badge'}>
                           <StatusIcon className="h-3.5 w-3.5" />
                           {status.label}
@@ -233,18 +233,18 @@ export function ConnectorManager() {
         )}
 
         {loading && (
-          <p className="mt-3 text-xs text-fg-dim">Cargando…</p>
+          <p className="mt-3 text-xs text-neutral-500">Cargando…</p>
         )}
       </div>
 
       {showForm && canManage && (
         <form
           onSubmit={(e) => void submit(e)}
-          className="space-y-4 border-t border-neutral-800 bg-bg/40 px-5 py-4"
+          className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5 sm:col-span-1">
-              <span className="text-xs font-medium text-fg-muted">Provider</span>
+              <span className="text-xs font-medium text-neutral-400">Provider</span>
               <select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value as typeof provider)}
@@ -256,7 +256,7 @@ export function ConnectorManager() {
               </select>
             </label>
             <label className="block space-y-1.5 sm:col-span-1">
-              <span className="text-xs font-medium text-fg-muted">Etiqueta</span>
+              <span className="text-xs font-medium text-neutral-400">Etiqueta</span>
               <input
                 type="text"
                 placeholder="Ej. 'SmartOLT prod'"
@@ -267,7 +267,7 @@ export function ConnectorManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-fg-muted">API key</span>
+              <span className="text-xs font-medium text-neutral-400">API key</span>
               <input
                 type="password"
                 placeholder="Se guarda encriptada"
@@ -278,8 +278,8 @@ export function ConnectorManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-fg-muted">
-                Base URL <span className="text-fg-dim">(opcional)</span>
+              <span className="text-xs font-medium text-neutral-400">
+                Base URL <span className="text-neutral-500">(opcional)</span>
               </span>
               <input
                 type="url"
@@ -292,13 +292,13 @@ export function ConnectorManager() {
           </div>
 
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
               {error}
             </div>
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-fg-dim">
+            <p className="text-xs text-neutral-500">
               La arquitectura está lista. Cuando llegue el adapter HTTP real, el chat
               usará tu connector automáticamente.
             </p>

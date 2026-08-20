@@ -39,22 +39,22 @@ const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
   {
     text: '¿Cuántas ONUs están offline ahora?',
     Icon: SignalIcon,
-    tint: 'text-danger bg-danger/10 ring-danger/30',
+    tint: 'text-red-500 bg-red-500/10 ring-danger/30',
   },
   {
     text: '¿Qué OLTs tienen temperatura alta?',
     Icon: CpuChipIcon,
-    tint: 'text-warning bg-warning/10 ring-warning/30',
+    tint: 'text-amber-500 bg-warning/10 ring-warning/30',
   },
   {
     text: 'Dame el detalle de la ONU con serial SN-001',
     Icon: ServerStackIcon,
-    tint: 'text-accent bg-accent/10 ring-accent/30',
+    tint: 'text-blue-500 bg-blue-500/10 ring-blue-500/30',
   },
   {
     text: '¿Cuál es el uptime promedio de la red?',
     Icon: ChartBarSquareIcon,
-    tint: 'text-success bg-success/10 ring-success/30',
+    tint: 'text-emerald-500 bg-success/10 ring-success/30',
   },
 ];
 
@@ -152,12 +152,12 @@ export default function ChatUI() {
   return (
     <section className="card overflow-hidden">
       <header className="flex items-center gap-3 border-b border-neutral-800 px-5 py-4">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
           <ChatBubbleLeftRightIcon className="h-5 w-5" />
         </span>
         <div>
-          <h2 className="text-sm font-semibold text-fg">Copilot Chat</h2>
-          <p className="mt-0.5 text-xs text-fg-dim">
+          <h2 className="text-sm font-semibold text-neutral-50">Copilot Chat</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
             Preguntale a tu red FTTH en lenguaje natural
           </p>
         </div>
@@ -171,7 +171,7 @@ export default function ChatUI() {
         <div className="flex flex-1 flex-col gap-4 px-5 py-5">
           <div
             ref={scrollRef}
-            className="flex min-h-[320px] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-bg/60 p-4"
+            className="flex min-h-[320px] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-950/60 p-4"
           >
             {messages.length === 0 ? (
               <EmptyState
@@ -182,11 +182,11 @@ export default function ChatUI() {
               messages.map((m) => <MessageBubble key={m.id} message={m} />)
             )}
             {isLoading && (
-              <div className="flex items-center gap-2 px-1 text-sm text-fg-muted">
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:150ms]" />
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent [animation-delay:300ms]" />
-                <span className="ml-1 text-xs text-fg-dim">
+              <div className="flex items-center gap-2 px-1 text-sm text-neutral-400">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:150ms]" />
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:300ms]" />
+                <span className="ml-1 text-xs text-neutral-500">
                   Analizando tu red…
                 </span>
               </div>
@@ -194,7 +194,7 @@ export default function ChatUI() {
           </div>
 
           {!canChat && auth.user && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-500">
               <CommandLineIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>
                 Read-only mode — you do not have permission to send messages.
@@ -203,7 +203,7 @@ export default function ChatUI() {
           )}
 
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-500">
               {error}
             </div>
           )}
@@ -244,14 +244,14 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-inset ring-accent/30">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
         <SparklesIcon className="h-7 w-7" />
       </span>
       <div className="space-y-1">
-        <h3 className="text-base font-semibold text-fg">
+        <h3 className="text-base font-semibold text-neutral-50">
           Hacé tu primera pregunta
         </h3>
-        <p className="mx-auto max-w-md text-sm text-fg-dim">
+        <p className="mx-auto max-w-md text-sm text-neutral-500">
           Tu copilot analiza tu red FTTH y responde con datos en vivo. Probá con
           una de estas:
         </p>
@@ -263,14 +263,14 @@ function EmptyState({
             type="button"
             onClick={() => onPick(q.text)}
             disabled={disabled}
-            className="group flex items-start gap-3 rounded-lg border border-neutral-800 bg-bg-subtle p-3 text-left transition-all hover:-translate-y-0.5 hover:border-neutral-700 hover:bg-bg-elevated disabled:opacity-50 disabled:hover:translate-y-0"
+            className="group flex items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-neutral-700 hover:bg-neutral-800 disabled:opacity-50 disabled:hover:translate-y-0"
           >
             <span
               className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${q.tint}`}
             >
               <q.Icon className="h-4 w-4" />
             </span>
-            <span className="flex-1 text-sm font-medium text-fg">
+            <span className="flex-1 text-sm font-medium text-neutral-50">
               {q.text}
             </span>
           </button>
@@ -287,13 +287,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}
     >
       {message.toolsUsed && message.toolsUsed.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-dim">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
           <CommandLineIcon className="h-3.5 w-3.5" />
           <span className="font-medium">Tools:</span>
           {message.toolsUsed.map((t, i) => (
             <span
               key={i}
-              className="rounded-md border border-neutral-700 bg-bg px-2 py-0.5 font-mono text-[11px] text-fg-muted"
+              className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-0.5 font-mono text-[11px] text-neutral-400"
             >
               {t.name}
             </span>
@@ -303,8 +303,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div
         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
-            ? 'rounded-br-md bg-accent text-white shadow-sm shadow-accent/20'
-            : 'rounded-bl-md border border-neutral-800 bg-bg-subtle text-fg'
+            ? 'rounded-br-md bg-blue-500 text-white shadow-sm shadow-accent/20'
+            : 'rounded-bl-md border border-neutral-800 bg-neutral-900 text-neutral-50'
         }`}
       >
         <div className="whitespace-pre-wrap">{message.content}</div>

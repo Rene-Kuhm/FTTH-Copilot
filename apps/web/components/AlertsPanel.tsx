@@ -31,15 +31,15 @@ const SEVERITY_META: Record<
 > = {
   critical: {
     label: 'Critical',
-    chipClass: 'bg-danger/15 text-danger ring-1 ring-inset ring-danger/30',
+    chipClass: 'bg-danger/15 text-red-500 ring-1 ring-inset ring-danger/30',
     rowClass:
-      'border-danger/30 bg-danger/5 hover:border-danger/50 hover:bg-danger/10',
+      'border-danger/30 bg-danger/5 hover:border-danger/50 hover:bg-red-500/10',
     Icon: XCircleIcon,
   },
   warning: {
     label: 'Warning',
     chipClass:
-      'bg-warning/15 text-warning ring-1 ring-inset ring-warning/30',
+      'bg-warning/15 text-amber-500 ring-1 ring-inset ring-warning/30',
     rowClass:
       'border-warning/30 bg-warning/5 hover:border-warning/50 hover:bg-warning/10',
     Icon: ExclamationTriangleIcon,
@@ -47,9 +47,9 @@ const SEVERITY_META: Record<
   info: {
     label: 'Info',
     chipClass:
-      'bg-accent/15 text-accent ring-1 ring-inset ring-accent/30',
+      'bg-blue-500/15 text-blue-500 ring-1 ring-inset ring-blue-500/30',
     rowClass:
-      'border-accent/30 bg-accent/5 hover:border-accent/50 hover:bg-accent/10',
+      'border-blue-500/30 bg-blue-500/5 hover:border-blue-500/50 hover:bg-blue-500/10',
     Icon: InformationCircleIcon,
   },
 };
@@ -150,12 +150,12 @@ export function AlertsPanel() {
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-neutral-800/30"
       >
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning/10 text-warning ring-1 ring-inset ring-warning/30">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning/10 text-amber-500 ring-1 ring-inset ring-warning/30">
             <BellIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-fg">Network Alerts</h2>
-            <p className="mt-0.5 text-xs text-fg-dim">
+            <h2 className="text-sm font-semibold text-neutral-50">Network Alerts</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {alerts.length} active alert{alerts.length === 1 ? '' : 's'} ·
               grouped by category
             </p>
@@ -175,7 +175,7 @@ export function AlertsPanel() {
             </span>
           )}
           <ChevronDownIcon
-            className={`h-4 w-4 text-fg-dim transition-transform ${
+            className={`h-4 w-4 text-neutral-500 transition-transform ${
               expanded ? '' : '-rotate-90'
             }`}
           />
@@ -197,21 +197,21 @@ export function AlertsPanel() {
                 >
                   <div className="flex items-center gap-2.5">
                     {collapsed ? (
-                      <ChevronRightIcon className="h-4 w-4 text-fg-dim" />
+                      <ChevronRightIcon className="h-4 w-4 text-neutral-500" />
                     ) : (
-                      <ChevronDownIcon className="h-4 w-4 text-fg-dim" />
+                      <ChevronDownIcon className="h-4 w-4 text-neutral-500" />
                     )}
                     <Icon
                       className={`h-4 w-4 ${
                         SEVERITY_META[topSeverity.severity].chipClass.split(
                           ' ',
-                        )[1] ?? 'text-fg-muted'
+                        )[1] ?? 'text-neutral-400'
                       }`}
                     />
-                    <span className="font-medium text-fg">
+                    <span className="font-medium text-neutral-50">
                       {formatCategory(category)}
                     </span>
-                    <span className="text-xs text-fg-dim">
+                    <span className="text-xs text-neutral-500">
                       ({items.length})
                     </span>
                   </div>
@@ -231,18 +231,18 @@ export function AlertsPanel() {
                             <AlertIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <span className="text-sm font-medium text-fg">
+                                <span className="text-sm font-medium text-neutral-50">
                                   {alert.title}
                                 </span>
-                                <span className="text-xs text-fg-dim">
+                                <span className="text-xs text-neutral-500">
                                   {alert.affectedEntity}
                                 </span>
                               </div>
-                              <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">
+                              <p className="mt-0.5 text-xs leading-relaxed text-neutral-400">
                                 {alert.description}
                               </p>
                             </div>
-                            <span className="flex-shrink-0 text-xs text-fg-dim">
+                            <span className="flex-shrink-0 text-xs text-neutral-500">
                               {timeAgo(alert.detectedAt)}
                             </span>
                           </div>

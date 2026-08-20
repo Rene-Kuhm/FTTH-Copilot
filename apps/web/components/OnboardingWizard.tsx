@@ -83,15 +83,15 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="mb-6 rounded-lg border border-neutral-800 bg-bg-subtle p-5">
+    <div className="mb-6 rounded-lg border border-neutral-800 bg-neutral-900 p-5">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-fg-muted">
+        <div className="flex items-center gap-2 text-xs text-neutral-400">
           <StepDot active={step === 'welcome'} done={step !== 'welcome'} />
           <StepDot active={step === 'connector'} done={step === 'test' || step === 'done'} />
           <StepDot active={step === 'test'} done={step === 'done'} />
           <StepDot active={step === 'done'} done={false} />
         </div>
-        <button onClick={skip} className="text-xs text-fg-muted hover:text-fg">
+        <button onClick={skip} className="text-xs text-neutral-400 hover:text-neutral-50">
           Skip
         </button>
       </div>
@@ -99,19 +99,19 @@ export function OnboardingWizard() {
       {step === 'welcome' && (
         <div>
           <h2 className="text-base font-semibold">Bienvenido a FTTH-Copilot</h2>
-          <p className="mt-2 text-sm text-fg-muted">
+          <p className="mt-2 text-sm text-neutral-400">
             Vamos a configurar tu NMS en 3 pasos. Tarda menos de 2 minutos.
           </p>
           <div className="mt-4 flex gap-2">
             <button
               onClick={() => setStep('connector')}
-              className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+              className="rounded-md bg-blue-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
             >
               Empezar
             </button>
             <button
               onClick={skip}
-              className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-accent"
+              className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-blue-500"
             >
               Más tarde
             </button>
@@ -140,7 +140,7 @@ export function OnboardingWizard() {
       {step === 'done' && (
         <div>
           <h2 className="text-base font-semibold">¡Listo! Ya podés chatear con tu red.</h2>
-          <p className="mt-2 text-sm text-fg-muted">
+          <p className="mt-2 text-sm text-neutral-400">
             El chat va a usar tu connector real a partir de ahora. Si querés agregar más
             NMS, volvé a la sección <em>NMS Connectors</em>.
           </p>
@@ -148,13 +148,13 @@ export function OnboardingWizard() {
             <Link
               href={'/app' as Route}
               onClick={complete}
-              className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+              className="rounded-md bg-blue-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
             >
               Ir al chat
             </Link>
             <button
               onClick={complete}
-              className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-accent"
+              className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-blue-500"
             >
               Cerrar
             </button>
@@ -167,9 +167,9 @@ export function OnboardingWizard() {
 
 function StepDot({ active, done }: { active: boolean; done: boolean }) {
   const cls = active
-    ? 'bg-accent'
+    ? 'bg-blue-500'
     : done
-      ? 'bg-accent/40'
+      ? 'bg-blue-500/40'
       : 'bg-neutral-700';
   return <span className={`inline-block h-1.5 w-6 rounded-full ${cls}`} />;
 }
@@ -219,32 +219,32 @@ function ConnectorForm({ onCancel, onCreated }: ConnectorFormProps) {
   return (
     <form onSubmit={(e) => void submit(e)}>
       <h2 className="text-base font-semibold">Conectá tu SmartOLT</h2>
-      <p className="mt-1 text-sm text-fg-muted">
+      <p className="mt-1 text-sm text-neutral-400">
         Tu API key se guarda encriptada (AES-256-GCM). No la vemos ni la logueamos.
       </p>
       <div className="mt-4 space-y-2">
-        <label className="block text-xs text-fg-muted">
+        <label className="block text-xs text-neutral-400">
           Provider
           <select
             value={provider}
             onChange={(e) => setProvider(e.target.value as Provider)}
-            className="mt-1 w-full rounded border border-neutral-700 bg-bg px-3 py-1.5 text-sm focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
           >
             <option value="SMARTOLT">SmartOLT</option>
             <option value="MIKROWISP">Mikrowisp</option>
           </select>
         </label>
-        <label className="block text-xs text-fg-muted">
+        <label className="block text-xs text-neutral-400">
           Etiqueta
           <input
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             required
-            className="mt-1 w-full rounded border border-neutral-700 bg-bg px-3 py-1.5 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none"
           />
         </label>
-        <label className="block text-xs text-fg-muted">
+        <label className="block text-xs text-neutral-400">
           API key
           <input
             type="password"
@@ -252,17 +252,17 @@ function ConnectorForm({ onCancel, onCreated }: ConnectorFormProps) {
             onChange={(e) => setApiKey(e.target.value)}
             required
             placeholder="Token Bearer de SmartOLT"
-            className="mt-1 w-full rounded border border-neutral-700 bg-bg px-3 py-1.5 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none"
           />
         </label>
-        <label className="block text-xs text-fg-muted">
+        <label className="block text-xs text-neutral-400">
           Base URL
           <input
             type="url"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             placeholder="https://demo.smartolt.com"
-            className="mt-1 w-full rounded border border-neutral-700 bg-bg px-3 py-1.5 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none"
           />
         </label>
         {error && <div className="text-xs text-red-400">{error}</div>}
@@ -271,14 +271,14 @@ function ConnectorForm({ onCancel, onCreated }: ConnectorFormProps) {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          className="rounded-md bg-blue-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {submitting ? 'Guardando…' : 'Guardar y probar'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-accent"
+          className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-blue-500"
         >
           Volver
         </button>
@@ -322,11 +322,11 @@ function TestStep({ connector, onBack, onDone }: TestStepProps) {
   return (
     <div>
       <h2 className="text-base font-semibold">Probemos la conexión</h2>
-      <p className="mt-1 text-sm text-fg-muted">
-        Estamos haciendo un <em>ping</em> contra <code className="rounded bg-bg px-1 py-0.5 text-xs">{connector.provider}</code> con tu API key.
+      <p className="mt-1 text-sm text-neutral-400">
+        Estamos haciendo un <em>ping</em> contra <code className="rounded bg-neutral-950 px-1 py-0.5 text-xs">{connector.provider}</code> con tu API key.
       </p>
-      <div className="mt-4 rounded border border-neutral-800 bg-bg p-3 text-sm">
-        {running && <span className="text-fg-muted">Probando…</span>}
+      <div className="mt-4 rounded border border-neutral-800 bg-neutral-950 p-3 text-sm">
+        {running && <span className="text-neutral-400">Probando…</span>}
         {!running && result?.ok && (
           <span className="text-green-400">Conexión exitosa. Tu NMS responde correctamente.</span>
         )}
@@ -334,7 +334,7 @@ function TestStep({ connector, onBack, onDone }: TestStepProps) {
           <div>
             <div className="text-red-400">Falló la conexión.</div>
             {result.error && (
-              <div className="mt-1 text-xs text-fg-muted">{result.error}</div>
+              <div className="mt-1 text-xs text-neutral-400">{result.error}</div>
             )}
           </div>
         )}
@@ -343,14 +343,14 @@ function TestStep({ connector, onBack, onDone }: TestStepProps) {
         <button
           onClick={onDone}
           disabled={running}
-          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          className="rounded-md bg-blue-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
         >
           Continuar
         </button>
         <button
           onClick={onBack}
           disabled={running}
-          className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-accent disabled:opacity-50"
+          className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm hover:border-blue-500 disabled:opacity-50"
         >
           Editar connector
         </button>

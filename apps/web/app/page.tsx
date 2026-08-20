@@ -6,24 +6,24 @@ export default function LandingPage() {
     <main className="min-h-screen">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link href="/" className="text-base font-semibold tracking-tight">
-          FTTH<span className="text-accent">-</span>Copilot
+          FTTH<span className="text-blue-500">-</span>Copilot
         </Link>
         <div className="flex items-center gap-3">
           <Link
             href={'/docs' as Route}
-            className="text-sm text-fg-muted hover:text-fg"
+            className="text-sm text-neutral-400 hover:text-neutral-50"
           >
             Docs
           </Link>
           <Link
             href={'/login' as Route}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-accent"
+            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-blue-500"
           >
             Login
           </Link>
           <Link
             href={'/signup' as Route}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
           >
             Probar demo
           </Link>
@@ -31,15 +31,15 @@ export default function LandingPage() {
       </nav>
 
       <section className="mx-auto max-w-6xl px-6 pt-20 pb-24 text-center">
-        <span className="inline-block rounded-full border border-neutral-800 bg-bg-subtle px-3 py-1 text-xs text-fg-muted">
+        <span className="inline-block rounded-full border border-neutral-800 bg-neutral-900 px-3 py-1 text-xs text-neutral-400">
           Para ISPs que usan SmartOLT o Mikrowisp
         </span>
         <h1 className="mt-6 text-balance text-5xl font-semibold tracking-tight md:text-6xl">
           Diagnóstico de tu red FTTH
           <br />
-          <span className="text-accent">en lenguaje natural</span>
+          <span className="text-blue-500">en lenguaje natural</span>
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-fg-muted">
+        <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-neutral-400">
           Preguntale a tu red en español. Sin reemplazar tu NMS, sin dashboards crípticos.
           Detectá ONUs offline, OLTs con temperatura alta y alertas críticas antes de que
           te llamen los clientes.
@@ -47,13 +47,13 @@ export default function LandingPage() {
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             href={'/signup' as Route}
-            className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="rounded-md bg-blue-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
           >
             Probar demo
           </Link>
           <Link
             href={'/login' as Route}
-            className="rounded-md border border-neutral-700 px-5 py-2.5 text-sm hover:border-accent"
+            className="rounded-md border border-neutral-700 px-5 py-2.5 text-sm hover:border-blue-500"
           >
             Login
           </Link>
@@ -64,7 +64,7 @@ export default function LandingPage() {
         <h2 className="text-center text-2xl font-semibold tracking-tight">
           Lo que hace por tu ISP
         </h2>
-        <p className="mx-auto mt-3 max-w-xl text-center text-sm text-fg-muted">
+        <p className="mx-auto mt-3 max-w-xl text-center text-sm text-neutral-400">
           Cuatro pilares que cubren el día a día operativo de un ISP FTTH chico y mediano.
         </p>
         <div className="mt-10 grid gap-4 md:grid-cols-2">
@@ -89,7 +89,7 @@ export default function LandingPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-24">
         <h2 className="text-center text-2xl font-semibold tracking-tight">Cómo funciona</h2>
-        <p className="mx-auto mt-3 max-w-xl text-center text-sm text-fg-muted">
+        <p className="mx-auto mt-3 max-w-xl text-center text-sm text-neutral-400">
           Tres pasos para empezar a chatear con tu red.
         </p>
         <ol className="mt-10 grid gap-4 md:grid-cols-3">
@@ -112,15 +112,15 @@ export default function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="rounded-xl border border-neutral-800 bg-bg-subtle px-8 py-12 text-center">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-8 py-12 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">Listo para chatear con tu red?</h2>
-          <p className="mx-auto mt-3 max-w-md text-sm text-fg-muted">
+          <p className="mx-auto mt-3 max-w-md text-sm text-neutral-400">
             Empezás con datos mockeados. Cuando conectes tu NMS real, el chat pasa a usar
             tu API automáticamente.
           </p>
           <Link
             href={'/signup' as Route}
-            className="mt-6 inline-block rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="mt-6 inline-block rounded-md bg-blue-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
           >
             Probar demo
           </Link>
@@ -128,12 +128,12 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-neutral-800">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-xs text-fg-muted md:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-xs text-neutral-400 md:flex-row">
           <div>FTTH-Copilot · Diagnóstico en lenguaje natural para ISPs FTTH</div>
           <div className="flex gap-6">
-            <Link href={'/docs' as Route} className="hover:text-fg">Docs</Link>
-            <Link href={'/login' as Route} className="hover:text-fg">Login</Link>
-            <Link href={'/signup' as Route} className="hover:text-fg">Demo</Link>
+            <Link href={'/docs' as Route} className="hover:text-neutral-50">Docs</Link>
+            <Link href={'/login' as Route} className="hover:text-neutral-50">Login</Link>
+            <Link href={'/signup' as Route} className="hover:text-neutral-50">Demo</Link>
           </div>
         </div>
       </footer>
@@ -143,23 +143,23 @@ export default function LandingPage() {
 
 function Feature({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-lg border border-neutral-800 bg-bg-subtle p-6">
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
       <h3 className="text-base font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-fg-muted">{body}</p>
+      <p className="mt-2 text-sm text-neutral-400">{body}</p>
     </div>
   );
 }
 
 function Step({ n, title, body }: { n: number; title: string; body: string }) {
   return (
-    <li className="rounded-lg border border-neutral-800 bg-bg-subtle p-6">
+    <li className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
       <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-accent text-sm font-semibold text-accent">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-blue-500 text-sm font-semibold text-blue-500">
           {n}
         </span>
         <h3 className="text-base font-semibold">{title}</h3>
       </div>
-      <p className="mt-3 text-sm text-fg-muted">{body}</p>
+      <p className="mt-3 text-sm text-neutral-400">{body}</p>
     </li>
   );
 }
