@@ -1,4 +1,5 @@
 import ChatUI from '@/components/ChatUI';
+import { AuthBar } from '@/components/AuthBar';
 
 export default function HomePage() {
   return (
@@ -10,6 +11,7 @@ export default function HomePage() {
           de SmartOLT.
         </p>
       </header>
+      <AuthBar />
       <ChatUI />
     </main>
   );
