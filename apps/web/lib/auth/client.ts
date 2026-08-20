@@ -39,7 +39,11 @@ export function useAuth(): AuthState {
   };
 
   useEffect(() => {
-    void refresh();
+    // Defer the initial fetch so we don't setState synchronously inside
+    // the effect body (React 19 strict rules).
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, []);
 
   const login = async (email: string, password: string) => {
