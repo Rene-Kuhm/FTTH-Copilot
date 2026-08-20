@@ -2,7 +2,7 @@
   "name": "ftth-copilot",
   "version": "0.1.0",
   "private": true,
-  "description": "Agente de IA sobre SmartOLT/Mikrowisp que da diagnóstico en lenguaje natural y reportes automáticos para ISPs.",
+  "description": "Agente de IA sobre SmartOLT/Mikrowisp que da diagn\u00f3stico en lenguaje natural y reportes autom\u00e1ticos para ISPs.",
   "packageManager": "pnpm@11.22.0",
   "engines": {
     "node": ">=22.0.0",
@@ -14,7 +14,10 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "test:unit": "turbo run test:unit",
+    "test:coverage": "turbo run test:coverage",
+    "test:coverage-check": "turbo run test:coverage -- --coverage.thresholds.lines=80 --coverage.thresholds.functions=80 --coverage.thresholds.branches=70 --coverage.thresholds.statements=80 || (echo \"Coverage below thresholds. Per-package current coverage:\" && pnpm test:coverage 2>&1 | tail -50 && exit 1)"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

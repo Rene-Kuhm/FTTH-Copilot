@@ -1,0 +1,161 @@
+name: CI
+
+# Se dispara en cada push a cualquier rama y en cada Pull Request hacia main.
+# Todo corre 100% sobre GitHub Actions (2.000 min/mes gratis en repos privados),
+# sin ningún servicio de pago ni ninguna API key de proveedor de LLM.
+# El agente (Claude, GPT, DeepSeek, el que sea) NO se llama en este pipeline:
+# los tests usan mocks (MSW) para simular respuestas del LLM y de las APIs
+# externas (SmartOLT, etc.), así el CI corre igual sin importar qué agente
+# elijas usar en desarrollo o en producción.
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+
+# Cancela runs anteriores del mismo branch/PR si llega un push nuevo,
+# para no desperdiciar minutos gratuitos de Actions.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permisos mínimos necesarios (principio de menor privilegio).
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.22.0"
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # 1) Lint + typecheck — falla rápido, antes de gastar minutos
+  #    en jobs más pesados.
+  # ────────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  # ────────────────────────────────────────────────────────────
+  # 2) Tests unitarios — rápidos, sin dependencias externas.
+  #    Cubre packages/connectors, packages/agent-core, etc.
+  # ────────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests with coverage
+        run: pnpm test:unit --coverage
+
+      - name: Check coverage thresholds
+        run: pnpm test:coverage-check
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage/
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────
+  # 3) Build — confirma que todo el monorepo compila.
+  # ────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs:
+      - test-unit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+  # ────────────────────────────────────────────────────────────
+  # 4) Gate final — job "resumen" que agrupa todo lo anterior.
+  #    Configurar ESTE job como required status check en la
+  #    protección de rama de main, así no hay que ir actualizando
+  #    la regla cada vez que se agrega un job.
+  # ────────────────────────────────────────────────────────────
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-typecheck
+      - test-unit
+      - build
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "Al menos un job falló."
+            exit 1
+          fi
+          echo "Todos los jobs requeridos pasaron correctamente."
+
+  # TODO Fase 2 — agregar cuando exista @ftth-copilot/db + migraciones Prisma:
+  #   test-integration (con Postgres como service container)
+  #
+  # TODO Fase 2 — agregar cuando esté la UI completa:
+  #   test-e2e (Playwright contra el frontend levantado en el runner,
+  #   con MSW interceptando llamadas al LLM y a SmartOLT — cero API key real)
