@@ -20,7 +20,7 @@ Esta entrega es una **demo local** con datos mockeados de SmartOLT. El agente re
 |---|---|
 | Lenguaje | TypeScript 5.7 |
 | Monorepo | pnpm workspaces + Turborepo |
-| Frontend | Next.js 15 (App Router) + Tailwind CSS |
+| Frontend | Next.js 16 (App Router) + Tailwind CSS 4 |
 | Backend (cuando esté) | Node.js + Fastify (próxima fase) |
 | LLM | Anthropic Claude (`claude-sonnet-4-6`) |
 | Connector | Mock fixtures (SmartOLT real en fase posterior) |
@@ -98,7 +98,7 @@ Las mínimas para arrancar:
 
 ## Roadmap
 
-- [x] **Fase 0** — Scaffold del monorepo + agente Claude con tool-calling mock
+- [x] **Fase 0** — Scaffold del monorepo + agente Claude con tool-calling mock (Next.js 16.3.1 + Tailwind 4.3.3)
 - [ ] **Fase 1** — Capturar respuestas reales de SmartOLT API, validar con 10 preguntas de diagnóstico
 - [ ] **Fase 2** — Auth multi-tenant + UI pulida + tests E2E + deploy staging
 - [ ] **Fase 3** — Piloto con 1-3 ISPs reales + reportes automáticos + facturación

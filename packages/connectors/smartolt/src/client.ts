@@ -10,7 +10,7 @@ import {
   FIXTURE_ONUS,
   FIXTURE_ONU_DETAILS,
   computeOverview,
-} from './fixtures.js';
+} from './fixtures';
 
 export interface SmartOltClientOptions {
   useMock: boolean;

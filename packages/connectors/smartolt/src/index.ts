@@ -1,2 +1,2 @@
-export { SmartOltClient, type SmartOltClientOptions } from './client.js';
-export * from './fixtures.js';
+export { SmartOltClient, type SmartOltClientOptions } from './client';
+export * from './fixtures';

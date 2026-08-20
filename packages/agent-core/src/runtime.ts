@@ -1,11 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentResult, ToolCallRecord } from '@ftth-copilot/shared';
-import { SYSTEM_PROMPT } from './prompts/system.js';
+import { SYSTEM_PROMPT } from './prompts/system';
 import {
   buildTools,
   executeToolCall,
   buildDefaultConnector,
-} from './tools/index.js';
+} from './tools/index';
 
 export interface RunAgentOptions {
   userMessage: string;
