@@ -3,14 +3,11 @@ import { z } from 'zod';
 import { runAgent } from '@ftth-copilot/agent-core';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
+import { ChatOltClient } from '@/lib/connectors/chat-client';
+import type { INmsConnector } from '@ftth-copilot/connectors-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-interface ChatBody {
-  message: string;
-  conversationId?: string;
-}
 
 const bodySchema = z.object({
   message: z.string().min(1).max(8000),
@@ -28,11 +25,10 @@ export async function POST(req: NextRequest) {
   }
   const { message, conversationId } = parsed.data;
 
-  // Identify user (auth) — current state: optional for demo.
   const user = await getCurrentUser();
 
-  // Persist: ensure conversation exists and belongs to this user/tenant.
   let conversation;
+  let connectorForChat: INmsConnector | null = null;
   if (user) {
     if (conversationId) {
       conversation = await prisma.conversation.findFirst({
@@ -55,13 +51,15 @@ export async function POST(req: NextRequest) {
         content: message,
       },
     });
+    connectorForChat = await ChatOltClient.forTenant(user.tenantId);
   }
 
-  // Run agent (uses the mock SmartOLT connector for now).
-  // TODO: switch to a real connector driven by user.tenantId + their NmsConnection.
   let result;
   try {
-    result = await runAgent({ userMessage: message });
+    result = await runAgent({
+      userMessage: message,
+      connector: connectorForChat ?? undefined,
+    });
   } catch (err) {
     console.error('[ftth-copilot/api/chat] agent error', err);
     return NextResponse.json(
@@ -70,7 +68,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Persist agent response if user is authenticated.
   if (user && conversation) {
     await prisma.message.create({
       data: {
@@ -80,7 +77,6 @@ export async function POST(req: NextRequest) {
         toolCalls: result.toolCalls.length > 0 ? (result.toolCalls as unknown as object) : undefined,
       },
     });
-    // Log each tool call for the audit trail.
     for (const tc of result.toolCalls) {
       await prisma.agentActionLog.create({
         data: {
