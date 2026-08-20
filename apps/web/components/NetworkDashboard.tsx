@@ -45,7 +45,7 @@ function StatusBadge({ status }: { status: string }) {
     degraded: 'bg-yellow-900/50 text-yellow-400 border-yellow-800',
   };
   return (
-    <span className={`rounded border px-2 py-0.5 text-xs ${colors[status] ?? 'border-neutral-700 text-fg-muted'}`}>
+    <span className={`rounded border px-2 py-0.5 text-xs ${colors[status] ?? 'border-neutral-700 text-neutral-400'}`}>
       {status}
     </span>
   );
@@ -66,7 +66,7 @@ export default function NetworkDashboard() {
     });
   }, []);
 
-  if (loading) return <p className="text-sm text-fg-muted">Cargando datos de la red…</p>;
+  if (loading) return <p className="text-sm text-neutral-400">Cargando datos de la red…</p>;
   if (error) return <div className="rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-400">{error}</div>;
   if (!data) return null;
 
@@ -83,8 +83,8 @@ export default function NetworkDashboard() {
       </div>
 
       {/* Status distribution bar */}
-      <div className="rounded-md border border-neutral-800 bg-bg-subtle p-4">
-        <h3 className="mb-2 text-xs font-medium uppercase text-fg-muted">Distribucion de estado ONUs</h3>
+      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
+        <h3 className="mb-2 text-xs font-medium uppercase text-neutral-400">Distribucion de estado ONUs</h3>
         <div className="flex h-6 overflow-hidden rounded-full">
           {statusDistribution.online > 0 && (
             <div className="bg-green-600 flex items-center justify-center text-xs text-white" style={{ width: `${(statusDistribution.online / overview.totalOnus) * 100}%` }}>
@@ -102,7 +102,7 @@ export default function NetworkDashboard() {
             </div>
           )}
         </div>
-        <div className="mt-1 flex gap-4 text-xs text-fg-muted">
+        <div className="mt-1 flex gap-4 text-xs text-neutral-400">
           <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-green-600" /> Online ({statusDistribution.online})</span>
           <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> Degraded ({statusDistribution.degraded})</span>
           <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-600" /> Offline ({statusDistribution.offline})</span>
@@ -110,12 +110,12 @@ export default function NetworkDashboard() {
       </div>
 
       {/* OLTs table */}
-      <div className="rounded-md border border-neutral-800 bg-bg-subtle p-4">
-        <h3 className="mb-3 text-xs font-medium uppercase text-fg-muted">OLTs</h3>
+      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
+        <h3 className="mb-3 text-xs font-medium uppercase text-neutral-400">OLTs</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-neutral-800 text-left text-fg-muted">
+              <tr className="border-b border-neutral-800 text-left text-neutral-400">
                 <th className="pb-2 pr-4">OLT</th>
                 <th className="pb-2 pr-4">Vendor</th>
                 <th className="pb-2 pr-4">Temp</th>
@@ -129,7 +129,7 @@ export default function NetworkDashboard() {
                 <tr key={olt.id} className="border-b border-neutral-800/50">
                   <td className="py-2 pr-4">
                     <div className="font-medium">{olt.name}</div>
-                    <div className="text-fg-muted">{olt.id}</div>
+                    <div className="text-neutral-400">{olt.id}</div>
                   </td>
                   <td className="py-2 pr-4">{olt.vendor ?? '-'}</td>
                   <td className="py-2 pr-4">
@@ -158,10 +158,10 @@ export default function NetworkDashboard() {
 
 function StatCard({ label, value, sub, danger }: { label: string; value: number | string; sub: string; danger?: boolean }) {
   return (
-    <div className="rounded-md border border-neutral-800 bg-bg-subtle p-3">
-      <div className="text-xs text-fg-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${danger ? 'text-red-400' : 'text-fg'}`}>{value}</div>
-      <div className="text-xs text-fg-muted">{sub}</div>
+    <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
+      <div className="text-xs text-neutral-400">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold ${danger ? 'text-red-400' : 'text-neutral-50'}`}>{value}</div>
+      <div className="text-xs text-neutral-400">{sub}</div>
     </div>
   );
 }
