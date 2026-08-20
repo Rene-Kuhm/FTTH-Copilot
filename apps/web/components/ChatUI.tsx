@@ -12,7 +12,16 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   toolsUsed?: ToolCall[];
-  timestamp: number;
+  /** Monotonic sequence number used for ordering in the UI. */
+  seq: number;
+}
+
+// Module-scope monotonic counter for stable message ordering.
+// Lives outside the component so it's pure (no setState during render).
+let _seq = 0;
+function nextSeq(): number {
+  _seq += 1;
+  return _seq;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -44,7 +53,7 @@ export default function ChatUI() {
       id: crypto.randomUUID(),
       role: 'user',
       content: trimmed,
-      timestamp: Date.now(),
+      seq: nextSeq(),
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
@@ -72,7 +81,7 @@ export default function ChatUI() {
         role: 'assistant',
         content: data.reply,
         toolsUsed: data.toolsUsed,
-        timestamp: Date.now(),
+        seq: nextSeq(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
