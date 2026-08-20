@@ -8,6 +8,9 @@
  *   iv (12 bytes) || ciphertext || authTag (16 bytes)
  *
  * Format stored in `encryptionMeta` is base64 of the IV alone (for rotation/debug).
+ *
+ * SECURITY: KMS_MASTER_KEY is read from env at runtime. In production the app
+ * refuses to boot without it — no silent insecure fallback.
  */
 import crypto from 'node:crypto';
 
@@ -16,8 +19,19 @@ const KEY = deriveKey();
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 
+function resolveSecret(envVar: string, devFallback: string): string {
+  const value = process.env[envVar];
+  if (value) return value;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      `${envVar} is not set. Refusing to start in production with an insecure default.`,
+    );
+  }
+  return devFallback;
+}
+
 function deriveKey(): Buffer {
-  const seed = process.env['KMS_MASTER_KEY'] ?? 'dev-only-insecure-master-key-replace-me';
+  const seed = resolveSecret('KMS_MASTER_KEY', 'dev-only-insecure-master-key-replace-me');
   return crypto.createHash('sha256').update(seed).digest();
 }
 

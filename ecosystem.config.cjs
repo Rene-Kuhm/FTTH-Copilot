@@ -1,3 +1,23 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
+// Load CLOUDFLARED_TOKEN from the git-ignored root .env file.
+// The tunnel token must never be committed to the repository.
+function loadEnvValue(name) {
+  const fromProcess = process.env[name];
+  if (fromProcess) return fromProcess;
+  try {
+    const content = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    const line = content
+      .split('\n')
+      .find((l) => l.startsWith(`${name}=`));
+    if (line) return line.slice(name.length + 1).trim();
+  } catch {
+    // .env missing — fall through
+  }
+  return undefined;
+}
+
 module.exports = {
   apps: [
     {
@@ -11,7 +31,11 @@ module.exports = {
     {
       name: 'cloudflared',
       script: '/home/tecnodespegue/bin/cloudflared',
-      args: 'tunnel --protocol http2 --no-autoupdate run --token eyJhIjoiMmQ4YWQ3YTFiYzk0ODAyOGU3YjhlMmQxYWJhZGYzYjEiLCJ0IjoiYmZiODIzYTktNTI0Mi00Y2M4LTgzNjgtY2I2Y2ZiYWY1YjUwIiwicyI6Ik9UaGlOemRoWkdNdE1qYzFPUzAwWmpObExUZ3dZekF0TWpGbVlUZGlaRGs1TjJZMyJ9',
+      // TUNNEL_TOKEN env var is equivalent to `--token <value>`.
+      args: 'tunnel --protocol http2 --no-autoupdate run',
+      env: {
+        TUNNEL_TOKEN: loadEnvValue('CLOUDFLARED_TOKEN'),
+      },
       restart_delay: 5000,
       max_restarts: 10,
     },

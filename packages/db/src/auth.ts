@@ -7,9 +7,8 @@
  *   leak doesn't expose live sessions.
  * - Token contents: { sub: userId, tenantId, role, iat, exp }
  *
- * NOTE: The JWT_SECRET is intentionally read from env at runtime. In
- * production set a strong secret (32+ random bytes). Default is a dev-only
- * placeholder so the app boots out of the box.
+ * SECURITY: JWT_SECRET is read from env at runtime. In production the app
+ * refuses to boot without it — no silent insecure fallback.
  */
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
@@ -20,9 +19,21 @@ const BCRYPT_COST = 12;
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const COOKIE_NAME = 'ftth_session';
 
-const JWT_SECRET =
-  process.env['JWT_SECRET'] ??
-  'dev-only-insecure-secret-replace-me-in-production-please-32bytes-min';
+function resolveSecret(envVar: string, devFallback: string): string {
+  const value = process.env[envVar];
+  if (value) return value;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      `${envVar} is not set. Refusing to start in production with an insecure default.`,
+    );
+  }
+  return devFallback;
+}
+
+const JWT_SECRET = resolveSecret(
+  'JWT_SECRET',
+  'dev-only-insecure-secret-replace-me-in-production-please-32bytes-min',
+);
 
 export interface SessionClaims {
   sub: string;     // userId
