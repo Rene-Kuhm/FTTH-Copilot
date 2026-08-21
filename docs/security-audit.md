@@ -4,6 +4,18 @@
 **Scope:** Auth/crypto libs, auth + chat + users + export API routes, deployment config.
 **Method:** Manual code review of server-rendered Next.js app (App Router) + Prisma + JWT sessions.
 
+## Hardening follow-up
+
+The following repository-side items were subsequently addressed:
+
+- Chat now requires an active database-backed session, the `chat` permission, and atomic PostgreSQL-backed per-user minute/day quotas shared by every app instance.
+- `getCurrentUser()` and `/api/auth/me` verify that the hashed JWT still exists in `Session` and has not expired, so logout revokes the token server-side.
+- Connector URLs enforce HTTPS/public-network policy, optional hostname and port allowlists, DNS validation, and request timeouts.
+- API 500 responses no longer return raw provider or database error messages.
+- The simulated `reboot_ont` action was removed until a real connector operation and server-side authorization protocol exist.
+
+The Cloudflare credential rotation remains an external operational action. Repository code cannot verify that it was completed in the Cloudflare dashboard.
+
 ---
 
 ## Critical — FIXED
@@ -47,14 +59,12 @@
 
 ## Documented — not fixed (nice-to-have / tradeoffs)
 
-1. **No rate limiting on auth/chat endpoints** (`/api/auth/login`, `/api/auth/signup`, `/api/chat`). Brute-force and cost-abuse possible. Recommended: in-memory sliding-window limiter (single-instance deploy) or Upstash/Redis if scaled. Not fixed to avoid new runtime deps without discussion.
-2. **Logout doesn't invalidate the JWT server-side.** `getCurrentUser()` verifies the signature but never consults the `Session` table, so a logged-out (or stolen) token stays valid until expiry (7 days). Fix = one DB lookup per request, or short-lived access tokens + refresh.
-3. **CSRF relies on `SameSite=Lax` only.** Lax blocks cross-site POST cookie attachment, which covers classic form CSRF for this JSON-only API, but there are no CSRF tokens. Acceptable for demo; revisit if any GET becomes state-changing.
-4. **User enumeration:** signup returns 409 for existing emails; login returns faster for unknown emails than wrong passwords (no bcrypt run). Standard tradeoff; mitigations add UX friction.
-5. **Raw error messages on 500:** `/api/chat` returns `err.message` to the client — can leak internals. Return a generic message and log details server-side.
-6. **Predictable tenant slugs:** signup suffix uses `Math.random()`. Slugs aren't secrets, but `crypto.randomBytes(4)` would be free to change.
-7. **Global email uniqueness vs per-tenant check:** `/api/users` POST checks uniqueness within tenant only; the schema enforces it globally, so a colliding email yields an unhandled P2002 → 500 instead of 409.
-8. **Secret rotation:** `KMS_MASTER_KEY` rotation isn't supported (single derived key, IV stored but unused for key rotation). Plan envelope encryption before storing real production NMS keys.
+1. **Auth endpoint rate limiting:** chat is protected by a shared PostgreSQL quota, but `/api/auth/login` and `/api/auth/signup` still need an IP/account-based brute-force limiter at the edge.
+2. **CSRF relies on `SameSite=Lax` only.** Lax blocks cross-site POST cookie attachment, which covers classic form CSRF for this JSON-only API, but there are no CSRF tokens. Acceptable for the current architecture; revisit if any GET becomes state-changing.
+3. **User enumeration:** signup returns 409 for existing emails; login returns faster for unknown emails than wrong passwords (no bcrypt run). Standard tradeoff; mitigations add UX friction.
+4. **Predictable tenant slugs:** signup suffix uses `Math.random()`. Slugs aren't secrets, but `crypto.randomBytes(4)` would be free to change.
+5. **Global email uniqueness vs per-tenant check:** `/api/users` POST checks uniqueness within tenant only; the schema enforces it globally, so a colliding email yields an unhandled P2002 → 500 instead of 409.
+6. **Secret rotation:** `KMS_MASTER_KEY` rotation isn't supported (single derived key, IV stored but unused for key rotation). Plan envelope encryption before storing real production NMS keys.
 
 ---
 

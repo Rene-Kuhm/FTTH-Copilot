@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": [
-        "^build"
+        "^build",
+        "@ftth-copilot/db#db:generate"
       ],
       "outputs": [
         ".next/**",
@@ -22,7 +23,8 @@
     },
     "typecheck": {
       "dependsOn": [
-        "^build"
+        "^build",
+        "@ftth-copilot/db#db:generate"
       ]
     },
     "test": {
@@ -43,7 +45,8 @@
     },
     "test:coverage": {
       "dependsOn": [
-        "^build"
+        "^build",
+        "@ftth-copilot/db#db:generate"
       ],
       "outputs": [
         "coverage/**"
@@ -51,6 +54,12 @@
     },
     "clean": {
       "cache": false
+    },
+    "db:generate": {
+      "cache": true,
+      "outputs": [
+        "src/generated/**"
+      ]
     },
     "test:e2e": {
       "cache": false

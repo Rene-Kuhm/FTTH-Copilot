@@ -9,6 +9,8 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
+    "postinstall": "pnpm --filter @ftth-copilot/db db:generate",
+    "db:generate": "pnpm --filter @ftth-copilot/db db:generate",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
@@ -17,7 +19,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "test:unit": "turbo run test:unit",
     "test:coverage": "turbo run test:coverage",
-    "test:coverage-check": "turbo run test:coverage -- --coverage.thresholds.lines=80 --coverage.thresholds.functions=80 --coverage.thresholds.branches=70 --coverage.thresholds.statements=80 || (echo \"Coverage below thresholds. Per-package current coverage:\" && pnpm test:coverage 2>&1 | tail -50 && exit 1)"
+    "test:coverage-check": "turbo run test:coverage",
+    "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

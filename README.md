@@ -1,74 +1,82 @@
-# FTTH-Copilot — Diagnóstico de red FTTH en lenguaje natural
+# FTTH-Copilot — diagnóstico FTTH en lenguaje natural
 
-Agente de IA que se conecta a tu NMS (SmartOLT, Mikrowisp, NetSense) y te explica en español qué está pasando en tu red. **No reemplaza el NMS** — agrega una capa conversacional encima.
+Aplicación multi-tenant que consulta SmartOLT o Mikrowisp y explica el estado de una red FTTH en español. El agente opera en modo de solo lectura y no reemplaza al NMS.
 
-## Quick path
+## Inicio local
 
-1. `pnpm install`
-2. `cp .env.example .env` y completá `MINIMAX_API_KEY`
-3. `pnpm dev` → abrí `http://localhost:3001`
-4. Escribí una pregunta de FTTH en el chat → el agente elige la tool correcta y te contesta
+Requisitos: Node.js 22+, pnpm 11+ y PostgreSQL.
 
-## Details
+```bash
+cp .env.example .env
+# Configurá DATABASE_URL, MINIMAX_API_KEY, JWT_SECRET y KMS_MASTER_KEY
+pnpm install
+pnpm --filter @ftth-copilot/db db:migrate
+pnpm dev
+```
 
-| Área | Estado |
-|---|---|
-| Estado actual | MVP demo end-to-end con mocks de SmartOLT (3 OLTs, 7 ONUs, valores realistas) |
-| LLM | MiniMax-M3 (Anthropic-API-compatible, 1M context) |
-| Frontend | Next.js 16.3.1 + Tailwind 4.3.3 |
-| Tests | Vitest, 96.34% lines en `packages/connectors/smartolt` |
-| CI | GitHub Actions · lint + typecheck + tests + build · `CI Success` required |
-| Repo | Público, sin secrets en la historia (gitleaks clean) |
-| Multi-tenant | No todavía (fase 2) |
+Abrí `http://localhost:3001`.
+
+`pnpm install` genera automáticamente el cliente Prisma. También se puede regenerar con `pnpm db:generate`.
+
+## Fuentes de datos
+
+- **SmartOLT:** adaptador HTTP real y fixtures de demo.
+- **Mikrowisp:** adaptador HTTP real y fixtures de demo.
+- **NetSense:** todavía no implementado; la API lo rechaza explícitamente y nunca sustituye sus datos con mocks.
+
+El modo demo solo se activa con `DEMO_MODE_ENABLED=true`. En ese modo la interfaz y las respuestas del agente identifican los datos como simulados. En producción debe permanecer en `false`.
+
+Los conectores reales deben validarse antes de ser usados. Chat, dashboard y alertas comparten la misma conexión tenant-aware y nunca caen silenciosamente a fixtures cuando un conector falla.
+
+## Seguridad de red
+
+Las URL de NMS:
+
+- usan HTTPS y puerto 443 por defecto;
+- no pueden apuntar a localhost, metadata cloud ni rangos privados;
+- se validan mediante DNS antes de cada conexión;
+- tienen timeout configurable con `NMS_REQUEST_TIMEOUT_MS`;
+- pueden restringirse con `NMS_ALLOWED_HOSTS` y `NMS_ALLOWED_PORTS`.
+
+Para un NMS confiable dentro de una LAN se requieren opt-ins explícitos: `NMS_ALLOW_PRIVATE_NETWORKS=true` y, si corresponde, `NMS_ALLOW_HTTP=true`.
+
+## Autenticación y costos
+
+- Sesiones JWT en cookie `HttpOnly`, respaldadas por una sesión revocable en PostgreSQL.
+- `/api/chat`, dashboard y alertas requieren autenticación y permisos.
+- Chat aplica límites atómicos por usuario, minuto y día en PostgreSQL mediante `CHAT_RATE_LIMIT_PER_MINUTE` y `CHAT_DAILY_QUOTA`; las cuotas se comparten entre instancias.
+- Las credenciales NMS se cifran con AES-256-GCM usando `KMS_MASTER_KEY`.
+
+## Verificación
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:coverage-check
+pnpm build
+pnpm --filter @ftth-copilot/web exec playwright install chromium
+pnpm test:e2e
+```
+
+CI ejecuta lint, typecheck, cobertura, build y Playwright.
 
 ## Estructura
 
-```
-apps/web/                    → Next.js 15 + chat UI
-packages/agent-core/         → tool-calling loop contra MiniMax-M3
-packages/connectors/
-  ├─ core/                   → interface INmsConnector (provider-agnostic)
-  └─ smartolt/               → SmartOLT adapter (mock por ahora)
-packages/shared/             → tipos compartidos
-```
-
-## Quick path 2 — verificar el setup
-
-```bash
-pnpm typecheck        # 5/5 paquetes verde
-pnpm test:unit        # 9 tests, todos verde
-pnpm build            # 3 rutas generadas
+```text
+apps/web/                         Next.js App Router y rutas API
+packages/agent-core/              loop del agente, prompt, tools y alertas
+packages/connectors/core/         interfaz y política de red compartida
+packages/connectors/smartolt/     adaptador SmartOLT
+packages/connectors/mikrowisp/    adaptador Mikrowisp
+packages/db/                      Prisma, auth, sesiones y cifrado
+packages/shared/                  tipos compartidos
 ```
 
-## Variables de entorno
+## Aviso operativo sobre Cloudflare
 
-Mínimas (ver `.env.example`):
-
-| Variable | Requerida | Notas |
-|---|---|---|
-| `MINIMAX_API_KEY` | sí | Key del LLM (Anthropic-API-compatible) |
-| `SMARTOLT_USE_MOCK` | no, default `true` | `false` para usar API real (no implementado todavía) |
-
-## Roadmap
-
-| Fase | Estado | Outcome |
-|---|---|---|
-| 0 — Validación con ISP | pendiente | 3+ ISPs confirman interés y precio |
-| 1 — MVP demo | **en progreso** | Demo end-to-end con mocks |
-| 2 — MVP producto | pendiente | Auth multi-tenant + UI pulida + deploy staging |
-| 3 — Piloto pago | pendiente | 1+ ISP paga y retiene 30 días |
-| 4 — Escalado | pendiente | Segundo connector, reducción costo LLM |
-
-## Checklist para el próximo paso
-
-- [ ] Conectar el `SmartOltClient` con un sandbox real del ISP
-- [ ] Escribir los 10 escenarios de diagnóstico manual (QA log del agente)
-- [ ] Definir el tier de precios usando el feedback de los ISPs pilotos
+Una credencial de Cloudflare Tunnel estuvo presente en una versión anterior del historial público. El código actual ya no la contiene, pero eliminarla del último commit no invalida la credencial histórica. El propietario debe confirmar su rotación en Cloudflare Zero Trust. No se debe declarar el historial como libre de secretos hasta completar y verificar esa rotación.
 
 ## Licencia
 
-Privado — todos los derechos reservados a TecnoDespegue / René Kuhm.
-
-## Next step
-
-Terminá el demo de la **Quick path**, abrí una conversación con una pregunta de tu red real, y guardá el log. Eso te da los 10 escenarios de QA que la guía pide antes de Fase 1 → 2.
+Todos los derechos reservados a TecnoDespegue / René Kuhm.

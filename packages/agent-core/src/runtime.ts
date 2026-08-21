@@ -9,6 +9,10 @@ import {
 
 export interface RunAgentOptions {
   userMessage: string;
+  /** Historial ya autorizado y acotado por el caller. */
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Descripción confiable de la fuente de datos usada en esta ejecución. */
+  dataSource?: { mode: 'live' | 'demo'; provider: string; label: string };
   /** Override del modelo (default: claude-sonnet-4-6). */
   model?: string;
   /** Connector custom. Si no, usa SmartOLT en modo mock por defecto. */
@@ -46,16 +50,23 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
 
   const toolCalls: ToolCallRecord[] = [];
 
-  // Mensaje inicial
   const messages: Anthropic.MessageParam[] = [
+    ...(opts.conversationHistory ?? []).map(
+      (message): Anthropic.MessageParam => ({ role: message.role, content: message.content }),
+    ),
     { role: 'user', content: opts.userMessage },
   ];
+  const sourcePrompt = opts.dataSource?.mode === 'demo'
+    ? '\n\n## Fuente de datos de esta ejecución\nEstás usando DATOS SIMULADOS de demo. Iniciá la respuesta con "[DEMO]" y nunca los presentes como datos reales del ISP.'
+    : opts.dataSource
+      ? `\n\n## Fuente de datos de esta ejecución\nUsás el conector real ${opts.dataSource.provider} llamado "${opts.dataSource.label}".`
+      : '';
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await client.messages.create({
       model,
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + sourcePrompt,
       tools,
       messages,
     });

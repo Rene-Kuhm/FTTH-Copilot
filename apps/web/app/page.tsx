@@ -4,28 +4,28 @@ import type { Route } from 'next';
 export default function LandingPage() {
   return (
     <main className="min-h-screen">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Link href="/" className="text-base font-semibold tracking-tight">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-4 sm:px-6 sm:py-5">
+        <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight sm:text-base">
           FTTH<span className="text-blue-500">-</span>Copilot
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3">
           <Link
             href={'/docs' as Route}
-            className="text-sm text-neutral-400 hover:text-neutral-50"
+            className="hidden text-sm text-neutral-400 hover:text-neutral-50 sm:inline"
           >
             Docs
           </Link>
           <Link
             href={'/login' as Route}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:border-blue-500"
+            className="btn-outline px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
           >
-            Login
+            Ingresar
           </Link>
           <Link
             href={'/signup' as Route}
-            className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="btn-primary whitespace-nowrap px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
           >
-            Probar demo
+            Crear cuenta
           </Link>
         </div>
       </nav>
@@ -47,15 +47,15 @@ export default function LandingPage() {
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             href={'/signup' as Route}
-            className="rounded-md bg-blue-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="btn-primary px-5 py-2.5"
           >
-            Probar demo
+            Crear cuenta
           </Link>
           <Link
             href={'/login' as Route}
-            className="rounded-md border border-neutral-700 px-5 py-2.5 text-sm hover:border-blue-500"
+            className="btn-outline px-5 py-2.5"
           >
-            Login
+            Ingresar
           </Link>
         </div>
       </section>
@@ -73,16 +73,16 @@ export default function LandingPage() {
             body='Preguntá "¿cuántas ONUs están offline?" o "qué OLTs tienen temperatura alta" y obtené respuestas con los datos reales de tu NMS.'
           />
           <Feature
-            title="Alertas en tiempo real"
-            body="Detección continua de ONUs caídas, OLTs degradadas y eventos críticos. Enterate antes de que te lleguen los reclamos."
+            title="Alertas operativas"
+            body="Consultá ONUs caídas, OLTs degradadas y eventos críticos del NMS seleccionado, con actualización manual cuando la necesites."
           />
           <Feature
             title="Multi-NMS"
-            body="Soporte para SmartOLT y Mikrowisp. Conectás tu API key una vez y el agente la usa en cada consulta."
+            body="Soporte para SmartOLT y Mikrowisp. Podés conectar varias redes y elegir cuál usan el chat, el tablero y las alertas."
           />
           <Feature
             title="Acceso por roles"
-            body="Owner, Admin y Operator con permisos diferenciados sobre connectors, usuarios y conversaciones."
+            body="Propietario, Administrador y Operador con permisos diferenciados sobre conectores, usuarios y conversaciones."
           />
         </div>
       </section>
@@ -106,7 +106,7 @@ export default function LandingPage() {
           <Step
             n={3}
             title="Recibí alertas"
-            body="El panel te muestra eventos críticos y advertencias a medida que aparecen en tu red."
+            body="Consultá el panel para detectar eventos críticos y advertencias del estado actual de tu red."
           />
         </ol>
       </section>
@@ -115,14 +115,13 @@ export default function LandingPage() {
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-8 py-12 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">Listo para chatear con tu red?</h2>
           <p className="mx-auto mt-3 max-w-md text-sm text-neutral-400">
-            Empezás con datos mockeados. Cuando conectes tu NMS real, el chat pasa a usar
-            tu API automáticamente.
+            Creá tu cuenta, validá el primer NMS y elegí la red que querés consultar.
           </p>
           <Link
             href={'/signup' as Route}
-            className="mt-6 inline-block rounded-md bg-blue-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="btn-primary mt-6 px-5 py-2.5"
           >
-            Probar demo
+            Crear cuenta
           </Link>
         </div>
       </section>
@@ -132,8 +131,8 @@ export default function LandingPage() {
           <div>FTTH-Copilot · Diagnóstico en lenguaje natural para ISPs FTTH</div>
           <div className="flex gap-6">
             <Link href={'/docs' as Route} className="hover:text-neutral-50">Docs</Link>
-            <Link href={'/login' as Route} className="hover:text-neutral-50">Login</Link>
-            <Link href={'/signup' as Route} className="hover:text-neutral-50">Demo</Link>
+            <Link href={'/login' as Route} className="hover:text-neutral-50">Ingresar</Link>
+            <Link href={'/signup' as Route} className="hover:text-neutral-50">Crear cuenta</Link>
           </div>
         </div>
       </footer>

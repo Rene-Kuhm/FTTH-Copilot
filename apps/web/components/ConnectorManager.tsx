@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
+import { useConnectors, type ClientConnector } from '@/lib/connectors/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import {
   CheckCircleIcon,
@@ -13,138 +14,161 @@ import {
   XMarkIcon,
 } from './icons';
 
-interface Connector {
-  id: string;
-  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
-  label: string;
-  baseUrl: string | null;
-  status: 'connected' | 'error' | 'pending';
-  lastCheckedAt: string | null;
-  lastError: string | null;
-  createdAt: string;
-}
-
 const STATUS_META: Record<
-  Connector['status'],
-  {
-    label: string;
-    className: string;
-    Icon: React.ComponentType<{ className?: string }>;
-  }
+  ClientConnector['status'],
+  { label: string; className: string; Icon: React.ComponentType<{ className?: string }> }
 > = {
   connected: {
-    label: 'Connected',
-    className:
-      'bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30',
+    label: 'Conectado',
+    className: 'bg-success/15 text-emerald-400 ring-1 ring-inset ring-success/30',
     Icon: CheckCircleIcon,
   },
   error: {
     label: 'Error',
-    className: 'bg-danger/15 text-red-500 ring-1 ring-inset ring-danger/30',
+    className: 'bg-danger/15 text-red-400 ring-1 ring-inset ring-danger/30',
     Icon: XCircleIcon,
   },
   pending: {
-    label: 'Pending',
-    className:
-      'bg-warning/15 text-amber-500 ring-1 ring-inset ring-warning/30',
+    label: 'Pendiente',
+    className: 'bg-warning/15 text-amber-400 ring-1 ring-inset ring-warning/30',
     Icon: ServerStackIcon,
   },
 };
 
+async function requestTest(id: string): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch(`/api/connectors/${id}/test`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const data = await response.json().catch(() => ({}));
+  return {
+    ok: response.ok && data.ok === true,
+    error: data.error ?? (!response.ok ? 'No se pudo probar la conexión.' : undefined),
+  };
+}
+
 export function ConnectorManager() {
   const auth = useAuth();
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [loading, setLoading] = useState(false);
+  const connectorState = useConnectors();
   const [showForm, setShowForm] = useState(false);
-  const [provider, setProvider] = useState<'SMARTOLT' | 'MIKROWISP' | 'NETSENSE'>(
-    'SMARTOLT',
-  );
+  const [provider, setProvider] = useState<'SMARTOLT' | 'MIKROWISP'>('SMARTOLT');
   const [label, setLabel] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [baseUrl, setBaseUrl] = useState('https://api.smartolt.com');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const canManage =
     auth.user && hasPermission(auth.user.role, 'manage_connectors' as Permission);
 
-  const refresh = async () => {
-    if (!auth.user) return;
-    setLoading(true);
-    try {
-      const r = await fetch('/api/connectors', { credentials: 'include' });
-      const data = await r.json();
-      setConnectors(data.connectors ?? []);
-    } catch {
-      // noop
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void refresh();
-    });
-  }, [auth.user]);
-
   if (!auth.user) return null;
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  async function testConnector(id: string, labelToTest: string) {
+    setTestingId(id);
+    setFeedback(null);
+    try {
+      const result = await requestTest(id);
+      await connectorState.refresh();
+      setFeedback(
+        result.ok
+          ? { kind: 'success', text: `${labelToTest} quedó conectado y listo para usar.` }
+          : {
+              kind: 'error',
+              text: `No se pudo conectar ${labelToTest}: ${result.error ?? 'revisá las credenciales y la URL.'}`,
+            },
+      );
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo probar la conexión.',
+      });
+    } finally {
+      setTestingId(null);
+    }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    setFeedback(null);
     setSubmitting(true);
     try {
-      const r = await fetch('/api/connectors/create', {
+      const response = await fetch('/api/connectors/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          provider,
-          label,
-          apiKey,
-          baseUrl: baseUrl || null,
-        }),
+        body: JSON.stringify({ provider, label, apiKey, baseUrl }),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error ?? 'Error');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.connector?.id) {
+        throw new Error(data.error ?? 'No se pudo guardar el conector.');
       }
+
+      const testResult = await requestTest(data.connector.id);
+      await connectorState.refresh();
       setShowForm(false);
       setLabel('');
       setApiKey('');
-      setBaseUrl('');
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error');
+      setBaseUrl(provider === 'SMARTOLT' ? 'https://api.smartolt.com' : '');
+      setFeedback(
+        testResult.ok
+          ? {
+              kind: 'success',
+              text: `${data.connector.label} quedó conectado y listo para usar.`,
+            }
+          : {
+              kind: 'error',
+              text: `El conector se guardó, pero la prueba falló: ${testResult.error ?? 'revisá las credenciales y volvé a probar.'}`,
+            },
+      );
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : 'No se pudo guardar el conector.',
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   async function remove(id: string) {
-    if (!confirm('¿Borrar este connector? El chat volverá a usar el mock.'))
+    if (!confirm('¿Eliminar este conector? El chat dejará de usarlo inmediatamente.')) {
       return;
-    await fetch(`/api/connectors/${id}`, {
+    }
+    setFeedback(null);
+    const response = await fetch(`/api/connectors/${id}`, {
       method: 'DELETE',
       credentials: 'include',
     });
-    await refresh();
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setFeedback({
+        kind: 'error',
+        text: data.error ?? 'No se pudo eliminar el conector.',
+      });
+      return;
+    }
+    await connectorState.refresh();
+    setFeedback({ kind: 'success', text: 'Conector eliminado.' });
   }
 
   return (
     <section className="card overflow-hidden">
       <header className="flex items-center justify-between gap-4 px-5 py-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-500/30">
             <ServerStackIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-neutral-50">NMS Connectors</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">
-              {connectors.length === 0
-                ? 'Sin connectors configurados'
-                : `${connectors.length} connector${connectors.length === 1 ? '' : 's'} configurado${connectors.length === 1 ? '' : 's'}`}
+            <h2 className="text-sm font-semibold text-neutral-50">Conectores NMS</h2>
+            <p className="mt-0.5 text-xs text-neutral-400">
+              {connectorState.connectors.length === 0
+                ? 'Todavía no configuraste una red'
+                : `${connectorState.connectors.length} conector${connectorState.connectors.length === 1 ? '' : 'es'} configurado${connectorState.connectors.length === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
@@ -155,160 +179,205 @@ export function ConnectorManager() {
             className="btn-outline"
           >
             {showForm ? (
-              <>
-                <XMarkIcon className="h-4 w-4" />
-                Cancelar
-              </>
+              <XMarkIcon className="h-4 w-4" />
             ) : (
-              <>
-                <PlusIcon className="h-4 w-4" />
-                Agregar connector
-              </>
+              <PlusIcon className="h-4 w-4" />
             )}
+            {showForm ? 'Cancelar' : 'Agregar conector'}
           </button>
         )}
       </header>
 
       <div className="border-t border-neutral-800 px-5 py-4">
-        {connectors.length === 0 ? (
+        {feedback && (
+          <div
+            role={feedback.kind === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+              feedback.kind === 'error'
+                ? 'border-danger/30 bg-red-500/10 text-red-300'
+                : 'border-success/30 bg-success/10 text-emerald-300'
+            }`}
+          >
+            {feedback.text}
+          </div>
+        )}
+
+        {connectorState.loading ? (
+          <p role="status" className="text-sm text-neutral-400">
+            Cargando conectores…
+          </p>
+        ) : connectorState.connectors.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-4 py-8 text-center">
-            <ServerStackIcon className="h-8 w-8 text-neutral-500" />
-            <p className="text-sm font-medium text-neutral-50">No hay connectors</p>
-            <p className="max-w-md text-xs text-neutral-500">
-              El chat usa datos mock. Agregá un connector para conectar tu NMS real
-              (SmartOLT, Mikrowisp, NetSense).
+            <ServerStackIcon className="h-8 w-8 text-neutral-400" />
+            <p className="text-sm font-medium text-neutral-50">No hay conectores</p>
+            <p className="max-w-md text-xs text-neutral-400">
+              Agregá SmartOLT o Mikrowisp y validá la conexión para consultar tu red real.
             </p>
           </div>
         ) : (
           <ul className="space-y-2">
-            {connectors.map((c) => {
-              const status = STATUS_META[c.status];
+            {connectorState.connectors.map((connector) => {
+              const status = STATUS_META[connector.status];
               const StatusIcon = status.Icon;
+              const testing = testingId === connector.id;
               return (
                 <li
-                  key={c.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3 transition-colors hover:border-neutral-700 hover:bg-neutral-950"
+                  key={connector.id}
+                  className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-neutral-400 ring-1 ring-inset ring-neutral-800">
-                      <ServerStackIcon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-neutral-50">
-                          {c.label}
-                        </span>
-                        <span className="badge bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-800">
-                          {c.provider}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
-                        <span className={status.className + ' badge'}>
-                          <StatusIcon className="h-3.5 w-3.5" />
-                          {status.label}
-                        </span>
-                        {c.baseUrl && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span className="truncate">{c.baseUrl}</span>
-                          </>
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-neutral-300 ring-1 ring-inset ring-neutral-800">
+                        <ServerStackIcon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-sm font-medium text-neutral-50">
+                            {connector.label}
+                          </span>
+                          <span className="badge bg-neutral-800 text-neutral-300 ring-1 ring-inset ring-neutral-700">
+                            {connector.provider}
+                          </span>
+                          <span className={`${status.className} badge`}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            {status.label}
+                          </span>
+                        </div>
+                        {connector.baseUrl && (
+                          <p className="mt-1 truncate text-xs text-neutral-400">
+                            {connector.baseUrl}
+                          </p>
+                        )}
+                        {connector.lastError && (
+                          <p className="mt-1 text-xs text-red-300">{connector.lastError}</p>
+                        )}
+                        {connector.lastCheckedAt && (
+                          <p className="mt-1 text-xs text-neutral-400">
+                            Última prueba:{' '}
+                            {new Intl.DateTimeFormat('es-AR', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            }).format(new Date(connector.lastCheckedAt))}
+                          </p>
                         )}
                       </div>
                     </div>
+                    {canManage && (
+                      <div className="flex flex-shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void testConnector(connector.id, connector.label)
+                          }
+                          disabled={testingId !== null}
+                          className="btn-outline"
+                        >
+                          <CheckCircleIcon className="h-4 w-4" />
+                          {testing
+                            ? 'Probando…'
+                            : connector.status === 'connected'
+                              ? 'Probar'
+                              : 'Reintentar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void remove(connector.id)}
+                          disabled={testingId !== null}
+                          className="btn-danger"
+                          aria-label={`Eliminar ${connector.label}`}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {canManage && (
-                    <button
-                      type="button"
-                      onClick={() => void remove(c.id)}
-                      className="btn-danger px-2.5 py-1.5"
-                      aria-label={`Borrar ${c.label}`}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  )}
                 </li>
               );
             })}
           </ul>
         )}
-
-        {loading && (
-          <p className="mt-3 text-xs text-neutral-500">Cargando…</p>
-        )}
       </div>
 
       {showForm && canManage && (
         <form
-          onSubmit={(e) => void submit(e)}
+          onSubmit={(event) => void submit(event)}
           className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block space-y-1.5 sm:col-span-1">
-              <span className="text-xs font-medium text-neutral-400">Provider</span>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-neutral-300">Proveedor</span>
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as typeof provider)}
+                onChange={(event) => {
+                  const next = event.target.value as typeof provider;
+                  setProvider(next);
+                  setBaseUrl(next === 'SMARTOLT' ? 'https://api.smartolt.com' : '');
+                }}
                 className="input"
               >
                 <option value="SMARTOLT">SmartOLT</option>
                 <option value="MIKROWISP">Mikrowisp</option>
-                <option value="NETSENSE">NetSense</option>
               </select>
             </label>
-            <label className="block space-y-1.5 sm:col-span-1">
-              <span className="text-xs font-medium text-neutral-400">Etiqueta</span>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-neutral-300">Etiqueta</span>
               <input
                 type="text"
-                placeholder="Ej. 'SmartOLT prod'"
+                name="connector-label"
+                autoComplete="organization"
+                placeholder="Ej. SmartOLT producción"
                 value={label}
-                onChange={(e) => setLabel(e.target.value)}
+                onChange={(event) => setLabel(event.target.value)}
                 required
                 className="input"
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-400">API key</span>
+              <span className="text-xs font-medium text-neutral-300">Clave de API</span>
               <input
                 type="password"
-                placeholder="Se guarda encriptada"
+                name="connector-api-key"
+                autoComplete="off"
+                placeholder="Se guarda cifrada"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(event) => setApiKey(event.target.value)}
                 required
                 className="input"
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-400">
-                Base URL <span className="text-neutral-500">(opcional)</span>
-              </span>
+              <span className="text-xs font-medium text-neutral-300">URL base</span>
               <input
                 type="url"
-                placeholder="https://demo.smartolt.com"
+                name="connector-base-url"
+                autoComplete="url"
+                placeholder="https://api.smartolt.com"
                 value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                required
                 className="input"
               />
             </label>
           </div>
 
-          {error && (
-            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
-              {error}
+          {formError && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+            >
+              {formError}
             </div>
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-neutral-500">
-              La arquitectura está lista. Cuando llegue el adapter HTTP real, el chat
-              usará tu connector automáticamente.
+            <p className="text-xs text-neutral-400">
+              Solo se permiten destinos HTTPS públicos. La clave se almacena cifrada.
             </p>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary sm:w-auto"
-            >
+            <button type="submit" disabled={submitting} className="btn-primary sm:w-auto">
               <KeyIcon className="h-4 w-4" />
-              {submitting ? 'Guardando…' : 'Guardar connector'}
+              {submitting ? 'Guardando y probando…' : 'Guardar y probar'}
             </button>
           </div>
         </form>

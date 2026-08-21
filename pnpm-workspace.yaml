@@ -2,6 +2,8 @@ packages:
   - "apps/*"
   - "packages/*"
   - "packages/connectors/*"
+overrides:
+  vite: 6.4.3
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true

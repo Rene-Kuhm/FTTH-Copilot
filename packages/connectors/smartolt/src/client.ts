@@ -6,6 +6,10 @@ import type {
   NetworkOverview,
 } from '@ftth-copilot/connectors-core';
 import {
+  NMS_REQUEST_TIMEOUT_MS,
+  assertSafeNmsRequestUrl,
+} from '@ftth-copilot/connectors-core';
+import {
   FIXTURE_OLTS,
   FIXTURE_ONUS,
   FIXTURE_ONU_DETAILS,
@@ -46,24 +50,30 @@ export class SmartOltClient implements INmsConnector {
   private readonly apiKey?: string;
   private readonly apiBaseUrl?: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly skipDnsValidation: boolean;
 
   constructor(opts: SmartOltClientOptions) {
     this.useMock = opts.useMock;
     this.apiKey = opts.apiKey;
     this.apiBaseUrl = opts.apiBaseUrl;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.skipDnsValidation = opts.fetchImpl !== undefined;
   }
 
   private async realFetch<T>(path: string): Promise<T> {
     if (!this.apiBaseUrl || !this.apiKey) {
       throw new Error('SmartOLT API requires apiBaseUrl and apiKey');
     }
-    const url = `${this.apiBaseUrl.replace(/\/$/, '')}${path}`;
+    const url = await assertSafeNmsRequestUrl(this.apiBaseUrl, path, {
+      resolveDns: !this.skipDnsValidation,
+    });
     const res = await this.fetchImpl(url, {
       headers: {
         'X-Token': this.apiKey,
         'Accept': 'application/json',
       },
+      redirect: 'error',
+      signal: AbortSignal.timeout(NMS_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(`SmartOLT API ${res.status}: ${res.statusText}`);

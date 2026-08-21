@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AuthProvider } from '@/lib/auth/client';
+import { ConnectorProvider } from '@/lib/connectors/client';
 
 export const metadata: Metadata = {
   title: 'FTTH-Copilot — Diagnóstico de red en lenguaje natural',
@@ -14,7 +16,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="min-h-screen bg-neutral-950 text-neutral-50 antialiased">{children}</body>
+      <body className="min-h-screen bg-neutral-950 text-neutral-50 antialiased">
+        <AuthProvider>
+          <ConnectorProvider>{children}</ConnectorProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

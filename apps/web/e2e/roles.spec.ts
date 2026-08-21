@@ -1,24 +1,27 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Roles & Permissions', () => {
-  test('signup creates owner user', async ({ page }) => {
-    const email = `role-test-${Date.now()}@test.com`;
-    await page.goto('http://localhost:3001');
+  test('signup creates an owner session in the UI', async ({ page }) => {
+    let signedIn = false;
+    const user = {
+      id: 'user-owner', email: 'owner@test.com', name: 'Test User', role: 'OWNER', tenantId: 'tenant-1',
+      tenant: { id: 'tenant-1', name: 'Test ISP', slug: 'test-isp' },
+    };
+    await page.route('**/api/auth/me', (route) => route.fulfill({ json: { user: signedIn ? user : null } }));
+    await page.route('**/api/auth/signup', (route) => {
+      signedIn = true;
+      return route.fulfill({ status: 201, json: { user, tenant: user.tenant } });
+    });
+    await page.route('**/api/connectors', (route) => route.fulfill({ json: { connectors: [] } }));
 
-    // Open the signup form (inputs are hidden until "Crear cuenta" is clicked)
-    await page.click('button:has-text("Crear cuenta")');
-
-    // Fill signup form
-    await page.fill('input[placeholder*="email"], input[type="email"]', email);
-    await page.fill('input[placeholder*="password"], input[type="password"]', 'Test1234!');
-    await page.fill('input[placeholder*="nombre"], input[placeholder*="name"]', 'Test User');
-    await page.fill('input[placeholder*="empresa"], input[placeholder*="ISP"]', 'Test ISP');
-
-    // Submit
+    await page.goto('/signup');
+    await page.fill('input[type="email"]', user.email);
+    await page.fill('input[type="password"]', 'Test1234!');
+    await page.fill('input[placeholder="Tu nombre"]', user.name);
+    await page.fill('input[placeholder="Nombre de tu ISP/empresa"]', user.tenant.name);
     await page.click('button[type="submit"]');
-    await page.waitForTimeout(2000);
 
-    // Should be logged in
-    await expect(page.locator('text=Test User').or(page.locator('text=test-isp'))).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(user.email)).toBeVisible();
+    await expect(page.getByText(user.tenant.name)).toBeVisible();
   });
 });

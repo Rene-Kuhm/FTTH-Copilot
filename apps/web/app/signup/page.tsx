@@ -25,7 +25,7 @@ export default function SignupPage() {
         </Link>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">Crear cuenta</h1>
         <p className="mt-1 text-sm text-neutral-400">
-          Probalo gratis con datos mockeados. Después conectás tu NMS real.
+          Creá tu espacio y conectá el primer NMS con el asistente guiado.
         </p>
       </header>
       <AuthBar initialMode="signup" />

@@ -4,10 +4,9 @@
  *
  * NMS API keys are encrypted at rest (AES-256-GCM, KMS_MASTER_KEY derived).
  */
-import { prisma, encryptApiKey, decryptApiKey } from '@ftth-copilot/db';
+import { prisma, encryptApiKey } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
-import { hasPermission, type Permission } from '@/lib/auth/permissions';
-import { NextResponse } from 'next/server';
+import { hasPermission } from '@/lib/auth/permissions';
 
 /** Read-only projection of NmsConnection (no key). */
 export function publicConnector(c: { id: string; provider: string; label: string; baseUrl: string | null; status: string; lastCheckedAt: Date | null; lastError: string | null; createdAt: Date }) {
@@ -38,15 +37,15 @@ export async function listConnectors() {
 }
 
 export async function createConnector(input: {
-  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  provider: 'SMARTOLT' | 'MIKROWISP';
   label: string;
   apiKey: string;
-  baseUrl?: string | null;
+  baseUrl: string;
 }) {
   const user = await getCurrentUser();
   if (!user) return null;
   // Privilege guard: only roles with manage_connectors may create connectors.
-  if (!hasPermission(user.role, 'manage_connectors' as Permission)) return null;
+  if (!hasPermission(user.role, 'manage_connectors')) return null;
 
   const { encryptedKey, iv } = encryptApiKey(input.apiKey);
 
@@ -55,7 +54,7 @@ export async function createConnector(input: {
       tenantId: user.tenantId,
       provider: input.provider,
       label: input.label,
-      baseUrl: input.baseUrl ?? null,
+      baseUrl: input.baseUrl,
       encryptedKey,
       encryptionMeta: iv,
       status: 'pending',
@@ -68,22 +67,9 @@ export async function deleteConnector(id: string) {
   const user = await getCurrentUser();
   if (!user) return null;
   // Privilege guard: only roles with manage_connectors may delete connectors.
-  if (!hasPermission(user.role, 'manage_connectors' as Permission)) return null;
+  if (!hasPermission(user.role, 'manage_connectors')) return null;
   const result = await prisma.nmsConnection.deleteMany({
     where: { id, tenantId: user.tenantId },
   });
   return result.count > 0;
-}
-
-export async function getConnectorForChat() {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  return prisma.nmsConnection.findFirst({
-    where: { tenantId: user.tenantId },
-    orderBy: { createdAt: 'asc' },
-  });
-}
-
-export async function getDecryptedApiKey(encryptedKey: string, iv: string): Promise<string> {
-  return decryptApiKey(encryptedKey, iv);
 }

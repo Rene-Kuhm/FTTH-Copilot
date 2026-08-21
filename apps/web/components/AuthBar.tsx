@@ -47,7 +47,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
               </span>
               <span className="badge bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                Active
+                Activa
               </span>
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
@@ -58,7 +58,12 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
         </div>
         <button
           type="button"
-          onClick={() => void auth.logout()}
+          onClick={() => {
+            setError(null);
+            void auth.logout().catch((caught) =>
+              setError(caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.'),
+            );
+          }}
           className="btn-outline"
         >
           <ArrowRightOnRectangleIcon className="h-4 w-4" />
@@ -157,9 +162,12 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
             >
               <input
                 type="text"
+                name="name"
+                autoComplete="name"
                 placeholder="Tu nombre"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                required
                 className="input"
               />
             </Field>
@@ -169,9 +177,12 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
             >
               <input
                 type="text"
+                name="organization"
+                autoComplete="organization"
                 placeholder="Nombre de tu ISP/empresa"
                 value={tenantName}
                 onChange={(e) => setTenantName(e.target.value)}
+                required
                 className="input"
               />
             </Field>
@@ -180,6 +191,8 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
         <Field icon={<EnvelopeIcon className="h-4 w-4" />} label="Email">
           <input
             type="email"
+            name="email"
+            autoComplete="email"
             placeholder="email@ejemplo.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -194,6 +207,8 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
         >
           <input
             type="password"
+            name="password"
+            autoComplete={isLogin ? 'current-password' : 'new-password'}
             placeholder="contraseña (mín 8 chars)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -205,7 +220,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+        <div role="alert" aria-live="assertive" className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
         </div>
       )}

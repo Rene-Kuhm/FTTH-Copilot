@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth/client';
+import { useConnectors } from '@/lib/connectors/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { HistorySidebar, loadConversation } from './HistorySidebar';
 import {
@@ -18,6 +19,12 @@ import {
 interface ToolCall {
   name: string;
   args: Record<string, unknown>;
+}
+
+interface DataSource {
+  mode: 'live' | 'demo';
+  provider: string;
+  label: string;
 }
 
 interface ChatMessage {
@@ -60,13 +67,18 @@ const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
 
 export default function ChatUI() {
   const auth = useAuth();
+  const connectorState = useConnectors();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<DataSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
+  const conversationRequestRef = useRef(0);
+  const previousConnectionRef = useRef(connectorState.selectedConnectionId);
+  const suppressConnectionResetRef = useRef<string | null>(null);
   function nextSeq() {
     return ++seqRef.current;
   }
@@ -76,6 +88,20 @@ export default function ChatUI() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    const selected = connectorState.selectedConnectionId;
+    if (selected === previousConnectionRef.current) return;
+    previousConnectionRef.current = selected;
+    if (selected && suppressConnectionResetRef.current === selected) {
+      suppressConnectionResetRef.current = null;
+      return;
+    }
+    setConversationId(undefined);
+    setMessages([]);
+    setDataSource(null);
+    setError(null);
+  }, [connectorState.selectedConnectionId]);
 
   const canChat =
     auth.user && hasPermission(auth.user.role, 'chat' as Permission);
@@ -100,7 +126,11 @@ export default function ChatUI() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, conversationId }),
+        body: JSON.stringify({
+          message: trimmed,
+          conversationId,
+          connectionId: connectorState.selectedConnectionId ?? undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -112,8 +142,10 @@ export default function ChatUI() {
         reply: string;
         toolsUsed: ToolCall[];
         conversationId: string;
+        dataSource: DataSource;
       };
       if (data.conversationId) setConversationId(data.conversationId);
+      setDataSource(data.dataSource);
 
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -136,16 +168,44 @@ export default function ChatUI() {
   }
 
   function handleSelectConversation(id: string | undefined) {
+    const requestId = ++conversationRequestRef.current;
     setConversationId(id);
+    setError(null);
     if (!id) {
+      setIsLoading(false);
       setMessages([]);
+      setDataSource(null);
     } else {
-      void loadConversation(id).then((result) => {
-        if (result) {
+      setIsLoading(true);
+      void loadConversation(id)
+        .then((result) => {
+          if (requestId !== conversationRequestRef.current) return;
+          if (result) {
+            if (
+              result.connectionId &&
+              result.connectionId !== connectorState.selectedConnectionId
+            ) {
+              suppressConnectionResetRef.current = result.connectionId;
+              connectorState.selectConnection(result.connectionId);
+            }
           const withSeq = result.messages.map((m, i) => ({ ...m, seq: i }));
           setMessages(withSeq);
-        }
-      });
+          } else {
+            setError('No se pudo cargar la conversación.');
+          }
+        })
+        .catch((caught) => {
+          if (requestId === conversationRequestRef.current) {
+            setError(
+              caught instanceof Error
+                ? caught.message
+                : 'No se pudo cargar la conversación.',
+            );
+          }
+        })
+        .finally(() => {
+          if (requestId === conversationRequestRef.current) setIsLoading(false);
+        });
     }
   }
 
@@ -156,7 +216,7 @@ export default function ChatUI() {
           <ChatBubbleLeftRightIcon className="h-5 w-5" />
         </span>
         <div>
-          <h2 className="text-sm font-semibold text-neutral-50">Copilot Chat</h2>
+          <h2 className="text-sm font-semibold text-neutral-50">Chat del Copilot</h2>
           <p className="mt-0.5 text-xs text-neutral-500">
             Preguntale a tu red FTTH en lenguaje natural
           </p>
@@ -171,11 +231,16 @@ export default function ChatUI() {
         <div className="flex flex-1 flex-col gap-4 px-5 py-5">
           <div
             ref={scrollRef}
+            role="log"
+            aria-live="polite"
+            aria-busy={isLoading}
+            aria-label="Mensajes de la conversación"
             className="flex min-h-[320px] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-950/60 p-4"
           >
             {messages.length === 0 ? (
               <EmptyState
                 disabled={isLoading || !canChat}
+                unauthenticated={!auth.user}
                 onPick={(q) => void sendMessage(q)}
               />
             ) : (
@@ -196,14 +261,25 @@ export default function ChatUI() {
           {!canChat && auth.user && (
             <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-500">
               <CommandLineIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>
-                Read-only mode — you do not have permission to send messages.
-              </span>
+              <span>Modo de solo lectura: no tenés permiso para enviar mensajes.</span>
+            </div>
+          )}
+
+          {dataSource && (
+            <div role="status" aria-live="polite"
+              className={
+                dataSource.mode === 'demo'
+                  ? 'rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-500'
+                  : 'rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-sm text-emerald-500'
+              }
+            >
+              {dataSource.mode === 'demo' ? 'Datos simulados' : 'Datos reales'} ·{' '}
+              {dataSource.label}
             </div>
           )}
 
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-500">
+            <div role="alert" aria-live="assertive" className="rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
               {error}
             </div>
           )}
@@ -212,6 +288,9 @@ export default function ChatUI() {
             <form onSubmit={handleSubmit} className="flex gap-2">
               <input
                 type="text"
+                name="network-question"
+                autoComplete="off"
+                aria-label="Pregunta para el Copilot"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Preguntale algo a tu red…"
@@ -237,9 +316,11 @@ export default function ChatUI() {
 
 function EmptyState({
   disabled,
+  unauthenticated,
   onPick,
 }: {
   disabled: boolean;
+  unauthenticated: boolean;
   onPick: (q: string) => void;
 }) {
   return (
@@ -249,11 +330,12 @@ function EmptyState({
       </span>
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-neutral-50">
-          Hacé tu primera pregunta
+          {unauthenticated ? 'Iniciá sesión para consultar tu red' : 'Hacé tu primera pregunta'}
         </h3>
         <p className="mx-auto max-w-md text-sm text-neutral-500">
-          Tu copilot analiza tu red FTTH y responde con datos en vivo. Probá con
-          una de estas:
+          {unauthenticated
+            ? 'Tus conversaciones y datos de red están protegidos por tu cuenta.'
+            : 'Tu Copilot consulta el NMS seleccionado. Probá con una de estas preguntas:'}
         </p>
       </div>
       <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
@@ -289,7 +371,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       {message.toolsUsed && message.toolsUsed.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
           <CommandLineIcon className="h-3.5 w-3.5" />
-          <span className="font-medium">Tools:</span>
+          <span className="font-medium">Herramientas:</span>
           {message.toolsUsed.map((t, i) => (
             <span
               key={i}

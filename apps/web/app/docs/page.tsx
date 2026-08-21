@@ -7,10 +7,10 @@ import type { Route } from 'next';
 type Section = 'getting-started' | 'features' | 'api' | 'troubleshooting';
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'getting-started', label: 'Getting Started' },
-  { id: 'features', label: 'Features' },
+  { id: 'getting-started', label: 'Primeros pasos' },
+  { id: 'features', label: 'Funciones' },
   { id: 'api', label: 'API' },
-  { id: 'troubleshooting', label: 'Troubleshooting' },
+  { id: 'troubleshooting', label: 'Solución de problemas' },
 ];
 
 export default function DocsPage() {
@@ -32,17 +32,17 @@ export default function DocsPage() {
   }, []);
 
   return (
-    <main className="mx-auto flex max-w-6xl gap-10 px-6 py-10">
-      <aside className="hidden w-56 shrink-0 md:block">
+    <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 md:flex-row md:gap-10 md:py-10">
+      <aside className="w-full shrink-0 md:w-56">
         <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-50">
           ← FTTH-Copilot
         </Link>
-        <nav className="mt-6 space-y-1 text-sm">
+        <nav aria-label="Secciones de documentación" className="mt-4 flex gap-1 overflow-x-auto pb-2 text-sm md:mt-6 md:block md:space-y-1 md:overflow-visible md:pb-0">
           {SECTIONS.map((s) => (
             <a
               key={s.id}
               href={`#${s.id}`}
-              className={`block rounded px-3 py-1.5 transition-colors ${
+              className={`block flex-shrink-0 rounded px-3 py-1.5 transition-colors ${
                 active === s.id
                   ? 'border-l-2 border-blue-500 bg-neutral-900 text-neutral-50'
                   : 'border-l-2 border-transparent text-neutral-400 hover:text-neutral-50'
@@ -63,11 +63,11 @@ export default function DocsPage() {
           </p>
         </header>
 
-        <Section id="getting-started" title="Getting Started">
+        <Section id="getting-started" title="Primeros pasos">
           <p>
             FTTH-Copilot se monta como un panel SaaS: creás una cuenta, conectás tu NMS y
-            empezás a chatear con tu red. El primer arranque usa datos mockeados, así que
-            podés probar la experiencia completa antes de tocar tu NMS real.
+            empezás a consultar tu red. Una cuenta nueva no incluye conectores ni datos
+            simulados: el asistente de configuración te guía para validar el primer NMS.
           </p>
 
           <SubTitle>1. Crear una cuenta</SubTitle>
@@ -75,27 +75,27 @@ export default function DocsPage() {
             <li>Entrá a <Link href={'/signup' as Route} className="text-blue-500 hover:underline">/signup</Link>.</li>
             <li>Completá email, contraseña y el nombre de tu ISP.</li>
             <li>Te logueás automáticamente y caés en <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/app</code>.</li>
-            <li>Por ahora vas a ver un connector SmartOLT mockeado.</li>
+            <li>El asistente te pedirá los datos de SmartOLT o Mikrowisp.</li>
           </ol>
 
           <SubTitle>2. Conectar SmartOLT</SubTitle>
           <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
-            <li>En <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/app</code>, abrí la sección <strong>NMS Connectors</strong>.</li>
-            <li>Hacé clic en <em>+ Agregar connector</em>.</li>
-            <li>Completá: provider <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">SmartOLT</code>, una etiqueta, la API key y la base URL (ej. <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">https://demo.smartolt.com</code>).</li>
+            <li>En <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/app</code>, usá el asistente o abrí <strong>Conectores NMS</strong>.</li>
+            <li>Hacé clic en <em>Agregar conector</em>.</li>
+            <li>Completá el proveedor, una etiqueta, la clave de API y la URL base pública HTTPS.</li>
             <li>La API key se guarda encriptada (AES-256-GCM) en el tenant.</li>
-            <li>Probá la conexión con el endpoint de test (ver sección API).</li>
+            <li>Elegí <em>Guardar y probar</em>. Solo una conexión validada se habilita para las consultas.</li>
           </ol>
 
           <SubTitle>3. Conectar Mikrowisp</SubTitle>
           <ol className="list-decimal space-y-1 pl-5 text-neutral-400">
-            <li>Mismo flujo: provider <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">Mikrowisp</code>.</li>
+            <li>Usá el mismo flujo y elegí <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">Mikrowisp</code>.</li>
             <li>La API key de Mikrowisp tiene la forma de un token Bearer.</li>
-            <li>El adapter HTTP real a Mikrowisp está en roadmap — por ahora el chat cae a fixtures mock cuando detecta este provider.</li>
+            <li>La integración consulta el adaptador HTTP real. Si falla, se informa el error y no se reemplaza con datos simulados.</li>
           </ol>
         </Section>
 
-        <Section id="features" title="Features">
+        <Section id="features" title="Funciones">
           <SubTitle>Consultas en lenguaje natural</SubTitle>
           <p>
             El agente responde preguntas operativas sobre tu red. Algunos ejemplos reales:
@@ -107,28 +107,29 @@ export default function DocsPage() {
             <li><em>¿Cuál es el uptime promedio de la red?</em></li>
           </ul>
 
-          <SubTitle>Dashboard</SubTitle>
+          <SubTitle>Tablero</SubTitle>
           <p>
             En <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/dashboard</code> ves el estado por OLT: cantidad de ONUs online/offline/degraded,
-            uptime promedio, y temperatura. Los datos vienen del mismo connector que usa el
-            chat.
+            disponibilidad promedio y temperatura. Los datos vienen del mismo conector que usa el
+            chat. Si hay varios NMS conectados, el selector <strong>Red activa</strong>
+            permite decidir cuál consultar.
           </p>
 
           <SubTitle>Alertas</SubTitle>
           <p>
             El panel de alertas (visible arriba del chat) muestra eventos críticos,
-            advertencias e info. Las alertas se filtran por severidad y se colapsan/expanden
-            con un click.
+            advertencias e información. Es una consulta bajo demanda: usá Actualizar para
+            obtener un nuevo estado.
           </p>
 
           <SubTitle>Gestión de usuarios</SubTitle>
           <p>
-            Los owners y admins pueden invitar usuarios al tenant con roles diferenciados:
+            Los propietarios y administradores pueden agregar usuarios a la organización:
           </p>
           <ul className="list-disc space-y-1 pl-5 text-neutral-400">
-            <li><strong>Owner</strong> — control total, no se puede degradar.</li>
-            <li><strong>Admin</strong> — gestiona usuarios y connectors.</li>
-            <li><strong>Operator</strong> — sólo chatea y ve la red.</li>
+            <li><strong>Propietario</strong> — control total, no se puede degradar.</li>
+            <li><strong>Administrador</strong> — gestiona usuarios y conectores.</li>
+            <li><strong>Operador</strong> — chatea y ve la red.</li>
           </ul>
         </Section>
 
@@ -146,39 +147,39 @@ export default function DocsPage() {
 
           <SubTitle>Endpoints de alto nivel</SubTitle>
           <Endpoint method="POST" path="/api/auth/signup" desc="Crear cuenta y tenant. Setea cookie de sesión." />
-          <Endpoint method="POST" path="/api/auth/login" desc="Login con email + contraseña." />
+          <Endpoint method="POST" path="/api/auth/login" desc="Inicia sesión con email y contraseña." />
           <Endpoint method="POST" path="/api/auth/logout" desc="Cierra la sesión actual." />
           <Endpoint method="GET" path="/api/auth/me" desc="Devuelve el usuario logueado o null." />
           <Endpoint method="GET" path="/api/connectors" desc="Lista los NMS connectors del tenant." />
-          <Endpoint method="POST" path="/api/connectors/create" desc="Crea un connector (provider, label, apiKey, baseUrl)." />
+          <Endpoint method="POST" path="/api/connectors/create" desc="Crea un conector (provider, label, apiKey, baseUrl)." />
           <Endpoint method="POST" path="/api/connectors/:id/test" desc="Prueba la conexión contra el NMS." />
-          <Endpoint method="DELETE" path="/api/connectors/:id" desc="Borra el connector." />
+          <Endpoint method="DELETE" path="/api/connectors/:id" desc="Borra el conector." />
           <Endpoint method="POST" path="/api/chat" desc="Envía un mensaje al agente. Devuelve reply + toolsUsed." />
           <Endpoint method="GET" path="/api/conversations" desc="Lista conversaciones del usuario." />
           <Endpoint method="GET" path="/api/alerts" desc="Lista alertas activas de la red." />
           <Endpoint method="GET" path="/api/dashboard" desc="Snapshot agregado para /dashboard." />
         </Section>
 
-        <Section id="troubleshooting" title="Troubleshooting">
+        <Section id="troubleshooting" title="Solución de problemas">
           <Faq
             q="El chat responde con datos que no son los de mi red."
-            a="Probablemente seguís sin un connector real. En NMS Connectors verificá que exista uno con status 'connected'. El fallback a mocks sólo se quita cuando hay al menos un connector real configurado."
+            a="Verificá que la Red activa sea la correcta y que su conector figure como Conectado. El sistema no sustituye silenciosamente una conexión fallida por datos simulados."
           />
           <Faq
-            q="El test del connector falla con 'Invalid credentials'."
-            a="Revisá que la API key sea la correcta y que la baseUrl apunte al host correcto (ej. https://demo.smartolt.com para cuentas demo). El error exacto queda guardado en el campo lastError del connector."
+            q="La prueba del conector falla por credenciales inválidas."
+            a="Revisá la clave de API y la URL base. El motivo exacto queda visible en Conectores NMS y podés usar Reintentar después de corregirlo."
           />
           <Faq
-            q="No me deja agregar un connector."
-            a="Sólo roles con permiso manage_connectors (Owner y Admin) pueden crear/borrar. Si sos Operator, pedile a un admin que lo agregue."
+            q="No me deja agregar un conector."
+            a="Solo Propietario y Administrador pueden crear o borrar conectores. Si sos Operador, pedile a un administrador que lo agregue."
           />
           <Faq
             q="Las alertas no aparecen."
-            a="El panel sólo muestra alertas cuando el backend detecta eventos reales. Con datos mock vas a ver un set fijo; con datos reales depende del estado de tu red."
+            a="El panel muestra el resultado de la última consulta. Confirmá la Red activa y usá Actualizar para volver a consultar el NMS."
           />
           <Faq
             q="Olvidé la contraseña."
-            a="El flujo de reset está en roadmap. Pedile a un Owner de tu tenant que te cree un usuario nuevo desde el panel de User Management."
+            a="La recuperación automática todavía no está disponible. No intentes crear otra cuenta con el mismo email: contactá al administrador del despliegue para recuperar el acceso de forma segura."
           />
         </Section>
 

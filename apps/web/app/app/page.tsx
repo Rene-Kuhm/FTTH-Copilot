@@ -6,6 +6,7 @@ import { ConnectorManager } from '@/components/ConnectorManager';
 import { UserManager } from '@/components/UserManager';
 import { AlertsPanel } from '@/components/AlertsPanel';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
+import { NmsSelector } from '@/components/NmsSelector';
 import { SignalIcon, ChartBarSquareIcon } from '@/components/icons';
 
 export default function AppPage() {
@@ -17,12 +18,12 @@ export default function AppPage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/20">
               <SignalIcon className="h-5 w-5" />
             </span>
-            <div className="flex flex-col leading-none">
+            <div className="hidden flex-col leading-none min-[430px]:flex">
               <span className="text-sm font-semibold tracking-tight text-neutral-50">
                 FTTH-Copilot
               </span>
               <span className="mt-0.5 text-xs text-neutral-500">
-                Network diagnostics
+                Diagnóstico de red
               </span>
             </div>
           </Link>
@@ -40,16 +41,17 @@ export default function AppPage() {
               href={'/dashboard' as Route}
               className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-neutral-400 hover:bg-neutral-950 hover:text-neutral-50"
             >
-              Dashboard
+              Tablero
             </Link>
           </nav>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <AlertsPanel />
         <AuthBar />
         <OnboardingWizard />
+        <NmsSelector />
+        <AlertsPanel />
         <UserManager />
         <ConnectorManager />
         <ChatUI />
