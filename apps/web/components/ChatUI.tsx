@@ -105,9 +105,11 @@ export default function ChatUI() {
 
   const canChat =
     auth.user && hasPermission(auth.user.role, 'chat' as Permission);
+  const hasDataSource =
+    connectorState.demoMode || connectorState.connectedConnectors.length > 0;
 
   async function sendMessage(text: string) {
-    if (!canChat) return;
+    if (!canChat || !hasDataSource || connectorState.loading) return;
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 
@@ -223,9 +225,19 @@ export default function ChatUI() {
           </p>
         </div>
         </div>
-        <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-400/[0.07] px-2.5 py-1 text-[10px] font-semibold text-emerald-300 sm:inline-flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          Disponible
+        <span
+          className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex ${
+            hasDataSource
+              ? 'border-emerald-400/15 bg-emerald-400/[0.07] text-emerald-300'
+              : 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300'
+          }`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${hasDataSource ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          {connectorState.loading
+            ? 'Comprobando'
+            : hasDataSource
+              ? 'Disponible'
+              : 'Requiere NMS'}
         </span>
       </header>
 
@@ -245,8 +257,13 @@ export default function ChatUI() {
           >
             {messages.length === 0 ? (
               <EmptyState
-                disabled={isLoading || !canChat}
+                disabled={isLoading || !canChat || !hasDataSource || connectorState.loading}
                 unauthenticated={!auth.user}
+                needsConnector={
+                  Boolean(auth.user) &&
+                  !connectorState.loading &&
+                  !hasDataSource
+                }
                 onPick={(q) => void sendMessage(q)}
               />
             ) : (
@@ -299,13 +316,19 @@ export default function ChatUI() {
                 aria-label="Pregunta para el Copilot"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Preguntale algo a tu red…"
-                disabled={isLoading}
+                placeholder={
+                  connectorState.loading
+                    ? 'Comprobando fuentes de datos…'
+                    : hasDataSource
+                      ? 'Preguntale algo a tu red…'
+                      : 'Configurá y validá un conector NMS para comenzar'
+                }
+                disabled={isLoading || connectorState.loading || !hasDataSource}
                 className="input border-transparent bg-transparent shadow-none hover:border-transparent focus:border-transparent focus:bg-transparent focus:shadow-none"
               />
               <button
                 type="submit"
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || connectorState.loading || !hasDataSource || !input.trim()}
                 className="btn-primary min-h-10 shrink-0 px-3.5 sm:px-4"
                 aria-label="Enviar mensaje"
               >
@@ -323,10 +346,12 @@ export default function ChatUI() {
 function EmptyState({
   disabled,
   unauthenticated,
+  needsConnector,
   onPick,
 }: {
   disabled: boolean;
   unauthenticated: boolean;
+  needsConnector: boolean;
   onPick: (q: string) => void;
 }) {
   return (
@@ -337,14 +362,25 @@ function EmptyState({
       </span>
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-[-0.02em] text-white sm:text-lg">
-          {unauthenticated ? 'Iniciá sesión para consultar tu red' : 'Hacé tu primera pregunta'}
+          {unauthenticated
+            ? 'Iniciá sesión para consultar tu red'
+            : needsConnector
+              ? 'Conectá tu NMS para comenzar'
+              : 'Hacé tu primera pregunta'}
         </h3>
         <p className="mx-auto max-w-md text-sm leading-6 text-neutral-500">
           {unauthenticated
             ? 'Tus conversaciones y datos de red están protegidos por tu cuenta.'
-            : 'Tu Copilot consulta el NMS seleccionado. Probá con una de estas preguntas:'}
+            : needsConnector
+              ? 'Agregá SmartOLT o Mikrowisp y validá las credenciales. El chat se habilitará automáticamente cuando la prueba sea exitosa.'
+              : 'Tu Copilot consulta el NMS seleccionado. Probá con una de estas preguntas:'}
         </p>
       </div>
+      {needsConnector && (
+        <a href="#gestion" className="btn-primary">
+          Configurar conector NMS
+        </a>
+      )}
       <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
         {SUGGESTED_QUESTIONS.map((q) => (
           <button

@@ -54,6 +54,7 @@ test('onboarding only completes after a successful NMS test', async ({ page }) =
   await page.goto('/app');
   await page.getByRole('button', { name: 'Empezar' }).click();
   await page.getByLabel('Clave de API').fill('invalid-key');
+  await page.getByLabel('URL base').fill('https://isp.smartolt.com');
   await page.getByRole('button', { name: 'Guardar y probar' }).click();
 
   await expect(page.getByText('La conexión falló.')).toBeVisible();
@@ -63,6 +64,7 @@ test('onboarding only completes after a successful NMS test', async ({ page }) =
   testSucceeds = true;
   await page.getByRole('button', { name: 'Volver a probar' }).click();
   await expect(page.getByText('Conexión exitosa.')).toBeVisible();
+  await expect(page.getByLabel('Seleccionar conector NMS')).toHaveValue('conn-new');
   await expect(page.getByRole('button', { name: 'Continuar' })).toBeEnabled();
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page.getByText('¡Listo! Tu red quedó conectada.')).toBeVisible();

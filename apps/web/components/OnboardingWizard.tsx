@@ -120,8 +120,7 @@ export function OnboardingWizard() {
           connector={createdConnector}
           onBack={() => setStep('connector')}
           onConnected={async () => {
-            await connectorState.refresh();
-            connectorState.selectConnection(createdConnector.id);
+            await connectorState.refresh(createdConnector.id);
           }}
           onDone={() => setStep('done')}
         />
@@ -167,7 +166,7 @@ function ConnectorForm({
   const [provider, setProvider] = useState<Provider>('SMARTOLT');
   const [label, setLabel] = useState('SmartOLT producción');
   const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('https://api.smartolt.com');
+  const [baseUrl, setBaseUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -209,7 +208,7 @@ function ConnectorForm({
               const next = event.target.value as Provider;
               setProvider(next);
               setLabel(next === 'SMARTOLT' ? 'SmartOLT producción' : 'Mikrowisp producción');
-              setBaseUrl(next === 'SMARTOLT' ? 'https://api.smartolt.com' : '');
+              setBaseUrl('');
             }}
             className="input"
           >
@@ -227,7 +226,7 @@ function ConnectorForm({
         </label>
         <label className="block space-y-1.5 sm:col-span-2">
           <span className="text-xs font-medium text-neutral-300">URL base</span>
-          <input name="connector-base-url" autoComplete="url" type="url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder={provider === 'SMARTOLT' ? 'https://api.smartolt.com' : 'https://tu-mikrowisp.example.com'} className="input" />
+          <input name="connector-base-url" autoComplete="url" type="url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder={provider === 'SMARTOLT' ? 'https://tu-cuenta.smartolt.com' : 'https://tu-mikrowisp.example.com/api/v1'} className="input" />
         </label>
       </div>
       {error && <div role="alert" aria-live="assertive" className="mt-3 rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
