@@ -32,20 +32,20 @@ export default function DocsPage() {
   }, []);
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 md:flex-row md:gap-10 md:py-10">
-      <aside className="w-full shrink-0 md:w-56">
-        <Link href="/" className="text-sm text-neutral-400 hover:text-neutral-50">
-          ← FTTH-Copilot
+    <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 md:flex-row md:gap-12 md:py-10 lg:px-8">
+      <aside className="w-full shrink-0 md:sticky md:top-8 md:h-fit md:w-60">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+          ← FTTH·Copilot
         </Link>
         <nav aria-label="Secciones de documentación" className="mt-4 flex gap-1 overflow-x-auto pb-2 text-sm md:mt-6 md:block md:space-y-1 md:overflow-visible md:pb-0">
           {SECTIONS.map((s) => (
             <a
               key={s.id}
               href={`#${s.id}`}
-              className={`block flex-shrink-0 rounded px-3 py-1.5 transition-colors ${
+              className={`block flex-shrink-0 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${
                 active === s.id
-                  ? 'border-l-2 border-blue-500 bg-neutral-900 text-neutral-50'
-                  : 'border-l-2 border-transparent text-neutral-400 hover:text-neutral-50'
+                  ? 'border-cyan-300/15 bg-cyan-400/[0.08] text-cyan-100'
+                  : 'border-transparent text-neutral-500 hover:bg-white/[0.025] hover:text-white'
               }`}
             >
               {s.label}
@@ -54,10 +54,11 @@ export default function DocsPage() {
         </nav>
       </aside>
 
-      <article className="min-w-0 flex-1">
-        <header className="mb-10 border-b border-neutral-800 pb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Docs para ISPs</h1>
-          <p className="mt-2 text-sm text-neutral-400">
+      <article className="min-w-0 flex-1 md:max-w-3xl">
+        <header className="mb-12 border-b border-white/[0.07] pb-8">
+          <p className="eyebrow">Centro de ayuda</p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">Documentación para ISPs</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
             Cómo conectar tu NMS, qué podés hacer con FTTH-Copilot, y cómo resolver los
             problemas más comunes.
           </p>
@@ -117,9 +118,9 @@ export default function DocsPage() {
 
           <SubTitle>Alertas</SubTitle>
           <p>
-            El panel de alertas (visible arriba del chat) muestra eventos críticos,
+            El panel de alertas muestra eventos críticos,
             advertencias e información. Es una consulta bajo demanda: usá Actualizar para
-            obtener un nuevo estado.
+            obtener un nuevo estado. También dispone de una vista dedicada en <code className="rounded bg-neutral-900 px-1 py-0.5 text-xs">/alerts</code>.
           </p>
 
           <SubTitle>Gestión de usuarios</SubTitle>
@@ -183,7 +184,7 @@ export default function DocsPage() {
           />
         </Section>
 
-        <footer className="mt-16 border-t border-neutral-800 pt-6 text-xs text-neutral-400">
+        <footer className="mt-16 border-t border-white/[0.07] pt-6 text-xs text-neutral-500">
           ¿Falta algo? Escribinos — esta doc se actualiza con cada release.
         </footer>
       </article>
@@ -201,15 +202,15 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="mb-16 scroll-mt-24">
-      <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-      <div className="mt-4 space-y-4 text-sm leading-relaxed">{children}</div>
+    <section id={id} className="mb-20 scroll-mt-24">
+      <h2 className="text-2xl font-semibold tracking-[-0.03em] text-white">{title}</h2>
+      <div className="mt-5 space-y-4 text-sm leading-7 text-neutral-300">{children}</div>
     </section>
   );
 }
 
 function SubTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="mt-4 text-base font-semibold">{children}</h3>;
+  return <h3 className="mt-7 text-base font-semibold text-white">{children}</h3>;
 }
 
 function Endpoint({ method, path, desc }: { method: string; path: string; desc: string }) {
@@ -220,7 +221,7 @@ function Endpoint({ method, path, desc }: { method: string; path: string; desc: 
     DELETE: 'border-red-800 text-red-400',
   };
   return (
-    <div className="rounded border border-neutral-800 bg-neutral-900 px-4 py-2">
+    <div className="card-soft px-4 py-3">
       <div className="flex items-center gap-3">
         <span className={`rounded border px-2 py-0.5 font-mono text-xs ${colors[method] ?? 'border-neutral-700 text-neutral-400'}`}>
           {method}
@@ -234,9 +235,9 @@ function Endpoint({ method, path, desc }: { method: string; path: string; desc: 
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (
-    <div className="rounded border border-neutral-800 bg-neutral-900 p-4">
-      <div className="text-sm font-medium">{q}</div>
-      <p className="mt-2 text-sm text-neutral-400">{a}</p>
+    <div className="card-soft p-4 sm:p-5">
+      <div className="text-sm font-semibold text-white">{q}</div>
+      <p className="mt-2 text-sm leading-6 text-neutral-400">{a}</p>
     </div>
   );
 }

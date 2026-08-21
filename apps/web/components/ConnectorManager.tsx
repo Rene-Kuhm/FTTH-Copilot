@@ -158,14 +158,14 @@ export function ConnectorManager() {
 
   return (
     <section className="card overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-4">
+      <header className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-500/30">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/15">
             <ServerStackIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-neutral-50">Conectores NMS</h2>
-            <p className="mt-0.5 text-xs text-neutral-400">
+            <h2 className="text-sm font-semibold text-white">Conectores NMS</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {connectorState.connectors.length === 0
                 ? 'Todavía no configuraste una red'
                 : `${connectorState.connectors.length} conector${connectorState.connectors.length === 1 ? '' : 'es'} configurado${connectorState.connectors.length === 1 ? '' : 's'}`}
@@ -188,7 +188,7 @@ export function ConnectorManager() {
         )}
       </header>
 
-      <div className="border-t border-neutral-800 px-5 py-4">
+      <div className="border-t border-white/[0.06] px-5 py-4 sm:px-6">
         {feedback && (
           <div
             role={feedback.kind === 'error' ? 'alert' : 'status'}
@@ -208,10 +208,10 @@ export function ConnectorManager() {
             Cargando conectores…
           </p>
         ) : connectorState.connectors.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-4 py-8 text-center">
-            <ServerStackIcon className="h-8 w-8 text-neutral-400" />
-            <p className="text-sm font-medium text-neutral-50">No hay conectores</p>
-            <p className="max-w-md text-xs text-neutral-400">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.09] bg-black/10 px-4 py-9 text-center">
+            <ServerStackIcon className="h-8 w-8 text-neutral-500" />
+            <p className="text-sm font-semibold text-white">No hay conectores</p>
+            <p className="max-w-md text-xs leading-5 text-neutral-500">
               Agregá SmartOLT o Mikrowisp y validá la conexión para consultar tu red real.
             </p>
           </div>
@@ -224,19 +224,19 @@ export function ConnectorManager() {
               return (
                 <li
                   key={connector.id}
-                  className="rounded-lg border border-neutral-800 bg-neutral-950/60 px-4 py-3"
+                  className="rounded-xl border border-white/[0.07] bg-black/10 px-4 py-3.5 transition-colors hover:border-white/[0.12]"
                 >
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <div className="flex min-w-0 items-start gap-3">
-                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-neutral-300 ring-1 ring-inset ring-neutral-800">
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-neutral-300 ring-1 ring-inset ring-white/[0.07]">
                         <ServerStackIcon className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-medium text-neutral-50">
+                          <span className="truncate text-sm font-semibold text-white">
                             {connector.label}
                           </span>
-                          <span className="badge bg-neutral-800 text-neutral-300 ring-1 ring-inset ring-neutral-700">
+                          <span className="badge bg-white/[0.05] text-neutral-300 ring-1 ring-inset ring-white/[0.08]">
                             {connector.provider}
                           </span>
                           <span className={`${status.className} badge`}>
@@ -302,7 +302,7 @@ export function ConnectorManager() {
       {showForm && canManage && (
         <form
           onSubmit={(event) => void submit(event)}
-          className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
+          className="space-y-4 border-t border-white/[0.06] bg-black/10 px-5 py-5 sm:px-6"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5">

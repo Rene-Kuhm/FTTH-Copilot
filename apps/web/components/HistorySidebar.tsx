@@ -108,13 +108,13 @@ export function HistorySidebar({
       )}
 
       <aside
-        className={`${open ? 'fixed inset-0 z-20 bg-neutral-950/70 backdrop-blur-sm' : 'hidden'} lg:static lg:block lg:w-72 lg:flex-none lg:bg-transparent`}
+        className={`${open ? 'fixed inset-0 z-40 bg-[#061018]/80 p-3 backdrop-blur-md' : 'hidden'} lg:static lg:block lg:w-64 lg:flex-none lg:bg-transparent lg:p-0`}
       >
-        <div className="card flex h-full flex-col overflow-hidden lg:sticky lg:top-24">
-          <header className="flex items-center justify-between gap-2 px-4 py-3.5">
+        <div className="card flex h-full max-w-sm flex-col overflow-hidden lg:max-w-none lg:rounded-none lg:border-0 lg:border-r lg:border-white/[0.06] lg:bg-black/10 lg:shadow-none">
+          <header className="flex items-center justify-between gap-2 px-4 py-4">
             <div className="flex items-center gap-2">
-              <ChatBubbleLeftRightIcon className="h-4 w-4 text-neutral-400" />
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              <ChatBubbleLeftRightIcon className="h-4 w-4 text-cyan-300" />
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-500">
                 Historial
               </h3>
             </div>
@@ -129,7 +129,7 @@ export function HistorySidebar({
             </div>
           </header>
 
-          <div className="border-t border-neutral-800 px-4 py-3">
+          <div className="border-t border-white/[0.05] px-4 py-3">
             <div className="relative">
               <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               <input
@@ -173,13 +173,13 @@ export function HistorySidebar({
                         onClick={() => handleSelect(c.id)}
                         className={`flex w-full items-start gap-2.5 rounded-lg border py-2 pl-3 pr-10 text-left text-sm transition-colors ${
                           isActive
-                            ? 'border-blue-500/60 bg-blue-500/10 text-neutral-50'
-                            : 'border-transparent text-neutral-400 hover:border-neutral-800 hover:bg-neutral-950/60 hover:text-neutral-50'
+                            ? 'border-cyan-300/20 bg-cyan-400/[0.08] text-white'
+                            : 'border-transparent text-neutral-400 hover:border-white/[0.06] hover:bg-white/[0.025] hover:text-white'
                         }`}
                       >
                         <ChatBubbleLeftRightIcon
                           className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                            isActive ? 'text-blue-500' : 'text-neutral-500'
+                            isActive ? 'text-cyan-300' : 'text-neutral-500'
                           }`}
                         />
                         <span className="min-w-0 flex-1">

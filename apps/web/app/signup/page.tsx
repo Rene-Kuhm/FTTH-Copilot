@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { AuthBar } from '@/components/AuthBar';
+import { AuthPageShell } from '@/components/AuthPageShell';
 import { useAuth } from '@/lib/auth/client';
 
 export default function SignupPage() {
@@ -18,23 +19,14 @@ export default function SignupPage() {
   }, [auth.user, router]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-12">
-      <header className="mb-8 text-center">
-        <Link href="/" className="inline-block text-sm text-neutral-400 hover:text-neutral-50">
-          ← FTTH-Copilot
-        </Link>
-        <h1 className="mt-4 text-2xl font-semibold tracking-tight">Crear cuenta</h1>
-        <p className="mt-1 text-sm text-neutral-400">
-          Creá tu espacio y conectá el primer NMS con el asistente guiado.
-        </p>
-      </header>
+    <AuthPageShell title="Crear tu espacio" description="Configurá tu organización y conectá el primer NMS con el asistente guiado.">
       <AuthBar initialMode="signup" />
-      <p className="text-center text-xs text-neutral-400">
+      <p className="mt-5 text-center text-xs text-neutral-500">
         ¿Ya tenés cuenta?{' '}
-        <Link href={'/login' as Route} className="text-blue-500 hover:underline">
+        <Link href={'/login' as Route} className="font-semibold text-cyan-300 hover:text-cyan-200">
           Iniciar sesión
         </Link>
       </p>
-    </main>
+    </AuthPageShell>
   );
 }

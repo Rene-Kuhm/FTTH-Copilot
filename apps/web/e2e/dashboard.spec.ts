@@ -29,6 +29,6 @@ test.describe('Dashboard', () => {
   });
 
   test('shows link back to chat', async ({ page }) => {
-    await expect(page.locator('a[href="/app"]')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Volver al Copilot' })).toBeVisible();
   });
 });

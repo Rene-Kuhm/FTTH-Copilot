@@ -31,22 +31,22 @@ const ROLE_META: Record<
   OWNER: {
     label: 'Propietario',
     className:
-      'bg-blue-500/15 text-blue-500 ring-1 ring-inset ring-blue-500/30',
+      'bg-cyan-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/20',
   },
   ADMIN: {
     label: 'Administrador',
     className:
-      'bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30',
+      'bg-success/10 text-emerald-300 ring-1 ring-inset ring-success/20',
   },
   OPERATOR: {
     label: 'Operador',
     className:
-      'bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-700',
+      'bg-white/[0.05] text-neutral-400 ring-1 ring-inset ring-white/[0.08]',
   },
   MEMBER: {
     label: 'Miembro (anterior)',
     className:
-      'bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-700',
+      'bg-white/[0.05] text-neutral-500 ring-1 ring-inset ring-white/[0.08]',
   },
 };
 
@@ -157,13 +157,13 @@ export function UserManager() {
 
   return (
     <section className="card overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-4">
+      <header className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-400/10 text-indigo-300 ring-1 ring-inset ring-indigo-300/15">
             <UserGroupIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-50">Gestión de usuarios</h2>
+            <h2 className="text-sm font-semibold text-white">Gestión de usuarios</h2>
             <p className="mt-0.5 text-xs text-neutral-500">
               {users.length} usuario{users.length === 1 ? '' : 's'} en tu organización
             </p>
@@ -188,7 +188,7 @@ export function UserManager() {
         </button>
       </header>
 
-      <div className="border-t border-neutral-800">
+      <div className="border-t border-white/[0.06]">
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <UserGroupIcon className="h-8 w-8 text-neutral-500" />
@@ -201,14 +201,14 @@ export function UserManager() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 bg-neutral-950/40 text-left text-xs uppercase tracking-wide text-neutral-500">
+                <tr className="border-b border-white/[0.06] bg-black/10 text-left text-[10px] uppercase tracking-[0.12em] text-neutral-500">
                   <th className="px-5 py-2.5 font-medium">Usuario</th>
                   <th className="px-3 py-2.5 font-medium">Rol</th>
                   <th className="px-3 py-2.5 font-medium">Alta</th>
                   <th className="px-5 py-2.5 font-medium text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/70">
+              <tbody className="divide-y divide-white/[0.05]">
                 {users.map((u) => {
                   const isSelf = u.id === auth.user!.id;
                   const isOwner = u.role === 'OWNER';
@@ -217,11 +217,11 @@ export function UserManager() {
                   return (
                     <tr
                       key={u.id}
-                      className="transition-colors hover:bg-neutral-950/40"
+                      className="transition-colors hover:bg-white/[0.025]"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-neutral-800 text-neutral-400">
+                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-neutral-400 ring-1 ring-inset ring-white/[0.07]">
                             <UserCircleIcon className="h-5 w-5" />
                           </span>
                           <div className="min-w-0">
@@ -295,7 +295,7 @@ export function UserManager() {
       {showForm && (
         <form
           onSubmit={(e) => void createUser(e)}
-          className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
+          className="space-y-4 border-t border-white/[0.06] bg-black/10 px-5 py-5 sm:px-6"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5 sm:col-span-2">

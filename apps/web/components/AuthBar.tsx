@@ -29,28 +29,28 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
 
   if (auth.loading) {
     return (
-      <div className="card px-5 py-4 text-sm text-neutral-400">Cargando sesión…</div>
+      <div className="card h-[74px] animate-pulse" role="status"><span className="sr-only">Cargando sesión…</span></div>
     );
   }
 
   if (auth.user) {
     return (
-      <div className="card flex items-center justify-between gap-4 px-5 py-4">
+      <div className="card flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
-            <UserCircleIcon className="h-6 w-6" />
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-indigo-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/15">
+            <UserCircleIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-neutral-50">
+              <span className="truncate text-sm font-semibold text-white">
                 {auth.user.email}
               </span>
-              <span className="badge bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30">
+              <span className="badge bg-success/10 text-emerald-300 ring-1 ring-inset ring-success/20">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 Activa
               </span>
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500">
               <BuildingOfficeIcon className="h-3.5 w-3.5" />
               <span className="truncate">{auth.user.tenant.name}</span>
             </div>
@@ -64,7 +64,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
               setError(caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.'),
             );
           }}
-          className="btn-outline"
+          className="btn-ghost px-3"
         >
           <ArrowRightOnRectangleIcon className="h-4 w-4" />
           Salir
@@ -75,10 +75,10 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
 
   if (mode === null) {
     return (
-      <div className="card flex flex-col items-start justify-between gap-4 px-5 py-4 sm:flex-row sm:items-center">
+      <div className="card flex flex-col items-start justify-between gap-5 px-5 py-5 sm:flex-row sm:items-center sm:px-6">
         <div>
-          <h2 className="text-sm font-semibold text-neutral-50">Inicia sesión</h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
+          <h2 className="text-base font-semibold text-white">Inicia sesión</h2>
+          <p className="mt-1 text-sm text-neutral-500">
             Accedé para chatear con tu red FTTH y gestionar tu tenant.
           </p>
         </div>
@@ -128,13 +128,13 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
   const isLogin = mode === 'login';
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="card p-5 space-y-4">
+    <form onSubmit={(e) => void submit(e)} className="card space-y-5 p-5 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-neutral-50">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">
             {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
           </h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
+          <p className="mt-1 text-sm text-neutral-500">
             {isLogin
               ? 'Accedé a tu tenant para continuar.'
               : 'Creá tu cuenta y tenant en un solo paso.'}
@@ -228,7 +228,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="btn-primary w-full"
+        className="btn-primary min-h-11 w-full"
       >
         <KeyIcon className="h-4 w-4" />
         {submitting

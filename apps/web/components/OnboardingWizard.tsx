@@ -68,7 +68,9 @@ export function OnboardingWizard() {
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-blue-500/30 bg-neutral-900 p-5 shadow-lg shadow-blue-950/10">
+    <section className="relative mb-5 overflow-hidden rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.09] via-[#0d1c28] to-indigo-400/[0.06] p-5 shadow-[0_24px_70px_rgba(0,0,0,.18)] sm:p-6">
+      <div aria-hidden="true" className="surface-grid pointer-events-none absolute inset-0 opacity-25" />
+      <div className="relative">
       <header className="mb-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2" aria-label="Progreso de configuración">
           <StepDot active={step === 'welcome'} done={step !== 'welcome'} />
@@ -83,10 +85,11 @@ export function OnboardingWizard() {
 
       {step === 'welcome' && (
         <div>
-          <h2 className="text-base font-semibold text-neutral-50">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-300">Configuración inicial</p>
+          <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-white">
             Conectá tu primera red
           </h2>
-          <p className="mt-2 text-sm text-neutral-300">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
             Configurá SmartOLT o Mikrowisp y validaremos la conexión antes de habilitar
             las consultas. Tarda menos de dos minutos.
           </p>
@@ -126,10 +129,10 @@ export function OnboardingWizard() {
 
       {step === 'done' && (
         <div role="status" aria-live="polite">
-          <h2 className="text-base font-semibold text-neutral-50">
+          <h2 className="text-base font-semibold text-white">
             ¡Listo! Tu red quedó conectada.
           </h2>
-          <p className="mt-2 text-sm text-neutral-300">
+          <p className="mt-2 text-sm leading-6 text-neutral-400">
             Chat, tablero y alertas consultarán el NMS validado. Podés agregar o cambiar
             de red cuando quieras desde Conectores NMS.
           </p>
@@ -138,6 +141,7 @@ export function OnboardingWizard() {
           </button>
         </div>
       )}
+      </div>
     </section>
   );
 }
@@ -147,7 +151,7 @@ function StepDot({ active, done }: { active: boolean; done: boolean }) {
     <span
       aria-hidden="true"
       className={`inline-block h-1.5 w-6 rounded-full ${
-        active ? 'bg-blue-400' : done ? 'bg-blue-400/50' : 'bg-neutral-700'
+        active ? 'bg-cyan-300' : done ? 'bg-cyan-300/45' : 'bg-white/10'
       }`}
     />
   );
@@ -192,8 +196,8 @@ function ConnectorForm({
 
   return (
     <form onSubmit={(event) => void submit(event)}>
-      <h2 className="text-base font-semibold text-neutral-50">Datos de tu NMS</h2>
-      <p className="mt-1 text-sm text-neutral-300">
+      <h2 className="text-base font-semibold text-white">Datos de tu NMS</h2>
+      <p className="mt-1 text-sm leading-6 text-neutral-400">
         La clave de API se almacena cifrada con AES-256-GCM y nunca se muestra de nuevo.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -286,11 +290,11 @@ function TestStep({
 
   return (
     <div>
-      <h2 className="text-base font-semibold text-neutral-50">Validemos la conexión</h2>
-      <p className="mt-1 text-sm text-neutral-300">
+      <h2 className="text-base font-semibold text-white">Validemos la conexión</h2>
+      <p className="mt-1 text-sm leading-6 text-neutral-400">
         Estamos consultando {connector.label} con las credenciales que acabás de guardar.
       </p>
-      <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950 p-3 text-sm" aria-live="polite">
+      <div className="mt-4 rounded-xl border border-white/[0.08] bg-black/20 p-3.5 text-sm" aria-live="polite">
         {running && <span role="status" className="text-neutral-300">Probando conexión…</span>}
         {!running && result?.ok && <span role="status" className="text-emerald-300">Conexión exitosa. El NMS respondió correctamente.</span>}
         {!running && result && !result.ok && (
