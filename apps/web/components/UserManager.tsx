@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import {
@@ -29,24 +29,24 @@ const ROLE_META: Record<
   }
 > = {
   OWNER: {
-    label: 'Owner',
+    label: 'Propietario',
     className:
-      'bg-blue-500/15 text-blue-500 ring-1 ring-inset ring-blue-500/30',
+      'bg-cyan-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/20',
   },
   ADMIN: {
-    label: 'Admin',
+    label: 'Administrador',
     className:
-      'bg-success/15 text-emerald-500 ring-1 ring-inset ring-success/30',
+      'bg-success/10 text-emerald-300 ring-1 ring-inset ring-success/20',
   },
   OPERATOR: {
-    label: 'Operator',
+    label: 'Operador',
     className:
-      'bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-700',
+      'bg-white/[0.05] text-neutral-400 ring-1 ring-inset ring-white/[0.08]',
   },
   MEMBER: {
-    label: 'Member (legacy)',
+    label: 'Miembro (anterior)',
     className:
-      'bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-700',
+      'bg-white/[0.05] text-neutral-500 ring-1 ring-inset ring-white/[0.08]',
   },
 };
 
@@ -65,7 +65,7 @@ export function UserManager() {
   const canManage =
     auth.user && hasPermission(auth.user.role, 'manage_users' as Permission);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!canManage) return;
     setLoading(true);
     try {
@@ -77,13 +77,13 @@ export function UserManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canManage]);
 
   useEffect(() => {
     queueMicrotask(() => {
       void refresh();
     });
-  }, [auth.user]);
+  }, [refresh]);
 
   if (!auth.user || !canManage) return null;
 
@@ -134,12 +134,12 @@ export function UserManager() {
       }
       await refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error changing role');
+      setError(e instanceof Error ? e.message : 'No se pudo cambiar el rol.');
     }
   }
 
   async function deleteUser(userId: string) {
-    if (!confirm('Are you sure you want to remove this user?')) return;
+    if (!confirm('¿Seguro que querés eliminar este usuario?')) return;
     try {
       const r = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
@@ -151,21 +151,21 @@ export function UserManager() {
       }
       await refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error deleting user');
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar el usuario.');
     }
   }
 
   return (
     <section className="card overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-4">
+      <header className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/30">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-400/10 text-indigo-300 ring-1 ring-inset ring-indigo-300/15">
             <UserGroupIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-50">User Management</h2>
+            <h2 className="text-sm font-semibold text-white">Gestión de usuarios</h2>
             <p className="mt-0.5 text-xs text-neutral-500">
-              {users.length} member{users.length === 1 ? '' : 's'} in your tenant
+              {users.length} usuario{users.length === 1 ? '' : 's'} en tu organización
             </p>
           </div>
         </div>
@@ -177,38 +177,38 @@ export function UserManager() {
           {showForm ? (
             <>
               <XMarkIcon className="h-4 w-4" />
-              Cancel
+              Cancelar
             </>
           ) : (
             <>
               <PlusIcon className="h-4 w-4" />
-              Add user
+              Agregar usuario
             </>
           )}
         </button>
       </header>
 
-      <div className="border-t border-neutral-800">
+      <div className="border-t border-white/[0.06]">
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <UserGroupIcon className="h-8 w-8 text-neutral-500" />
-            <p className="text-sm font-medium text-neutral-50">No users yet</p>
+            <p className="text-sm font-medium text-neutral-50">Todavía no hay usuarios</p>
             <p className="text-xs text-neutral-500">
-              Add a teammate to give them access to your tenant.
+              Agregá a tu equipo para darle acceso a la organización.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 bg-neutral-950/40 text-left text-xs uppercase tracking-wide text-neutral-500">
-                  <th className="px-5 py-2.5 font-medium">User</th>
-                  <th className="px-3 py-2.5 font-medium">Role</th>
-                  <th className="px-3 py-2.5 font-medium">Joined</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Actions</th>
+                <tr className="border-b border-white/[0.06] bg-black/10 text-left text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                  <th className="px-5 py-2.5 font-medium">Usuario</th>
+                  <th className="px-3 py-2.5 font-medium">Rol</th>
+                  <th className="px-3 py-2.5 font-medium">Alta</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/70">
+              <tbody className="divide-y divide-white/[0.05]">
                 {users.map((u) => {
                   const isSelf = u.id === auth.user!.id;
                   const isOwner = u.role === 'OWNER';
@@ -217,11 +217,11 @@ export function UserManager() {
                   return (
                     <tr
                       key={u.id}
-                      className="transition-colors hover:bg-neutral-950/40"
+                      className="transition-colors hover:bg-white/[0.025]"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-neutral-800 text-neutral-400">
+                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-neutral-400 ring-1 ring-inset ring-white/[0.07]">
                             <UserCircleIcon className="h-5 w-5" />
                           </span>
                           <div className="min-w-0">
@@ -231,7 +231,7 @@ export function UserManager() {
                               </span>
                               {isSelf && (
                                 <span className="badge bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-800">
-                                  you
+                                  vos
                                 </span>
                               )}
                             </div>
@@ -250,8 +250,8 @@ export function UserManager() {
                             }
                             className="input w-auto py-1 text-xs"
                           >
-                            <option value="ADMIN">Admin</option>
-                            <option value="OPERATOR">Operator</option>
+                            <option value="ADMIN">Administrador</option>
+                            <option value="OPERATOR">Operador</option>
                           </select>
                         ) : (
                           <span className={meta.className + ' badge'}>
@@ -263,7 +263,7 @@ export function UserManager() {
                         )}
                       </td>
                       <td className="px-3 py-3 text-xs text-neutral-400">
-                        {new Date(u.createdAt).toLocaleDateString()}
+                            {new Date(u.createdAt).toLocaleDateString('es-AR')}
                       </td>
                       <td className="px-5 py-3 text-right">
                         {canEdit && !isOwner ? (
@@ -273,7 +273,7 @@ export function UserManager() {
                             className="btn-danger px-2.5 py-1.5"
                           >
                             <TrashIcon className="h-4 w-4" />
-                            <span className="hidden sm:inline">Remove</span>
+                            <span className="hidden sm:inline">Eliminar</span>
                           </button>
                         ) : (
                           <span className="text-xs text-neutral-500">—</span>
@@ -288,23 +288,25 @@ export function UserManager() {
         )}
 
         {loading && (
-          <p className="px-5 py-3 text-xs text-neutral-500">Loading...</p>
+          <p role="status" className="px-5 py-3 text-xs text-neutral-400">Cargando…</p>
         )}
       </div>
 
       {showForm && (
         <form
           onSubmit={(e) => void createUser(e)}
-          className="space-y-4 border-t border-neutral-800 bg-neutral-950/40 px-5 py-4"
+          className="space-y-4 border-t border-white/[0.06] bg-black/10 px-5 py-5 sm:px-6"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5 sm:col-span-2">
               <span className="text-xs font-medium text-neutral-400">
-                Name <span className="text-neutral-500">(optional)</span>
+                Nombre <span className="text-neutral-500">(opcional)</span>
               </span>
               <input
                 type="text"
-                placeholder="Name"
+                name="name"
+                autoComplete="name"
+                placeholder="Nombre"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="input"
@@ -314,6 +316,8 @@ export function UserManager() {
               <span className="text-xs font-medium text-neutral-400">Email</span>
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 placeholder="email@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -323,10 +327,12 @@ export function UserManager() {
             </label>
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-neutral-400">
-                Password <span className="text-neutral-500">(min 8)</span>
+                Contraseña <span className="text-neutral-500">(mínimo 8)</span>
               </span>
               <input
                 type="password"
+                name="new-password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -336,23 +342,23 @@ export function UserManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-400">Role</span>
+              <span className="text-xs font-medium text-neutral-400">Rol</span>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as typeof role)}
                 className="input"
               >
                 {auth.user!.role === 'OWNER' && (
-                  <option value="OWNER">Owner</option>
+                  <option value="OWNER">Propietario</option>
                 )}
-                <option value="ADMIN">Admin</option>
-                <option value="OPERATOR">Operator</option>
+                <option value="ADMIN">Administrador</option>
+                <option value="OPERATOR">Operador</option>
               </select>
             </label>
           </div>
 
           {error && (
-            <div className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+            <div role="alert" aria-live="assertive" className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
               {error}
             </div>
           )}
@@ -364,7 +370,7 @@ export function UserManager() {
               className="btn-primary"
             >
               <CheckCircleIcon className="h-4 w-4" />
-              {submitting ? 'Creating...' : 'Create user'}
+              {submitting ? 'Creando…' : 'Crear usuario'}
             </button>
           </div>
         </form>

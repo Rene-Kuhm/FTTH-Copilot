@@ -1,42 +1,125 @@
 /**
- * Chat-time connector factory.
- * Picks the user's first NMS connection for the tenant, decrypts the key,
- * and constructs a SmartOltClient for the agent to use.
- *
- * If no real connector is configured, returns null (caller falls back to mock).
+ * Tenant-aware connector factory used by chat, dashboard and alerts.
+ * A configured connector is never replaced silently with fixture data.
  */
 import { prisma, decryptApiKey } from '@ftth-copilot/db';
 import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
+import { MikrowispClient } from '@ftth-copilot/connectors-mikrowisp';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 
-type ConnectorInput = ConstructorParameters<typeof SmartOltClient>[0];
+export interface ConnectorDataSource {
+  mode: 'live' | 'demo';
+  connectionId: string | null;
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  label: string;
+}
 
-export class ChatOltClient extends SmartOltClient implements INmsConnector {
-  constructor(input: ConnectorInput) {
-    super(input);
+export interface ResolvedConnector {
+  connector: INmsConnector;
+  dataSource: ConnectorDataSource;
+}
+
+export class ConnectorResolutionError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ConnectorResolutionError';
+  }
+}
+
+interface ConnectionRecord {
+  id: string;
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  label: string;
+  encryptedKey: string;
+  encryptionMeta: string;
+  baseUrl: string | null;
+}
+
+export function buildConnectorFromConnection(connection: ConnectionRecord): ResolvedConnector {
+  if (!connection.baseUrl) {
+    throw new ConnectorResolutionError('El conector no tiene una URL base configurada.', 409);
   }
 
-  /**
-   * Build the connector for a tenant's chat session.
-   * - If they have a real SmartOLT connection: use it with useMock: false.
-   * - If they have a Mikrowisp connection: use SmartOLT mock (TODO: real adapter).
-   * - If they have nothing: return null (caller falls back to mock).
-   */
-  static async forTenant(tenantId: string): Promise<INmsConnector | null> {
-    const conn = await prisma.nmsConnection.findFirst({
-      where: { tenantId },
-      orderBy: { createdAt: 'asc' },
+  let secret: string;
+  try {
+    secret = decryptApiKey(connection.encryptedKey, connection.encryptionMeta);
+  } catch {
+    throw new ConnectorResolutionError(
+      'No se pudieron descifrar las credenciales del conector. Volvé a configurarlo.',
+      409,
+    );
+  }
+
+  let connector: INmsConnector;
+  if (connection.provider === 'SMARTOLT') {
+    connector = new SmartOltClient({
+      useMock: false,
+      apiKey: secret,
+      apiBaseUrl: connection.baseUrl,
     });
-    if (!conn) return null;
-
-    if (conn.provider === 'SMARTOLT') {
-      const apiKey = decryptApiKey(conn.encryptedKey, conn.encryptionMeta);
-      return new ChatOltClient({
-        useMock: false,
-        apiKey,
-        apiBaseUrl: conn.baseUrl ?? undefined,
-      });
-    }
-    return null;
+  } else if (connection.provider === 'MIKROWISP') {
+    connector = new MikrowispClient({
+      useMock: false,
+      token: secret,
+      apiBaseUrl: connection.baseUrl,
+    });
+  } else {
+    throw new ConnectorResolutionError(
+      'El adaptador de NetSense todavía no está implementado. No se usarán datos simulados.',
+      422,
+    );
   }
+
+  return {
+    connector,
+    dataSource: {
+      mode: 'live',
+      connectionId: connection.id,
+      provider: connection.provider,
+      label: connection.label,
+    },
+  };
+}
+
+export async function resolveTenantConnector(input: {
+  tenantId: string;
+  connectionId?: string | null;
+}): Promise<ResolvedConnector> {
+  const connection = await prisma.nmsConnection.findFirst({
+    where: {
+      tenantId: input.tenantId,
+      status: 'connected',
+      ...(input.connectionId ? { id: input.connectionId } : {}),
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (!connection) {
+    if (input.connectionId) {
+      throw new ConnectorResolutionError(
+        'El conector seleccionado no existe, no pertenece al tenant o todavía no fue validado.',
+        404,
+      );
+    }
+    if (process.env['DEMO_MODE_ENABLED'] === 'true') {
+      return {
+        connector: new SmartOltClient({ useMock: true }),
+        dataSource: {
+          mode: 'demo',
+          connectionId: null,
+          provider: 'SMARTOLT',
+          label: 'SmartOLT — datos simulados',
+        },
+      };
+    }
+    throw new ConnectorResolutionError(
+      'No hay un conector NMS validado. Configurá uno y probá la conexión antes de continuar.',
+      409,
+    );
+  }
+
+  return buildConnectorFromConnection(connection);
 }

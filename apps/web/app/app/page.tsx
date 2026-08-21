@@ -1,59 +1,58 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import ChatUI from '@/components/ChatUI';
+import { AppShell } from '@/components/AppShell';
 import { AuthBar } from '@/components/AuthBar';
 import { ConnectorManager } from '@/components/ConnectorManager';
 import { UserManager } from '@/components/UserManager';
 import { AlertsPanel } from '@/components/AlertsPanel';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
-import { SignalIcon, ChartBarSquareIcon } from '@/components/icons';
+import { NmsSelector } from '@/components/NmsSelector';
+import { ChartBarSquareIcon, Cog6ToothIcon } from '@/components/icons';
 
 export default function AppPage() {
   return (
-    <div className="min-h-screen bg-neutral-950">
-      <header className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href={'/app' as Route} className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/20">
-              <SignalIcon className="h-5 w-5" />
-            </span>
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-semibold tracking-tight text-neutral-50">
-                FTTH-Copilot
-              </span>
-              <span className="mt-0.5 text-xs text-neutral-500">
-                Network diagnostics
-              </span>
-            </div>
-          </Link>
-
-          <nav className="flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-            <Link
-              href={'/app' as Route}
-              className="flex items-center gap-2 rounded-md bg-neutral-950 px-3 py-1.5 text-sm font-medium text-neutral-50 shadow-sm ring-1 ring-neutral-800"
-              aria-current="page"
-            >
-              <ChartBarSquareIcon className="h-4 w-4 text-blue-500" />
-              Chat
-            </Link>
-            <Link
-              href={'/dashboard' as Route}
-              className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-neutral-400 hover:bg-neutral-950 hover:text-neutral-50"
-            >
-              Dashboard
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <AlertsPanel />
+    <AppShell
+      active="chat"
+      eyebrow="Asistente operativo"
+      title="Copilot de red"
+      description="Investigá eventos, consultá métricas y mantené cada conversación vinculada a la red correcta."
+      actions={
+        <Link href={'/dashboard' as Route} className="btn-outline">
+          <ChartBarSquareIcon className="h-4 w-4" />
+          Ver tablero
+        </Link>
+      }
+    >
+      <div className="space-y-5">
         <AuthBar />
         <OnboardingWizard />
-        <UserManager />
-        <ConnectorManager />
-        <ChatUI />
-      </main>
-    </div>
+        <NmsSelector />
+
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(330px,.8fr)]">
+          <ChatUI />
+          <aside className="space-y-5 xl:sticky xl:top-24">
+            <AlertsPanel />
+          </aside>
+        </div>
+
+        <section id="gestion" className="scroll-mt-28 pt-6">
+          <div className="mb-5 flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-300/15 bg-indigo-400/[0.08] text-indigo-300">
+              <Cog6ToothIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">Administración</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.02em] text-white">Configuración del espacio</h2>
+              <p className="mt-1 text-sm text-neutral-400">Gestioná las fuentes de datos y el acceso de tu equipo.</p>
+            </div>
+          </div>
+          <div className="grid items-start gap-5 2xl:grid-cols-2">
+            <ConnectorManager />
+            <UserManager />
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }

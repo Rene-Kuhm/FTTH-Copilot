@@ -104,13 +104,16 @@ describe('MikrowispClient (real mode)', () => {
 
   it('sends POST method on all requests', async () => {
     let capturedMethod: string | undefined;
+    let capturedRedirect: RequestRedirect | undefined;
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       capturedMethod = init?.method;
+      capturedRedirect = init?.redirect;
       return new Response(JSON.stringify(SAMPLE_ROUTERS_RESPONSE), { status: 200 });
     }) as typeof fetch;
     const client = new MikrowispClient({ useMock: false, token, apiBaseUrl, fetchImpl });
     await client.listOlts();
     expect(capturedMethod).toBe('POST');
+    expect(capturedRedirect).toBe('error');
   });
 
   it('listOlts maps real routers to OltSummary', async () => {
@@ -137,6 +140,16 @@ describe('MikrowispClient (real mode)', () => {
     expect(onus[0]?.id).toBe('EQ-001');
     expect(onus[0]?.status).toBe('online');
     expect(onus[1]?.status).toBe('offline');
+  });
+
+  it('searchByCustomerName searches the live monitoring response', async () => {
+    const fetchImpl = makeMockFetch([
+      { match: /GetMonitoreo/, body: SAMPLE_MONITOREO_RESPONSE },
+    ]);
+    const client = new MikrowispClient({ useMock: false, token, apiBaseUrl, fetchImpl });
+    const onus = await client.searchByCustomerName('huawei');
+    expect(onus).toHaveLength(1);
+    expect(onus[0]?.customerName).toBe('OLT-Huawei');
   });
 
   it('listClients maps real client data', async () => {

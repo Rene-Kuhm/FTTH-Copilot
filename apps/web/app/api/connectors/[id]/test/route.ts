@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { prisma, decryptApiKey } from '@ftth-copilot/db';
+import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
-import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
+import { hasPermission } from '@/lib/auth/permissions';
+import {
+  buildConnectorFromConnection,
+  ConnectorResolutionError,
+} from '@/lib/connectors/chat-client';
 
 export const runtime = 'nodejs';
 
@@ -11,41 +15,38 @@ export async function POST(
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
   const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!hasPermission(user.role, 'manage_connectors')) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
-  const conn = await prisma.nmsConnection.findFirst({
+  const connection = await prisma.nmsConnection.findFirst({
     where: { id, tenantId: user.tenantId },
   });
-  if (!conn) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
+  if (!connection) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  let client;
-  if (conn.provider === 'SMARTOLT') {
-    const apiKey = decryptApiKey(conn.encryptedKey, conn.encryptionMeta);
-    client = new SmartOltClient({
-      useMock: false,
-      apiKey,
-      apiBaseUrl: conn.baseUrl ?? undefined,
-    });
-  } else {
-    return NextResponse.json({
+  let result: { ok: boolean; latencyMs?: number; error?: string };
+  try {
+    const resolved = buildConnectorFromConnection(connection);
+    result = await resolved.connector.ping();
+  } catch (error) {
+    result = {
       ok: false,
-      error: 'Real adapter for ' + conn.provider + ' not yet implemented',
-    });
+      error: error instanceof ConnectorResolutionError
+        ? error.message
+        : 'No se pudo conectar con el NMS.',
+    };
+    console.error('[ftth-copilot/api/connectors/test] connector error', error);
   }
 
-  const result = await client.ping();
   await prisma.nmsConnection.update({
     where: { id },
     data: {
       status: result.ok ? 'connected' : 'error',
       lastCheckedAt: new Date(),
-      lastError: result.ok ? null : ((result.error as string | undefined) ?? '').slice(0, 500),
+      lastError: result.ok ? null : (result.error ?? '').slice(0, 500),
     },
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
 }

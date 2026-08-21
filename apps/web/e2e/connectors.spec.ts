@@ -41,7 +41,7 @@ async function loginViaUI(page: import("@playwright/test").Page) {
   await page.fill('input[placeholder="email@ejemplo.com"]', "test@isp.com");
   await page.fill('input[placeholder*="contraseña"]', "testpass123");
   await page.click('button[type="submit"]:has-text("Entrar")');
-  await expect(page.locator("text=Sesión activa")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('Activa', { exact: true })).toBeVisible({ timeout: 5_000 });
 }
 
 test.describe("Connectors", () => {
@@ -103,44 +103,51 @@ test.describe("Connectors", () => {
 
     await page.route("**/api/chat", (route) =>
       route.fulfill({
-        json: { reply: "Mock", toolsUsed: [], conversationId: "mock-1" },
+        json: {
+          reply: "Mock",
+          toolsUsed: [],
+          conversationId: "mock-1",
+          dataSource: { mode: "live", provider: "SMARTOLT", label: "SmartOLT prod" },
+        },
       })
     );
   });
 
   test("connector list: visible after login", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page.locator("text=Iniciar sesión")).toBeVisible({ timeout: 10_000 });
 
     await loginViaUI(page);
 
     await page.reload();
-    await expect(page.locator("text=NMS Connectors")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("text=SmartOLT prod")).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Conectores NMS' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("SmartOLT prod", { exact: true })).toBeVisible();
   });
 
   test("create connector: fill form, submit, appears in list", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page.locator("text=Iniciar sesión")).toBeVisible({ timeout: 10_000 });
 
     await loginViaUI(page);
 
     await page.reload();
-    await expect(page.locator("text=NMS Connectors")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Conectores NMS' })).toBeVisible({ timeout: 10_000 });
 
-    await page.click("text=+ Agregar connector");
-    await page.fill('input[placeholder*="Etiqueta"]', "Mikrowisp test");
-    await page.fill('input[placeholder*="API key"]', "test-api-key-123");
-    await page.click('button:has-text("Guardar connector")');
+    await page.getByRole("button", { name: "Agregar conector" }).click();
+    await page.getByLabel("Proveedor").selectOption("MIKROWISP");
+    await page.getByLabel("Etiqueta").fill("Mikrowisp test");
+    await page.getByLabel("Clave de API").fill("test-api-key-123");
+    await page.getByLabel("URL base").fill("https://demo.mikrowisp.com/api/v1");
+    await page.getByRole("button", { name: "Guardar y probar" }).click();
 
-    await expect(page.locator("text=Mikrowisp test")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Mikrowisp test", { exact: true })).toBeVisible({ timeout: 5_000 });
   });
 
   test("connector section renders when pre-authenticated", async ({ page }) => {
     await page.context().addCookies([
       { name: "session", value: "mock-token", domain: "localhost", path: "/" },
     ]);
-    await page.goto("/");
-    await expect(page.locator("text=NMS Connectors")).toBeVisible({ timeout: 10_000 });
+    await page.goto("/app");
+    await expect(page.getByRole('heading', { name: 'Conectores NMS' })).toBeVisible({ timeout: 10_000 });
   });
 });

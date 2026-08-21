@@ -1,23 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth/client';
+import { useConnectors } from '@/lib/connectors/client';
+import {
+  ChartBarSquareIcon,
+  CpuChipIcon,
+  ServerStackIcon,
+  SignalIcon,
+  WifiIcon,
+} from './icons';
 
 interface OltWithStats {
   id: string;
   name: string;
-  ip: string;
   status: string;
   temperatureCelsius?: number;
   uptimeSeconds?: number;
-  location?: string;
   vendor?: string;
-  onusTotal: number;
   onusOnline: number;
   onusOffline: number;
   onusDegraded: number;
 }
 
 interface DashboardData {
+  dataSource: { mode: 'live' | 'demo'; provider: string; label: string };
   overview: {
     totalOlts: number;
     oltsOnline: number;
@@ -25,7 +32,6 @@ interface DashboardData {
     onusOnline: number;
     onusOffline: number;
     averageUptimeSeconds: number;
-    oltsWithHighTemperature: number;
   };
   olts: OltWithStats[];
   statusDistribution: { online: number; offline: number; degraded: number };
@@ -34,134 +40,188 @@ interface DashboardData {
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
-  if (days > 0) return `${days}d ${hours}h`;
-  return `${hours}h`;
+  return days > 0 ? `${days} d ${hours} h` : `${hours} h`;
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    online: 'bg-green-900/50 text-green-400 border-green-800',
-    offline: 'bg-red-900/50 text-red-400 border-red-800',
-    degraded: 'bg-yellow-900/50 text-yellow-400 border-yellow-800',
+  const meta: Record<string, { label: string; className: string }> = {
+    online: { label: 'En línea', className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' },
+    offline: { label: 'Fuera de línea', className: 'border-rose-400/20 bg-rose-400/10 text-rose-300' },
+    degraded: { label: 'Degradada', className: 'border-amber-400/20 bg-amber-400/10 text-amber-300' },
   };
-  return (
-    <span className={`rounded border px-2 py-0.5 text-xs ${colors[status] ?? 'border-neutral-700 text-neutral-400'}`}>
-      {status}
-    </span>
-  );
+  const selected = meta[status] ?? {
+    label: status,
+    className: 'border-neutral-700 text-neutral-300',
+  };
+  return <span className={`badge border ${selected.className}`}>{selected.label}</span>;
 }
 
 export default function NetworkDashboard() {
+  const auth = useAuth();
+  const connectorState = useConnectors();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [setupNeeded, setSetupNeeded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!auth.user) return;
+    setLoading(true);
+    setError(null);
+    setSetupNeeded(false);
+    try {
+      const query = connectorState.selectedConnectionId
+        ? `?connectionId=${encodeURIComponent(connectorState.selectedConnectionId)}`
+        : '';
+      const response = await fetch(`/api/dashboard${query}`, { credentials: 'include' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 409) {
+          setSetupNeeded(true);
+          setData(null);
+          return;
+        }
+        throw new Error(body.error ?? `No se pudo cargar el tablero (${response.status}).`);
+      }
+      setData(body as DashboardData);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'No se pudo cargar el tablero.');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [auth.user, connectorState.selectedConnectionId]);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      fetch('/api/dashboard', { credentials: 'include' })
-        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then(setData)
-        .catch(e => setError(e instanceof Error ? e.message : 'Error'))
-        .finally(() => setLoading(false));
-    });
-  }, []);
+    queueMicrotask(() => void load());
+  }, [load]);
 
-  if (loading) return <p className="text-sm text-neutral-400">Cargando datos de la red…</p>;
-  if (error) return <div className="rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-400">{error}</div>;
+  if (auth.loading || !auth.user) return null;
+
+  if (loading) {
+    return (
+      <div role="status" aria-live="polite" className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => <div key={index} className="card h-28" />)}
+        <span className="sr-only">Cargando datos de la red…</span>
+      </div>
+    );
+  }
+  if (setupNeeded) {
+    return <div role="status" className="card px-5 py-8 text-center text-sm text-neutral-300">Conectá y validá un NMS para ver el tablero de tu red.</div>;
+  }
+  if (error) {
+    return (
+      <div role="alert" aria-live="assertive" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger/[0.07] px-4 py-3 text-sm text-red-200">
+        <span>{error}</span>
+        <button type="button" onClick={() => void load()} className="btn-outline">Reintentar</button>
+      </div>
+    );
+  }
   if (!data) return null;
 
-  const { overview, olts, statusDistribution } = data;
+  const { dataSource, overview, olts, statusDistribution } = data;
+  const totalForDistribution = Math.max(overview.totalOnus, 1);
 
   return (
-    <div className="space-y-6">
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="OLTs" value={overview.totalOlts} sub={`${overview.oltsOnline} online`} />
-        <StatCard label="ONUs" value={overview.totalOnus} sub={`${overview.onusOnline} online`} />
-        <StatCard label="Offline" value={overview.onusOffline} sub="ONUs caídas" danger />
-        <StatCard label="Uptime prom." value={formatUptime(overview.averageUptimeSeconds)} sub="de la red" />
+    <div className="space-y-5">
+      <div className="card-soft flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+        <div className="flex items-center gap-3">
+          <span className={`relative flex h-2.5 w-2.5 rounded-full ${dataSource.mode === 'demo' ? 'bg-amber-400' : 'bg-emerald-400'}`}>
+            <span className="absolute inset-0 animate-ping rounded-full bg-current opacity-35" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-white">{dataSource.mode === 'demo' ? 'Datos simulados' : 'Datos reales'} · {dataSource.label}</p>
+            <p className="mt-0.5 text-[11px] text-neutral-500">Última lectura del NMS seleccionado</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => void load()} className="btn-outline">Actualizar datos</button>
       </div>
 
-      {/* Status distribution bar */}
-      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-        <h3 className="mb-2 text-xs font-medium uppercase text-neutral-400">Distribucion de estado ONUs</h3>
-        <div className="flex h-6 overflow-hidden rounded-full">
-          {statusDistribution.online > 0 && (
-            <div className="bg-green-600 flex items-center justify-center text-xs text-white" style={{ width: `${(statusDistribution.online / overview.totalOnus) * 100}%` }}>
-              {statusDistribution.online}
-            </div>
-          )}
-          {statusDistribution.degraded > 0 && (
-            <div className="bg-yellow-500 flex items-center justify-center text-xs text-white" style={{ width: `${(statusDistribution.degraded / overview.totalOnus) * 100}%` }}>
-              {statusDistribution.degraded}
-            </div>
-          )}
-          {statusDistribution.offline > 0 && (
-            <div className="bg-red-600 flex items-center justify-center text-xs text-white" style={{ width: `${(statusDistribution.offline / overview.totalOnus) * 100}%` }}>
-              {statusDistribution.offline}
-            </div>
-          )}
-        </div>
-        <div className="mt-1 flex gap-4 text-xs text-neutral-400">
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-green-600" /> Online ({statusDistribution.online})</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> Degraded ({statusDistribution.degraded})</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-600" /> Offline ({statusDistribution.offline})</span>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="OLTs" value={overview.totalOlts} sub={`${overview.oltsOnline} en línea`} Icon={ServerStackIcon} accent="cyan" />
+        <StatCard label="ONUs totales" value={overview.totalOnus} sub={`${overview.onusOnline} operativas`} Icon={WifiIcon} accent="indigo" />
+        <StatCard label="Fuera de línea" value={overview.onusOffline} sub="Requieren revisión" Icon={SignalIcon} accent="danger" />
+        <StatCard label="Disponibilidad prom." value={formatUptime(overview.averageUptimeSeconds)} sub="Tiempo en servicio" Icon={ChartBarSquareIcon} accent="success" />
       </div>
 
-      {/* OLTs table */}
-      <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-        <h3 className="mb-3 text-xs font-medium uppercase text-neutral-400">OLTs</h3>
+      <section className="card p-5 sm:p-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/15"><ChartBarSquareIcon className="h-4 w-4" /></span>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Distribución de ONUs</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">Estado actual sobre {overview.totalOnus.toLocaleString('es-AR')} unidades</p>
+          </div>
+        </div>
+        <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-white/[0.04]" aria-label="Distribución de estados">
+          {statusDistribution.online > 0 && <div className="bg-emerald-400" style={{ width: `${(statusDistribution.online / totalForDistribution) * 100}%` }} title={`${statusDistribution.online} en línea`} />}
+          {statusDistribution.degraded > 0 && <div className="bg-amber-400" style={{ width: `${(statusDistribution.degraded / totalForDistribution) * 100}%` }} title={`${statusDistribution.degraded} degradadas`} />}
+          {statusDistribution.offline > 0 && <div className="bg-rose-400" style={{ width: `${(statusDistribution.offline / totalForDistribution) * 100}%` }} title={`${statusDistribution.offline} fuera de línea`} />}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-neutral-400">
+          <Legend color="bg-emerald-400" label={`En línea (${statusDistribution.online})`} />
+          <Legend color="bg-amber-400" label={`Degradadas (${statusDistribution.degraded})`} />
+          <Legend color="bg-rose-400" label={`Fuera de línea (${statusDistribution.offline})`} />
+        </div>
+      </section>
+
+      <section className="card overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-400/10 text-indigo-300 ring-1 ring-inset ring-indigo-300/15"><CpuChipIcon className="h-4 w-4" /></span>
+            <div><h2 className="text-sm font-semibold text-white">OLTs</h2><p className="mt-0.5 text-xs text-neutral-500">Detalle de infraestructura y capacidad</p></div>
+          </div>
+          <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">{olts.length} equipos</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-neutral-800 text-left text-neutral-400">
-                <th className="pb-2 pr-4">OLT</th>
-                <th className="pb-2 pr-4">Vendor</th>
-                <th className="pb-2 pr-4">Temp</th>
-                <th className="pb-2 pr-4">Uptime</th>
-                <th className="pb-2 pr-4">Estado</th>
-                <th className="pb-2">ONUs</th>
+              <tr className="border-b border-white/[0.06] bg-black/10 text-left text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                <th scope="col" className="px-5 py-3 font-semibold sm:px-6">OLT</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Fabricante</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Temperatura</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Disponibilidad</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Estado</th>
+                <th scope="col" className="px-5 py-3 font-semibold sm:px-6">ONUs</th>
               </tr>
             </thead>
             <tbody>
-              {olts.map(olt => (
-                <tr key={olt.id} className="border-b border-neutral-800/50">
-                  <td className="py-2 pr-4">
-                    <div className="font-medium">{olt.name}</div>
-                    <div className="text-neutral-400">{olt.id}</div>
-                  </td>
-                  <td className="py-2 pr-4">{olt.vendor ?? '-'}</td>
-                  <td className="py-2 pr-4">
-                    <span className={(olt.temperatureCelsius ?? 0) > 60 ? 'text-red-400' : ''}>
-                      {olt.temperatureCelsius ?? '-'}°C
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4">{olt.uptimeSeconds ? formatUptime(olt.uptimeSeconds) : '-'}</td>
-                  <td className="py-2 pr-4"><StatusBadge status={olt.status} /></td>
-                  <td className="py-2">
-                    <span className="text-green-400">{olt.onusOnline}</span>
-                    {' / '}
-                    <span className="text-red-400">{olt.onusOffline}</span>
-                    {' / '}
-                    <span className="text-yellow-400">{olt.onusDegraded}</span>
-                  </td>
+              {olts.map((olt) => (
+                <tr key={olt.id} className="border-b border-white/[0.05] text-neutral-300 transition-colors last:border-0 hover:bg-white/[0.025]">
+                  <td className="px-5 py-3.5 sm:px-6"><div className="font-semibold text-white">{olt.name}</div><div className="mt-0.5 font-mono text-[10px] text-neutral-500">{olt.id}</div></td>
+                  <td className="px-4 py-3.5 text-xs">{olt.vendor ?? '—'}</td>
+                  <td className="px-4 py-3.5 text-xs"><span className={(olt.temperatureCelsius ?? 0) > 60 ? 'font-semibold text-rose-300' : ''}>{olt.temperatureCelsius ?? '—'}{olt.temperatureCelsius !== undefined ? ' °C' : ''}</span></td>
+                  <td className="px-4 py-3.5 text-xs">{olt.uptimeSeconds ? formatUptime(olt.uptimeSeconds) : '—'}</td>
+                  <td className="px-4 py-3.5"><StatusBadge status={olt.status} /></td>
+                  <td className="px-5 py-3.5 text-xs sm:px-6"><span className="text-emerald-300">{olt.onusOnline}</span>{' / '}<span className="text-rose-300">{olt.onusOffline}</span>{' / '}<span className="text-amber-300">{olt.onusDegraded}</span></td>
                 </tr>
               ))}
+              {olts.length === 0 && <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-neutral-400">No hay OLTs para mostrar.</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function StatCard({ label, value, sub, danger }: { label: string; value: number | string; sub: string; danger?: boolean }) {
+function Legend({ color, label }: { color: string; label: string }) {
+  return <span className="flex items-center gap-1"><span aria-hidden="true" className={`inline-block h-2 w-2 rounded-full ${color}`} />{label}</span>;
+}
+
+function StatCard({ label, value, sub, Icon, accent }: { label: string; value: number | string; sub: string; Icon: React.ComponentType<{ className?: string }>; accent: 'cyan' | 'indigo' | 'danger' | 'success' }) {
+  const styles = {
+    cyan: 'bg-cyan-400/10 text-cyan-300 ring-cyan-300/15',
+    indigo: 'bg-indigo-400/10 text-indigo-300 ring-indigo-300/15',
+    danger: 'bg-rose-400/10 text-rose-300 ring-rose-300/15',
+    success: 'bg-emerald-400/10 text-emerald-300 ring-emerald-300/15',
+  }[accent];
   return (
-    <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
-      <div className="text-xs text-neutral-400">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${danger ? 'text-red-400' : 'text-neutral-50'}`}>{value}</div>
-      <div className="text-xs text-neutral-400">{sub}</div>
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="text-[11px] font-medium text-neutral-500">{label}</p><p className={`mt-2 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl ${accent === 'danger' ? 'text-rose-200' : 'text-white'}`}>{typeof value === 'number' ? value.toLocaleString('es-AR') : value}</p></div>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ${styles}`}><Icon className="h-4 w-4" /></span>
+      </div>
+      <p className="mt-3 text-[11px] text-neutral-500">{sub}</p>
     </div>
   );
 }

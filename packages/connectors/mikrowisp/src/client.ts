@@ -6,6 +6,10 @@ import type {
   NetworkOverview,
 } from '@ftth-copilot/connectors-core';
 import {
+  NMS_REQUEST_TIMEOUT_MS,
+  assertSafeNmsRequestUrl,
+} from '@ftth-copilot/connectors-core';
+import {
   FIXTURE_ROUTERS,
   FIXTURE_EQUIPOS,
   FIXTURE_ONUS,
@@ -30,24 +34,30 @@ export class MikrowispClient implements INmsConnector {
   private readonly token?: string;
   private readonly apiBaseUrl?: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly skipDnsValidation: boolean;
 
   constructor(opts: MikrowispClientOptions) {
     this.useMock = opts.useMock;
     this.token = opts.token;
     this.apiBaseUrl = opts.apiBaseUrl;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.skipDnsValidation = opts.fetchImpl !== undefined;
   }
 
   private async realFetch<T>(path: string, extraBody?: Record<string, unknown>): Promise<T> {
     if (!this.apiBaseUrl || !this.token) {
       throw new Error('Mikrowisp API requires apiBaseUrl and token');
     }
-    const url = `${this.apiBaseUrl.replace(/\/$/, '')}${path}`;
+    const url = await assertSafeNmsRequestUrl(this.apiBaseUrl, path, {
+      resolveDns: !this.skipDnsValidation,
+    });
     const body = { token: this.token, ...extraBody };
     const res = await this.fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      redirect: 'error',
+      signal: AbortSignal.timeout(NMS_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(`Mikrowisp API ${res.status}: ${res.statusText}`);
@@ -175,7 +185,12 @@ export class MikrowispClient implements INmsConnector {
   }
 
   async searchByCustomerName(name: string): Promise<OnuSummary[]> {
-    return [];
+    const normalizedName = name.trim().toLocaleLowerCase();
+    if (!normalizedName) return [];
+    const onus = await this.listOnus();
+    return onus.filter((onu) =>
+      onu.customerName?.toLocaleLowerCase().includes(normalizedName),
+    );
   }
 
   // ── Mikrowisp-specific methods ──

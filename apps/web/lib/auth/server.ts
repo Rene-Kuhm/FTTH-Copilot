@@ -15,7 +15,6 @@ import {
   COOKIE_NAME,
   sessionCookieAttributes,
   TOKEN_TTL_SECONDS,
-  type SessionClaims,
 } from '@ftth-copilot/db';
 import type { Role } from '@ftth-copilot/db';
 
@@ -128,19 +127,6 @@ export async function handleSignup(req: Request) {
       const user = await tx.user.create({
         data: { email, name: name ?? null, passwordHash, role: 'OWNER', tenantId: tenant.id },
       });
-      // Auto-create a default mock connector so the user has something to see
-      // in the ConnectorManager UI. The chat still uses mock fixtures as
-      // fallback when no real connector is configured.
-      await tx.nmsConnection.create({
-        data: {
-          tenantId: tenant.id,
-          provider: 'SMARTOLT',
-          label: 'SmartOLT (demo)',
-          encryptedKey: 'mock-placeholder',
-          encryptionMeta: 'mock-iv',
-          status: 'pending',
-        },
-      });
       return { user, tenant };
     });
 
@@ -175,7 +161,7 @@ export async function handleSignup(req: Request) {
       tenantName,
     });
     return jsonResponse(
-      { error: 'Signup failed', kind: info.kind, detail: info.message },
+      { error: 'Signup failed' },
       { status: 500 },
     );
   }
@@ -235,7 +221,7 @@ export async function handleLogin(req: Request) {
       email,
     });
     return jsonResponse(
-      { error: 'Login failed', kind: info.kind, detail: info.message },
+      { error: 'Login failed' },
       { status: 500 },
     );
   }
@@ -270,25 +256,35 @@ export async function handleMe(req: Request): Promise<NextResponse> {
   if (!token) {
     return jsonResponse({ user: null });
   }
+  const user = await getUserForSessionToken(token);
+  if (!user) return jsonResponse({ user: null });
+  return jsonResponse({ user });
+}
+
+async function getUserForSessionToken(token: string): Promise<CurrentUser | null> {
   const claims = verifyToken(token);
-  if (!claims) {
-    return jsonResponse({ user: null });
-  }
-  const user = await prisma.user.findUnique({
-    where: { id: claims.sub },
+  if (!claims) return null;
+
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hashToken(token) },
     select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      tenantId: true,
-      tenant: { select: { id: true, name: true, slug: true } },
+      userId: true,
+      expiresAt: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          tenantId: true,
+          tenant: { select: { id: true, name: true, slug: true } },
+        },
+      },
     },
   });
-  if (!user) {
-    return jsonResponse({ user: null });
-  }
-  return jsonResponse({ user });
+  if (!session || session.expiresAt <= new Date()) return null;
+  if (session.userId !== claims.sub || session.user.tenantId !== claims.tenantId) return null;
+  return session.user;
 }
 
 /**
@@ -299,18 +295,5 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  const claims = verifyToken(token);
-  if (!claims) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: claims.sub },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      tenantId: true,
-      tenant: { select: { id: true, name: true, slug: true } },
-    },
-  });
-  return user;
+  return getUserForSessionToken(token);
 }

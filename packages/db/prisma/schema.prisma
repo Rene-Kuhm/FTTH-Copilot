@@ -6,7 +6,7 @@ generator client {
   provider = "prisma-client-js"
   // Output to the package's src/generated directory so other packages
   // can import the typed client.
-  output = "../src/generated/client"
+  output   = "../src/generated/client"
 }
 
 datasource db {
@@ -18,7 +18,7 @@ enum Role {
   OWNER
   ADMIN
   OPERATOR
-  MEMBER  // legacy — treated as OPERATOR in permissions
+  MEMBER // legacy — treated as OPERATOR in permissions
 }
 
 enum NmsProvider {
@@ -40,11 +40,11 @@ enum MessageRole {
 }
 
 model Tenant {
-  id            String   @id @default(cuid())
-  name          String
-  slug          String   @unique  // for subdomains/URLs
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // for subdomains/URLs
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   users         User[]
   connections   NmsConnection[]
@@ -55,18 +55,19 @@ model Tenant {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String?
-  passwordHash  String   // bcrypt; never logged
-  role          Role     @default(MEMBER)
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String // bcrypt; never logged
+  role         Role     @default(MEMBER)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  sessions      Session[]
-  conversations Conversation[]
+  sessions         Session[]
+  conversations    Conversation[]
+  rateLimitBuckets RateLimitBucket[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -74,15 +75,15 @@ model User {
 }
 
 model Session {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash   String   @unique  // SHA-256 of the JWT (we send the JWT, store its hash)
-  expiresAt   DateTime
-  userAgent   String?
-  ipAddress   String?
-  createdAt   DateTime @default(now())
-  lastUsedAt  DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique // SHA-256 of the JWT (we send the JWT, store its hash)
+  expiresAt  DateTime
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -90,21 +91,21 @@ model Session {
 }
 
 model NmsConnection {
-  id              String   @id @default(cuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  provider        NmsProvider
-  label           String                    // human-readable: "SmartOLT prod"
-  encryptedKey    String                    // AES-256-GCM ciphertext of the NMS API key
-  encryptionMeta  String                    // IV + auth tag, base64
-  baseUrl         String?                   // SmartOLT default, Mikrowisp per-subdomain
-  status          NmsConnectionStatus        @default(pending)
-  lastCheckedAt   DateTime?
-  lastError       String?                   // truncated last error for UI
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  id             String              @id @default(cuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider       NmsProvider
+  label          String // human-readable: "SmartOLT prod"
+  encryptedKey   String // AES-256-GCM ciphertext of the NMS API key
+  encryptionMeta String // IV + auth tag, base64
+  baseUrl        String? // SmartOLT default, Mikrowisp per-subdomain
+  status         NmsConnectionStatus @default(pending)
+  lastCheckedAt  DateTime?
+  lastError      String? // truncated last error for UI
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  conversations   Conversation[]
+  conversations Conversation[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -112,55 +113,69 @@ model NmsConnection {
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String?                  // auto-generated from first message, can be null
+  id           String         @id @default(cuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String? // auto-generated from first message, can be null
   connectionId String?
   // Optional: tie conversation to a specific NMS connection (so multi-tenant users
   // can have different conversations per connector)
-  connection  NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  connection   NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  messages    Message[]
+  messages Message[]
 
   @@index([tenantId, userId, updatedAt])
   @@map("conversations")
 }
 
 model Message {
-  id              String      @id @default(cuid())
-  conversationId  String
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role            MessageRole
-  content         String      @db.Text
-  toolCalls       Json?                          // schema: [{name, args, result}]
-  toolName        String?                       // for role = 'tool', which tool produced this
-  toolResultJson  Json?                         // raw tool result for tool messages
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String       @db.Text
+  toolCalls      Json? // schema: [{name, args, result}]
+  toolName       String? // for role = 'tool', which tool produced this
+  toolResultJson Json? // raw tool result for tool messages
+  createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
   @@map("messages")
 }
 
 model AgentActionLog {
-  id          String   @id @default(cuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId      String?
-  connectionId String?
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId         String?
+  connectionId   String?
   conversationId String?
-  toolName    String
-  parameters  Json
-  result      Json?
-  durationMs  Int
-  errorMessage String?
-  createdAt   DateTime @default(now())
+  toolName       String
+  parameters     Json
+  result         Json?
+  durationMs     Int
+  errorMessage   String?
+  createdAt      DateTime @default(now())
 
   @@index([tenantId, createdAt])
   @@index([conversationId])
   @@map("agent_action_log")
+}
+
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope       String
+  windowStart DateTime
+  expiresAt   DateTime
+  count       Int      @default(0)
+
+  @@unique([userId, scope, windowStart])
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
 }

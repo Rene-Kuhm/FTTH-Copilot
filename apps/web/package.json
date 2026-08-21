@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "next dev --turbo -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@ftth-copilot/agent-core": "workspace:*",
     "@ftth-copilot/connectors-core": "workspace:*",
+    "@ftth-copilot/connectors-mikrowisp": "workspace:*",
     "@ftth-copilot/connectors-smartolt": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",

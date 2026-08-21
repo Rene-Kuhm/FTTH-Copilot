@@ -1,8 +1,15 @@
-/**
- * Client-side auth state + helpers.
- * Hits /api/auth/me on mount to detect existing session.
- */
-import { useEffect, useState } from 'react';
+'use client';
+
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 export type ClientRole = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
 
@@ -20,69 +27,100 @@ interface AuthState {
   loading: boolean;
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, tenantName: string) => Promise<void>;
+  signup: (
+    email: string,
+    password: string,
+    name: string,
+    tenantName: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
-export function useAuth(): AuthState {
+const AuthContext = createContext<AuthState | null>(null);
+
+async function errorFromResponse(response: Response, fallback: string): Promise<Error> {
+  const body = await response.json().catch(() => ({}));
+  return new Error(typeof body.error === 'string' ? body.error : fallback);
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
-      const r = await fetch('/api/auth/me', { credentials: 'include' });
-      const data = await r.json();
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!response.ok) {
+        throw await errorFromResponse(response, 'No se pudo cargar la sesión.');
+      }
+      const data = (await response.json()) as { user?: SessionUser | null };
       setUser(data.user ?? null);
     } catch {
       setUser(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    // Defer the initial fetch so we don't setState synchronously inside
-    // the effect body (React 19 strict rules).
     queueMicrotask(() => {
       void refresh();
     });
+  }, [refresh]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) {
+        throw await errorFromResponse(response, 'No se pudo iniciar sesión.');
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const signup = useCallback(
+    async (email: string, password: string, name: string, tenantName: string) => {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, name, tenantName }),
+      });
+      if (!response.ok) {
+        throw await errorFromResponse(response, 'No se pudo crear la cuenta.');
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const logout = useCallback(async () => {
+    const response = await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw await errorFromResponse(response, 'No se pudo cerrar la sesión.');
+    }
+    setUser(null);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const r = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password }),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(err.error ?? 'Login failed');
-    }
-    await refresh();
-  };
+  const value = useMemo<AuthState>(
+    () => ({ user, loading, refresh, login, signup, logout }),
+    [user, loading, refresh, login, signup, logout],
+  );
 
-  const signup = async (email: string, password: string, name: string, tenantName: string) => {
-    const r = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password, name, tenantName }),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(err.error ?? 'Signup failed');
-    }
-    await refresh();
-  };
+  return createElement(AuthContext.Provider, { value }, children);
+}
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
-    setUser(null);
-  };
-
-  return { user, loading, refresh, login, signup, logout };
+export function useAuth(): AuthState {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider.');
+  return context;
 }

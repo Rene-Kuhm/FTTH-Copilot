@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import {
   ArrowDownTrayIcon,
@@ -21,6 +21,7 @@ interface ConversationSummary {
 interface ConversationDetail {
   id: string;
   title: string | null;
+  connectionId: string | null;
   messages: Array<{
     id: string;
     role: 'user' | 'assistant' | 'tool';
@@ -42,37 +43,43 @@ export function HistorySidebar({
   const auth = useAuth();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const userId = auth.user?.id;
 
-  const refresh = async (q?: string) => {
-    if (!auth.user) return;
+  const refresh = useCallback(async (q?: string) => {
+    if (!userId) return;
     setLoading(true);
+    setError(null);
     try {
       const url = q
         ? `/api/conversations?q=${encodeURIComponent(q)}`
         : '/api/conversations';
       const r = await fetch(url, { credentials: 'include' });
-      const data = await r.json();
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? 'No se pudo cargar el historial.');
       setConversations(data.conversations ?? []);
-    } catch {
-      // noop
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'No se pudo cargar el historial.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     queueMicrotask(() => {
       void refresh();
     });
-  }, [auth.user]);
+  }, [currentConversationId, refresh]);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      void refresh();
-    });
-  }, [currentConversationId]);
+  useEffect(
+    () => () => {
+      clearTimeout(searchTimer.current);
+    },
+    [],
+  );
 
   if (!auth.user) return null;
 
@@ -88,68 +95,52 @@ export function HistorySidebar({
 
   function handleExport(e: React.MouseEvent, id: string) {
     e.stopPropagation();
-    window.open('/api/conversations/' + id + '/export?format=text', '_blank');
+    window.open('/api/conversations/' + id + '/export?format=text', '_blank', 'noopener');
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="btn-outline fixed left-4 top-4 z-30 lg:hidden"
-        aria-label={open ? 'Close history' : 'Open history'}
-      >
-        {open ? (
-          <XMarkIcon className="h-4 w-4" />
-        ) : (
+      {!open && (
+        <button type="button" onClick={() => setOpen(true)} className="btn-outline self-start lg:hidden" aria-label="Abrir historial">
           <Bars3Icon className="h-4 w-4" />
-        )}
-        Historial
-      </button>
+          Historial
+        </button>
+      )}
 
       <aside
-        className={`${open ? 'fixed inset-0 z-20 bg-neutral-950/70 backdrop-blur-sm' : 'hidden'} lg:static lg:block lg:w-72 lg:flex-none lg:bg-transparent`}
+        className={`${open ? 'fixed inset-0 z-40 bg-[#061018]/80 p-3 backdrop-blur-md' : 'hidden'} lg:static lg:block lg:w-64 lg:flex-none lg:bg-transparent lg:p-0`}
       >
-        <div className="card flex h-full flex-col overflow-hidden lg:sticky lg:top-24">
-          <header className="flex items-center justify-between gap-2 px-4 py-3.5">
+        <div className="card flex h-full max-w-sm flex-col overflow-hidden lg:max-w-none lg:rounded-none lg:border-0 lg:border-r lg:border-white/[0.06] lg:bg-black/10 lg:shadow-none">
+          <header className="flex items-center justify-between gap-2 px-4 py-4">
             <div className="flex items-center gap-2">
-              <ChatBubbleLeftRightIcon className="h-4 w-4 text-neutral-400" />
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              <ChatBubbleLeftRightIcon className="h-4 w-4 text-cyan-300" />
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-500">
                 Historial
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={handleNew}
-              className="btn-outline px-2.5 py-1.5"
-              title="Nueva conversación"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Nueva</span>
-            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={handleNew} className="btn-outline px-2.5 py-1.5" title="Nueva conversación">
+                <PlusIcon className="h-4 w-4" />
+                <span>Nueva</span>
+              </button>
+              <button type="button" onClick={() => setOpen(false)} className="btn-ghost px-2.5 lg:hidden" aria-label="Cerrar historial">
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
           </header>
 
-          <div className="border-t border-neutral-800 px-4 py-3">
+          <div className="border-t border-white/[0.05] px-4 py-3">
             <div className="relative">
               <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  clearTimeout(
-                    (
-                      window as unknown as {
-                        _searchTimer?: ReturnType<typeof setTimeout>;
-                      }
-                    )._searchTimer,
-                  );
-                  (
-                    window as unknown as {
-                      _searchTimer?: ReturnType<typeof setTimeout>;
-                    }
-                  )._searchTimer = setTimeout(() => {
-                    void refresh(e.target.value);
+                  const query = e.target.value;
+                  setSearchQuery(query);
+                  clearTimeout(searchTimer.current);
+                  searchTimer.current = setTimeout(() => {
+                    void refresh(query);
                   }, 300);
                 }}
                 placeholder="Buscar conversaciones…"
@@ -180,15 +171,15 @@ export function HistorySidebar({
                       <button
                         type="button"
                         onClick={() => handleSelect(c.id)}
-                        className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                        className={`flex w-full items-start gap-2.5 rounded-lg border py-2 pl-3 pr-10 text-left text-sm transition-colors ${
                           isActive
-                            ? 'border-blue-500/60 bg-blue-500/10 text-neutral-50'
-                            : 'border-transparent text-neutral-400 hover:border-neutral-800 hover:bg-neutral-950/60 hover:text-neutral-50'
+                            ? 'border-cyan-300/20 bg-cyan-400/[0.08] text-white'
+                            : 'border-transparent text-neutral-400 hover:border-white/[0.06] hover:bg-white/[0.025] hover:text-white'
                         }`}
                       >
                         <ChatBubbleLeftRightIcon
                           className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                            isActive ? 'text-blue-500' : 'text-neutral-500'
+                            isActive ? 'text-cyan-300' : 'text-neutral-500'
                           }`}
                         />
                         <span className="min-w-0 flex-1">
@@ -196,8 +187,8 @@ export function HistorySidebar({
                             {c.title || 'Sin título'}
                           </span>
                           <span className="mt-0.5 block text-xs text-neutral-500">
-                            {c.messageCount} msg ·{' '}
-                            {new Date(c.updatedAt).toLocaleDateString()}
+                            {c.messageCount} mensaje{c.messageCount === 1 ? '' : 's'} ·{' '}
+                            {new Date(c.updatedAt).toLocaleDateString('es-AR')}
                           </span>
                         </span>
                       </button>
@@ -206,7 +197,7 @@ export function HistorySidebar({
                         onClick={(e) => handleExport(e, c.id)}
                         title="Exportar conversación"
                         aria-label="Exportar conversación"
-                        className="absolute right-2 top-2 hidden rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-950/80 hover:text-neutral-50 group-hover:flex"
+                        className="absolute right-2 top-2 flex rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-950/80 hover:text-neutral-50 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
                       >
                         <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                       </button>
@@ -217,8 +208,9 @@ export function HistorySidebar({
             )}
 
             {loading && (
-              <p className="mt-3 px-3 text-xs text-neutral-500">Cargando…</p>
+              <p role="status" className="mt-3 px-3 text-xs text-neutral-400">Cargando…</p>
             )}
+            {error && <p role="alert" className="mt-3 px-3 text-xs text-red-300">{error}</p>}
           </div>
         </div>
       </aside>
@@ -236,12 +228,14 @@ export async function loadConversation(
     toolsUsed?: Array<{ name: string; args: Record<string, unknown> }>;
     timestamp: number;
   }>;
+  connectionId: string | null;
 } | null> {
   const r = await fetch('/api/conversations/' + id, { credentials: 'include' });
   if (!r.ok) return null;
   const data = (await r.json()) as { conversation: ConversationDetail };
   if (!data.conversation) return null;
   return {
+    connectionId: data.conversation.connectionId,
     messages: data.conversation.messages.map((m) => ({
       id: m.id,
       role: (m.role === 'tool' ? 'assistant' : m.role) as 'user' | 'assistant',

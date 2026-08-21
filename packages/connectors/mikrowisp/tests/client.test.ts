@@ -77,6 +77,13 @@ describe('MikrowispClient (mock mode)', () => {
     expect(low.every((o) => (o.rxPowerDbm ?? 0) < -27)).toBe(true);
   });
 
+  it('searchByCustomerName matches partial names case-insensitively', async () => {
+    const matches = await client.searchByCustomerName('juan perez');
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches.every((onu) => onu.customerName === 'Juan Perez')).toBe(true);
+    await expect(client.searchByCustomerName('   ')).resolves.toEqual([]);
+  });
+
   // Mikrowisp-specific methods
 
   it('listClients returns 25 fixture clients', async () => {

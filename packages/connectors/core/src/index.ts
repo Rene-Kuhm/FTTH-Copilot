@@ -83,3 +83,10 @@ export interface INmsConnector {
 export function isRateLimitError(err: unknown): err is RateLimitError {
   return err instanceof Error && 'code' in err && (err as { code: unknown }).code === 'RATE_LIMIT';
 }
+
+export {
+  NMS_REQUEST_TIMEOUT_MS,
+  UnsafeNmsUrlError,
+  assertSafeNmsBaseUrl,
+  assertSafeNmsRequestUrl,
+} from './security';

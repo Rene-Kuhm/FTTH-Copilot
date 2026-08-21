@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/lib/auth/client';
+import { useConnectors } from '@/lib/connectors/client';
 import {
   BellIcon,
   ChevronDownIcon,
@@ -30,24 +32,24 @@ const SEVERITY_META: Record<
   }
 > = {
   critical: {
-    label: 'Critical',
-    chipClass: 'bg-danger/15 text-red-500 ring-1 ring-inset ring-danger/30',
+    label: 'Crítica',
+    chipClass: 'bg-danger/15 text-red-300 ring-1 ring-inset ring-danger/30',
     rowClass:
       'border-danger/30 bg-danger/5 hover:border-danger/50 hover:bg-red-500/10',
     Icon: XCircleIcon,
   },
   warning: {
-    label: 'Warning',
+    label: 'Advertencia',
     chipClass:
-      'bg-warning/15 text-amber-500 ring-1 ring-inset ring-warning/30',
+      'bg-warning/15 text-amber-300 ring-1 ring-inset ring-warning/30',
     rowClass:
       'border-warning/30 bg-warning/5 hover:border-warning/50 hover:bg-warning/10',
     Icon: ExclamationTriangleIcon,
   },
   info: {
-    label: 'Info',
+    label: 'Información',
     chipClass:
-      'bg-blue-500/15 text-blue-500 ring-1 ring-inset ring-blue-500/30',
+      'bg-blue-500/15 text-blue-300 ring-1 ring-inset ring-blue-500/30',
     rowClass:
       'border-blue-500/30 bg-blue-500/5 hover:border-blue-500/50 hover:bg-blue-500/10',
     Icon: InformationCircleIcon,
@@ -58,37 +60,74 @@ function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   if (Number.isNaN(diff) || diff < 0) return '';
   const min = Math.floor(diff / 60_000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return 'ahora';
+  if (min < 60) return `hace ${min} min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `hace ${h} h`;
   const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  return `hace ${d} d`;
 }
 
 function formatCategory(c: string): string {
+  const translated: Record<string, string> = {
+    connectivity: 'Conectividad',
+    temperature: 'Temperatura',
+    signal: 'Señal',
+    low_signal: 'Señal baja',
+    availability: 'Disponibilidad',
+    performance: 'Rendimiento',
+  };
+  if (translated[c.toLowerCase()]) return translated[c.toLowerCase()];
   return c
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
 export function AlertsPanel() {
+  const auth = useAuth();
+  const connectorState = useConnectors();
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<{
+    mode: 'live' | 'demo';
+    label: string;
+  } | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(),
   );
 
+  const load = useCallback(async () => {
+    if (!auth.user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const query = connectorState.selectedConnectionId
+        ? `?connectionId=${encodeURIComponent(connectorState.selectedConnectionId)}`
+        : '';
+      const response = await fetch(`/api/alerts${query}`, { credentials: 'include' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 409) {
+          setAlerts([]);
+          setDataSource(null);
+          return;
+        }
+        throw new Error(data.error ?? `No se pudieron cargar las alertas (${response.status}).`);
+      }
+      setAlerts(data.alerts ?? []);
+      setDataSource(data.dataSource ?? null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No se pudieron cargar las alertas.');
+    } finally {
+      setLoading(false);
+    }
+  }, [auth.user, connectorState.selectedConnectionId]);
+
   useEffect(() => {
-    queueMicrotask(() => {
-      fetch('/api/alerts', { credentials: 'include' })
-        .then((r) => r.json())
-        .then((data) => setAlerts(data.alerts ?? []))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    });
-  }, []);
+    queueMicrotask(() => void load());
+  }, [load]);
 
   const counts = useMemo(() => {
     return alerts.reduce(
@@ -129,8 +168,34 @@ export function AlertsPanel() {
       });
   }, [alerts]);
 
-  if (loading) return null;
-  if (alerts.length === 0) return null;
+  if (auth.loading || !auth.user) return null;
+  if (loading) return <div role="status" aria-live="polite" className="card h-28 animate-pulse"><span className="sr-only">Cargando alertas…</span></div>;
+  if (error) {
+    return (
+      <div role="alert" aria-live="assertive" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger/[0.07] px-4 py-3 text-sm text-red-200">
+        <span>{error}</span>
+        <button type="button" onClick={() => void load()} className="btn-outline">Reintentar</button>
+      </div>
+    );
+  }
+  if (alerts.length === 0) {
+    return (
+      <section className="card flex flex-col items-center px-5 py-8 text-center sm:px-6">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-300/15">
+          <BellIcon className="h-5 w-5" />
+        </span>
+        <h2 className="mt-4 text-sm font-semibold text-white">
+          {connectorState.connectedConnectors.length === 0 && !dataSource ? 'Conectá tu primera red' : 'Sin alertas activas'}
+        </h2>
+        <p className="mt-1.5 max-w-sm text-xs leading-5 text-neutral-500">
+          {connectorState.connectedConnectors.length === 0 && !dataSource
+            ? 'Validá un NMS para empezar a consultar eventos operativos.'
+            : `No hay eventos que requieran atención${dataSource ? ` en ${dataSource.label}` : ''}.`}
+        </p>
+        <button type="button" onClick={() => void load()} className="btn-outline mt-4">Actualizar alertas</button>
+      </section>
+    );
+  }
 
   function toggleGroup(category: string) {
     setCollapsedGroups((prev) => {
@@ -143,21 +208,26 @@ export function AlertsPanel() {
 
   return (
     <section className="card overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-neutral-800/30"
-      >
+      {dataSource?.mode === 'demo' && (
+        <div className="border-b border-warning/20 bg-warning/[0.07] px-5 py-2 text-xs text-amber-300">
+          Datos simulados · {dataSource.label}
+        </div>
+      )}
+      <div className="flex items-center gap-2 px-3 sm:px-5">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center justify-between gap-4 py-4 text-left transition-colors"
+        >
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning/10 text-amber-500 ring-1 ring-inset ring-warning/30">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-amber-300 ring-1 ring-inset ring-warning/20">
             <BellIcon className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-50">Network Alerts</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">
-              {alerts.length} active alert{alerts.length === 1 ? '' : 's'} ·
-              grouped by category
+              <h2 className="text-sm font-semibold text-white">Alertas de red</h2>
+              <p className="mt-0.5 text-xs text-neutral-500">
+              {alerts.length} alerta{alerts.length === 1 ? '' : 's'} activa{alerts.length === 1 ? '' : 's'} · agrupadas por categoría
             </p>
           </div>
         </div>
@@ -165,13 +235,13 @@ export function AlertsPanel() {
           {counts.critical > 0 && (
             <span className={SEVERITY_META.critical.chipClass + ' badge'}>
               <XCircleIcon className="h-3.5 w-3.5" />
-              {counts.critical} critical
+              {counts.critical} crítica{counts.critical === 1 ? '' : 's'}
             </span>
           )}
           {counts.warning > 0 && (
             <span className={SEVERITY_META.warning.chipClass + ' badge'}>
               <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-              {counts.warning} warning
+              {counts.warning} advertencia{counts.warning === 1 ? '' : 's'}
             </span>
           )}
           <ChevronDownIcon
@@ -180,10 +250,14 @@ export function AlertsPanel() {
             }`}
           />
         </div>
-      </button>
+        </button>
+        <button type="button" onClick={() => void load()} className="btn-outline">
+          Actualizar
+        </button>
+      </div>
 
       {expanded && (
-        <div className="border-t border-neutral-800 divide-y divide-neutral-800/70">
+        <div className="divide-y divide-white/[0.05] border-t border-white/[0.06]">
           {groups.map(({ category, items, topSeverity }) => {
             const collapsed = collapsedGroups.has(category);
             const Icon = SEVERITY_META[topSeverity.severity].Icon;
@@ -193,7 +267,7 @@ export function AlertsPanel() {
                   type="button"
                   onClick={() => void toggleGroup(category)}
                   aria-expanded={!collapsed}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm transition-colors hover:bg-neutral-800/30"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-sm transition-colors hover:bg-white/[0.025]"
                 >
                   <div className="flex items-center gap-2.5">
                     {collapsed ? (
@@ -225,7 +299,7 @@ export function AlertsPanel() {
                       return (
                         <li
                           key={alert.id}
-                          className={`rounded-lg border px-3.5 py-2.5 transition-colors ${meta.rowClass}`}
+                          className={`rounded-xl border px-3.5 py-3 transition-colors ${meta.rowClass}`}
                         >
                           <div className="flex items-start gap-3">
                             <AlertIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />

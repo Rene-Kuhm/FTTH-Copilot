@@ -145,13 +145,16 @@ describe('SmartOltClient (real mode)', () => {
 
   it('sends X-Token header on requests', async () => {
     let capturedHeaders: Record<string, string> = {};
+    let capturedRedirect: RequestRedirect | undefined;
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       capturedHeaders = (init?.headers as Record<string, string>) ?? {};
+      capturedRedirect = init?.redirect;
       return new Response(JSON.stringify({ status: true, response: [] }), { status: 200 });
     }) as typeof fetch;
     const client = new SmartOltClient({ useMock: false, apiKey, apiBaseUrl, fetchImpl });
     await client.listOlts();
     expect(capturedHeaders['X-Token']).toBe(apiKey);
+    expect(capturedRedirect).toBe('error');
   });
 
   it('realFetch appends path to apiBaseUrl without trailing slash', async () => {

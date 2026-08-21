@@ -1,14 +1,27 @@
 import { test, expect } from '@playwright/test';
 
+const user = {
+  id: 'user-1',
+  email: 'owner@isp.test',
+  name: 'Owner',
+  role: 'OWNER',
+  tenantId: 'tenant-1',
+  tenant: { id: 'tenant-1', name: 'Test ISP', slug: 'test-isp' },
+};
+
 test.describe('Alerts', () => {
-  test('alerts panel loads on main page', async ({ page }) => {
-    await page.goto('http://localhost:3001');
-    // Wait for alerts to load
-    await page.waitForTimeout(1000);
-    // Should see either alerts or no-alerts state
-    const alertsPanel = page.locator('text=Alertas de Red');
-    const noAlerts = page.locator('text=Sin alertas');
-    // At least one should be visible (or neither if loading)
-    await expect(alertsPanel.or(noAlerts)).toBeVisible({ timeout: 5000 });
+  test('renders the no-alerts state with its data source', async ({ page }) => {
+    await page.route('**/api/auth/me', (route) => route.fulfill({ json: { user } }));
+    await page.route('**/api/alerts', (route) => route.fulfill({
+      json: {
+        alerts: [],
+        count: 0,
+        dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'SmartOLT prod' },
+      },
+    }));
+    await page.route('**/api/connectors', (route) => route.fulfill({ json: { connectors: [] } }));
+    await page.goto('/app');
+    await expect(page.getByText('Sin alertas activas')).toBeVisible();
+    await expect(page.getByText(/SmartOLT prod/)).toBeVisible();
   });
 });

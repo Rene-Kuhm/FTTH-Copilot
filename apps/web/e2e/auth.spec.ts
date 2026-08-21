@@ -71,8 +71,14 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
 test.describe("Auth flows", () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthRoutes(page);
-    await page.goto("/");
+    await page.goto("/app");
     await page.waitForSelector("text=Iniciar sesión", { timeout: 10_000 });
+  });
+
+  test("anonymous users see a neutral login state", async ({ page }) => {
+    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    await expect(page.getByText('Not authenticated')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Inicia sesión' })).toBeVisible();
   });
 
   test("signup flow: fill form, submit, verify session appears", async ({ page }) => {
@@ -85,7 +91,7 @@ test.describe("Auth flows", () => {
 
     await page.click('button[type="submit"]:has-text("Crear cuenta")');
 
-    await expect(page.locator("text=Sesión activa")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Activa', { exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(page.locator(`text=${MOCK_USER.email}`)).toBeVisible();
   });
 
@@ -97,7 +103,7 @@ test.describe("Auth flows", () => {
 
     await page.click('button[type="submit"]:has-text("Entrar")');
 
-    await expect(page.locator("text=Sesión activa")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Activa', { exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(page.locator(`text=${MOCK_USER.email}`)).toBeVisible();
   });
 
@@ -107,7 +113,7 @@ test.describe("Auth flows", () => {
     await page.fill('input[placeholder="email@ejemplo.com"]', MOCK_USER.email);
     await page.fill('input[placeholder*="contraseña"]', MOCK_USER.password);
     await page.click('button[type="submit"]:has-text("Entrar")');
-    await expect(page.locator("text=Sesión activa")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Activa', { exact: true })).toBeVisible({ timeout: 5_000 });
 
     // Now logout
     await page.click("text=Salir");
