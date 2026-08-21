@@ -26,11 +26,12 @@ export interface ClientConnector {
 interface ConnectorState {
   connectors: ClientConnector[];
   connectedConnectors: ClientConnector[];
+  demoMode: boolean;
   selectedConnectionId: string | null;
   selectedConnector: ClientConnector | null;
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: (preferredConnectionId?: string | null) => Promise<void>;
   selectConnection: (connectionId: string | null) => void;
 }
 
@@ -62,13 +63,15 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
   const userId = auth.user?.id;
   const tenantId = auth.user?.tenantId;
   const [connectors, setConnectors] = useState<ClientConnector[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (preferredConnectionId?: string | null) => {
     if (!userId || !tenantId) {
       setConnectors([]);
+      setDemoMode(false);
       setSelectedConnectionId(null);
       setError(null);
       setLoading(false);
@@ -88,8 +91,11 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
       const next = (data.connectors ?? []) as ClientConnector[];
       const connected = next.filter((connector) => connector.status === 'connected');
       setConnectors(next);
+      setDemoMode(data.demoMode === true);
       setSelectedConnectionId((current) => {
-        const preferred = current ?? readStoredSelection(tenantId);
+        const preferred = preferredConnectionId !== undefined
+          ? preferredConnectionId
+          : (current ?? readStoredSelection(tenantId));
         const selected = connected.some((connector) => connector.id === preferred)
           ? preferred
           : (connected[0]?.id ?? null);
@@ -98,6 +104,7 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
       });
     } catch (reason) {
       setConnectors([]);
+      setDemoMode(false);
       setSelectedConnectionId(null);
       setError(
         reason instanceof Error ? reason.message : 'No se pudieron cargar los conectores.',
@@ -137,6 +144,7 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
     () => ({
       connectors,
       connectedConnectors,
+      demoMode,
       selectedConnectionId,
       selectedConnector,
       loading,
@@ -147,6 +155,7 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
     [
       connectors,
       connectedConnectors,
+      demoMode,
       selectedConnectionId,
       selectedConnector,
       loading,

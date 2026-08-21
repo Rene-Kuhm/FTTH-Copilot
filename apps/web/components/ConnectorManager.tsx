@@ -54,7 +54,7 @@ export function ConnectorManager() {
   const [provider, setProvider] = useState<'SMARTOLT' | 'MIKROWISP'>('SMARTOLT');
   const [label, setLabel] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('https://api.smartolt.com');
+  const [baseUrl, setBaseUrl] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
     kind: 'success' | 'error';
@@ -114,7 +114,7 @@ export function ConnectorManager() {
       setShowForm(false);
       setLabel('');
       setApiKey('');
-      setBaseUrl(provider === 'SMARTOLT' ? 'https://api.smartolt.com' : '');
+      setBaseUrl('');
       setFeedback(
         testResult.ok
           ? {
@@ -312,7 +312,7 @@ export function ConnectorManager() {
                 onChange={(event) => {
                   const next = event.target.value as typeof provider;
                   setProvider(next);
-                  setBaseUrl(next === 'SMARTOLT' ? 'https://api.smartolt.com' : '');
+                  setBaseUrl('');
                 }}
                 className="input"
               >
@@ -352,7 +352,7 @@ export function ConnectorManager() {
                 type="url"
                 name="connector-base-url"
                 autoComplete="url"
-                placeholder="https://api.smartolt.com"
+                placeholder={provider === 'SMARTOLT' ? 'https://tu-cuenta.smartolt.com' : 'https://tu-mikrowisp.example.com/api/v1'}
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
                 required

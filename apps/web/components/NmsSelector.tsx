@@ -19,31 +19,48 @@ export function NmsSelector() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-white">Red activa</h2>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_9px_rgba(45,212,167,.65)]" />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                connectorState.connectedConnectors.length > 0 || connectorState.demoMode
+                  ? 'bg-emerald-400 shadow-[0_0_9px_rgba(45,212,167,.65)]'
+                  : 'bg-amber-400'
+              }`}
+            />
           </div>
           <p className="mt-0.5 text-xs text-neutral-500">
             Contexto compartido por Copilot, tablero y alertas.
           </p>
         </div>
       </div>
-      <label className="min-w-0 sm:w-80">
-        <span className="sr-only">Seleccionar conector NMS</span>
-        <select
-          className="input"
-          value={connectorState.selectedConnectionId ?? ''}
-          onChange={(event) => connectorState.selectConnection(event.target.value)}
-          disabled={connectorState.loading || connectorState.connectedConnectors.length === 0}
-        >
-          {connectorState.connectedConnectors.length === 0 && (
-            <option value="">Sin conectores validados</option>
+      <div className="flex min-w-0 flex-col gap-2 sm:w-80 sm:flex-row">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Seleccionar conector NMS</span>
+          <select
+            className="input"
+            value={connectorState.selectedConnectionId ?? ''}
+            onChange={(event) => connectorState.selectConnection(event.target.value)}
+            disabled={connectorState.loading || connectorState.connectedConnectors.length === 0}
+          >
+            {connectorState.connectedConnectors.length === 0 && (
+              <option value="">
+                {connectorState.demoMode ? 'Demo · datos simulados' : 'Sin conectores validados'}
+              </option>
+            )}
+            {connectorState.connectedConnectors.map((connector) => (
+              <option key={connector.id} value={connector.id}>
+                {connector.label} · {connector.provider}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!connectorState.loading &&
+          connectorState.connectedConnectors.length === 0 &&
+          !connectorState.demoMode && (
+            <a href="#gestion" className="btn-primary shrink-0">
+              Configurar red
+            </a>
           )}
-          {connectorState.connectedConnectors.map((connector) => (
-            <option key={connector.id} value={connector.id}>
-              {connector.label} · {connector.provider}
-            </option>
-          ))}
-        </select>
-      </label>
+      </div>
       {connectorState.error && (
         <p role="alert" className="text-sm text-red-300">
           {connectorState.error}
