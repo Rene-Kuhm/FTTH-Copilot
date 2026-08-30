@@ -74,6 +74,14 @@ enum AlertStatus {
   resolved
 }
 
+// Coarse security category of an ingested device (syslog) event.
+enum DeviceEventCategory {
+  auth_failure
+  access
+  config_change
+  other
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -88,6 +96,7 @@ model Tenant {
   metricSamples  MetricSample[]
   detectedAlerts DetectedAlert[]
   incidents     Incident[]
+  deviceEvents  DeviceEvent[]
 
   @@map("tenants")
 }
@@ -147,6 +156,7 @@ model NmsConnection {
   metricSamples  MetricSample[]
   detectedAlerts DetectedAlert[]
   incidents      Incident[]
+  deviceEvents   DeviceEvent[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -283,6 +293,27 @@ model Incident {
   @@unique([tenantId, connectionId, deviceKind, deviceId])
   @@index([tenantId, status, lastSeenAt])
   @@map("incidents")
+}
+
+// A raw device (syslog) event ingested for SOC analysis. deviceId is resolved
+// by the receiver from the event's source; null until that mapping exists.
+model DeviceEvent {
+  id           String              @id @default(cuid())
+  tenantId     String
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId String?
+  connection   NmsConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  sourceIp     String?
+  facility     Int?
+  severity     Int?
+  category     DeviceEventCategory @default(other)
+  message      String              @db.Text
+  occurredAt   DateTime            @default(now())
+  createdAt    DateTime            @default(now())
+
+  @@index([tenantId, category, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@map("device_events")
 }
 
 model RateLimitBucket {
