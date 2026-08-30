@@ -190,4 +190,6 @@ Una credencial de Cloudflare Tunnel figuró en versiones anteriores del historia
 
 ## Licencia
 
-Todos los derechos reservados a TecnoDespegue / René Kuhm.
+Propietario — todos los derechos reservados. Copyright © 2026 TecnoDespegue / René Kuhm.
+
+Este repositorio **no** está bajo una licencia de código abierto. El acceso público se concede únicamente para su revisión y evaluación: no puede usarse, copiarse, modificarse ni redistribuirse (total o parcialmente) sin autorización expresa y por escrito del titular. Ver [`LICENSE`](LICENSE).
