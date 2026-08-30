@@ -26,6 +26,9 @@ importers:
       '@ftth-copilot/agent-core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@ftth-copilot/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@ftth-copilot/connectors-core':
         specifier: workspace:*
         version: link:../../packages/connectors/core
