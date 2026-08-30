@@ -19,6 +19,7 @@ export interface PollCycleOptions {
   /** Purge metric samples older than this many days (once per poll, not per connection). */
   retentionDays?: number;
   webhookUrl?: string;
+  telegram?: { botToken: string; chatId: string };
   cooldownMs?: number;
   resolveAfterMs?: number;
   escalateAfterMs?: number;
@@ -63,6 +64,7 @@ export async function runPollCycle(
     connectionId: meta.connectionId,
     now,
     webhookUrl: opts.webhookUrl,
+    telegram: opts.telegram,
     cooldownMs: opts.cooldownMs,
     resolveAfterMs: opts.resolveAfterMs,
     escalateAfterMs: opts.escalateAfterMs,

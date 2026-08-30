@@ -31,9 +31,13 @@ export async function runScheduledPoll() {
     }
   }
 
+  const botToken = process.env['TELEGRAM_BOT_TOKEN'];
+  const chatId = process.env['TELEGRAM_CHAT_ID'];
+
   return pollConnections(entries, {
     retentionDays: positiveInt(process.env['METRICS_RETENTION_DAYS'], 30),
     webhookUrl: process.env['ALERT_WEBHOOK_URL'],
+    telegram: botToken && chatId ? { botToken, chatId } : undefined,
     cooldownMs: positiveInt(process.env['ALERT_COOLDOWN_MS'], 60 * 60 * 1000),
     resolveAfterMs: positiveInt(process.env['ALERT_RESOLVE_AFTER_MS'], 24 * 60 * 60 * 1000),
     escalateAfterMs: positiveInt(process.env['ALERT_ESCALATE_AFTER_MS'], 4 * 60 * 60 * 1000),
