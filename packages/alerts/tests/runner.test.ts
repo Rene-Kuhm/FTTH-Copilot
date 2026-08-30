@@ -15,6 +15,10 @@ function makeSeries(overrides: Partial<SeriesByDevice> = {}): SeriesByDevice {
     temperature: [],
     uptime: [],
     statuses: [],
+    fecCorrected: [],
+    fecUncorrected: [],
+    biasCurrent: [],
+    ontTemperature: [],
     ...overrides,
   };
 }
@@ -54,5 +58,14 @@ describe('runDetectors', () => {
     });
     const findings = runDetectors([series], { now: NOW });
     expect(findings.some((f) => f.kind === 'predicted_high_temperature')).toBe(true);
+  });
+
+  it('detects FEC degradation from rising uncorrectable codewords', () => {
+    const series = makeSeries({
+      fecCorrected: [0, 10, 20, 30].map((v, i) => ({ t: NOW - (3 - i) * DAY, v })),
+      fecUncorrected: [0, 0, 0, 5].map((v, i) => ({ t: NOW - (3 - i) * DAY, v })),
+    });
+    const findings = runDetectors([series], { now: NOW });
+    expect(findings.some((f) => f.kind === 'fec_degradation')).toBe(true);
   });
 });
