@@ -50,3 +50,19 @@ export interface AlertRecord {
   lastNotifiedAt: Date | null;
   resolvedAt?: Date | null;
 }
+
+/** A correlated incident grouping multiple active alerts on one device. */
+export interface IncidentRecord {
+  id?: string;
+  tenantId: string;
+  connectionId: string | null;
+  deviceKind: DeviceKind;
+  deviceId: string;
+  title: string;
+  description: string;
+  severity: 'warning' | 'critical';
+  status: AlertStatus;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  resolvedAt?: Date | null;
+}

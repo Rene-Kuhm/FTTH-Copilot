@@ -4,12 +4,25 @@ const mocks = vi.hoisted(() => ({
   findManySamples: vi.fn(),
   findManyAlerts: vi.fn(),
   upsert: vi.fn(),
+  alertUpdateMany: vi.fn(),
+  incidentUpsert: vi.fn(),
+  incidentFindMany: vi.fn(),
+  incidentUpdateMany: vi.fn(),
 }));
 
 vi.mock('@ftth-copilot/db', () => ({
   prisma: {
     metricSample: { findMany: mocks.findManySamples },
-    detectedAlert: { findMany: mocks.findManyAlerts, upsert: mocks.upsert },
+    detectedAlert: {
+      findMany: mocks.findManyAlerts,
+      upsert: mocks.upsert,
+      updateMany: mocks.alertUpdateMany,
+    },
+    incident: {
+      upsert: mocks.incidentUpsert,
+      findMany: mocks.incidentFindMany,
+      updateMany: mocks.incidentUpdateMany,
+    },
   },
 }));
 
@@ -58,6 +71,14 @@ beforeEach(() => {
   mocks.findManySamples.mockReset();
   mocks.findManyAlerts.mockReset();
   mocks.upsert.mockReset();
+  mocks.alertUpdateMany.mockReset();
+  mocks.alertUpdateMany.mockResolvedValue({ count: 0 });
+  mocks.incidentUpsert.mockReset();
+  mocks.incidentUpsert.mockResolvedValue({ id: 'inc-1' });
+  mocks.incidentFindMany.mockReset();
+  mocks.incidentFindMany.mockResolvedValue([]);
+  mocks.incidentUpdateMany.mockReset();
+  mocks.incidentUpdateMany.mockResolvedValue({ count: 0 });
 });
 
 describe('runDetection', () => {
@@ -178,5 +199,26 @@ describe('runDetection', () => {
     const update = mocks.upsert.mock.calls[0][0].update;
     expect(update.status).toBe('resolved');
     expect(update.resolvedAt).toEqual(NOW);
+  });
+
+  it('correlates multiple active alerts on one device into an incident', async () => {
+    mocks.findManySamples.mockResolvedValue([]);
+    // First findMany (existing rows for reconcile) is empty; the second
+    // (active alerts for correlation) has two distinct kinds on onu-1.
+    mocks.findManyAlerts
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        existingAlert({ id: 'a1', kind: 'predicted_low_signal', deviceId: 'onu-1' }),
+        existingAlert({ id: 'a2', kind: 'intermittent_connection', deviceId: 'onu-1' }),
+      ]);
+    mocks.upsert.mockResolvedValue({});
+    mocks.incidentUpsert.mockResolvedValue({ id: 'inc-1' });
+
+    const result = await runDetection({ tenantId: 't1', connectionId: 'c1', now: NOW });
+
+    expect(result.correlated).toBe(1);
+    expect(result.resolved).toBe(0);
+    expect(mocks.incidentUpsert).toHaveBeenCalledTimes(1);
+    expect(mocks.alertUpdateMany).toHaveBeenCalledTimes(1);
   });
 });

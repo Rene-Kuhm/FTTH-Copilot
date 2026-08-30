@@ -12,6 +12,7 @@ export {
   buildAlertPayload,
   type WebhookResult,
 } from './notify';
+export { correlateAlerts, type CorrelateOptions } from './correlate';
 export {
   runDetection,
   type RunDetectionOptions,
