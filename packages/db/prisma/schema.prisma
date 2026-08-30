@@ -329,3 +329,19 @@ model RateLimitBucket {
   @@index([expiresAt])
   @@map("rate_limit_buckets")
 }
+
+// Generic key-based rate-limit counters for unauthenticated operations
+// (login/signup brute-force protection). Keyed by an arbitrary string
+// (e.g. "login:email:x@y.z" or "login:ip:1.2.3.4") with no user FK, since the
+// attacker is not authenticated yet.
+model AuthRateLimit {
+  id          String   @id @default(cuid())
+  key         String
+  windowStart DateTime
+  expiresAt   DateTime
+  count       Int      @default(0)
+
+  @@unique([key, windowStart])
+  @@index([expiresAt])
+  @@map("auth_rate_limits")
+}

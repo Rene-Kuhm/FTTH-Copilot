@@ -1,5 +1,10 @@
 import dgram from 'node:dgram';
-import { parseSyslogMessage, classifyEvent } from '@ftth-copilot/security';
+import {
+  parseSyslogMessage,
+  classifyEvent,
+  truncateSyslogMessage,
+  createRateWindowCounter,
+} from '@ftth-copilot/security';
 import { ingestEvent, runSecurityDetection } from '@ftth-copilot/soc';
 
 function positiveInt(value: string | undefined, fallback: number): number {
@@ -25,16 +30,29 @@ export function startSyslogReceiver(): () => void {
   const port = positiveInt(process.env['SYSLOG_UDP_PORT'], 5514);
   const socket = dgram.createSocket('udp4');
 
+  // Bound message size and ingest rate so a flood of UDP datagrams cannot
+  // bloat the events table or exhaust the database connection pool.
+  const maxMessageLength = positiveInt(process.env['SYSLOG_MAX_MESSAGE_LENGTH'], 2000);
+  const rateCounter = createRateWindowCounter({
+    maxEvents: positiveInt(process.env['SYSLOG_MAX_EVENTS_PER_MINUTE'], 1000),
+    windowMs: 60 * 1000,
+  });
+
   socket.on('message', (msg, rinfo) => {
     const parsed = parseSyslogMessage(msg.toString('utf8'));
     if (!parsed) return;
+    if (!rateCounter.allow(Date.now())) return;
+    const message = truncateSyslogMessage(
+      `${parsed.tag ? `${parsed.tag}: ` : ''}${parsed.message}`.trim(),
+      maxMessageLength,
+    );
     ingestEvent({
       tenantId,
       sourceIp: parsed.hostname ?? rinfo.address,
       facility: parsed.facility,
       severity: parsed.severity,
       category: classifyEvent(parsed),
-      message: `${parsed.tag ? `${parsed.tag}: ` : ''}${parsed.message}`.trim(),
+      message,
     }).catch(() => {});
   });
 

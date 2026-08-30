@@ -15,8 +15,12 @@ import {
   COOKIE_NAME,
   sessionCookieAttributes,
   TOKEN_TTL_SECONDS,
+  checkAuthQuota,
+  recordAuthAttempt,
+  authRateLimitKeys,
+  extractClientIp,
 } from '@ftth-copilot/db';
-import type { Role } from '@ftth-copilot/db';
+import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +39,25 @@ const loginSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
 });
+
+function positiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function authRateLimitOptions(): AuthQuotaOptions {
+  return {
+    max: positiveInt(process.env['AUTH_RATE_LIMIT_MAX'], 10),
+    windowMs: positiveInt(process.env['AUTH_RATE_LIMIT_WINDOW_MS'], 15 * 60 * 1000),
+  };
+}
+
+async function recordFailedLogins(keys: string[]): Promise<void> {
+  const opts = authRateLimitOptions();
+  for (const key of keys) {
+    await recordAuthAttempt(key, opts);
+  }
+}
 
 export interface CurrentUser {
   id: string;
@@ -112,6 +135,22 @@ export async function handleSignup(req: Request) {
   }
   const { email, password, name, tenantName } = parsed.data;
 
+  // Rate-limit account creation per client IP to block mass signup and email
+  // enumeration abuse.
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  if (clientIp) {
+    const key = `signup:ip:${clientIp}`;
+    const opts = authRateLimitOptions();
+    const decision = await checkAuthQuota(key, opts);
+    if (!decision.allowed) {
+      return jsonResponse(
+        { error: 'Demasiados registros. Probá de nuevo más tarde.' },
+        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
+      );
+    }
+    await recordAuthAttempt(key, opts);
+  }
+
   try {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -184,13 +223,30 @@ export async function handleLogin(req: Request) {
   }
   const { email, password } = parsed.data;
 
+  // Brute-force guard: reject early when this email or IP is already over its
+  // failure budget, and record failures on the slow paths below.
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authRateLimitKeys(email, clientIp);
+  const rateOpts = authRateLimitOptions();
+  for (const key of rateKeys) {
+    const decision = await checkAuthQuota(key, rateOpts);
+    if (!decision.allowed) {
+      return jsonResponse(
+        { error: 'Demasiados intentos. Probá de nuevo más tarde.' },
+        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
+      );
+    }
+  }
+
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
+      await recordFailedLogins(rateKeys);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
     }
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
+      await recordFailedLogins(rateKeys);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
     }
 
