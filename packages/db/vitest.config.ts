@@ -7,7 +7,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
-      include: ['src/auth.ts', 'src/crypto.ts', 'src/cookies.ts'],
+      include: ['src/auth.ts', 'src/crypto.ts', 'src/cookies.ts', 'src/auth-rate-limit.ts'],
       thresholds: {
         lines: 80,
         functions: 80,
