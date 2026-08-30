@@ -2,6 +2,7 @@ import { prisma } from '@ftth-copilot/db';
 import { groupRows } from './group';
 import { runDetectors } from './runner';
 import { reconcile, findingKey } from './dedup';
+import { correlateAlerts } from './correlate';
 import { sendWebhook, buildAlertPayload } from './notify';
 import type { AlertRecord, MetricRow } from './types';
 
@@ -29,6 +30,8 @@ export interface RunDetectionResult {
   detected: number;
   upserted: number;
   notified: number;
+  correlated: number;
+  resolved: number;
   notificationError?: string;
 }
 
@@ -67,9 +70,104 @@ function toUpdateData(r: AlertRecord) {
 }
 
 /**
+ * Correlates the tenant/connection's active alerts into per-device incidents,
+ * links alerts to their incident, and resolves incidents whose device no
+ * longer has enough active alerts.
+ */
+async function correlateAndPersist(
+  tenantId: string,
+  connectionId: string,
+  now: Date,
+): Promise<{ correlated: number; resolved: number }> {
+  const activeAlerts = await prisma.detectedAlert.findMany({
+    where: { tenantId, connectionId, status: { in: ['open', 'acknowledged'] } },
+    select: {
+      tenantId: true,
+      connectionId: true,
+      kind: true,
+      severity: true,
+      deviceKind: true,
+      deviceId: true,
+      status: true,
+      firstSeenAt: true,
+      lastSeenAt: true,
+    },
+  });
+
+  const incidents = correlateAlerts(activeAlerts as AlertRecord[], { now });
+
+  const correlatedKeys = new Set<string>();
+  let correlated = 0;
+  for (const incident of incidents) {
+    const upserted = await prisma.incident.upsert({
+      where: {
+        tenantId_connectionId_deviceKind_deviceId: {
+          tenantId: incident.tenantId,
+          connectionId,
+          deviceKind: incident.deviceKind,
+          deviceId: incident.deviceId,
+        },
+      },
+      create: {
+        tenantId: incident.tenantId,
+        connectionId: incident.connectionId,
+        deviceKind: incident.deviceKind,
+        deviceId: incident.deviceId,
+        title: incident.title,
+        description: incident.description,
+        severity: incident.severity,
+        status: incident.status,
+        firstSeenAt: incident.firstSeenAt,
+        lastSeenAt: incident.lastSeenAt,
+        resolvedAt: incident.resolvedAt ?? null,
+      },
+      update: {
+        severity: incident.severity,
+        title: incident.title,
+        description: incident.description,
+        status: incident.status,
+        lastSeenAt: incident.lastSeenAt,
+        resolvedAt: incident.resolvedAt ?? null,
+      },
+      select: { id: true },
+    });
+
+    correlatedKeys.add(`${incident.deviceKind}:${incident.deviceId}`);
+    correlated++;
+    await prisma.detectedAlert.updateMany({
+      where: {
+        tenantId,
+        connectionId,
+        deviceKind: incident.deviceKind,
+        deviceId: incident.deviceId,
+        status: { in: ['open', 'acknowledged'] },
+      },
+      data: { incidentId: upserted.id },
+    });
+  }
+
+  // Resolve incidents whose device no longer has enough active alerts.
+  const existingIncidents = await prisma.incident.findMany({
+    where: { tenantId, connectionId, status: { in: ['open', 'acknowledged'] } },
+    select: { id: true, deviceKind: true, deviceId: true },
+  });
+  let resolved = 0;
+  for (const incident of existingIncidents) {
+    if (correlatedKeys.has(`${incident.deviceKind}:${incident.deviceId}`)) continue;
+    await prisma.incident.updateMany({
+      where: { id: incident.id, status: { in: ['open', 'acknowledged'] } },
+      data: { status: 'resolved', resolvedAt: now },
+    });
+    resolved++;
+  }
+
+  return { correlated, resolved };
+}
+
+/**
  * End-to-end detection run for a tenant connection: read recent samples, group
  * them per device, run the detectors, reconcile against open alerts (dedup /
- * cooldown / escalation), persist, and notify via webhook.
+ * cooldown / escalation), persist, notify via webhook, and correlate incidents.
  */
 export async function runDetection(opts: RunDetectionOptions): Promise<RunDetectionResult> {
   const now = opts.now ?? new Date();
@@ -163,5 +261,18 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     else notificationError = result.error ?? `HTTP ${result.status}`;
   }
 
-  return { detected: findings.length, upserted, notified, notificationError };
+  const { correlated, resolved } = await correlateAndPersist(
+    opts.tenantId,
+    opts.connectionId,
+    now,
+  );
+
+  return {
+    detected: findings.length,
+    upserted,
+    notified,
+    correlated,
+    resolved,
+    notificationError,
+  };
 }

@@ -87,6 +87,7 @@ model Tenant {
   actionLog      AgentActionLog[]
   metricSamples  MetricSample[]
   detectedAlerts DetectedAlert[]
+  incidents     Incident[]
 
   @@map("tenants")
 }
@@ -145,6 +146,7 @@ model NmsConnection {
   conversations  Conversation[]
   metricSamples  MetricSample[]
   detectedAlerts DetectedAlert[]
+  incidents      Incident[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -244,12 +246,43 @@ model DetectedAlert {
   lastSeenAt     DateTime        @default(now())
   lastNotifiedAt DateTime?
   resolvedAt     DateTime?
+  incidentId     String?
+  incident       Incident?       @relation(fields: [incidentId], references: [id], onDelete: SetNull)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@unique([tenantId, connectionId, kind, deviceKind, deviceId])
   @@index([tenantId, status, lastSeenAt])
+  @@index([incidentId])
   @@map("detected_alerts")
+}
+
+// A correlated incident: groups multiple active alerts on the same device
+// (e.g. one ONU with several concurrent problems) so the NOC sees one unit
+// of work instead of an alert storm.
+model Incident {
+  id           String          @id @default(cuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId String?
+  connection   NmsConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  deviceKind   DeviceKind
+  deviceId     String
+  title        String
+  description  String
+  severity     AlertSeverity
+  status       AlertStatus     @default(open)
+  firstSeenAt  DateTime        @default(now())
+  lastSeenAt   DateTime        @default(now())
+  resolvedAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  alerts       DetectedAlert[]
+
+  @@unique([tenantId, connectionId, deviceKind, deviceId])
+  @@index([tenantId, status, lastSeenAt])
+  @@map("incidents")
 }
 
 model RateLimitBucket {
