@@ -12,7 +12,9 @@ export interface SecurityEvent {
 export type SecurityFindingKind =
   | 'brute_force'
   | 'access_after_failures'
-  | 'config_change';
+  | 'config_change'
+  | 'vulnerable_firmware'
+  | 'traffic_anomaly';
 
 export interface SecurityFinding {
   id: string;
