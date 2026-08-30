@@ -1,6 +1,12 @@
 export { parseSyslogMessage, type ParsedSyslog } from './syslog';
 export { classifyEvent, type EventCategory } from './classify';
 export {
+  buildSyslogMessage,
+  buildSocScenarioMessages,
+  type SyslogMessageParts,
+  type SocScenarioOptions,
+} from './syslog-build';
+export {
   truncateSyslogMessage,
   createRateWindowCounter,
   DEFAULT_MAX_SYSLOG_MESSAGE_LENGTH,
