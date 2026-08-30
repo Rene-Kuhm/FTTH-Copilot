@@ -172,7 +172,59 @@ jobs:
         run: pnpm test:e2e
 
   # ────────────────────────────────────────────────────────────
-  # 5) Gate final — job "resumen" que agrupa todo lo anterior.
+  # 5) Integración — migraciones + flujo de detección contra un
+  #    Postgres real (service container), sin mocks.
+  # ────────────────────────────────────────────────────────────
+  test-integration:
+    name: Integration Tests (Postgres)
+    runs-on: ubuntu-latest
+    needs:
+      - lint-and-typecheck
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ftth
+          POSTGRES_PASSWORD: ftth
+          POSTGRES_DB: ftth_copilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ftth"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ftth:ftth@localhost:5432/ftth_copilot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @ftth-copilot/db exec prisma generate
+
+      - name: Apply migrations
+        run: pnpm --filter @ftth-copilot/db exec prisma migrate deploy
+
+      - name: Run integration tests
+        run: pnpm --filter @ftth-copilot/alerts test:integration
+
+  # ────────────────────────────────────────────────────────────
+  # 6) Gate final — job "resumen" que agrupa todo lo anterior.
   #    Configurar ESTE job como required status check en la
   #    protección de rama de main, así no hay que ir actualizando
   #    la regla cada vez que se agrega un job.
@@ -185,6 +237,7 @@ jobs:
       - test-unit
       - build
       - test-e2e
+      - test-integration
     if: always()
     steps:
       - name: Check all jobs passed
@@ -194,7 +247,3 @@ jobs:
             exit 1
           fi
           echo "Todos los jobs requeridos pasaron correctamente."
-
-  # TODO Fase 2 — agregar cuando exista @ftth-copilot/db + migraciones Prisma:
-  #   test-integration (con Postgres como service container)
-  #

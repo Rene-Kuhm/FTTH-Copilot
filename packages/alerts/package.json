@@ -13,7 +13,8 @@
     "test": "vitest run --passWithNoTests",
     "clean": "rm -rf dist",
     "test:unit": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@ftth-copilot/db": "workspace:*",
