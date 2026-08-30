@@ -6,6 +6,7 @@ import NetworkDashboard from '@/components/NetworkDashboard';
 import { PredictiveAlerts } from '@/components/PredictiveAlerts';
 import { IncidentsPanel } from '@/components/IncidentsPanel';
 import { SlaPanel } from '@/components/SlaPanel';
+import { AccessLog } from '@/components/AccessLog';
 import { NmsSelector } from '@/components/NmsSelector';
 import { ChatBubbleLeftRightIcon } from '@/components/icons';
 
@@ -29,6 +30,7 @@ export default function DashboardPage() {
         <IncidentsPanel />
         <PredictiveAlerts />
         <SlaPanel />
+        <AccessLog />
         <NetworkDashboard />
       </div>
     </AppShell>
