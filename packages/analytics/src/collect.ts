@@ -78,6 +78,18 @@ export async function collectSamples(
     if (onu.uptimeSeconds !== undefined) {
       points.push(makePoint(meta, 'ONU', onu.id, 'UPTIME_SECONDS', sampledAt, onu.uptimeSeconds));
     }
+    if (onu.fecCorrected !== undefined) {
+      points.push(makePoint(meta, 'ONU', onu.id, 'FEC_CORRECTED', sampledAt, onu.fecCorrected));
+    }
+    if (onu.fecUncorrected !== undefined) {
+      points.push(makePoint(meta, 'ONU', onu.id, 'FEC_UNCORRECTED', sampledAt, onu.fecUncorrected));
+    }
+    if (onu.biasCurrentMa !== undefined) {
+      points.push(makePoint(meta, 'ONU', onu.id, 'BIAS_CURRENT_MA', sampledAt, onu.biasCurrentMa));
+    }
+    if (onu.ontTemperatureCelsius !== undefined) {
+      points.push(makePoint(meta, 'ONU', onu.id, 'ONT_TEMPERATURE_CELSIUS', sampledAt, onu.ontTemperatureCelsius));
+    }
   }
 
   return points;

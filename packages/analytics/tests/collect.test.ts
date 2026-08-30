@@ -82,6 +82,28 @@ describe('collectSamples', () => {
     ]);
   });
 
+  it('collects ONU FEC and optical-health metrics when present', async () => {
+    const connector = makeConnector({
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [{
+        ...ONU,
+        fecCorrected: 42,
+        fecUncorrected: 3,
+        biasCurrentMa: 14.2,
+        ontTemperatureCelsius: 58,
+      }]),
+    });
+
+    const points = await collectSamples(connector, META, { now: new Date(ISO) });
+
+    expect(points).toEqual(expect.arrayContaining([
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'FEC_CORRECTED', value: 42, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'FEC_UNCORRECTED', value: 3, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'BIAS_CURRENT_MA', value: 14.2, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'ONT_TEMPERATURE_CELSIUS', value: 58, sampledAt: ISO },
+    ]));
+  });
+
   it('skips optional metrics that are undefined', async () => {
     const connector = makeConnector({
       listOlts: vi.fn(async () => [{ id: 'OLT-1', name: 'olt', ip: '10.0.0.1', status: 'offline' }]),

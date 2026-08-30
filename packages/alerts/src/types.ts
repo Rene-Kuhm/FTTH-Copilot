@@ -7,7 +7,11 @@ export type MetricKind =
   | 'TX_POWER_DBM'
   | 'TEMPERATURE_CELSIUS'
   | 'UPTIME_SECONDS'
-  | 'STATUS';
+  | 'STATUS'
+  | 'FEC_CORRECTED'
+  | 'FEC_UNCORRECTED'
+  | 'BIAS_CURRENT_MA'
+  | 'ONT_TEMPERATURE_CELSIUS';
 export type DeviceStatus = 'online' | 'offline' | 'degraded';
 
 /** A single metric sample row, mirroring the MetricSample table (neutral). */
