@@ -52,6 +52,10 @@ enum MetricKind {
   TEMPERATURE_CELSIUS
   UPTIME_SECONDS
   STATUS
+  FEC_CORRECTED
+  FEC_UNCORRECTED
+  BIAS_CURRENT_MA
+  ONT_TEMPERATURE_CELSIUS
 }
 
 // Persistent, deduplicated proactive alerts produced by the detection engine.

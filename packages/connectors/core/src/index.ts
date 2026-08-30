@@ -24,6 +24,11 @@ export interface OnuSummary {
   txPowerDbm?: number;
   uptimeSeconds?: number;
   lastSeenAt?: string;
+  /** Optical-health telemetry (optional; only populated when the NMS exposes it). */
+  fecCorrected?: number;
+  fecUncorrected?: number;
+  biasCurrentMa?: number;
+  ontTemperatureCelsius?: number;
 }
 
 export interface OnuDetail extends OnuSummary {
