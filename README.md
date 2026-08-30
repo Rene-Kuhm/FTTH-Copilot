@@ -27,7 +27,7 @@ No pienses en FTTH-Copilot como una sola app. Son **tres planos que conviven sob
 
 Los tres comparten la misma idea central: **cada conector es tenant-aware, nunca cae silenciosamente a fixtures, y toda acción sensible está atada a permisos y a la sesión revocable en PostgreSQL.**
 
-El detalle de cada plano, el flujo de datos y el modelo de datos están en [`docs/architecture.md`](docs/architecture.md).
+El detalle de cada plano, el flujo de datos y el modelo de datos están en [`docs/architecture.md`](docs/architecture.md). La evolución hacia un NOC cognitivo (AIOps) está en [`docs/aiops-roadmap.md`](docs/aiops-roadmap.md).
 
 ## Inicio local
 
