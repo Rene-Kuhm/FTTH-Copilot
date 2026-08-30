@@ -58,4 +58,18 @@ describe('groupRows', () => {
     expect(grouped[0]!.uptime).toEqual([{ t: T.getTime(), uptimeSeconds: 3600 }]);
     expect(grouped[0]!.txPower).toEqual([{ t: T.getTime(), v: 2.1 }]);
   });
+
+  it('partitions FEC and optical metrics into their own series', () => {
+    const rows = [
+      row({ kind: 'FEC_CORRECTED', value: 42 }),
+      row({ kind: 'FEC_UNCORRECTED', value: 3 }),
+      row({ kind: 'BIAS_CURRENT_MA', value: 14.2 }),
+      row({ kind: 'ONT_TEMPERATURE_CELSIUS', value: 58 }),
+    ];
+    const grouped = groupRows(rows);
+    expect(grouped[0]!.fecCorrected).toEqual([{ t: T.getTime(), v: 42 }]);
+    expect(grouped[0]!.fecUncorrected).toEqual([{ t: T.getTime(), v: 3 }]);
+    expect(grouped[0]!.biasCurrent).toEqual([{ t: T.getTime(), v: 14.2 }]);
+    expect(grouped[0]!.ontTemperature).toEqual([{ t: T.getTime(), v: 58 }]);
+  });
 });

@@ -21,6 +21,10 @@ export function groupRows(rows: MetricRow[]): SeriesByDevice[] {
         temperature: [],
         uptime: [],
         statuses: [],
+        fecCorrected: [],
+        fecUncorrected: [],
+        biasCurrent: [],
+        ontTemperature: [],
       };
       map.set(key, series);
     }
@@ -43,6 +47,18 @@ export function groupRows(rows: MetricRow[]): SeriesByDevice[] {
         if (row.valueText !== null && STATUS_VALUES.includes(row.valueText as DeviceStatus)) {
           series.statuses.push({ t, status: row.valueText as DeviceStatus });
         }
+        break;
+      case 'FEC_CORRECTED':
+        if (row.value !== null) series.fecCorrected.push({ t, v: row.value });
+        break;
+      case 'FEC_UNCORRECTED':
+        if (row.value !== null) series.fecUncorrected.push({ t, v: row.value });
+        break;
+      case 'BIAS_CURRENT_MA':
+        if (row.value !== null) series.biasCurrent.push({ t, v: row.value });
+        break;
+      case 'ONT_TEMPERATURE_CELSIUS':
+        if (row.value !== null) series.ontTemperature.push({ t, v: row.value });
         break;
     }
   }

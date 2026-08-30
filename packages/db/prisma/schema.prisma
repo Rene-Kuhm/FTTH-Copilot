@@ -65,6 +65,8 @@ enum AlertKind {
   intermittent_connection
   frequent_reboots
   metric_anomaly
+  fec_degradation
+  optical_degradation
 }
 
 enum AlertSeverity {

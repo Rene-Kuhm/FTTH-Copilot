@@ -13,3 +13,8 @@ export {
 export { detectFlapping, type FlappingOptions } from './flapping';
 export { detectRebootStorm, type RebootStormOptions } from './reboots';
 export { detectBaselineAnomaly, type AnomalyOptions } from './anomaly';
+export { detectFecDegradation, type FecDegradationOptions } from './fec';
+export {
+  detectOpticalDegradation,
+  type OpticalDegradationOptions,
+} from './optical';

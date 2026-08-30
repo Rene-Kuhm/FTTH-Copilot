@@ -34,7 +34,9 @@ export type FindingKind =
   | 'predicted_high_temperature'
   | 'intermittent_connection'
   | 'frequent_reboots'
-  | 'metric_anomaly';
+  | 'metric_anomaly'
+  | 'fec_degradation'
+  | 'optical_degradation';
 
 export interface Finding {
   /** Stable id (per kind + device) used for dedup/cooldown. */

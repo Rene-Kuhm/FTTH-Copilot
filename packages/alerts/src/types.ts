@@ -33,6 +33,10 @@ export interface SeriesByDevice {
   temperature: Array<{ t: number; v: number }>;
   uptime: Array<{ t: number; uptimeSeconds: number }>;
   statuses: Array<{ t: number; status: DeviceStatus }>;
+  fecCorrected: Array<{ t: number; v: number }>;
+  fecUncorrected: Array<{ t: number; v: number }>;
+  biasCurrent: Array<{ t: number; v: number }>;
+  ontTemperature: Array<{ t: number; v: number }>;
 }
 
 /** A deduplicated, persistent proactive alert. */
