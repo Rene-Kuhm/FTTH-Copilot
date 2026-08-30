@@ -54,6 +54,26 @@ enum MetricKind {
   STATUS
 }
 
+// Persistent, deduplicated proactive alerts produced by the detection engine.
+enum AlertKind {
+  predicted_low_signal
+  predicted_high_temperature
+  intermittent_connection
+  frequent_reboots
+  metric_anomaly
+}
+
+enum AlertSeverity {
+  warning
+  critical
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+  resolved
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -64,8 +84,9 @@ model Tenant {
   users         User[]
   connections   NmsConnection[]
   conversations Conversation[]
-  actionLog     AgentActionLog[]
-  metricSamples MetricSample[]
+  actionLog      AgentActionLog[]
+  metricSamples  MetricSample[]
+  detectedAlerts DetectedAlert[]
 
   @@map("tenants")
 }
@@ -121,8 +142,9 @@ model NmsConnection {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  conversations Conversation[]
+  conversations  Conversation[]
   metricSamples  MetricSample[]
+  detectedAlerts DetectedAlert[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -201,6 +223,33 @@ model MetricSample {
   @@index([tenantId, sampledAt])
   @@index([sampledAt])
   @@map("metric_samples")
+}
+
+model DetectedAlert {
+  id             String          @id @default(cuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId   String?
+  connection     NmsConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  kind           AlertKind
+  severity       AlertSeverity
+  deviceKind     DeviceKind
+  deviceId       String
+  title          String
+  description    String
+  etaMs          Int?
+  confidence     Float?
+  status         AlertStatus     @default(open)
+  firstSeenAt    DateTime        @default(now())
+  lastSeenAt     DateTime        @default(now())
+  lastNotifiedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([tenantId, connectionId, kind, deviceKind, deviceId])
+  @@index([tenantId, status, lastSeenAt])
+  @@map("detected_alerts")
 }
 
 model RateLimitBucket {
