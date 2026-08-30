@@ -35,6 +35,7 @@ export async function runScheduledPoll() {
     retentionDays: positiveInt(process.env['METRICS_RETENTION_DAYS'], 30),
     webhookUrl: process.env['ALERT_WEBHOOK_URL'],
     cooldownMs: positiveInt(process.env['ALERT_COOLDOWN_MS'], 60 * 60 * 1000),
+    resolveAfterMs: positiveInt(process.env['ALERT_RESOLVE_AFTER_MS'], 24 * 60 * 60 * 1000),
     includeOltDetail: process.env['METRICS_SAMPLE_OLT_DETAIL'] === 'true',
   });
 }

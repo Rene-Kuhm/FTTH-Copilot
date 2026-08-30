@@ -15,6 +15,8 @@ export interface RunDetectionOptions {
   lookbackMs?: number;
   /** Minimum interval between repeated notifications for the same alert. */
   cooldownMs?: number;
+  /** Open alert with no matching finding for this long is marked resolved. */
+  resolveAfterMs?: number;
   /** Webhook URL; when absent, no notification is sent. */
   webhookUrl?: string;
   /** Injectable fetch for webhook delivery (defaults to global fetch). */
@@ -44,6 +46,7 @@ function toCreateData(r: AlertRecord) {
     firstSeenAt: r.firstSeenAt,
     lastSeenAt: r.lastSeenAt,
     lastNotifiedAt: r.lastNotifiedAt,
+    resolvedAt: r.resolvedAt ?? null,
   };
 }
 
@@ -57,6 +60,7 @@ function toUpdateData(r: AlertRecord) {
     status: r.status,
     lastSeenAt: r.lastSeenAt,
     lastNotifiedAt: r.lastNotifiedAt,
+    resolvedAt: r.resolvedAt ?? null,
   };
 }
 
@@ -69,6 +73,7 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
   const now = opts.now ?? new Date();
   const lookbackMs = opts.lookbackMs ?? 14 * DAY_MS;
   const cooldownMs = opts.cooldownMs ?? 60 * 60 * 1000;
+  const resolveAfterMs = opts.resolveAfterMs ?? 24 * DAY_MS;
   const since = new Date(now.getTime() - lookbackMs);
 
   const samples = await prisma.metricSample.findMany({
@@ -109,6 +114,7 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
       firstSeenAt: true,
       lastSeenAt: true,
       lastNotifiedAt: true,
+      resolvedAt: true,
     },
   });
 
@@ -121,7 +127,7 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     findings,
     existing,
     { tenantId: opts.tenantId, connectionId: opts.connectionId },
-    { now, cooldownMs },
+    { now, cooldownMs, resolveAfterMs },
   );
 
   let upserted = 0;
