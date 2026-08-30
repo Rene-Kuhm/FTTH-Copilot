@@ -13,6 +13,7 @@ export type Permission =
   | 'view_own_conversations'
   | 'delete_conversations'
   | 'view_network'
+  | 'ack_alerts'
   | 'execute_actions';
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -24,6 +25,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view_own_conversations',
     'delete_conversations',
     'view_network',
+    'ack_alerts',
     'execute_actions',
   ],
   ADMIN: [
@@ -34,12 +36,14 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view_own_conversations',
     'delete_conversations',
     'view_network',
+    'ack_alerts',
   ],
   OPERATOR: [
     'chat',
     'view_own_conversations',
     'delete_conversations',
     'view_network',
+    'ack_alerts',
   ],
   MEMBER: [
     // Legacy role — treated as OPERATOR
@@ -47,6 +51,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view_own_conversations',
     'delete_conversations',
     'view_network',
+    'ack_alerts',
   ],
 };
 

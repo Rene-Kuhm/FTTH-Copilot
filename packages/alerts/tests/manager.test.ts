@@ -43,7 +43,7 @@ function existingAlert(overrides: Record<string, unknown> = {}) {
     etaMs: DAY,
     confidence: 1,
     status: 'open',
-    firstSeenAt: new Date(NOW.getTime() - DAY),
+    firstSeenAt: new Date(NOW.getTime() - 1000),
     lastSeenAt: new Date(NOW.getTime() - 1000),
     lastNotifiedAt: new Date(NOW.getTime() - 1000),
     ...overrides,
