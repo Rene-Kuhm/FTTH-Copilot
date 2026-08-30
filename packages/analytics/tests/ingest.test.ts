@@ -101,6 +101,18 @@ describe('deleteSamplesBefore', () => {
     expect(result).toEqual({ deleted: 5 });
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { sampledAt: { lt: cutoff } } });
   });
+
+  it('scopes the delete to a tenant when one is provided', async () => {
+    mocks.deleteMany.mockResolvedValue({ count: 2 });
+    const cutoff = new Date('2026-08-01T00:00:00.000Z');
+
+    const result = await deleteSamplesBefore(cutoff, 't1');
+
+    expect(result).toEqual({ deleted: 2 });
+    expect(mocks.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 't1', sampledAt: { lt: cutoff } },
+    });
+  });
 });
 
 describe('runRetention', () => {
@@ -125,5 +137,19 @@ describe('runRetention', () => {
     const after = Date.now();
     expect(where.sampledAt.lt.getTime()).toBeGreaterThanOrEqual(before - 7 * 86400000 - 1000);
     expect(where.sampledAt.lt.getTime()).toBeLessThanOrEqual(after - 7 * 86400000 + 1000);
+  });
+
+  it('passes tenantId through to the scoped delete', async () => {
+    mocks.deleteMany.mockResolvedValue({ count: 3 });
+    const now = new Date('2026-08-21T12:00:00.000Z');
+
+    await runRetention({ retentionDays: 30, now, tenantId: 't1' });
+
+    expect(mocks.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 't1',
+        sampledAt: { lt: new Date('2026-07-22T12:00:00.000Z') },
+      },
+    });
   });
 });

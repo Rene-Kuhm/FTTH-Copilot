@@ -37,15 +37,15 @@ describe('credential encryption', () => {
   it('round-trips an API key with authenticated encryption', () => {
     const encrypted = encryptApiKey('nms-secret');
     expect(encrypted.encryptedKey).not.toContain('nms-secret');
-    expect(decryptApiKey(encrypted.encryptedKey, encrypted.iv)).toBe('nms-secret');
+    expect(decryptApiKey(encrypted.encryptedKey)).toBe('nms-secret');
   });
 
   it('rejects malformed or tampered ciphertext', () => {
-    expect(() => decryptApiKey('bad', 'bad')).toThrow('Invalid encrypted blob');
+    expect(() => decryptApiKey('bad')).toThrow('Invalid encrypted blob');
     const encrypted = encryptApiKey('nms-secret');
     const blob = Buffer.from(encrypted.encryptedKey, 'base64');
     blob[15] = (blob[15] ?? 0) ^ 1;
-    expect(() => decryptApiKey(blob.toString('base64'), encrypted.iv)).toThrow();
+    expect(() => decryptApiKey(blob.toString('base64'))).toThrow();
   });
 });
 

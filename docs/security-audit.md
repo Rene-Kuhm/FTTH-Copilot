@@ -80,3 +80,36 @@ The Cloudflare credential rotation remains an external operational action. Repos
 | `apps/web/lib/connectors/server.ts` | `manage_connectors` permission gate |
 
 Backups of every replaced file were left next to the original with a `.bak-audit` suffix.
+
+---
+
+# Security review — 2026-08-30 (NOC/SOC)
+
+**Scope:** new NOC/SOC surface added after the first audit — detection, alerts, monitoring, security, soc, analytics, the syslog receiver, the new API routes (predictions/incidents/sla/security/access), connectors, crypto and auth.
+
+## Findings and disposition
+
+| ID | Severity | Hallazgo | Estado |
+|----|----------|----------|--------|
+| H1 | Alto | `login`/`signup` sin rate limiting (fuerza bruta / enumeración) | FIXED — buckets `AuthRateLimit` + `checkAuthQuota`/`recordAuthAttempt` (PR #44) |
+| M2 | Medio | Receptor syslog sin tope de tamaño ni tasa (DoS por inundación UDP) | FIXED — `truncateSyslogMessage` + `createRateWindowCounter` (PR #44) |
+| M3 | Medio | Retención de métricas global (un tenant purga datos de todos) | FIXED — `deleteSamplesBefore`/`runRetention`/`pollConnections` ahora por tenant |
+| L4 | Bajo | DNS rebinding (check-then-connect sin pin de IP) en conectores NMS | Documented — riesgo residual aceptado; ver `security.ts` |
+| L5 | Bajo | `x-forwarded-for` guardado tal cual (spoofeable) en `Session.ipAddress` | FIXED — se usa `extractClientIp` (primer hop) |
+| L6 | Bajo | Columna `encryptionMeta` (IV) muerta: `decryptApiKey` la ignoraba | FIXED — columna eliminada + migración `drop_nms_connection_encryption_meta` |
+| L7 | Bajo | Slug de tenant con `Math.random()` (predecible) | FIXED — `crypto.randomBytes` |
+| L8 | Bajo | `console.error` logueaba el email (PII) en auth | FIXED — se quitó el email/tenantName del log |
+| L9 | Bajo | `ALERT_WEBHOOK_URL` es config de confianza (SSRF solo si se hace per-tenant) | Documented — ver `notify.ts` |
+| L10 | Bajo | `lastSeenAt`/`uptimeSeconds` hardcodeados en el path real de Mikrowisp | FIXED — se dejan `undefined` en vez de fabricar datos |
+| L11 | Bajo | Fallback a fixtures demo en producción si `DEMO_MODE_ENABLED=true` | FIXED — fail-closed: sin fallback a demo en `NODE_ENV=production` |
+
+## Verified — no issue found
+
+| Check | Result |
+|---|---|
+| XSS | Safe. No `dangerouslySetInnerHTML`/`eval`/`innerHTML`; React escapa el contenido renderizado (incluye mensajes syslog). |
+| SQL injection | Safe. Todas las consultas nuevas usan Prisma parametrizado; no hay `$queryRaw`/`$executeRaw`. |
+| SSRF (NMS) | Safe. `assertSafeNmsRequestUrl` se ejecuta en cada request con `redirect: 'error'`, timeout y re-resolución DNS. |
+| Crypto | Safe. AES-256-GCM, IV aleatorio, auth tag, fail-fast en producción sin secret. |
+| IDOR en rutas nuevas | Safe. predictions/incidents/sla/security-access/alerts/connectors/conversations verifican auth + permiso + scope por `tenantId` (y `userId` donde corresponde). |
+| Secrets en logs | Safe. `logRequest` solo registra method/path/status/duration; sin secretos ni tokens. |

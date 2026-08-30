@@ -47,7 +47,7 @@ export async function createConnector(input: {
   // Privilege guard: only roles with manage_connectors may create connectors.
   if (!hasPermission(user.role, 'manage_connectors')) return null;
 
-  const { encryptedKey, iv } = encryptApiKey(input.apiKey);
+  const { encryptedKey } = encryptApiKey(input.apiKey);
 
   const created = await prisma.nmsConnection.create({
     data: {
@@ -56,7 +56,6 @@ export async function createConnector(input: {
       label: input.label,
       baseUrl: input.baseUrl,
       encryptedKey,
-      encryptionMeta: iv,
       status: 'pending',
     },
   });

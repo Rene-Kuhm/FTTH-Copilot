@@ -34,7 +34,6 @@ interface ConnectionRecord {
   provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
   label: string;
   encryptedKey: string;
-  encryptionMeta: string;
   baseUrl: string | null;
 }
 
@@ -45,7 +44,7 @@ export function buildConnectorFromConnection(connection: ConnectionRecord): Reso
 
   let secret: string;
   try {
-    secret = decryptApiKey(connection.encryptedKey, connection.encryptionMeta);
+    secret = decryptApiKey(connection.encryptedKey);
   } catch {
     throw new ConnectorResolutionError(
       'No se pudieron descifrar las credenciales del conector. Volvé a configurarlo.',
@@ -104,7 +103,7 @@ export async function resolveTenantConnector(input: {
         404,
       );
     }
-    if (process.env['DEMO_MODE_ENABLED'] === 'true') {
+    if (process.env['NODE_ENV'] !== 'production' && process.env['DEMO_MODE_ENABLED'] === 'true') {
       return {
         connector: new SmartOltClient({ useMock: true }),
         dataSource: {

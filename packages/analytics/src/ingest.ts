@@ -25,11 +25,19 @@ export async function persistSamples(points: MetricPoint[]): Promise<{ inserted:
 }
 
 /**
- * Deletes samples strictly older than the given cutoff. Used by retention.
+ * Deletes samples strictly older than the given cutoff. When `tenantId` is
+ * provided the delete is scoped to that tenant so one tenant's retention cycle
+ * never purges another tenant's historical data.
  */
-export async function deleteSamplesBefore(cutoff: Date): Promise<{ deleted: number }> {
+export async function deleteSamplesBefore(
+  cutoff: Date,
+  tenantId?: string,
+): Promise<{ deleted: number }> {
   const result = await prisma.metricSample.deleteMany({
-    where: { sampledAt: { lt: cutoff } },
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      sampledAt: { lt: cutoff },
+    },
   });
   return { deleted: result.count };
 }

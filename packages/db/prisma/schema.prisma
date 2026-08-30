@@ -144,7 +144,6 @@ model NmsConnection {
   provider       NmsProvider
   label          String // human-readable: "SmartOLT prod"
   encryptedKey   String // AES-256-GCM ciphertext of the NMS API key
-  encryptionMeta String // IV + auth tag, base64
   baseUrl        String? // SmartOLT default, Mikrowisp per-subdomain
   status         NmsConnectionStatus @default(pending)
   lastCheckedAt  DateTime?

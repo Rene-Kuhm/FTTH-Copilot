@@ -92,8 +92,10 @@ export async function pollConnections(
 ): Promise<PollAllResult> {
   const results: PollCycleResult[] = [];
   const errors: PollAllResult['errors'] = [];
+  const tenantIds = new Set<string>();
 
   for (const entry of entries) {
+    tenantIds.add(entry.meta.tenantId);
     try {
       results.push(await runPollCycle(entry.connector, entry.meta, opts));
     } catch (err) {
@@ -107,7 +109,12 @@ export async function pollConnections(
 
   let deleted = 0;
   if (opts.retentionDays !== undefined) {
-    deleted = (await runRetention({ retentionDays: opts.retentionDays, now: opts.now })).deleted;
+    // Retention is scoped per tenant so one tenant's purge never touches
+    // another tenant's samples.
+    for (const tenantId of tenantIds) {
+      deleted += (await runRetention({ retentionDays: opts.retentionDays, now: opts.now, tenantId }))
+        .deleted;
+    }
   }
 
   return { results, errors, deleted };

@@ -7,8 +7,6 @@
  * The format stored in `encryptedKey` is base64:
  *   iv (12 bytes) || ciphertext || authTag (16 bytes)
  *
- * Format stored in `encryptionMeta` is base64 of the IV alone (for rotation/debug).
- *
  * SECURITY: KMS_MASTER_KEY is read from env at runtime. In production the app
  * refuses to start without it — no silent insecure fallback. Resolved lazily
  * so Next.js build time can succeed even when env vars aren't set.
@@ -39,19 +37,16 @@ function getMasterKey(): Buffer {
   return _masterKey;
 }
 
-export function encryptApiKey(plaintext: string): {
-  encryptedKey: string;
-  iv: string;
-} {
+export function encryptApiKey(plaintext: string): { encryptedKey: string } {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGO, getMasterKey(), iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
   const blob = Buffer.concat([iv, ciphertext, authTag]).toString('base64');
-  return { encryptedKey: blob, iv: iv.toString('base64') };
+  return { encryptedKey: blob };
 }
 
-export function decryptApiKey(encryptedKey: string, _iv: string): string {
+export function decryptApiKey(encryptedKey: string): string {
   const blob = Buffer.from(encryptedKey, 'base64');
   if (blob.length < IV_LENGTH + AUTH_TAG_LENGTH) {
     throw new Error('Invalid encrypted blob');
