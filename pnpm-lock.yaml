@@ -41,9 +41,15 @@ importers:
       '@ftth-copilot/monitoring':
         specifier: workspace:*
         version: link:../../packages/monitoring
+      '@ftth-copilot/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@ftth-copilot/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@ftth-copilot/soc':
+        specifier: workspace:*
+        version: link:../../packages/soc
       next:
         specifier: 16.3.1
         version: 16.3.1(@babel/core@7.29.7(supports-color@7.2.0))(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -316,6 +322,31 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/soc:
+    dependencies:
+      '@ftth-copilot/alerts':
+        specifier: workspace:*
+        version: link:../alerts
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@ftth-copilot/security':
+        specifier: workspace:*
+        version: link:../security
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.6
+        version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12)
 
 packages:
 

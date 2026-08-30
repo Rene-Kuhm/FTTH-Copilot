@@ -11,6 +11,8 @@ const nextConfig = {
     '@ftth-copilot/detection',
     '@ftth-copilot/alerts',
     '@ftth-copilot/monitoring',
+    '@ftth-copilot/security',
+    '@ftth-copilot/soc',
   ],
   typedRoutes: true,
   // Allow requests from the Tailscale IP we expose to the user for the demo.
