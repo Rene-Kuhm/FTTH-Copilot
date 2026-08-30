@@ -93,9 +93,9 @@ packages/db/                      Prisma, auth, sesiones y cifrado
 packages/shared/                  tipos compartidos
 ```
 
-## Aviso operativo sobre Cloudflare
+## Nota operativa sobre Cloudflare
 
-Una credencial de Cloudflare Tunnel estuvo presente en una versión anterior del historial público. El código actual ya no la contiene, pero eliminarla del último commit no invalida la credencial histórica. El propietario debe confirmar su rotación en Cloudflare Zero Trust. No se debe declarar el historial como libre de secretos hasta completar y verificar esa rotación.
+Una credencial de Cloudflare Tunnel figuró en versiones anteriores del historial público. Fue rotada en Cloudflare Zero Trust y la credencial expuesta quedó invalidada.
 
 ## Licencia
 
