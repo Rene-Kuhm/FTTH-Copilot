@@ -21,9 +21,19 @@
     "test:unit": "turbo run test:unit",
     "test:coverage": "turbo run test:coverage",
     "test:coverage-check": "turbo run test:coverage",
-    "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e"
+    "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
+    "test:scenario": "tsx scripts/seed-scenario.ts",
+    "test:syslog": "tsx scripts/send-syslog.ts",
+    "test:mock-nms": "tsx scripts/mock-nms.ts"
   },
   "devDependencies": {
+    "@ftth-copilot/alerts": "workspace:*",
+    "@ftth-copilot/analytics": "workspace:*",
+    "@ftth-copilot/connectors-mikrowisp": "workspace:*",
+    "@ftth-copilot/connectors-smartolt": "workspace:*",
+    "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/security": "workspace:*",
+    "tsx": "^4.19.2",
     "turbo": "^2.5.0",
     "typescript": "^5.7.2"
   }

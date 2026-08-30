@@ -11,6 +11,27 @@ importers:
 
   .:
     devDependencies:
+      '@ftth-copilot/alerts':
+        specifier: workspace:*
+        version: link:packages/alerts
+      '@ftth-copilot/analytics':
+        specifier: workspace:*
+        version: link:packages/analytics
+      '@ftth-copilot/connectors-mikrowisp':
+        specifier: workspace:*
+        version: link:packages/connectors/mikrowisp
+      '@ftth-copilot/connectors-smartolt':
+        specifier: workspace:*
+        version: link:packages/connectors/smartolt
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@ftth-copilot/security':
+        specifier: workspace:*
+        version: link:packages/security
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
       turbo:
         specifier: ^2.5.0
         version: 2.10.11
