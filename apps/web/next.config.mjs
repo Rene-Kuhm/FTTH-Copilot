@@ -7,6 +7,10 @@ const nextConfig = {
     '@ftth-copilot/connectors-core',
     '@ftth-copilot/connectors-mikrowisp',
     '@ftth-copilot/connectors-smartolt',
+    '@ftth-copilot/analytics',
+    '@ftth-copilot/detection',
+    '@ftth-copilot/alerts',
+    '@ftth-copilot/monitoring',
   ],
   typedRoutes: true,
   // Allow requests from the Tailscale IP we expose to the user for the demo.
