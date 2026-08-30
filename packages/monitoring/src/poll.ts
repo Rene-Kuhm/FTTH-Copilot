@@ -20,6 +20,7 @@ export interface PollCycleOptions {
   retentionDays?: number;
   webhookUrl?: string;
   cooldownMs?: number;
+  resolveAfterMs?: number;
   lookbackMs?: number;
 }
 
@@ -62,6 +63,7 @@ export async function runPollCycle(
     now,
     webhookUrl: opts.webhookUrl,
     cooldownMs: opts.cooldownMs,
+    resolveAfterMs: opts.resolveAfterMs,
     lookbackMs: opts.lookbackMs,
   });
 

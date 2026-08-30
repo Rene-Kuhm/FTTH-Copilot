@@ -107,4 +107,41 @@ describe('reconcile', () => {
     expect(toUpsert).toEqual([]);
     expect(toNotify).toEqual([]);
   });
+
+  it('resolves an open alert that has gone stale', () => {
+    const existing = new Map([
+      [findingKey(finding()), alert({ lastSeenAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000) })],
+    ]);
+    const { toUpsert, toNotify } = reconcile([], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      resolveAfterMs: 24 * 60 * 60 * 1000,
+    });
+    expect(toUpsert).toHaveLength(1);
+    expect(toUpsert[0]!.status).toBe('resolved');
+    expect(toUpsert[0]!.resolvedAt).toEqual(NOW);
+    expect(toNotify).toEqual([]);
+  });
+
+  it('keeps a stale-but-within-grace alert open', () => {
+    const existing = new Map([
+      [findingKey(finding()), alert({ lastSeenAt: new Date(NOW.getTime() - 60 * 60 * 1000) })],
+    ]);
+    const { toUpsert } = reconcile([], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      resolveAfterMs: 24 * 60 * 60 * 1000,
+    });
+    expect(toUpsert).toEqual([]);
+  });
+
+  it('does not resolve an alert that still has a matching finding', () => {
+    const existing = new Map([[findingKey(finding()), alert({ lastSeenAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000) })]]);
+    const { toUpsert } = reconcile([finding()], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      resolveAfterMs: 24 * 60 * 60 * 1000,
+    });
+    expect(toUpsert[0]!.status).toBe('open');
+  });
 });

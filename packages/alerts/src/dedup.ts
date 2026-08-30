@@ -11,12 +11,16 @@ export interface ReconcileOptions {
   now: Date;
   /** Minimum time between notifications for the same alert. */
   cooldownMs: number;
+  /** Open alert with no matching finding for this long is marked resolved. */
+  resolveAfterMs?: number;
 }
 
 export interface ReconcileResult {
   toUpsert: AlertRecord[];
   toNotify: AlertRecord[];
 }
+
+const DEFAULT_RESOLVE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Reconciles freshly detected findings against currently-open alerts.
@@ -26,6 +30,9 @@ export interface ReconcileResult {
  *   critical) but never downgrade.
  * - Repeat notifications only fire after the cooldown, or immediately on
  *   escalation.
+ * - An open alert whose finding stopped appearing is marked resolved once it
+ *   has been stale for at least `resolveAfterMs` (grace period survives
+ *   restarts because it is time-based, not cycle-count-based).
  */
 export function reconcile(
   findings: Finding[],
@@ -35,9 +42,12 @@ export function reconcile(
 ): ReconcileResult {
   const toUpsert: AlertRecord[] = [];
   const toNotify: AlertRecord[] = [];
+  const resolveAfterMs = opts.resolveAfterMs ?? DEFAULT_RESOLVE_AFTER_MS;
+  const matched = new Set<string>();
 
   for (const finding of findings) {
     const key = findingKey(finding);
+    matched.add(key);
     const prior = existing.get(key);
 
     if (!prior) {
@@ -56,6 +66,7 @@ export function reconcile(
         firstSeenAt: opts.now,
         lastSeenAt: opts.now,
         lastNotifiedAt: opts.now,
+        resolvedAt: null,
       };
       toUpsert.push(record);
       toNotify.push(record);
@@ -72,6 +83,7 @@ export function reconcile(
       confidence: finding.confidence ?? prior.confidence ?? null,
       status: 'open',
       lastSeenAt: opts.now,
+      resolvedAt: null,
     };
 
     const cooldownElapsed =
@@ -85,6 +97,20 @@ export function reconcile(
     } else {
       toUpsert.push(base);
     }
+  }
+
+  // Resolve open alerts whose finding did not appear this run.
+  for (const [key, alert] of existing) {
+    if (matched.has(key)) continue;
+    if (alert.status !== 'open') continue;
+    const staleFor = opts.now.getTime() - alert.lastSeenAt.getTime();
+    if (staleFor < resolveAfterMs) continue;
+
+    toUpsert.push({
+      ...alert,
+      status: 'resolved',
+      resolvedAt: opts.now,
+    });
   }
 
   return { toUpsert, toNotify };

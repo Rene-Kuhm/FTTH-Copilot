@@ -48,4 +48,5 @@ export interface AlertRecord {
   firstSeenAt: Date;
   lastSeenAt: Date;
   lastNotifiedAt: Date | null;
+  resolvedAt?: Date | null;
 }

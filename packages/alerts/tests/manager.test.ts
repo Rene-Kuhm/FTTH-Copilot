@@ -29,7 +29,7 @@ function rxSamples() {
   }));
 }
 
-function existingAlert() {
+function existingAlert(overrides: Record<string, unknown> = {}) {
   return {
     id: 'a1',
     tenantId: 't1',
@@ -46,6 +46,7 @@ function existingAlert() {
     firstSeenAt: new Date(NOW.getTime() - DAY),
     lastSeenAt: new Date(NOW.getTime() - 1000),
     lastNotifiedAt: new Date(NOW.getTime() - 1000),
+    ...overrides,
   };
 }
 
@@ -154,5 +155,28 @@ describe('runDetection', () => {
     expect(result.upserted).toBe(1);
     expect(result.notified).toBe(0);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('auto-resolves a stale open alert when its finding stops appearing', async () => {
+    mocks.findManySamples.mockResolvedValue([]);
+    mocks.findManyAlerts.mockResolvedValue([
+      existingAlert({ lastSeenAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000) }),
+    ]);
+    mocks.upsert.mockResolvedValue({});
+
+    const result = await runDetection({
+      tenantId: 't1',
+      connectionId: 'c1',
+      now: NOW,
+      resolveAfterMs: 24 * 60 * 60 * 1000,
+    });
+
+    expect(result.detected).toBe(0);
+    expect(result.upserted).toBe(1);
+    expect(result.notified).toBe(0);
+
+    const update = mocks.upsert.mock.calls[0][0].update;
+    expect(update.status).toBe('resolved');
+    expect(update.resolvedAt).toEqual(NOW);
   });
 });
