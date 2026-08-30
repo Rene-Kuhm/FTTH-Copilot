@@ -16,11 +16,13 @@ import { decryptApiKey, encryptApiKey } from '../src/crypto';
 import { sessionCookieAttributes } from '../src/cookies';
 
 describe('auth utilities', () => {
+  // bcrypt cost 12 is intentionally slow (~5s); give it headroom so it does
+  // not flake on slow CI runners under the default 5s test timeout.
   it('hashes and verifies passwords', async () => {
     const hash = await hashPassword('correct-horse-battery-staple');
     await expect(verifyPassword('correct-horse-battery-staple', hash)).resolves.toBe(true);
     await expect(verifyPassword('wrong-password', hash)).resolves.toBe(false);
-  });
+  }, 30_000);
 
   it('issues, verifies and hashes session tokens', () => {
     const issued = issueToken('user-1', 'tenant-1', 'OWNER');
