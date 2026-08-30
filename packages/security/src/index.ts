@@ -7,3 +7,14 @@ export {
   detectConfigChange,
   type DetectorOptions,
 } from './detectors';
+export {
+  detectVulnerableFirmware,
+  type DeviceFirmware,
+  type FirmwareDetectorOptions,
+} from './firmware';
+export {
+  detectTrafficAnomaly,
+  type TrafficSample,
+  type DeviceTraffic,
+  type TrafficDetectorOptions,
+} from './traffic';
