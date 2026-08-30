@@ -3,6 +3,7 @@ import type { Route } from 'next';
 import { AppShell } from '@/components/AppShell';
 import { AuthBar } from '@/components/AuthBar';
 import NetworkDashboard from '@/components/NetworkDashboard';
+import { PredictiveAlerts } from '@/components/PredictiveAlerts';
 import { NmsSelector } from '@/components/NmsSelector';
 import { ChatBubbleLeftRightIcon } from '@/components/icons';
 
@@ -23,6 +24,7 @@ export default function DashboardPage() {
       <div className="space-y-5">
         <AuthBar />
         <NmsSelector />
+        <PredictiveAlerts />
         <NetworkDashboard />
       </div>
     </AppShell>

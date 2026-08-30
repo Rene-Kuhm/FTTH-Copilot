@@ -16,8 +16,17 @@ function asJsonSchema(description: string, properties: Record<string, unknown>, 
   };
 }
 
+/** Provides the tenant's proactively-detected (early-warning) issues. */
+export type PredictionProvider = () => Promise<unknown>;
+
 export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
   return [
+    {
+      name: 'get_predicted_issues',
+      description:
+        'Lista los problemas pronosticados por la detección temprana para este tenant: caída de señal RX, temperatura en ascenso, conexión intermitente, reinicios repetidos y anomalías de métrica, con severidad y ETA estimado.',
+      input_schema: asJsonSchema('No requiere parámetros.', {}),
+    },
     {
       name: 'list_olts',
       description: 'Lista todos los OLTs de la red con su estado, uptime y temperatura.',
@@ -118,10 +127,19 @@ export async function executeToolCall(
   connector: INmsConnector,
   toolName: string,
   args: Record<string, unknown>,
+  predictionProvider?: PredictionProvider,
 ): Promise<string> {
   try {
     let data: unknown;
     switch (toolName) {
+      case 'get_predicted_issues':
+        if (!predictionProvider) {
+          return JSON.stringify({
+            error: 'La detección temprana no está disponible en esta sesión.',
+          });
+        }
+        data = await predictionProvider();
+        break;
       case 'list_olts':
         data = await connector.listOlts();
         break;

@@ -47,6 +47,26 @@ Para un NMS confiable dentro de una LAN se requieren opt-ins explícitos: `NMS_A
 - Chat aplica límites atómicos por usuario, minuto y día en PostgreSQL mediante `CHAT_RATE_LIMIT_PER_MINUTE` y `CHAT_DAILY_QUOTA`; las cuotas se comparten entre instancias.
 - Las credenciales NMS se cifran con AES-256-GCM usando `KMS_MASTER_KEY`.
 
+## Detección temprana (proactiva)
+
+Además de responder preguntas, el sistema detecta fallas **antes** de que impacten a los clientes:
+
+- Un poller de fondo muestrea cada conector `connected` y guarda series temporales (`metric_samples`), respetando el rate-limit de cada NMS (endpoints bulk por defecto).
+- Detectores deterministas sobre esas series:
+  - deriva de señal RX hacia -27 dBm (predicción de ONU offline con ETA),
+  - deriva de temperatura hacia 60 °C,
+  - conexión intermitente (flapping),
+  - reinicios repetidos,
+  - anomalías vs línea base robusta (mediana + MAD).
+- Las alertas se persisten en `detected_alerts` con deduplicación, cooldown y escalado (warning→critical), y se notifican vía webhook (`ALERT_WEBHOOK_URL`).
+
+El poller queda **apagado por defecto** (`METRICS_POLLER_ENABLED=false`) para que dev/preview/tests nunca consulten el NMS en segundo plano. Configuración relevante:
+
+- `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS`, `METRICS_SAMPLE_OLT_DETAIL`
+- `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`
+
+Las predicciones se ven en el tablero (panel "Fallas pronosticadas"), en `GET /api/predictions`, y el Copilot las consulta con la tool `get_predicted_issues`.
+
 ## Verificación
 
 ```bash
