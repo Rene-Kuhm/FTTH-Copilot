@@ -3,7 +3,7 @@ import { groupRows } from './group';
 import { runDetectors } from './runner';
 import { reconcile, findingKey } from './dedup';
 import { correlateAlerts } from './correlate';
-import { sendWebhook, buildAlertPayload } from './notify';
+import { sendWebhook, buildAlertPayload, sendTelegram, buildAlertText } from './notify';
 import type { AlertRecord, MetricRow } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -22,6 +22,8 @@ export interface RunDetectionOptions {
   escalateAfterMs?: number;
   /** Webhook URL; when absent, no notification is sent. */
   webhookUrl?: string;
+  /** Telegram bot config; when absent, no Telegram notification is sent. */
+  telegram?: { botToken: string; chatId: string };
   /** Injectable fetch for webhook delivery (defaults to global fetch). */
   fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
 }
@@ -30,9 +32,11 @@ export interface RunDetectionResult {
   detected: number;
   upserted: number;
   notified: number;
+  telegramNotified: number;
   correlated: number;
   resolved: number;
   notificationError?: string;
+  telegramError?: string;
 }
 
 function toCreateData(r: AlertRecord) {
@@ -261,6 +265,19 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     else notificationError = result.error ?? `HTTP ${result.status}`;
   }
 
+  let telegramNotified = 0;
+  let telegramError: string | undefined;
+  if (opts.telegram && toNotify.length > 0) {
+    const result = await sendTelegram(
+      opts.telegram.botToken,
+      opts.telegram.chatId,
+      buildAlertText(toNotify),
+      opts.fetchImpl,
+    );
+    if (result.ok) telegramNotified = toNotify.length;
+    else telegramError = result.error ?? `HTTP ${result.status}`;
+  }
+
   const { correlated, resolved } = await correlateAndPersist(
     opts.tenantId,
     opts.connectionId,
@@ -271,8 +288,10 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     detected: findings.length,
     upserted,
     notified,
+    telegramNotified,
     correlated,
     resolved,
     notificationError,
+    telegramError,
   };
 }

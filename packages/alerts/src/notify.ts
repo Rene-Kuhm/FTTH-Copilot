@@ -51,3 +51,43 @@ export function buildAlertPayload(records: AlertRecord[]): unknown {
     })),
   };
 }
+
+const SEVERITY_ICON = { warning: '🟡', critical: '🔴' } as const;
+
+/**
+ * Builds a human-readable plain-text digest for Telegram. Telegram is a push
+ * channel, so the message is kept short: one line per alert.
+ */
+export function buildAlertText(records: AlertRecord[]): string {
+  const lines = records.map((r) => {
+    const icon = SEVERITY_ICON[r.severity];
+    return `${icon} [${r.deviceKind} ${r.deviceId}] ${r.title}`;
+  });
+  return `FTTH-Copilot — ${records.length} alerta${records.length === 1 ? '' : 's'}\n\n${lines.join('\n')}`;
+}
+
+/**
+ * Sends a text message via the Telegram Bot API. Never throws; returns a
+ * structured result.
+ */
+export async function sendTelegram(
+  botToken: string,
+  chatId: string,
+  text: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<WebhookResult> {
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: res.statusText };
+    }
+    return { ok: true, status: res.status };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown' };
+  }
+}

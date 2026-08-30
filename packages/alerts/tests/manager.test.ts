@@ -221,4 +221,43 @@ describe('runDetection', () => {
     expect(mocks.incidentUpsert).toHaveBeenCalledTimes(1);
     expect(mocks.alertUpdateMany).toHaveBeenCalledTimes(1);
   });
+
+  it('sends a Telegram notification when configured', async () => {
+    mocks.findManySamples.mockResolvedValue(rxSamples());
+    mocks.findManyAlerts.mockResolvedValue([]);
+    mocks.upsert.mockResolvedValue({});
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }));
+
+    const result = await runDetection({
+      tenantId: 't1',
+      connectionId: 'c1',
+      now: NOW,
+      telegram: { botToken: 'tok', chatId: 'chat' },
+      fetchImpl,
+    });
+
+    expect(result.telegramNotified).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottok/sendMessage',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('skips Telegram when not configured', async () => {
+    mocks.findManySamples.mockResolvedValue(rxSamples());
+    mocks.findManyAlerts.mockResolvedValue([]);
+    mocks.upsert.mockResolvedValue({});
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }));
+
+    const result = await runDetection({
+      tenantId: 't1',
+      connectionId: 'c1',
+      now: NOW,
+      fetchImpl,
+    });
+
+    expect(result.telegramNotified).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });
