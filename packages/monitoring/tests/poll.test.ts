@@ -96,7 +96,7 @@ describe('pollConnections', () => {
     expect(result.errors).toEqual([{ tenantId: 't2', connectionId: 'c2', error: 'boom' }]);
   });
 
-  it('runs retention once when retentionDays is set', async () => {
+  it('runs retention per tenant when retentionDays is set', async () => {
     mocks.collectSamples.mockResolvedValue([]);
     mocks.persistSamples.mockResolvedValue({ inserted: 0 });
     mocks.runDetection.mockResolvedValue({ detected: 0, upserted: 0, notified: 0 });
@@ -105,8 +105,31 @@ describe('pollConnections', () => {
     const result = await pollConnections([{ connector, meta }], { now: NOW, retentionDays: 30 });
 
     expect(mocks.runRetention).toHaveBeenCalledTimes(1);
-    expect(mocks.runRetention).toHaveBeenCalledWith({ retentionDays: 30, now: NOW });
+    expect(mocks.runRetention).toHaveBeenCalledWith({ retentionDays: 30, now: NOW, tenantId: 't1' });
     expect(result.deleted).toBe(7);
+  });
+
+  it('scopes retention to each distinct tenant and sums deletions', async () => {
+    mocks.collectSamples.mockResolvedValue([]);
+    mocks.persistSamples.mockResolvedValue({ inserted: 0 });
+    mocks.runDetection.mockResolvedValue({ detected: 0, upserted: 0, notified: 0 });
+    mocks.runRetention
+      .mockResolvedValueOnce({ deleted: 3 })
+      .mockResolvedValueOnce({ deleted: 5 });
+
+    const result = await pollConnections(
+      [
+        { connector, meta: { tenantId: 't1', connectionId: 'c1' } },
+        { connector, meta: { tenantId: 't1', connectionId: 'c2' } },
+        { connector, meta: { tenantId: 't2', connectionId: 'c3' } },
+      ],
+      { now: NOW, retentionDays: 30 },
+    );
+
+    expect(mocks.runRetention).toHaveBeenCalledTimes(2);
+    expect(mocks.runRetention).toHaveBeenNthCalledWith(1, { retentionDays: 30, now: NOW, tenantId: 't1' });
+    expect(mocks.runRetention).toHaveBeenNthCalledWith(2, { retentionDays: 30, now: NOW, tenantId: 't2' });
+    expect(result.deleted).toBe(8);
   });
 
   it('skips retention when retentionDays is undefined', async () => {

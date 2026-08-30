@@ -141,6 +141,18 @@ export async function assertSafeNmsBaseUrl(
   return url.toString().replace(/\/$/, '');
 }
 
+/**
+ * Validates a per-request URL against the configured base URL and re-checks
+ * the network policy (DNS included) on every call.
+ *
+ * Residual risk (accepted): between the DNS resolution here and the actual
+ * `fetch` there is a small check-then-connect window, so a determined attacker
+ * who controls the NMS hostname's DNS could attempt a rebinding race. Fully
+ * closing it requires pinning the resolved IP in the HTTP connection, which
+ * breaks TLS SNI/Host validation and is intentionally not done for operator-
+ * configured NMS URLs (the base URL is set by a `manage_connectors` user, not
+ * by untrusted input).
+ */
 export async function assertSafeNmsRequestUrl(
   baseUrl: string,
   path: string,

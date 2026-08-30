@@ -37,7 +37,6 @@ suite('runDetection (integration, Postgres)', () => {
         provider: 'SMARTOLT',
         label: 'IT Connection',
         encryptedKey: 'it-encrypted',
-        encryptionMeta: 'it-meta',
         status: 'connected',
       },
     });

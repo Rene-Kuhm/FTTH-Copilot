@@ -11,6 +11,11 @@ type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 /**
  * POSTs a JSON payload to a webhook URL. Never throws; returns a structured
  * result so callers can degrade gracefully.
+ *
+ * Trust boundary: `url` is operator-controlled config (ALERT_WEBHOOK_URL), not
+ * tenant input. If it ever becomes per-tenant/user-configurable, this becomes
+ * an SSRF surface and must go through the same network-policy validation as NMS
+ * URLs.
  */
 export async function sendWebhook(
   url: string,

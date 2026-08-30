@@ -252,8 +252,10 @@ export class MikrowispClient implements INmsConnector {
       status: e.estado === 1 ? 'online' : 'offline',
       rxPowerDbm: undefined,
       txPowerDbm: undefined,
-      uptimeSeconds: e.estado === 1 ? 86400 : 0,
-      lastSeenAt: e.estado === 1 ? '2026-08-20T10:00:00+00:00' : '2026-08-19T12:00:00+00:00',
+      // The monitoring response does not expose uptime or last-seen; leave
+      // them undefined instead of fabricating placeholder values.
+      uptimeSeconds: undefined,
+      lastSeenAt: undefined,
     };
   }
 }

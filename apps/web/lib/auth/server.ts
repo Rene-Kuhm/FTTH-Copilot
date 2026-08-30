@@ -4,6 +4,7 @@
  */
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
   hashPassword,
@@ -103,7 +104,9 @@ function slugify(text: string): string {
 }
 
 function randomSuffix(): string {
-  return Math.random().toString(36).slice(2, 8);
+  // Unpredictable suffix (crypto), not Math.random — tenant slugs are
+  // externally visible and should not be guessable.
+  return randomBytes(3).toString('hex');
 }
 
 function describeError(err: unknown): { kind: string; message: string; stack?: string } {
@@ -176,7 +179,7 @@ export async function handleSignup(req: Request) {
         tokenHash,
         expiresAt,
         userAgent: req.headers.get('user-agent') ?? null,
-        ipAddress: req.headers.get('x-forwarded-for') ?? null,
+        ipAddress: extractClientIp(req.headers.get('x-forwarded-for')),
       },
     });
 
@@ -196,8 +199,6 @@ export async function handleSignup(req: Request) {
       kind: info.kind,
       message: info.message,
       stack: info.stack,
-      email,
-      tenantName,
     });
     return jsonResponse(
       { error: 'Signup failed' },
@@ -257,7 +258,7 @@ export async function handleLogin(req: Request) {
         tokenHash,
         expiresAt,
         userAgent: req.headers.get('user-agent') ?? null,
-        ipAddress: req.headers.get('x-forwarded-for') ?? null,
+        ipAddress: extractClientIp(req.headers.get('x-forwarded-for')),
       },
     });
 
@@ -274,7 +275,6 @@ export async function handleLogin(req: Request) {
       kind: info.kind,
       message: info.message,
       stack: info.stack,
-      email,
     });
     return jsonResponse(
       { error: 'Login failed' },
