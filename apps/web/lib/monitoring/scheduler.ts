@@ -36,6 +36,7 @@ export async function runScheduledPoll() {
     webhookUrl: process.env['ALERT_WEBHOOK_URL'],
     cooldownMs: positiveInt(process.env['ALERT_COOLDOWN_MS'], 60 * 60 * 1000),
     resolveAfterMs: positiveInt(process.env['ALERT_RESOLVE_AFTER_MS'], 24 * 60 * 60 * 1000),
+    escalateAfterMs: positiveInt(process.env['ALERT_ESCALATE_AFTER_MS'], 4 * 60 * 60 * 1000),
     includeOltDetail: process.env['METRICS_SAMPLE_OLT_DETAIL'] === 'true',
   });
 }

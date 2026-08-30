@@ -144,4 +144,50 @@ describe('reconcile', () => {
     });
     expect(toUpsert[0]!.status).toBe('open');
   });
+
+  it('escalates an old unacknowledged warning alert by age', () => {
+    const existing = new Map([
+      [findingKey(finding()), alert({ firstSeenAt: new Date(NOW.getTime() - 5 * 60 * 60 * 1000) })],
+    ]);
+    const { toUpsert, toNotify } = reconcile([finding()], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      escalateAfterMs: 4 * 60 * 60 * 1000,
+    });
+    expect(toUpsert[0]!.severity).toBe('critical');
+    expect(toNotify).toHaveLength(1);
+  });
+
+  it('does not escalate a fresh warning alert', () => {
+    const existing = new Map([[findingKey(finding()), alert({ firstSeenAt: new Date(NOW.getTime() - 1000) })]]);
+    const { toUpsert, toNotify } = reconcile([finding()], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      escalateAfterMs: 4 * 60 * 60 * 1000,
+    });
+    expect(toUpsert[0]!.severity).toBe('warning');
+    expect(toNotify).toHaveLength(0);
+  });
+
+  it('keeps a matched acknowledged alert acknowledged without notifying', () => {
+    const existing = new Map([[findingKey(finding()), alert({ status: 'acknowledged' })]]);
+    const { toUpsert, toNotify } = reconcile([finding()], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+    });
+    expect(toUpsert[0]!.status).toBe('acknowledged');
+    expect(toNotify).toHaveLength(0);
+  });
+
+  it('resolves an acknowledged alert whose finding stopped and went stale', () => {
+    const existing = new Map([
+      [findingKey(finding()), alert({ status: 'acknowledged', lastSeenAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000) })],
+    ]);
+    const { toUpsert } = reconcile([], existing, META, {
+      now: NOW,
+      cooldownMs: COOLDOWN,
+      resolveAfterMs: 24 * 60 * 60 * 1000,
+    });
+    expect(toUpsert[0]!.status).toBe('resolved');
+  });
 });

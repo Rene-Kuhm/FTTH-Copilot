@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const predictions = await prisma.detectedAlert.findMany({
-    where: { tenantId: user.tenantId, status: 'open' },
+    where: { tenantId: user.tenantId, status: { in: ['open', 'acknowledged'] } },
     orderBy: [{ severity: 'desc' }, { lastSeenAt: 'desc' }],
     select: {
       id: true,
@@ -26,6 +26,7 @@ export async function GET(): Promise<NextResponse> {
       description: true,
       etaMs: true,
       confidence: true,
+      status: true,
       firstSeenAt: true,
       lastSeenAt: true,
     },

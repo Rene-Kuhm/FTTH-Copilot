@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
-import { BellIcon, ExclamationTriangleIcon } from './icons';
+import { BellIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons';
 
 interface Prediction {
   id: string;
   kind: string;
   severity: 'warning' | 'critical';
+  status: 'open' | 'acknowledged' | 'resolved';
   deviceKind: string;
   deviceId: string;
   title: string;
@@ -56,6 +57,21 @@ export function PredictiveAlerts() {
     queueMicrotask(() => void load());
   }, [load]);
 
+  const ack = useCallback(
+    async (id: string) => {
+      try {
+        const response = await fetch(`/api/predictions/${id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+        });
+        if (response.ok) await load();
+      } catch {
+        // noop — a failed ack should not crash the panel
+      }
+    },
+    [load],
+  );
+
   if (!auth.user) return null;
   if (!loading && predictions.length === 0) return null;
 
@@ -82,6 +98,7 @@ export function PredictiveAlerts() {
         <ul className="divide-y divide-white/[0.05]">
           {predictions.map((prediction) => {
             const critical = prediction.severity === 'critical';
+            const acknowledged = prediction.status === 'acknowledged';
             const eta = formatEta(prediction.etaMs);
             return (
               <li key={prediction.id} className="flex items-start gap-3 px-5 py-3.5 sm:px-6">
@@ -107,6 +124,22 @@ export function PredictiveAlerts() {
                     {eta && <span className="text-amber-300">ETA {eta}</span>}
                   </div>
                 </div>
+                {acknowledged ? (
+                  <span className="badge shrink-0 border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+                    <CheckCircleIcon className="h-3.5 w-3.5" />
+                    Ack
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void ack(prediction.id)}
+                    className="btn-outline shrink-0 px-2.5 py-1.5 text-xs"
+                    title="Acusar alerta"
+                  >
+                    <CheckCircleIcon className="h-3.5 w-3.5" />
+                    Ack
+                  </button>
+                )}
               </li>
             );
           })}

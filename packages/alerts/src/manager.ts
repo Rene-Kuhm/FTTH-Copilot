@@ -17,6 +17,8 @@ export interface RunDetectionOptions {
   cooldownMs?: number;
   /** Open alert with no matching finding for this long is marked resolved. */
   resolveAfterMs?: number;
+  /** Open (unacknowledged) warning alert older than this is escalated to critical. */
+  escalateAfterMs?: number;
   /** Webhook URL; when absent, no notification is sent. */
   webhookUrl?: string;
   /** Injectable fetch for webhook delivery (defaults to global fetch). */
@@ -74,6 +76,7 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
   const lookbackMs = opts.lookbackMs ?? 14 * DAY_MS;
   const cooldownMs = opts.cooldownMs ?? 60 * 60 * 1000;
   const resolveAfterMs = opts.resolveAfterMs ?? 24 * DAY_MS;
+  const escalateAfterMs = opts.escalateAfterMs ?? 4 * 60 * 60 * 1000;
   const since = new Date(now.getTime() - lookbackMs);
 
   const samples = await prisma.metricSample.findMany({
@@ -97,7 +100,11 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
   const findings = runDetectors(series, { now: now.getTime() });
 
   const existingRows = await prisma.detectedAlert.findMany({
-    where: { tenantId: opts.tenantId, connectionId: opts.connectionId, status: 'open' },
+    where: {
+      tenantId: opts.tenantId,
+      connectionId: opts.connectionId,
+      status: { in: ['open', 'acknowledged'] },
+    },
     select: {
       id: true,
       tenantId: true,
@@ -127,7 +134,7 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     findings,
     existing,
     { tenantId: opts.tenantId, connectionId: opts.connectionId },
-    { now, cooldownMs, resolveAfterMs },
+    { now, cooldownMs, resolveAfterMs, escalateAfterMs },
   );
 
   let upserted = 0;
