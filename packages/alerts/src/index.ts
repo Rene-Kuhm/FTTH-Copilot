@@ -9,7 +9,9 @@ export {
 } from './dedup';
 export {
   sendWebhook,
+  sendTelegram,
   buildAlertPayload,
+  buildAlertText,
   type WebhookResult,
 } from './notify';
 export { correlateAlerts, type CorrelateOptions } from './correlate';
