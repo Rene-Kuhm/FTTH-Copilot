@@ -9,3 +9,4 @@ export {
   type UptimeResult,
   type UptimeWindow,
 } from './sla';
+export { buildNocDegradationScenario, type ScenarioOptions } from './scenario';
