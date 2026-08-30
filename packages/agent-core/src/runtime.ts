@@ -19,6 +19,8 @@ export interface RunAgentOptions {
   connector?: ReturnType<typeof buildDefaultConnector>;
   /** Máximo de iteraciones de tool-calling antes de cortar (safety). */
   maxIterations?: number;
+  /** Fuente de problemas pronosticados (detección temprana) para la tool get_predicted_issues. */
+  predictionProvider?: () => Promise<unknown>;
 }
 
 const DEFAULT_MODEL = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M3';
@@ -89,7 +91,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of toolUseBlocks) {
       const args = (block.input ?? {}) as Record<string, unknown>;
-      const result = await executeToolCall(connector, block.name, args);
+      const result = await executeToolCall(connector, block.name, args, opts.predictionProvider);
       toolCalls.push({ name: block.name, arguments: args, result });
       toolResults.push({
         type: 'tool_result',

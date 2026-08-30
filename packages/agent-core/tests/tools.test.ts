@@ -23,6 +23,23 @@ describe('agent tools', () => {
     expect(names).not.toContain('reboot_ont');
   });
 
+  it('exposes the predicted-issues tool', () => {
+    const names = buildTools(connector()).map((tool) => tool.name);
+    expect(names).toContain('get_predicted_issues');
+  });
+
+  it('executes get_predicted_issues via the injected provider', async () => {
+    const provider = vi.fn(async () => [{ kind: 'predicted_low_signal', deviceId: 'onu-1' }]);
+    const result = await executeToolCall(connector(), 'get_predicted_issues', {}, provider);
+    expect(result).toContain('predicted_low_signal');
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a clear error when the predictions provider is absent', async () => {
+    const result = await executeToolCall(connector(), 'get_predicted_issues', {});
+    expect(result).toContain('no está disponible');
+  });
+
   it('builds the default connector explicitly from environment configuration', () => {
     process.env['SMARTOLT_USE_MOCK'] = 'true';
     expect(buildDefaultConnector().providerName).toBe('smartolt');

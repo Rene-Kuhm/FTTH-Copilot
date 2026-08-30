@@ -133,6 +133,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       conversationHistory: history,
       connector: resolved.connector,
       dataSource: resolved.dataSource,
+      predictionProvider: async () =>
+        prisma.detectedAlert.findMany({
+          where: { tenantId: user.tenantId, status: 'open' },
+          orderBy: [{ severity: 'desc' }, { lastSeenAt: 'desc' }],
+          take: 50,
+          select: {
+            kind: true,
+            severity: true,
+            deviceKind: true,
+            deviceId: true,
+            title: true,
+            description: true,
+            etaMs: true,
+            confidence: true,
+            lastSeenAt: true,
+          },
+        }),
     });
   } catch (error) {
     console.error('[ftth-copilot/api/chat] agent error', error);
