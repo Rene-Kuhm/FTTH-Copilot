@@ -39,6 +39,21 @@ enum MessageRole {
   tool
 }
 
+// Time-series metrics ingested from NMS connectors, used for proactive
+// (early-warning) detection. One row per (device, metric, sample time).
+enum DeviceKind {
+  OLT
+  ONU
+}
+
+enum MetricKind {
+  RX_POWER_DBM
+  TX_POWER_DBM
+  TEMPERATURE_CELSIUS
+  UPTIME_SECONDS
+  STATUS
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -50,6 +65,7 @@ model Tenant {
   connections   NmsConnection[]
   conversations Conversation[]
   actionLog     AgentActionLog[]
+  metricSamples MetricSample[]
 
   @@map("tenants")
 }
@@ -106,6 +122,7 @@ model NmsConnection {
   updatedAt      DateTime            @updatedAt
 
   conversations Conversation[]
+  metricSamples  MetricSample[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -164,6 +181,26 @@ model AgentActionLog {
   @@index([tenantId, createdAt])
   @@index([conversationId])
   @@map("agent_action_log")
+}
+
+model MetricSample {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId String?
+  connection   NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  deviceKind   DeviceKind
+  deviceId     String
+  kind         MetricKind
+  value        Float? // numeric metrics (rx/tx power, temperature, uptime)
+  valueText    String? // categorical metrics (STATUS: online/offline/degraded)
+  sampledAt    DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+
+  @@index([tenantId, connectionId, deviceKind, deviceId, kind, sampledAt])
+  @@index([tenantId, sampledAt])
+  @@index([sampledAt])
+  @@map("metric_samples")
 }
 
 model RateLimitBucket {
