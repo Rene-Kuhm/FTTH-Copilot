@@ -8,8 +8,27 @@ export interface DetectorOptions {
 
 const MINUTE_MS = 60 * 1000;
 
+/**
+ * Secondary sort key used when two events share the same timestamp
+ * (syslog resolution is per-second; multiple events can arrive with `t === t`).
+ * We hash the sourceIp + message so the order is stable and deterministic
+ * across runs without depending on insertion order.
+ */
+function tieBreaker(e: { sourceIp?: string | null; message?: string }): number {
+  const s = `${e.sourceIp ?? ''}\u0000${e.message ?? ''}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  // Keep it small and positive so it never overflows the timestamp magnitude.
+  return ((h & 0xffff) / 0xffff) * 0.5;
+}
+
 function sortByTime(events: SecurityEvent[]): SecurityEvent[] {
-  return [...events].sort((a, b) => a.t - b.t);
+  return [...events].sort((a, b) => {
+    if (a.t !== b.t) return a.t - b.t;
+    return tieBreaker(a) - tieBreaker(b);
+  });
 }
 
 function sourceKey(sourceIp: string | null): string {
@@ -75,13 +94,15 @@ export function detectAccessAfterFailures(
     if (event.category !== 'access') continue;
     const key = sourceKey(event.sourceIp);
 
-    const priorFailures = sorted.filter(
-      (e) =>
-        e.category === 'auth_failure' &&
-        sourceKey(e.sourceIp) === key &&
-        e.t < event.t &&
-        e.t >= event.t - windowMs,
-    ).length;
+    // Failures that occurred at or before the access (syslog resolution is
+    // per-second; same-timestamp events are treated as if the failure
+    // preceded the access). The sortByTime tie-breaker keeps the iteration
+    // deterministic when timestamps are equal.
+    const priorFailures = sorted.filter((e) => {
+      if (e.category !== 'auth_failure') return false;
+      if (sourceKey(e.sourceIp) !== key) return false;
+      return e.t <= event.t && e.t >= event.t - windowMs;
+    }).length;
 
     if (priorFailures < minFailures) continue;
 
