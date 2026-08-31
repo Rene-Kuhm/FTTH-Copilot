@@ -82,6 +82,22 @@ describe('detectAccessAfterFailures', () => {
     ];
     expect(detectAccessAfterFailures(events, { now: NOW, windowMs: 10 * MIN, minFailures: 1 })).toEqual([]);
   });
+
+  it('flags access that shares a timestamp with prior failures (same-second syslog)', () => {
+    // Syslog resolution is per-second; 3 failures and the access all land at NOW.
+    // Before the fix, the detector used strict `e.t < event.t` and missed this case.
+    const T = NOW;
+    const events = [
+      ev({ category: 'auth_failure', t: T, sourceIp: '9.9.9.9', message: 'Failed password for root from 9.9.9.9' }),
+      ev({ category: 'auth_failure', t: T, sourceIp: '9.9.9.9', message: 'Failed password for admin from 9.9.9.9' }),
+      ev({ category: 'auth_failure', t: T, sourceIp: '9.9.9.9', message: 'Failed password for test from 9.9.9.9' }),
+      ev({ category: 'access', t: T, sourceIp: '9.9.9.9', message: 'Accepted publickey for root from 9.9.9.9' }),
+    ];
+    const findings = detectAccessAfterFailures(events, { now: T, windowMs: 5 * MIN, minFailures: 3 });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.kind).toBe('access_after_failures');
+    expect(findings[0]!.sourceIp).toBe('9.9.9.9');
+  });
 });
 
 describe('detectConfigChange', () => {
