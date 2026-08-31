@@ -24,6 +24,12 @@ module.exports = {
       name: 'ftth-copilot',
       script: '/bin/bash',
       args: '/home/tecnodespegue/FTTH-Copilot-workdir/FTTH-Copilot/apps/web/start.sh',
+      // Load DATABASE_URL, JWT_SECRET, KMS_MASTER_KEY and the NOC/SOC activation
+      // flags (METRICS_POLLER_ENABLED, SYSLOG_*) from apps/web/.env. Without this,
+      // PM2 only forwards its own `env` block and the .env vars never reach the
+      // process — Next.js would still see DATABASE_URL via dotenv, but the
+      // instrumented NOC/SOC code reads from process.env at runtime.
+      env_file: './apps/web/.env',
       env: {
         NODE_ENV: 'production',
       },
