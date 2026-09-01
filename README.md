@@ -100,11 +100,11 @@ Detectores activos en runtime:
 
 - **fuerza bruta** (≥ 5 fallos de auth desde una misma IP en 5 min);
 - **acceso tras fallos** (login exitoso después de ≥ 3 fallos recientes de la misma fuente);
-- **cambio de configuración** (todo `config_change` es notable para revisión).
+- **cambio de configuración** (todo `config_change` es notable para revisión);
+- **firmware vulnerable** (versión exacta en una lista de CVEs conocidas; loop separado en `FIRMWARE_AUDIT_ENABLED`, default 24 h).
 
-Detectores implementados y testeados, listos para cablear a datos reales (ver gaps):
+Detectores implementados y testeados, pendientes de cablear a datos reales (ver gaps):
 
-- **firmware vulnerable** (versión exacta en una lista de CVEs conocidas);
 - **anomalía de tráfico** (throughput sostenido > umbral → posible CPE comprometido).
 
 **Cómo se usa:** el receptor queda **apagado por defecto** (`SYSLOG_RECEIVER_ENABLED=false` y requiere `SYSLOG_TENANT_ID`). La auditoría de accesos (logins y fallos) se expone en `GET /api/security/access` y en el panel "Accesos" del tablero.
@@ -147,6 +147,7 @@ Las variables están documentadas en `.env.example`. Agrupadas por plano:
 | NOC (poller) | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS`, `METRICS_SAMPLE_OLT_DETAIL` |
 | NOC (notificaciones) | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `ALERT_RESOLVE_AFTER_MS`, `ALERT_ESCALATE_AFTER_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 | SOC (receptor) | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID`, `SYSLOG_DETECTION_INTERVAL_MS` |
+| SOC (firmware) | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS`, `FIRMWARE_AUDIT_VULNERABLE_LIST` |
 | Red NMS | `NMS_REQUEST_TIMEOUT_MS`, `NMS_ALLOWED_HOSTS`, `NMS_ALLOWED_PORTS`, `NMS_ALLOW_HTTP`, `NMS_ALLOW_PRIVATE_NETWORKS` |
 | Chat | `CHAT_RATE_LIMIT_PER_MINUTE`, `CHAT_DAILY_QUOTA` |
 

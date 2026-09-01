@@ -113,6 +113,12 @@ export const FIXTURE_OLTS: (OltSummary & {
 /**
  * 42 ONUs distributed across the 5 OLTs.
  * Status distribution: 37 online, 4 offline, 1 degraded.
+ *
+ * Optical-health telemetry (FEC, bias, ONT temperature) is populated when
+ * the connector runs with `includeOnuDetail: true`, so it lives on the
+ * `FIXTURE_ONU_DETAILS` map rather than here. Real SmartOLT bulk responses
+ * rarely carry these fields; the fan-out to the per-ONU endpoint is what
+ * surfaces them.
  */
 export const FIXTURE_ONUS: OnuSummary[] = [
   {
@@ -582,8 +588,40 @@ export const FIXTURE_ONUS: OnuSummary[] = [
 /**
  * Detailed view for ONUs with signal history or interesting cases.
  * Keys are ONU IDs; values extend OnuSummary with the OnuDetail fields.
+ *
+ * Optical-health telemetry is included for the ONUs that should trigger the
+ * `detectFecDegradation` / `detectOpticalDegradation` detectors when the
+ * metrics poller runs with `includeOnuDetail: true` (see `seed-scenario.ts`
+ * for an end-to-end exercise).
+ *
+ * Realistic values:
+ *   - Healthy ONU (1/1/1 Norte): FEC corregido 0..5/día, bias ~15 mA, 48 °C.
+ *   - Degraded ONU (1/8/1 Este): FEC corregido creciendo, bias alto,
+ *     temperatura cerca del límite — pre-alerta antes del corte.
+ *   - Vulnerable firmware (Norte 1/9/9): corre la versión marcada como
+ *     vulnerable en el allowlist por defecto del firmware audit (ver
+ *     `packages/soc/src/run.ts`).
  */
 export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
+  "ONU-OLT-Norte-01-1/1/1": {
+    "id": "ONU-OLT-Norte-01-1/1/1",
+    "serial": "SNHUA00000001",
+    "oltId": "OLT-Norte-01",
+    "customerName": "Juan Perez",
+    "status": "online",
+    "rxPowerDbm": -20.5,
+    "txPowerDbm": 2.1,
+    "uptimeSeconds": 432000,
+    "lastSeenAt": "2026-08-20T01:30:00+00:00",
+    "model": "HG8145V5",
+    "vendor": "Huawei",
+    "oltPort": "1/1/1",
+    "firmwareVersion": "V3R019C10S160",
+    "fecCorrected": 3,
+    "fecUncorrected": 0,
+    "biasCurrentMa": 15.2,
+    "ontTemperatureCelsius": 48,
+  },
   "ONU-OLT-Este-01-1/7/4": {
     "id": "ONU-OLT-Este-01-1/7/4",
     "serial": "SNZTE00000029",
@@ -598,6 +636,11 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "vendor": "ZTE",
     "oltPort": "1/7/4",
     "firmwareVersion": "V2.0.0P3",
+    // Pre-failure state — fiber was degrading before the link dropped.
+    "fecCorrected": 4820,
+    "fecUncorrected": 17,
+    "biasCurrentMa": 38.5,
+    "ontTemperatureCelsius": 71,
     "signalHistory": [
       {
         "timestamp": "2026-08-19T01:30:00+00:00",
@@ -627,6 +670,10 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "vendor": "Fiberhome",
     "oltPort": "1/7/5",
     "firmwareVersion": "V1.0.0",
+    "fecCorrected": 0,
+    "fecUncorrected": 0,
+    "biasCurrentMa": 12.1,
+    "ontTemperatureCelsius": 44,
     "signalHistory": [
       {
         "timestamp": "2026-08-19T01:30:00+00:00",
@@ -655,7 +702,12 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "model": "HG8145V5",
     "vendor": "Huawei",
     "oltPort": "1/8/1",
-    "firmwareVersion": "V3R019C10S135"
+    "firmwareVersion": "V3R019C10S135",
+    // Fiber degrading but not yet offline — pre-alerta del detector.
+    "fecCorrected": 980,
+    "fecUncorrected": 2,
+    "biasCurrentMa": 32.8,
+    "ontTemperatureCelsius": 66,
   },
   "ONU-OLT-Norte-01-1/9/9": {
     "id": "ONU-OLT-Norte-01-1/9/9",
@@ -670,7 +722,11 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "model": "HG8145V5",
     "vendor": "Huawei",
     "oltPort": "1/9/9",
-    "firmwareVersion": "V3R019C10S135"
+    "firmwareVersion": "V3R019C10S135",
+    "fecCorrected": 5,
+    "fecUncorrected": 0,
+    "biasCurrentMa": 14.9,
+    "ontTemperatureCelsius": 47,
   }
 };
 
