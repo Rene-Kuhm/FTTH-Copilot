@@ -220,4 +220,90 @@ describe('collectSamples', () => {
       expect(p.sampledAt).toBe(ISO);
     }
   });
+
+  it('fans out to getOnuDetail when includeOnuDetail is true, overlaying FEC/óptica', async () => {
+    const detail = {
+      ...ONU,
+      fecCorrected: 1500,
+      fecUncorrected: 4,
+      biasCurrentMa: 36.1,
+      ontTemperatureCelsius: 69,
+    };
+    const connector = makeConnector({
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [ONU]),
+      getOnuDetail: vi.fn(async () => detail),
+    });
+
+    const points = await collectSamples(connector, META, {
+      now: new Date(ISO),
+      includeOnuDetail: true,
+    });
+
+    expect(points).toEqual(expect.arrayContaining([
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'FEC_CORRECTED', value: 1500, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'FEC_UNCORRECTED', value: 4, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'BIAS_CURRENT_MA', value: 36.1, sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'ONT_TEMPERATURE_CELSIUS', value: 69, sampledAt: ISO },
+    ]));
+    expect(connector.getOnuDetail).toHaveBeenCalled();
+  });
+
+  it('does not fan out to getOnuDetail by default', async () => {
+    const connector = makeConnector({
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [ONU]),
+      getOnuDetail: vi.fn(async () => ({
+        ...ONU,
+        fecCorrected: 1,
+      })),
+    });
+
+    await collectSamples(connector, META, { now: new Date(ISO) });
+
+    expect(connector.getOnuDetail).not.toHaveBeenCalled();
+  });
+
+  it('survives a getOnuDetail failure and still emits the summary points', async () => {
+    const connector = makeConnector({
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [ONU]),
+      getOnuDetail: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+    });
+
+    const points = await collectSamples(connector, META, {
+      now: new Date(ISO),
+      includeOnuDetail: true,
+    });
+
+    // Status + rx + tx + uptime from the summary survive the detail failure.
+    expect(points).toEqual(expect.arrayContaining([
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'STATUS', valueText: 'online', sampledAt: ISO },
+      { ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'RX_POWER_DBM', value: -22.5, sampledAt: ISO },
+    ]));
+    expect(points.find((p) => p.kind === 'FEC_CORRECTED')).toBeUndefined();
+  });
+
+  it('falls back to a serial lookup when the id lookup returns null', async () => {
+    const onu = { ...ONU, serial: 'SN-Z' };
+    const connector = makeConnector({
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [onu]),
+      getOnuDetail: vi.fn(async (idOrSerial: string) => {
+        if (idOrSerial === 'ONU-1') return null;
+        return { ...onu, fecCorrected: 77 };
+      }),
+    });
+
+    const points = await collectSamples(connector, META, {
+      now: new Date(ISO),
+      includeOnuDetail: true,
+    });
+
+    expect(points.find((p) => p.kind === 'FEC_CORRECTED')).toEqual({
+      ...META, deviceKind: 'ONU', deviceId: 'ONU-1', kind: 'FEC_CORRECTED', value: 77, sampledAt: ISO,
+    });
+  });
 });

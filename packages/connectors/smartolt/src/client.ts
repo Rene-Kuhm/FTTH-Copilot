@@ -39,9 +39,15 @@ export const SMARTOLT_RATE_LIMIT_PER_HOUR = 15; // per project guide
  *     GET  /api/system/get_olts
  *     GET  /api/system/get_olt_detail/{id}
  *     GET  /api/onu/get_all_onus_details
+ *     GET  /api/onu/get_onu_detail/{id}         ← para FEC/óptica/firmware
  *     GET  /api/onu/get_onus_statuses
  *     GET  /api/system/get_olt_pon_ports_details/{id}
  *     GET  /api/system/get_outage_pons/{id}
+ *
+ * El endpoint bulk no siempre expone los contadores FEC ni la versión de
+ * firmware. Para obtenerlos hay que fan-outear a `get_onu_detail/{id}`,
+ * gobernado por `includeOnuDetail` en las opciones (off por defecto para
+ * respetar el rate limit de 15 req/h).
  */
 export class SmartOltClient implements INmsConnector {
   readonly providerName = 'smartolt';
@@ -233,6 +239,17 @@ export class SmartOltClient implements INmsConnector {
       txPowerDbm: this.parseFloat(o.signal_1490),
       uptimeSeconds: undefined,
       lastSeenAt: typeof o.last_status_change === 'string' ? o.last_status_change : undefined,
+      // Some SmartOLT endpoints expose optical-health fields in the bulk
+      // response. The fan-out path covers the rest (see listOnus). Try the
+      // common naming variants without inventing a single canonical form.
+      fecCorrected: pickNumber(o, ['fec_corrected', 'fecCorrected', 'corrected_fec']),
+      fecUncorrected: pickNumber(o, ['fec_uncorrected', 'fecUncorrected', 'uncorrected_fec']),
+      biasCurrentMa: pickNumber(o, ['bias_current', 'biasCurrent', 'bias_current_ma']),
+      ontTemperatureCelsius: pickNumber(o, [
+        'ont_temperature',
+        'ontTemperature',
+        'ont_temperature_celsius',
+      ]),
     };
   }
 
@@ -243,7 +260,12 @@ export class SmartOltClient implements INmsConnector {
       model: typeof o.onu_type_name === 'string' ? o.onu_type_name.split('-').pop() : undefined,
       vendor: typeof o.onu_type_name === 'string' ? o.onu_type_name.split('-')[0] : undefined,
       oltPort: o.board !== undefined && o.port !== undefined ? `${o.board}/${o.port}/${o.onu}` : undefined,
-      firmwareVersion: undefined,
+      firmwareVersion: pickString(o, [
+        'onu_firmware_version',
+        'firmware_version',
+        'firmware',
+        'sw_version',
+      ]),
     };
   }
 
@@ -262,4 +284,34 @@ export class SmartOltClient implements INmsConnector {
     }
     return undefined;
   }
+}
+
+// ── Module-level helpers ──
+
+/**
+ * Returns the first numeric value from `record` whose key matches one of
+ * `candidates`. Returns `undefined` when no candidate is present or parseable.
+ *
+ * SmartOLT has shipped its API under multiple field-name conventions across
+ * versions; this lets us stay compatible without hard-coding one shape.
+ */
+function pickNumber(record: Record<string, unknown>, candidates: string[]): number | undefined {
+  for (const key of candidates) {
+    const raw = record[key];
+    if (raw === undefined || raw === null) continue;
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const n = parseFloat(raw);
+      if (!Number.isNaN(n)) return n;
+    }
+  }
+  return undefined;
+}
+
+function pickString(record: Record<string, unknown>, candidates: string[]): string | undefined {
+  for (const key of candidates) {
+    const raw = record[key];
+    if (typeof raw === 'string' && raw.length > 0) return raw;
+  }
+  return undefined;
 }

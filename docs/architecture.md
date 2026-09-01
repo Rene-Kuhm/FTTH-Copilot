@@ -126,6 +126,8 @@ Los paquetes están organizados por **responsabilidad**, no por capa técnica. L
 instrumentation.register()
   ├─► startPollingLoop()  (apps/web/lib/monitoring/scheduler.ts)
   │     └─► si METRICS_POLLER_ENABLED=true, corre runScheduledPoll() cada N ms
+  ├─► startFirmwareAuditLoop()  (apps/web/lib/monitoring/scheduler.ts)
+  │     └─► si FIRMWARE_AUDIT_ENABLED=true, corre runScheduledFirmwareAudit() cada N ms
   └─► startSyslogReceiver()  (apps/web/lib/monitoring/syslog.ts)
         └─► si SYSLOG_RECEIVER_ENABLED=true + SYSLOG_TENANT_ID, bind UDP + detecta cada N ms
 ```
@@ -201,7 +203,7 @@ Reglas concretas:
 | `detectBruteForce` | ≥ 5 `auth_failure` de una IP en 5 min | critical | **activo en runtime** |
 | `detectAccessAfterFailures` | acceso tras ≥ 3 fallos recientes de la misma fuente | warning | **activo en runtime** |
 | `detectConfigChange` | todo `config_change` | warning | **activo en runtime** |
-| `detectVulnerableFirmware` | versión exacta en lista de CVEs | critical | implementado + testeado, sin datos todavía |
+| `detectVulnerableFirmware` | versión exacta en lista de CVEs | critical | **activo en runtime** (loop separado, `FIRMWARE_AUDIT_ENABLED`) |
 | `detectTrafficAnomaly` | throughput promedio > 100 Mbps en 15 min (critical al doble) | warning/critical | implementado + testeado, sin datos todavía |
 
 ## 8. Reporte y auditoría
@@ -251,9 +253,16 @@ Después reiniciar el proceso (PM2 `ftth-copilot`). Verificá que el NMS acepte 
 
 Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cableada**, o una decisión pendiente. No son bugs; son trabajo futuro.
 
-1. **Firmware y tráfico (Fase D) sin datos.** `detectVulnerableFirmware` y `detectTrafficAnomaly` están implementados y testeados, pero los conectores todavía no exponen `firmwareVersion` ni throughput por ONU. Hay que agregar esa recolección antes de que esos detectores corran en runtime.
+1. **Tráfico (throughput) sin datos.** `detectTrafficAnomaly` está implementado y testeado, pero los conectores todavía no exponen throughput por ONU. Hay que agregar esa recolección (nuevo `MetricKind.THROUGHPUT_MBPS` + conector que lo exponga) antes de que corra en runtime.
 2. **Resolución SOC IP → dispositivo.** `DeviceEvent.deviceId` queda `null` hasta que exista un mapeo de IP/source a equipo del tenant.
 3. **Multi-tenant por fuente syslog.** El receptor hoy atribuye todos los eventos a un único `SYSLOG_TENANT_ID`. Soportar varias fuentes → varios tenants es un follow-up.
+
+### Cierre reciente (Fase 1 del AIOps roadmap)
+
+Como parte de la Fase 1 del roadmap cognitivo (`docs/aiops-roadmap.md`), ya quedó cableado en runtime:
+
+- **FEC errors** (`FEC_CORRECTED`, `FEC_UNCORRECTED`) y **óptica por ONT** (`BIAS_CURRENT_MA`, `ONT_TEMPERATURE_CELSIUS`) llegan al `MetricSample` cuando el conector SmartOLT corre con fan-out a `getOnuDetail` por ONU. Los detectores `detectFecDegradation` y `detectOpticalDegradation` ya no son "demo".
+- **Firmware audit** (`detectVulnerableFirmware`) corre como loop independiente (`FIRMWARE_AUDIT_ENABLED=true`), con su propio cadence (default 24 h) y allowlist configurable (`FIRMWARE_AUDIT_VULNERABLE_LIST`).
 
 ## 12. Estrategia de testing
 

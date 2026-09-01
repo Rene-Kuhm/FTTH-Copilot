@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ftth-copilot/alerts": "workspace:*",
+    "@ftth-copilot/connectors-core": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/security": "workspace:*"
   },

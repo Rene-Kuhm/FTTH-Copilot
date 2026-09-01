@@ -365,6 +365,9 @@ importers:
       '@ftth-copilot/alerts':
         specifier: workspace:*
         version: link:../alerts
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../connectors/core
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../db

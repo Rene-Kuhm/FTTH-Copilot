@@ -47,4 +47,12 @@ export interface CollectOptions {
    * to false and falls back to whatever `listOlts()` already provides.
    */
   includeOltDetail?: boolean;
+  /**
+   * Whether to fan out to getOnuDetail() per ONU so the optical-health fields
+   * (FEC corrected/uncorrected, bias current, ONT temperature) and the
+   * firmware version reach the metrics table. Costs N extra requests per
+   * poll cycle, so it defaults to false; the connector must also opt-in via
+   * `includeOnuDetail` for the fan-out to actually fire.
+   */
+  includeOnuDetail?: boolean;
 }

@@ -1,13 +1,17 @@
 /**
  * Next.js server instrumentation — runs once when the Node.js server starts.
- * Boots the proactive metrics poller and the syslog (SOC) receiver. Both stay
- * off unless their env flags are set, so dev, preview and test instances never
- * poll the NMS or bind a socket in the background.
+ * Boots the proactive metrics poller, the firmware audit loop, and the
+ * syslog (SOC) receiver. All stay off unless their env flags are set, so
+ * dev, preview and test instances never poll the NMS, scan firmware, or
+ * bind a UDP socket in the background.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { startPollingLoop } = await import('@/lib/monitoring/scheduler');
+    const { startPollingLoop, startFirmwareAuditLoop } = await import(
+      '@/lib/monitoring/scheduler'
+    );
     startPollingLoop();
+    startFirmwareAuditLoop();
 
     const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
     startSyslogReceiver();

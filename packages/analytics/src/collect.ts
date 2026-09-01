@@ -1,4 +1,4 @@
-import type { INmsConnector } from '@ftth-copilot/connectors-core';
+import type { INmsConnector, OnuDetail, OnuSummary } from '@ftth-copilot/connectors-core';
 import type { CollectOptions, MetricPoint, SampleMeta } from './types';
 
 function makePoint(
@@ -14,6 +14,53 @@ function makePoint(
 }
 
 /**
+ * Returns a new `OnuSummary` with any fields present in `detail` overlaid on
+ * top of `summary`. The detail endpoint is treated as the authoritative source
+ * for the optical/firmware fields it exposes; pre-existing summary values are
+ * preserved when the detail didn't carry them.
+ */
+function mergeOnuDetail(summary: OnuSummary, detail: OnuDetail | null | undefined): OnuSummary {
+  if (!detail) return summary;
+  return {
+    ...summary,
+    fecCorrected: detail.fecCorrected ?? summary.fecCorrected,
+    fecUncorrected: detail.fecUncorrected ?? summary.fecUncorrected,
+    biasCurrentMa: detail.biasCurrentMa ?? summary.biasCurrentMa,
+    ontTemperatureCelsius: detail.ontTemperatureCelsius ?? summary.ontTemperatureCelsius,
+  };
+}
+
+/**
+ * Applies `fn` to every element of `items` with at most `concurrency`
+ * invocations in flight. Preserves input order in the output array. A single
+ * failure does not abort the batch — the thrown error is captured and the
+ * caller decides what to do with it.
+ */
+async function mapAllSettled<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<OnuDetail | null>,
+): Promise<Array<{ ok: true; value: OnuDetail | null } | { ok: false; reason: unknown }>> {
+  const results: Array<{ ok: true; value: OnuDetail | null } | { ok: false; reason: unknown }> = new Array(items.length);
+  let nextIndex = 0;
+  const limit = Math.max(1, concurrency);
+  const workers = Array.from({ length: limit }, async () => {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      try {
+        const value = await fn(items[i]!, i);
+        results[i] = { ok: true, value };
+      } catch (reason) {
+        results[i] = { ok: false, reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Samples the current state of a connector into a flat list of MetricPoints.
  *
  * Uses only bulk endpoints by default (listOlts + listOnus) so it stays inside
@@ -21,6 +68,11 @@ function makePoint(
  * and uptime are read from getOltDetail() and bulk values for those metrics are
  * skipped to avoid duplicates. A failure in a single OLT's detail call is
  * swallowed so the rest of the sample survives.
+ *
+ * When `includeOnuDetail` is true, the collector fans out to getOnuDetail()
+ * per ONU so optical-health fields (FEC corrected/uncorrected, bias current,
+ * ONT temperature) reach the metrics table. A failure in a single ONU's
+ * detail call is swallowed; the summary values from `listOnus()` survive.
  */
 export async function collectSamples(
   connector: INmsConnector,
@@ -65,7 +117,23 @@ export async function collectSamples(
     }
   }
 
-  for (const onu of onus) {
+  let mergedOnus: OnuSummary[] = onus;
+  if (opts.includeOnuDetail && onus.length > 0) {
+    const settled = await mapAllSettled(
+      onus,
+      4,
+      async (onu) => {
+        const detail = await connector.getOnuDetail(onu.id);
+        return detail ?? (await connector.getOnuDetail(onu.serial));
+      },
+    );
+    mergedOnus = onus.map((onu, i) => {
+      const r = settled[i]!;
+      return r.ok ? mergeOnuDetail(onu, r.value) : onu;
+    });
+  }
+
+  for (const onu of mergedOnus) {
     if (onu.status) {
       points.push(makePoint(meta, 'ONU', onu.id, 'STATUS', sampledAt, undefined, onu.status));
     }
