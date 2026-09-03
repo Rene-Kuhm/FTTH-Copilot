@@ -77,6 +77,32 @@ function classifyStaleness(
 }
 
 /**
+ * Classifies the completeness dimension. `complete` → no candidate
+ * (passes); `partial` → `incomplete / partial-completeness /
+ * warning`; `minimal` → `incomplete / minimal-completeness / critical`.
+ */
+function classifyCompleteness(env: EvidenceProvenance, toolName: string): Verdict | null {
+  switch (env.completeness) {
+    case 'complete':
+      return null;
+    case 'partial':
+      return {
+        toolName,
+        code: 'incomplete',
+        reason: 'partial-completeness',
+        severity: 'warning',
+      };
+    case 'minimal':
+      return {
+        toolName,
+        code: 'incomplete',
+        reason: 'minimal-completeness',
+        severity: 'critical',
+      };
+  }
+}
+
+/**
  * Picks the highest-severity verdict from a candidate set, returning
  * `ok / fresh-complete / ok` when none apply.
  */
@@ -116,6 +142,9 @@ export function classifyEnvelope(parsed: unknown, toolName: string, now?: Date):
   const referenceNow = now ?? new Date();
   const stalenessVerdict = classifyStaleness(parseResult.data, toolName, referenceNow);
   if (stalenessVerdict) candidates.push(stalenessVerdict);
+
+  const completenessVerdict = classifyCompleteness(parseResult.data, toolName);
+  if (completenessVerdict) candidates.push(completenessVerdict);
 
   return rankVerdicts(candidates, toolName);
 }

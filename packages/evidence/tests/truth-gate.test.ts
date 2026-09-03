@@ -116,3 +116,49 @@ describe('classifyEnvelope — staleness dimension', () => {
     expect(verdict.code).toBe('stale');
   });
 });
+
+describe('classifyEnvelope — completeness dimension', () => {
+  const baseEnvelope = {
+    schema: EVIDENCE_PROVENANCE_SCHEMA,
+    source: 'smartolt.poll',
+    tenantId: 't1',
+    observedAt: '2026-08-30T12:00:00.000Z',
+    ttlMs: 900000,
+    confidence: 1.0,
+    data: [],
+  };
+  const freshNow = new Date('2026-08-30T12:05:00.000Z');
+
+  it("returns ok for completeness='complete'", () => {
+    const verdict = classifyEnvelope(
+      { ...baseEnvelope, completeness: 'complete' },
+      'list_olts',
+      freshNow,
+    );
+    expect(verdict.code).toBe('ok');
+    expect(verdict.reason).toBe('fresh-complete');
+    expect(verdict.severity).toBe('ok');
+  });
+
+  it("returns incomplete/partial-completeness/warning for completeness='partial'", () => {
+    const verdict = classifyEnvelope(
+      { ...baseEnvelope, completeness: 'partial' },
+      'list_olts',
+      freshNow,
+    );
+    expect(verdict.code).toBe('incomplete');
+    expect(verdict.reason).toBe('partial-completeness');
+    expect(verdict.severity).toBe('warning');
+  });
+
+  it("returns incomplete/minimal-completeness/critical for completeness='minimal'", () => {
+    const verdict = classifyEnvelope(
+      { ...baseEnvelope, completeness: 'minimal' },
+      'list_olts',
+      freshNow,
+    );
+    expect(verdict.code).toBe('incomplete');
+    expect(verdict.reason).toBe('minimal-completeness');
+    expect(verdict.severity).toBe('critical');
+  });
+});
