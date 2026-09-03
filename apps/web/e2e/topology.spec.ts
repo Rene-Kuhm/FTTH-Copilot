@@ -76,7 +76,7 @@ test.describe('TopologyImpact — OWNER/ADMIN vs OPERATOR/MEMBER rendering', () 
   });
 
   test('OWNER sees the expandable "Análisis de impacto" accordion with the full ONU list', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/dashboard');
     const accordion = page.getByTestId('topology-impact-accordion');
     await expect(accordion).toBeVisible();
     await expect(accordion).toContainText('Análisis de impacto');
@@ -105,7 +105,7 @@ test.describe('TopologyImpact — OWNER/ADMIN vs OPERATOR/MEMBER rendering', () 
         }),
       });
     });
-    await page.goto('/');
+    await page.goto('/dashboard');
     const compact = page.getByTestId('topology-impact-compact');
     await expect(compact).toBeVisible();
     await expect(compact).toContainText('Resumen');
@@ -129,7 +129,7 @@ test.describe('TopologyImpact — OWNER/ADMIN vs OPERATOR/MEMBER rendering', () 
       });
     });
     // OWNER first.
-    await page.goto('/');
+    await page.goto('/dashboard');
     const accordion = page.getByTestId('topology-impact-accordion');
     await accordion.getByTestId('topology-impact-toggle').click();
     await expect(page.getByTestId('topology-impact-empty')).toContainText(
@@ -153,7 +153,7 @@ test.describe('TopologyImpact — OWNER/ADMIN vs OPERATOR/MEMBER rendering', () 
         }),
       });
     });
-    await page.goto('/');
+    await page.goto('/dashboard');
     const compact = page.getByTestId('topology-impact-compact');
     await expect(compact).toContainText(
       'No hay datos de topología para este dispositivo.',
