@@ -62,6 +62,7 @@ export type {
   ConfirmedIncident,
   PendingIncidentCandidate,
   RelevantIncidentResult,
+  TenantPolicy,
 } from './contracts';
 export {
   EVIDENCE_PROVENANCE_SCHEMA,
@@ -72,6 +73,8 @@ export {
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
   confirmedIncidentSchema,
   pendingIncidentCandidateSchema,
+  TENANT_POLICY_SCHEMA,
+  tenantPolicySchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,
 } from './contracts';

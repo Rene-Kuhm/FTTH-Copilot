@@ -14,10 +14,13 @@ import {
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
   confirmedIncidentSchema,
   pendingIncidentCandidateSchema,
+  TENANT_POLICY_SCHEMA,
+  tenantPolicySchema,
   type Abstention,
   type ConfirmedIncident,
   type PendingIncidentCandidate,
   type RelevantIncidentResult,
+  type TenantPolicy,
 } from '../src/contracts';
 
 describe('telemetry.v1', () => {
@@ -496,5 +499,155 @@ describe('ftth.pending-incident-candidate.v1', () => {
     expect(
       pendingIncidentCandidateSchema.safeParse({ ...valid, extraField: 'nope' }).success,
     ).toBe(false);
+  });
+});
+
+// ── Fase E — ftth.tenant-policy.v1 ───────────────────────────────────────────
+
+describe('ftth.tenant-policy.v1', () => {
+  const valid: TenantPolicy = {
+    schema: TENANT_POLICY_SCHEMA,
+    schemaVersion: 1,
+    tenantId: 't1',
+    retrievalLimit: 7,
+    retrievalSinceDays: 30,
+    truthGateMode: 'observe',
+    abstainOnCodes: ['incomplete', 'stale'],
+    promotionMinAgeMs: 60_000,
+    lastEvaluatedAt: '2026-09-01T12:00:00.000Z',
+    createdAt: '2026-09-01T11:00:00.000Z',
+    updatedAt: '2026-09-01T11:00:00.000Z',
+  };
+
+  it('exports the literal version marker ftth.tenant-policy.v1', () => {
+    expect(TENANT_POLICY_SCHEMA).toBe('ftth.tenant-policy.v1');
+  });
+
+  it('accepts a fully-populated envelope', () => {
+    expect(tenantPolicySchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts a minimal envelope with only the required identity + timestamp fields', () => {
+    const minimal: TenantPolicy = {
+      schema: TENANT_POLICY_SCHEMA,
+      schemaVersion: 1,
+      tenantId: 't1',
+      createdAt: '2026-09-01T11:00:00.000Z',
+      updatedAt: '2026-09-01T11:00:00.000Z',
+    };
+    expect(tenantPolicySchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it('rejects a wrong schema literal (v2)', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, schema: 'ftth.tenant-policy.v2' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a wrong schemaVersion', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, schemaVersion: 2 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an empty tenantId', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, tenantId: '' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects retrievalLimit < 1 or > 50', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalLimit: 0 }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalLimit: 51 }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalLimit: 1.5 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects retrievalSinceDays < 1 or > 365', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalSinceDays: 0 }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalSinceDays: 366 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects promotionMinAgeMs < 0', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, promotionMinAgeMs: -1 }).success,
+    ).toBe(false);
+    // 0 is allowed — promotes immediately.
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, promotionMinAgeMs: 0 }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a truthGateMode outside the enum', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, truthGateMode: 'off' as never }).success,
+    ).toBe(false);
+  });
+
+  it('accepts every declared VerdictCode in abstainOnCodes', () => {
+    for (const code of ['ok', 'low_confidence', 'stale', 'incomplete'] as const) {
+      expect(
+        tenantPolicySchema.safeParse({ ...valid, abstainOnCodes: [code] }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an unknown VerdictCode in abstainOnCodes', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, abstainOnCodes: ['nope' as never] }).success,
+    ).toBe(false);
+  });
+
+  it('accepts an empty abstainOnCodes array (per-tenant disables the gate)', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, abstainOnCodes: [] }).success,
+    ).toBe(true);
+  });
+
+  it('rejects non-integer retrievalLimit / retrievalSinceDays / promotionMinAgeMs', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalLimit: 5.5 }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, retrievalSinceDays: 7.25 }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, promotionMinAgeMs: 1000.5 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects invalid datetimes on createdAt/updatedAt/lastEvaluatedAt', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, createdAt: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, updatedAt: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, lastEvaluatedAt: 'not-a-date' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, extraField: 'nope' }).success,
+    ).toBe(false);
+  });
+
+  it('round-trips through JSON.parse(JSON.stringify(...)) preserving all fields', () => {
+    const roundTripped = JSON.parse(JSON.stringify(valid)) as TenantPolicy;
+    expect(tenantPolicySchema.safeParse(roundTripped).success).toBe(true);
+    expect(roundTripped.tenantId).toBe('t1');
+    expect(roundTripped.truthGateMode).toBe('observe');
+    expect(roundTripped.abstainOnCodes).toEqual(['incomplete', 'stale']);
   });
 });

@@ -339,3 +339,86 @@ describe('demo == live parity (Fase B invariant honored by abstention policy)', 
     expect(demo.toolsAffected).toEqual(live.toolsAffected);
   });
 });
+
+// ── Fase E — per-tenant abstainOnCodes (shouldAbstain 3rd arg) ────────────────
+
+describe('shouldAbstain — Fase E tenantPolicy 3rd arg', () => {
+  const incompleteVerdict: Verdict = {
+    toolName: 'get_onu_detail',
+    code: 'incomplete',
+    reason: 'no-envelope',
+    severity: 'critical',
+  };
+  const staleVerdict: Verdict = {
+    toolName: 'list_onus',
+    code: 'stale',
+    reason: 'expired-ttl',
+    severity: 'warning',
+  };
+  const lowConfVerdict: Verdict = {
+    toolName: 'list_onus',
+    code: 'low_confidence',
+    reason: 'missing-confidence',
+    severity: 'warning',
+  };
+  const okVerdict: Verdict = {
+    toolName: 'list_onus',
+    code: 'ok',
+    reason: 'fresh-complete',
+    severity: 'ok',
+  };
+
+  it('tenantPolicy=undefined → byte-identical Fase C (incomplete triggers abstain)', () => {
+    expect(shouldAbstain([incompleteVerdict], 'strict', undefined)).toBe('abstain');
+    expect(shouldAbstain([staleVerdict], 'strict', undefined)).toBe('warn');
+    expect(shouldAbstain([okVerdict], 'strict', undefined)).toBe('allow');
+  });
+
+  it('tenantPolicy={abstainOnCodes: []} → never abstains (empty set disables the gate)', () => {
+    expect(shouldAbstain([incompleteVerdict], 'strict', { abstainOnCodes: [] })).toBe('allow');
+    expect(shouldAbstain([staleVerdict, incompleteVerdict], 'strict', { abstainOnCodes: [] })).toBe(
+      'warn',
+    );
+    expect(shouldAbstain([okVerdict], 'strict', { abstainOnCodes: [] })).toBe('allow');
+  });
+
+  it('tenantPolicy={abstainOnCodes: ["stale"]} → stale triggers abstain (overrides incomplete-only)', () => {
+    expect(shouldAbstain([staleVerdict], 'strict', { abstainOnCodes: ['stale'] })).toBe('abstain');
+    // incomplete is no longer in the trigger set → falls through to warn (none here).
+    expect(shouldAbstain([incompleteVerdict], 'strict', { abstainOnCodes: ['stale'] })).toBe(
+      'allow',
+    );
+  });
+
+  it('tenantPolicy={abstainOnCodes: ["incomplete","low_confidence"]} → both trigger abstain', () => {
+    expect(
+      shouldAbstain([lowConfVerdict], 'strict', { abstainOnCodes: ['incomplete', 'low_confidence'] }),
+    ).toBe('abstain');
+    expect(
+      shouldAbstain([incompleteVerdict], 'strict', { abstainOnCodes: ['incomplete', 'low_confidence'] }),
+    ).toBe('abstain');
+    // stale is NOT in the override → falls through to warn (it is in the warn set).
+    expect(
+      shouldAbstain([staleVerdict], 'strict', { abstainOnCodes: ['incomplete', 'low_confidence'] }),
+    ).toBe('warn');
+  });
+
+  it('observe mode ignores tenantPolicy.abstainOnCodes (Fase B invariant preserved)', () => {
+    expect(
+      shouldAbstain([incompleteVerdict], 'observe', { abstainOnCodes: ['incomplete'] }),
+    ).toBe('allow');
+    expect(
+      shouldAbstain([staleVerdict], 'observe', { abstainOnCodes: ['stale'] }),
+    ).toBe('allow');
+    expect(shouldAbstain([incompleteVerdict], 'observe', undefined)).toBe('allow');
+  });
+
+  it('stale and low_confidence fall through to warn when the override set excludes them', () => {
+    expect(shouldAbstain([staleVerdict], 'strict', { abstainOnCodes: ['incomplete'] })).toBe(
+      'warn',
+    );
+    expect(shouldAbstain([lowConfVerdict], 'strict', { abstainOnCodes: ['incomplete'] })).toBe(
+      'warn',
+    );
+  });
+});

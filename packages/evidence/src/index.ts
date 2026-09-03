@@ -22,6 +22,7 @@ export {
   formatIdentifierNextStep,
   formatMetricsNextStep,
   type AbstentionDecision,
+  type AbstentionTenantPolicy,
   type TruthGateMode,
 } from './abstention-policy';
 
@@ -37,10 +38,13 @@ export type {
   ConfirmedIncident,
   PendingIncidentCandidate,
   RelevantIncidentResult,
+  TenantPolicy,
 } from '@ftth-copilot/shared';
 export {
   CONFIRMED_INCIDENT_SCHEMA,
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
+  TENANT_POLICY_SCHEMA,
+  tenantPolicySchema,
 } from '@ftth-copilot/shared';
 export {
   BM25_B,
@@ -64,10 +68,12 @@ export {
   retrieveRelevantIncidents,
   type DeviceHint,
   type RetrieveRelevantIncidentsArgs,
+  type RetrievalTenantPolicy,
 } from './relevant-incidents';
 export {
   PROMOTION_MIN_AGE_MS,
   buildPendingIncidentCandidate,
   eligibleForPromotion,
   type BuildPendingIncidentCandidateArgs,
+  type PromotionTenantPolicy,
 } from './pending-incident';

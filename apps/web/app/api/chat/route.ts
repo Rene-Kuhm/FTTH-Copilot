@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runAgent, type TruthGateMode } from '@ftth-copilot/agent-core';
-import type { Abstention, ConfirmedIncident } from '@ftth-copilot/shared';
+import type { Abstention, ConfirmedIncident, TenantPolicy } from '@ftth-copilot/shared';
 import type { RelevantIncidentResult } from '@ftth-copilot/evidence';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -12,6 +12,7 @@ import {
 } from '@/lib/connectors/chat-client';
 import { consumeChatQuota } from '@/lib/rate-limit';
 import { logRequest } from '@/lib/logging';
+import { loadTenantPolicy } from '@/lib/policies/load-tenant-policy';
 import {
   buildPendingIncidentCandidate,
   retrieveRelevantIncidents,
@@ -112,12 +113,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }));
   }
 
-  let resolved;
+  let resolved: Awaited<ReturnType<typeof resolveTenantConnector>>;
+  let tenantPolicy: TenantPolicy | null;
   try {
-    resolved = await resolveTenantConnector({
-      tenantId: user.tenantId,
-      connectionId: conversation?.connectionId ?? connectionId,
-    });
+    // Fase E — load the per-tenant policy once per turn, parallel with
+    // connector resolution. `loadTenantPolicy` never throws (returns null
+    // on absent row or parse failure), so the chat stays robust against
+    // DB blips. Absent row → runAgent receives `tenantPolicy: undefined`
+    // → byte-identical Fase C/D behavior.
+    [resolved, tenantPolicy] = await Promise.all([
+      resolveTenantConnector({
+        tenantId: user.tenantId,
+        connectionId: conversation?.connectionId ?? connectionId,
+      }),
+      loadTenantPolicy(user.tenantId),
+    ]);
   } catch (error) {
     const response = connectorErrorResponse(error);
     if (response) return response;
@@ -162,6 +172,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
    * `retrieveRelevantIncidents`, and returns the result set. Demo mode
    * short-circuits to `[]` without touching the DB — keeping Fase C
    * behaviour identical to Fase B/C for demo connectors.
+   *
+   * Fase E — per-tenant knobs (retrievalLimit / retrievalSinceDays) are
+   * forwarded to `retrieveRelevantIncidents` as the 2nd optional arg.
+   * Resolution precedence is `args.X ?? tenantPolicy.X ?? moduleDefault.X`
+   * (the per-tenant knobs only kick in when the runtime does NOT pass
+   * an explicit arg, which it does for retrievalLimit / retrievalSinceDays
+   * when the resolved tenant policy sets them).
    */
   const retrievalProvider = async (providerArgs: {
     tenantId: string;
@@ -172,7 +189,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     mode?: 'live' | 'demo';
   }): Promise<RelevantIncidentResult[]> => {
     if ((providerArgs.mode ?? resolved.dataSource.mode) !== 'live') return [];
-    const cutoff = new Date(Date.now() - (providerArgs.sinceDays ?? RETRIEVAL_WINDOW_DAYS) * 86_400_000);
+    const effectiveLimit = providerArgs.limit ?? tenantPolicy?.retrievalLimit ?? RETRIEVAL_LIMIT;
+    const effectiveSinceDays =
+      providerArgs.sinceDays ?? tenantPolicy?.retrievalSinceDays ?? RETRIEVAL_WINDOW_DAYS;
+    const cutoff = new Date(Date.now() - effectiveSinceDays * 86_400_000);
     const confirmedIncidents = (await prisma.confirmedIncident.findMany({
       where: {
         tenantId: providerArgs.tenantId,
@@ -197,15 +217,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         searchTokens: true,
       },
     })) as unknown as ConfirmedIncident[];
-    return retrieveRelevantIncidents({
-      tenantId: providerArgs.tenantId,
-      query: providerArgs.query,
-      deviceHint: providerArgs.deviceHint,
-      limit: providerArgs.limit ?? RETRIEVAL_LIMIT,
-      sinceDays: providerArgs.sinceDays ?? RETRIEVAL_WINDOW_DAYS,
-      mode: 'live',
-      confirmedIncidents,
-    });
+    return retrieveRelevantIncidents(
+      {
+        tenantId: providerArgs.tenantId,
+        query: providerArgs.query,
+        deviceHint: providerArgs.deviceHint,
+        limit: effectiveLimit,
+        sinceDays: effectiveSinceDays,
+        mode: 'live',
+        confirmedIncidents,
+      },
+      tenantPolicy ?? undefined,
+    );
   };
 
   let result;
@@ -218,6 +241,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       tenantId: user.tenantId,
       connectionId: resolved.dataSource.connectionId ?? undefined,
       mode: resolveTruthGateModeFromEnv(),
+      // Fase E — per-tenant policy loaded parallel with connector
+      // resolution above. Absent row → undefined → Fase C/D byte-identical.
+      tenantPolicy: tenantPolicy ?? undefined,
       retrievalProvider,
       predictionProvider: async () =>
         prisma.detectedAlert.findMany({

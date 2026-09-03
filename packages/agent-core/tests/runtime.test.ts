@@ -22,6 +22,8 @@ import {
   formatAbstentionText,
   DEFAULT_TRUTH_GATE_MODE,
   resolveTruthGateMode,
+  resolveTenantPolicy,
+  type ResolvedTenantPolicy,
 } from '../src/runtime';
 import { DEFAULT_TRUTH_GATE_MODE as INDEX_DEFAULT_TRUTH_GATE_MODE } from '../src/index';
 
@@ -788,5 +790,196 @@ describe('runAgent — retrievalProvider injection (Fase D / WU3)', () => {
     expect(retrievalProvider).toHaveBeenCalledTimes(1);
     const args = retrievalProvider.mock.calls[0]?.[0] as { deviceHint?: string };
     expect(args.deviceHint).toBe('ONU-123');
+  });
+});
+
+// ── Fase E — runAgent threads tenantPolicy via resolveTenantPolicy ────────────
+
+const baseTenantPolicy = (overrides: Record<string, unknown> = {}) => ({
+  schema: 'ftth.tenant-policy.v1' as const,
+  schemaVersion: 1,
+  tenantId: 't1',
+  createdAt: '2026-09-01T11:00:00.000Z',
+  updatedAt: '2026-09-01T11:00:00.000Z',
+  ...overrides,
+});
+
+describe('resolveTenantPolicy — pure helper', () => {
+  it('returns all-undefined when no tenantPolicy is supplied', () => {
+    const resolved = resolveTenantPolicy({}, {});
+    expect(resolved).toEqual({
+      truthGateMode: undefined,
+      retrievalLimit: undefined,
+      retrievalSinceDays: undefined,
+      abstainOnCodes: undefined,
+      promotionMinAgeMs: undefined,
+    } satisfies ResolvedTenantPolicy);
+  });
+
+  it('forwards each knob from tenantPolicy into the resolved shape', () => {
+    const resolved = resolveTenantPolicy(
+      {
+        tenantPolicy: baseTenantPolicy({
+          truthGateMode: 'observe' as const,
+          retrievalLimit: 7,
+          retrievalSinceDays: 30,
+          abstainOnCodes: ['stale', 'incomplete'] as const,
+          promotionMinAgeMs: 60_000,
+        }),
+      },
+      {},
+    );
+    expect(resolved.truthGateMode).toBe('observe');
+    expect(resolved.retrievalLimit).toBe(7);
+    expect(resolved.retrievalSinceDays).toBe(30);
+    expect(resolved.abstainOnCodes).toEqual(['stale', 'incomplete']);
+    expect(resolved.promotionMinAgeMs).toBe(60_000);
+  });
+
+  it('emits exactly one console.info per override knob with the locked format', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      resolveTenantPolicy(
+        {
+          tenantPolicy: baseTenantPolicy({
+            truthGateMode: 'observe' as const,
+            retrievalLimit: 7,
+            promotionMinAgeMs: 0,
+          }),
+        },
+        {},
+      );
+      const calls = infoSpy.mock.calls.map((c) => c[0] as string);
+      // truthGateMode + retrievalLimit + promotionMinAgeMs → 3 lines.
+      expect(calls).toHaveLength(3);
+      expect(calls[0]).toBe(
+        '[ftth-copilot/tenant-policy] tenant=t1 knob=truthGateMode resolved="observe"',
+      );
+      expect(calls[1]).toBe(
+        '[ftth-copilot/tenant-policy] tenant=t1 knob=retrievalLimit resolved=7',
+      );
+      expect(calls[2]).toBe(
+        '[ftth-copilot/tenant-policy] tenant=t1 knob=promotionMinAgeMs resolved=0',
+      );
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('does not log when tenantPolicy is absent', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      resolveTenantPolicy({}, {});
+      expect(infoSpy).not.toHaveBeenCalled();
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+});
+
+describe('runAgent — Fase E tenantPolicy integration', () => {
+  it('tenantPolicy=undefined → byte-identical Fase D behavior (no log, no override)', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'normal', toolCalls: [] });
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      const result = await runAgent({
+        userMessage: 'hola',
+        connector,
+        dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+        tenantId: 't1',
+      });
+      expect(result.text).toBe('normal');
+      expect(infoSpy).not.toHaveBeenCalled();
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('tenantPolicy.truthGateMode="observe" overrides env strict default (per-tenant wins)', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    createMessage
+      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'get_onu_detail', arguments: {} }] })
+      .mockResolvedValueOnce({ text: 'La ONU está perfecta.', toolCalls: [] });
+
+    const result = await withToolResults(
+      () => 'esto no es JSON',
+      () =>
+        runAgent({
+          userMessage: 'diagnosticá',
+          connector,
+          dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+          tenantId: 't1',
+          tenantPolicy: baseTenantPolicy({ truthGateMode: 'observe' as const }),
+        }),
+    );
+
+    // observe overrides strict → no abstention even with incomplete verdict
+    expect(result.abstained).toBeUndefined();
+    expect(result.abstention).toBeUndefined();
+    expect(result.text).toBe('La ONU está perfecta.');
+    delete process.env['TRUTH_GATE_MODE'];
+  });
+
+  it('tenantPolicy.abstainOnCodes=["stale"] triggers abstention on stale verdicts', async () => {
+    createMessage.mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'list_onus', arguments: {} }] })
+      .mockResolvedValueOnce({ text: 'Hay 12 ONUs online.', toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ observedAt: '2026-08-30T12:00:00.000Z' }),
+      () =>
+        runAgent({
+          userMessage: 'stale',
+          connector,
+          dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+          tenantId: 't1',
+          tenantPolicy: baseTenantPolicy({ abstainOnCodes: ['stale'] as const }),
+        }),
+    );
+
+    expect(result.abstained).toBe(true);
+    // Reason reflects the actual trigger (stale), not the Fase C default (incomplete).
+    expect(result.abstention?.reason).toBe('stale');
+    expect(result.abstention?.missing).toEqual(['list_onus']);
+  });
+
+  it('retrieval closure receives per-tenant retrievalLimit + retrievalSinceDays', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'con contexto', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => []);
+    await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider,
+      tenantPolicy: baseTenantPolicy({
+        retrievalLimit: 7,
+        retrievalSinceDays: 14,
+      }),
+    });
+    expect(retrievalProvider).toHaveBeenCalledTimes(1);
+    const args = retrievalProvider.mock.calls[0]?.[0] as {
+      limit?: number;
+      sinceDays?: number;
+    };
+    expect(args.limit).toBe(7);
+    expect(args.sinceDays).toBe(14);
+  });
+
+  it('absent tenantPolicy does not forward limit/sinceDays to the retrieval closure', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'con contexto', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => []);
+    await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider,
+    });
+    const args = retrievalProvider.mock.calls[0]?.[0] as {
+      limit?: number;
+      sinceDays?: number;
+    };
+    expect(args.limit).toBeUndefined();
+    expect(args.sinceDays).toBeUndefined();
   });
 });

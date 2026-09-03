@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   promotePendingIncidents: vi.fn(),
+  prismaTenantPolicyFindMany: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -24,6 +25,39 @@ vi.mock('@/lib/auth/server', () => ({
 
 vi.mock('@/lib/promote-pending-incidents', () => ({
   promotePendingIncidents: mocks.promotePendingIncidents,
+}));
+
+vi.mock('@/lib/policies/load-tenant-policy', () => ({
+  loadTenantPolicy: async (tenantId: string) => {
+    const row = mocks.prismaTenantPolicyFindMany.mock.results
+      .flatMap((r) => (r.type === 'return' ? (r.value as Array<Record<string, unknown>>) : []))
+      .find((r) => r['tenantId'] === tenantId);
+    if (!row) return null;
+    return {
+      schema: 'ftth.tenant-policy.v1' as const,
+      schemaVersion: 1,
+      tenantId: row['tenantId'] as string,
+      ...(row['retrievalLimit'] != null ? { retrievalLimit: row['retrievalLimit'] as number } : {}),
+      ...(row['retrievalSinceDays'] != null
+        ? { retrievalSinceDays: row['retrievalSinceDays'] as number }
+        : {}),
+      ...(row['truthGateMode'] != null ? { truthGateMode: row['truthGateMode'] as 'observe' | 'strict' } : {}),
+      ...(row['abstainOnCodes'] != null ? { abstainOnCodes: ['stale'] as const } : {}),
+      ...(row['promotionMinAgeMs'] != null
+        ? { promotionMinAgeMs: row['promotionMinAgeMs'] as number }
+        : {}),
+      createdAt: '2026-09-01T11:00:00.000Z',
+      updatedAt: '2026-09-01T11:00:00.000Z',
+    };
+  },
+}));
+
+vi.mock('@ftth-copilot/db', () => ({
+  prisma: {
+    tenantPolicy: {
+      findMany: mocks.prismaTenantPolicyFindMany,
+    },
+  },
 }));
 
 const fakeOwner = {
@@ -43,6 +77,8 @@ const fakeAdmin = {
 beforeEach(() => {
   mocks.getCurrentUser.mockReset();
   mocks.promotePendingIncidents.mockReset();
+  mocks.prismaTenantPolicyFindMany.mockReset();
+  mocks.prismaTenantPolicyFindMany.mockResolvedValue([]);
   mocks.promotePendingIncidents.mockResolvedValue({ promoted: 0, skipped: 0 });
 });
 
@@ -81,5 +117,32 @@ describe('POST /api/pending-incidents/promote — permission gate', () => {
     const body = (await res.json()) as { promoted: number; skipped: number };
     expect(body).toEqual({ promoted: 2, skipped: 1 });
     expect(mocks.promotePendingIncidents).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Fase E — per-tenant policyLoader wiring on the promote route ─────────────
+
+describe('POST /api/pending-incidents/promote — Fase E policyLoader argument', () => {
+  it('forwards a 2nd argument (Date + policyLoader) to promotePendingIncidents', async () => {
+    mocks.getCurrentUser.mockResolvedValue(fakeOwner);
+    mocks.promotePendingIncidents.mockResolvedValueOnce({ promoted: 0, skipped: 0 });
+    await callRoute();
+    expect(mocks.promotePendingIncidents).toHaveBeenCalledTimes(1);
+    const args = mocks.promotePendingIncidents.mock.calls[0];
+    expect(args).toHaveLength(2);
+    expect(args?.[0]).toBeInstanceOf(Date);
+    expect(typeof args?.[1]).toBe('function');
+  });
+
+  it('policyLoader is async and takes an array of tenantIds', async () => {
+    mocks.getCurrentUser.mockResolvedValue(fakeOwner);
+    mocks.promotePendingIncidents.mockResolvedValueOnce({ promoted: 0, skipped: 0 });
+    await callRoute();
+    const policyLoader = mocks.promotePendingIncidents.mock.calls[0]?.[1] as (
+      tenantIds: ReadonlyArray<string>,
+    ) => Promise<Map<string, unknown>>;
+    expect(typeof policyLoader).toBe('function');
+    const result = await policyLoader(['t1', 't2']);
+    expect(result).toBeInstanceOf(Map);
   });
 });

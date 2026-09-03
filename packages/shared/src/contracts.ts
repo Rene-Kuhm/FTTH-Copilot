@@ -22,6 +22,9 @@ export const ABSTENTION_SCHEMA = 'ftth.abstention.v1' as const;
 export const CONFIRMED_INCIDENT_SCHEMA = 'ftth.confirmed-incident.v1' as const;
 export const PENDING_INCIDENT_CANDIDATE_SCHEMA =
   'ftth.pending-incident-candidate.v1' as const;
+// Fase E — per-tenant override envelope (1:1 with Tenant). Absent row →
+// byte-identical to Fase C/D; per-tenant wins over env over module default.
+export const TENANT_POLICY_SCHEMA = 'ftth.tenant-policy.v1' as const;
 
 // ── evidence.provenance.v1 ──────────────────────────────────────────────────
 
@@ -257,3 +260,41 @@ export const pendingIncidentCandidateSchema = z
   .strict();
 
 export type PendingIncidentCandidate = z.infer<typeof pendingIncidentCandidateSchema>;
+
+// ── ftth.tenant-policy.v1 (Fase E — per-tenant override envelope) ─────────────
+//
+// Stable JSON envelope for the optional per-tenant override row (1:1 with
+// `Tenant`). The runtime consults `tenantPolicy.X ?? env.X ?? moduleDefault.X`
+// per knob; absent row → Fase C/D byte-identical. Five nullable knobs are
+// independent — a tenant may pin `retrievalLimit` without touching
+// `promotionMinAgeMs`.
+//
+// Field bounds:
+//   - retrievalLimit:     1..50 (top-K cap on the pre-LLM context block)
+//   - retrievalSinceDays: 1..365 (recall window)
+//   - truthGateMode:      'observe' | 'strict'
+//   - abstainOnCodes:     subset of VerdictCode (`ok` allowed for forward-
+//                         compat; runtime filters the meaningless entries)
+//   - promotionMinAgeMs:  >= 0 (0 means "promote immediately")
+//
+// `.strict()` rejects unknown top-level keys so a future spec bump can never
+// silently drift the wire format.
+export const tenantPolicySchema = z
+  .object({
+    schema: z.literal(TENANT_POLICY_SCHEMA),
+    schemaVersion: z.literal(1),
+    tenantId: z.string().min(1),
+    retrievalLimit: z.number().int().min(1).max(50).optional(),
+    retrievalSinceDays: z.number().int().min(1).max(365).optional(),
+    truthGateMode: z.enum(['observe', 'strict']).optional(),
+    abstainOnCodes: z
+      .array(z.enum(['ok', 'low_confidence', 'stale', 'incomplete']))
+      .optional(),
+    promotionMinAgeMs: z.number().int().min(0).optional(),
+    lastEvaluatedAt: z.string().datetime().optional(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type TenantPolicy = z.infer<typeof tenantPolicySchema>;

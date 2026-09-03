@@ -138,3 +138,38 @@ describe('evidence public API surface — Fase D WU2 retrieval helpers', () => {
     ).toBe(true);
   });
 });
+
+// ── Fase E — per-tenant policy re-exports ────────────────────────────────────
+
+describe('evidence public API surface — Fase E TenantPolicy re-exports', () => {
+  it('re-exports TENANT_POLICY_SCHEMA constant', () => {
+    expect(Evidence.TENANT_POLICY_SCHEMA).toBe('ftth.tenant-policy.v1');
+  });
+
+  it('re-exports tenantPolicySchema zod object', () => {
+    expect(typeof Evidence.tenantPolicySchema).toBe('object');
+    expect(typeof Evidence.tenantPolicySchema.safeParse).toBe('function');
+    const parsed = Evidence.tenantPolicySchema.safeParse({
+      schema: Evidence.TENANT_POLICY_SCHEMA,
+      schemaVersion: 1,
+      tenantId: 't1',
+      createdAt: '2026-09-01T11:00:00.000Z',
+      updatedAt: '2026-09-01T11:00:00.000Z',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('exposes the TenantPolicy type at the boundary', () => {
+    const env: Evidence.TenantPolicy = {
+      schema: Evidence.TENANT_POLICY_SCHEMA,
+      schemaVersion: 1,
+      tenantId: 't1',
+      retrievalLimit: 7,
+      truthGateMode: 'observe',
+      createdAt: '2026-09-01T11:00:00.000Z',
+      updatedAt: '2026-09-01T11:00:00.000Z',
+    };
+    expect(env.tenantId).toBe('t1');
+    expect(env.truthGateMode).toBe('observe');
+  });
+});

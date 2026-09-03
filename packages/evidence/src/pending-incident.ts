@@ -59,18 +59,29 @@ export function buildPendingIncidentCandidate(
  * Promotion gate. All four conditions must hold:
  *  - the candidate is still `pending` (never re-promote);
  *  - the source incident is `resolved`;
- *  - it has stayed resolved for at least `PROMOTION_MIN_AGE_MS` (a future
- *    `resolvedAt` therefore fails, which is the clock-skew guard);
+ *  - it has stayed resolved for at least the resolved promotionMinAgeMs
+ *    (a future `resolvedAt` therefore fails, which is the clock-skew guard);
  *  - the originating run produced no `incomplete` verdict.
+ *
+ * Fase E — trailing optional `tenantPolicy`. The minimum-age threshold
+ * resolves as `tenantPolicy.promotionMinAgeMs ?? PROMOTION_MIN_AGE_MS`
+ * (Fase D archive §1 pre-approved this shape). Absent `tenantPolicy` →
+ * Fase D byte-identical (24h baseline).
  */
+export interface PromotionTenantPolicy {
+  readonly promotionMinAgeMs?: number;
+}
+
 export function eligibleForPromotion(
   candidate: PendingIncidentCandidate,
   sourceIncident: { status: string; resolvedAt: Date },
   now: Date,
   hasIncompleteVerdict: boolean,
+  tenantPolicy?: PromotionTenantPolicy,
 ): boolean {
   if (candidate.status !== 'pending') return false;
   if (sourceIncident.status !== 'resolved') return false;
   if (hasIncompleteVerdict) return false;
-  return now.getTime() - sourceIncident.resolvedAt.getTime() >= PROMOTION_MIN_AGE_MS;
+  const minAge = tenantPolicy?.promotionMinAgeMs ?? PROMOTION_MIN_AGE_MS;
+  return now.getTime() - sourceIncident.resolvedAt.getTime() >= minAge;
 }

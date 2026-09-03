@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   runAgent: vi.fn(),
   retrieveRelevantIncidents: vi.fn(),
   buildPendingIncidentCandidate: vi.fn(),
+  loadTenantPolicy: vi.fn(),
   prismaConversationFindFirst: vi.fn(),
   prismaConversationCreate: vi.fn(),
   prismaConversationUpdate: vi.fn(),
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   prismaDetectedAlertFindMany: vi.fn(),
   prismaConfirmedIncidentFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
+  prismaTenantPolicyFindUnique: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   resolveTenantConnector: vi.fn(),
@@ -47,6 +49,10 @@ vi.mock('@ftth-copilot/agent-core', () => ({
 vi.mock('@ftth-copilot/evidence', () => ({
   retrieveRelevantIncidents: mocks.retrieveRelevantIncidents,
   buildPendingIncidentCandidate: mocks.buildPendingIncidentCandidate,
+}));
+
+vi.mock('@/lib/policies/load-tenant-policy', () => ({
+  loadTenantPolicy: mocks.loadTenantPolicy,
 }));
 
 vi.mock('@ftth-copilot/db', () => ({
@@ -71,6 +77,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     pendingIncidentCandidate: {
       create: mocks.prismaPendingIncidentCandidateCreate,
+    },
+    tenantPolicy: {
+      findUnique: mocks.prismaTenantPolicyFindUnique,
     },
   },
 }));
@@ -150,8 +159,10 @@ function setupHappyPath(overrides: {
   mocks.prismaDetectedAlertFindMany.mockReset();
   mocks.prismaConfirmedIncidentFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
+  mocks.prismaTenantPolicyFindUnique.mockReset();
   mocks.retrieveRelevantIncidents.mockReset();
   mocks.buildPendingIncidentCandidate.mockReset();
+  mocks.loadTenantPolicy.mockReset();
 
   mocks.getCurrentUser.mockResolvedValue(fakeUser);
   mocks.hasPermission.mockReturnValue(true);
@@ -168,6 +179,9 @@ function setupHappyPath(overrides: {
   // Default: no confirmed incidents in the DB; retrieval short-circuits.
   mocks.prismaConfirmedIncidentFindMany.mockResolvedValue([]);
   mocks.prismaPendingIncidentCandidateCreate.mockResolvedValue({ id: 'pending-1' });
+  // Default: no TenantPolicy row → runAgent receives tenantPolicy: undefined
+  mocks.prismaTenantPolicyFindUnique.mockResolvedValue(null);
+  mocks.loadTenantPolicy.mockResolvedValue(null);
   // The pure-TS `retrieveRelevantIncidents` is the one the route calls; with
   // no rows it returns `[]`. The route forwards the result as-is.
   mocks.retrieveRelevantIncidents.mockImplementation((args: { confirmedIncidents?: unknown[] }) =>
