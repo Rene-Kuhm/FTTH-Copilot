@@ -170,4 +170,11 @@ describe('agent tools', () => {
     ));
     expect(demo.ttlMs).toBeGreaterThan(live.ttlMs);
   });
+
+  it('returns a structured error instead of an invalid envelope when tenantId is empty', async () => {
+    const result = await executeToolCall(connector(), 'list_olts', {});
+    const parsed = JSON.parse(result) as Record<string, unknown>;
+    expect(parsed).toHaveProperty('error');
+    expect(parsed.error).toContain('Provenance envelope inválido');
+  });
 });

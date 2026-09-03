@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
-import { EVIDENCE_PROVENANCE_SCHEMA } from '@ftth-copilot/shared';
+import { EVIDENCE_PROVENANCE_SCHEMA, evidenceProvenanceSchema } from '@ftth-copilot/shared';
 import {
   PROVENANCE_TOOL_META,
   defaultProvenance,
@@ -51,7 +51,7 @@ function buildProvenanceEnvelope(
     provenance?.source,
   );
 
-  return JSON.stringify({
+  const envelope = {
     schema: EVIDENCE_PROVENANCE_SCHEMA,
     source,
     tenantId: provenance?.tenantId ?? '',
@@ -60,7 +60,16 @@ function buildProvenanceEnvelope(
     completeness: meta.completeness,
     confidence: meta.confidence,
     data,
-  });
+  };
+
+  const parsed = evidenceProvenanceSchema.safeParse(envelope);
+  if (!parsed.success) {
+    return JSON.stringify({
+      error: `Provenance envelope inválido: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    });
+  }
+
+  return JSON.stringify(parsed.data);
 }
 
 export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
