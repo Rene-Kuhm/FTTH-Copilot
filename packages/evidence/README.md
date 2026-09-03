@@ -2,7 +2,10 @@
 
 Fase B TruthGate — observation-mode envelope classification for
 `evidence.provenance.v1` tool results — plus Fase C strict-mode
-abstention policy that flips the gate from observation to enforcement.
+abstention policy that flips the gate from observation to enforcement —
+plus Fase D confirmed-incident memory + sparse-first hybrid retrieval
+(BM25 over pre-computed `searchTokens`, `RRF_K = 60` plumbing ready for
+Phase 2 dense merge).
 
 ## What it does
 
@@ -169,9 +172,115 @@ completeness (complete / partial / minimal), aggregation
 (stale+low_confidence → stale, stale+minimal → incomplete, all
 three → incomplete), demo == live verdict identity, parse-error
 path, the asymmetric policy table (strict + incomplete → abstain;
-strict + stale → warn; strict + low_confidence → warn; strict + ok
-→ allow; observe + any → allow), `buildAbstention` derivation
+strict + stale → warn; strict + low_confidence → warn; strict + ok →
+allow; observe + any → allow), `buildAbstention` derivation
 (mixed missing/available/toolsAffected, all-incompletes,
 non-`ok` toolsAffected, deduplication), the Spanish `nextStep`
 snapshot tests (voseo verb + tool reference + byte-identical ×2),
 and the public API surface re-exports.
+
+## Confirmed-incident memory + hybrid retrieval (Fase D)
+
+The Fase D layer adds **sparse-first retrieval over a tenant-scoped
+`ConfirmedIncident` knowledge base**. Retrieved rows are background
+context — never evidence — and flow into the LLM system prompt under
+an explicit "contexto, no evidencia" heading so the agent can never
+confuse them with a measurement.
+
+### Spanish context block
+
+`RELEVANT_INCIDENTS_HEADING` is the design-locked Spanish literal:
+
+```
+## Incidentes previos relevantes (contexto, no evidencia)
+
+(Estos son contexto de la historia del ISP; no los cites como evidencia de la medición actual.)
+```
+
+`formatRelevantIncidentsBlock(incidents)` renders one line per row,
+1-indexed and score-formatted to two decimals:
+
+```
+[N] YYYY-MM-DD — {deviceId} {summary}. Causa raíz: {rootCause}. Fix: {fix}. Score: {n.nn}
+```
+
+Both literals are byte-locked by snapshot tests.
+
+### `retrieveRelevantIncidents` args contract
+
+```ts
+retrieveRelevantIncidents({
+  tenantId: string;       // required; throws MissingTenantError when empty
+  query: string;          // operator question; tokenized via BM25Lite.tokenize
+  deviceHint?: string | { deviceKind: 'OLT' | 'ONU'; deviceId: string };
+  limit?: number;         // default 5
+  sinceDays?: number;     // default 90
+  mode?: 'live' | 'demo'; // 'demo' short-circuits to []
+  now?: Date;             // injected for tests; default new Date()
+  confirmedIncidents: ConfirmedIncident[]; // loaded by the caller (route)
+}): RelevantIncidentResult[]
+```
+
+Demo mode is a hard short-circuit (no DB query, no ranking); the
+caller is responsible for not invoking retrieval when
+`dataSource.mode === 'demo'`. The function is pure: same input →
+same output, no Prisma dependency, no env reads. `RRF_K = 60` is
+exported so Phase 2 dense-merge uses the same reciprocal-rank-fusion
+constant without re-locking the value.
+
+### `BM25Lite` — pure-TS scorer
+
+`scoreBM25(queryTokens, docTokens, avgDocLen, k1 = 1.5, b = 0.75)`
+plus the `BM25_STOPWORDS` trimmed set and `BM25_STOPWORDS_FULL` Phase-2
+extended set. Tokenization is locked at write time on
+`ConfirmedIncident.searchTokens` so later BM25 parameter changes never
+retroactively re-rank history.
+
+### `PendingIncidentCandidate` builder + promotion gate
+
+`buildPendingIncidentCandidate({ tenantId, summary, toolCallsJson,
+sourceIncidentId?, runSessionId?, now? })` produces a
+`ftth.pending-incident-candidate.v1` draft (id `''`, status `'pending'`).
+The chat route writes one row per clean (non-abstained, no `incomplete`
+verdict) live run.
+
+`eligibleForPromotion(candidate, sourceIncident, now,
+hasIncompleteVerdict)` is the pure gate the admin route uses:
+all four conditions must hold (pending status, source incident
+resolved, ≥24h elapsed since `resolvedAt`, originating run had no
+incomplete verdict). The admin route lives at
+`apps/web/app/api/pending-incidents/promote` (OWNER role) and calls
+`promotePendingIncidents(now)` from `apps/web/lib/promote-pending-incidents`.
+
+### Rollback
+
+The Fase D retrieval layer is opt-in at every layer:
+
+- `RunAgentOptions.retrievalProvider` is optional — when undefined,
+  the loop runs with no augmentation and the runtime is byte-identical
+  to the Fase C baseline.
+- `ConfirmedIncident` is a new table; down migration drops both
+  tables and the `ConfirmedBy` enum.
+- The chat-route write gate reuses the existing verdict set; flipping
+  `TRUTH_GATE_MODE=observe` keeps the chat path identical to Fase C
+  (no candidate writes from observe-mode runs).
+- `promotePendingIncidents` is admin-triggered only; no cron / worker
+  is registered, so disabling the admin route is a one-line revert.
+
+To roll back Fase D entirely:
+
+1. Drop the two new tables via the manual down migration
+   (`DROP TABLE pending_incident_candidates; DROP TABLE confirmed_incidents; DROP TYPE "ConfirmedBy";`).
+2. Revert `packages/agent-core/src/runtime.ts` to remove the
+   `retrievalProvider` block.
+3. Revert `apps/web/app/api/chat/route.ts` to drop the
+   `retrievalProvider` closure + the `PendingIncidentCandidate` write.
+4. Revert `apps/web/app/api/incidents/[id]/confirm/route.ts`,
+   `apps/web/app/api/pending-incidents/promote/route.ts`,
+   `apps/web/lib/promote-pending-incidents.ts`, and the
+   `IncidentsPanel.tsx` modal.
+5. Revert `packages/evidence/src/{bm25-lite,relevant-incidents,pending-incident}.ts`
+   + the re-exports in `index.ts`.
+
+Phases A/B/C are unaffected; the retrieval augmentation is pure
+addition on top of the existing data path.
