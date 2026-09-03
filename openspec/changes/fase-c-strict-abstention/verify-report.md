@@ -1,5 +1,6 @@
 ```yaml
 schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:61a7e986c3aa7127c238d0c9dd7c46f78c647ab32134af76219e3a349dfeda78
 verdict: pass
 blockers: 0
 critical_findings: 0
@@ -7,6 +8,7 @@ requirements: 9/9
 scenarios: 19/19
 test_command: node_modules/.bin/turbo run test --force
 test_exit_code: 0
+test_output_hash: sha256:518d5ae5220692e1af3908fba53dd2edbf49fbe0ddbdc1d0b63d46aebe384150
 build_command: node_modules/.bin/turbo run build --force
 build_exit_code: 0
 typecheck_command: node_modules/.bin/turbo run typecheck --force
