@@ -1,6 +1,7 @@
 /**
  * Tipos compartidos entre el agente y el frontend.
  */
+import type { Verdict } from '@ftth-copilot/evidence';
 
 export interface ToolCallRecord {
   name: string;
@@ -11,6 +12,13 @@ export interface ToolCallRecord {
 export interface AgentResult {
   text: string;
   toolCalls: ToolCallRecord[];
+  /**
+   * Optional verdicts from `@ftth-copilot/evidence`'s TruthGate
+   * (Fase B). Each tool call produces one verdict; classification is
+   * observe-mode (data still flows to the LLM). Omission is valid for
+   * pre-Fase-B results.
+   */
+  verdicts?: Verdict[];
 }
 
 export interface ChatRequest {
