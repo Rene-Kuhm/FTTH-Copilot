@@ -42,3 +42,53 @@ describe('evidence public API surface — Fase C re-exports', () => {
     expect(typeof Evidence.classifyUnwrapped).toBe('function');
   });
 });
+
+// ── Fase D — confirmed-incident memory type re-exports ──────────────────────
+
+describe('evidence public API surface — Fase D type re-exports', () => {
+  it('re-exports CONFIRMED_INCIDENT_SCHEMA constant', () => {
+    expect(Evidence.CONFIRMED_INCIDENT_SCHEMA).toBe('ftth.confirmed-incident.v1');
+  });
+
+  it('re-exports PENDING_INCIDENT_CANDIDATE_SCHEMA constant', () => {
+    expect(Evidence.PENDING_INCIDENT_CANDIDATE_SCHEMA).toBe(
+      'ftth.pending-incident-candidate.v1',
+    );
+  });
+
+  it('exposes ConfirmedIncident, PendingIncidentCandidate, RelevantIncidentResult types at the boundary', () => {
+    const env: Evidence.ConfirmedIncident = {
+      schema: Evidence.CONFIRMED_INCIDENT_SCHEMA,
+      id: 'ci-1',
+      tenantId: 't1',
+      deviceKind: 'ONU',
+      deviceId: 'onu-1',
+      sourceTool: 'list_onus',
+      summary: 's',
+      symptoms: [],
+      rootCause: 'r',
+      fix: 'f',
+      observedAt: '2026-08-30T12:00:00.000Z',
+      resolvedAt: '2026-08-30T13:30:00.000Z',
+      createdAt: '2026-08-30T13:35:00.000Z',
+      updatedAt: '2026-08-30T13:35:00.000Z',
+      confirmedBy: 'operator',
+      searchTokens: '',
+    };
+    expect(env.schema).toBe('ftth.confirmed-incident.v1');
+
+    const candidate: Evidence.PendingIncidentCandidate = {
+      schema: Evidence.PENDING_INCIDENT_CANDIDATE_SCHEMA,
+      id: 'pic-1',
+      tenantId: 't1',
+      summary: 's',
+      toolCallsJson: [],
+      proposedConfirmedAt: '2026-08-30T13:35:00.000Z',
+      status: 'pending',
+    };
+    expect(candidate.status).toBe('pending');
+
+    const retrieved: Evidence.RelevantIncidentResult = { ...env, score: 0.8 };
+    expect(retrieved.score).toBe(0.8);
+  });
+});

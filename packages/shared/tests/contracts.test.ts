@@ -10,7 +10,14 @@ import {
   ACTION_SCHEMA,
   ABSTENTION_SCHEMA,
   abstentionSchema,
+  CONFIRMED_INCIDENT_SCHEMA,
+  PENDING_INCIDENT_CANDIDATE_SCHEMA,
+  confirmedIncidentSchema,
+  pendingIncidentCandidateSchema,
   type Abstention,
+  type ConfirmedIncident,
+  type PendingIncidentCandidate,
+  type RelevantIncidentResult,
 } from '../src/contracts';
 
 describe('telemetry.v1', () => {
@@ -324,5 +331,170 @@ describe('AgentResult / ChatResponse abstention fields', () => {
     expect(response.abstention).toBeUndefined();
     expect(response.reply).toBe('Todo OK en la OLT-001.');
     expect(response.toolsUsed).toEqual([]);
+  });
+});
+
+// ── Fase D — ftth.confirmed-incident.v1 ──────────────────────────────────────
+
+describe('ftth.confirmed-incident.v1', () => {
+  const valid: ConfirmedIncident = {
+    schema: CONFIRMED_INCIDENT_SCHEMA,
+    id: 'ci-1',
+    tenantId: 't1',
+    deviceKind: 'ONU',
+    deviceId: 'onu-1',
+    sourceTool: 'list_onus',
+    summary: 'Pérdida de señal en ONU-1',
+    symptoms: [{ kind: 'rx_low', value: '-27.5', observedAt: '2026-08-30T12:00:00.000Z' }],
+    rootCause: 'Conector flojo en roseta',
+    fix: 'Re-insertar conector y verificar',
+    observedAt: '2026-08-30T12:00:00.000Z',
+    resolvedAt: '2026-08-30T13:30:00.000Z',
+    createdAt: '2026-08-30T13:35:00.000Z',
+    updatedAt: '2026-08-30T13:35:00.000Z',
+    confirmedBy: 'operator',
+    searchTokens: 'onu-1 pérdida señal conector',
+  };
+
+  it('exports the literal version marker ftth.confirmed-incident.v1', () => {
+    expect(CONFIRMED_INCIDENT_SCHEMA).toBe('ftth.confirmed-incident.v1');
+  });
+
+  it('accepts a valid base envelope', () => {
+    expect(confirmedIncidentSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects a wrong schema literal (v2)', () => {
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, schema: 'ftth.confirmed-incident.v2' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects empty tenantId', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, tenantId: '' }).success).toBe(false);
+  });
+
+  it('rejects empty deviceId', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, deviceId: '' }).success).toBe(false);
+  });
+
+  it('rejects empty summary, rootCause, or fix', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, summary: '' }).success).toBe(false);
+    expect(confirmedIncidentSchema.safeParse({ ...valid, rootCause: '' }).success).toBe(false);
+    expect(confirmedIncidentSchema.safeParse({ ...valid, fix: '' }).success).toBe(false);
+  });
+
+  it('rejects invalid datetimes on observedAt/resolvedAt/createdAt', () => {
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, observedAt: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, resolvedAt: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, createdAt: 'not-a-date' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown confirmedBy values', () => {
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, confirmedBy: 'human' as never }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a score outside [0,1]', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, score: 1.5 }).success).toBe(false);
+    expect(confirmedIncidentSchema.safeParse({ ...valid, score: -0.1 }).success).toBe(false);
+  });
+
+  it('accepts an optional score in [0,1] (retrieval path)', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, score: 0.42 }).success).toBe(true);
+  });
+
+  it('accepts an empty searchTokens (no tokens after stop-word drop)', () => {
+    expect(confirmedIncidentSchema.safeParse({ ...valid, searchTokens: '' }).success).toBe(true);
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(
+      confirmedIncidentSchema.safeParse({ ...valid, extraField: 'nope' }).success,
+    ).toBe(false);
+  });
+
+  it('round-trips through JSON.parse(JSON.stringify(...)) preserving all fields', () => {
+    const roundTripped = JSON.parse(JSON.stringify(valid)) as ConfirmedIncident;
+    expect(confirmedIncidentSchema.safeParse(roundTripped).success).toBe(true);
+    expect(roundTripped.id).toBe('ci-1');
+    expect(roundTripped.confirmedBy).toBe('operator');
+    expect(roundTripped.searchTokens).toBe('onu-1 pérdida señal conector');
+  });
+
+  it('RelevantIncidentResult type narrows ConfirmedIncident & { score: number }', () => {
+    const enriched: RelevantIncidentResult = { ...valid, score: 0.8 };
+    expect(enriched.score).toBe(0.8);
+    expect(enriched.schema).toBe(CONFIRMED_INCIDENT_SCHEMA);
+  });
+});
+
+// ── Fase D — ftth.pending-incident-candidate.v1 ──────────────────────────────
+
+describe('ftth.pending-incident-candidate.v1', () => {
+  const valid: PendingIncidentCandidate = {
+    schema: PENDING_INCIDENT_CANDIDATE_SCHEMA,
+    id: 'pic-1',
+    tenantId: 't1',
+    sourceIncidentId: 'inc-1',
+    runSessionId: 'run-1',
+    summary: 'Sugerencia automática basada en historial',
+    toolCallsJson: [{ name: 'list_onus', args: {}, result: [] }],
+    proposedConfirmedAt: '2026-08-30T13:35:00.000Z',
+    status: 'pending',
+  };
+
+  it('exports the literal version marker ftth.pending-incident-candidate.v1', () => {
+    expect(PENDING_INCIDENT_CANDIDATE_SCHEMA).toBe('ftth.pending-incident-candidate.v1');
+  });
+
+  it('accepts a valid base envelope', () => {
+    expect(pendingIncidentCandidateSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects a wrong schema literal', () => {
+    expect(
+      pendingIncidentCandidateSchema.safeParse({
+        ...valid,
+        schema: 'ftth.pending-incident-candidate.v2',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown status value', () => {
+    expect(
+      pendingIncidentCandidateSchema.safeParse({ ...valid, status: 'archived' as never }).success,
+    ).toBe(false);
+  });
+
+  it('accepts every declared status value', () => {
+    for (const status of ['pending', 'promoted', 'rejected'] as const) {
+      expect(pendingIncidentCandidateSchema.safeParse({ ...valid, status }).success).toBe(true);
+    }
+  });
+
+  it('rejects empty tenantId or summary', () => {
+    expect(pendingIncidentCandidateSchema.safeParse({ ...valid, tenantId: '' }).success).toBe(false);
+    expect(pendingIncidentCandidateSchema.safeParse({ ...valid, summary: '' }).success).toBe(false);
+  });
+
+  it('rejects invalid proposedConfirmedAt', () => {
+    expect(
+      pendingIncidentCandidateSchema.safeParse({ ...valid, proposedConfirmedAt: 'not-a-date' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(
+      pendingIncidentCandidateSchema.safeParse({ ...valid, extraField: 'nope' }).success,
+    ).toBe(false);
   });
 });
