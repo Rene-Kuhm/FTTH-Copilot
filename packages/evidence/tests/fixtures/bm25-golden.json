@@ -1,0 +1,24 @@
+{
+  "_note": "Golden BM25Lite corpus. Scores derived from the locked formula in design.md: score = SUM over distinct query terms of tf*(k1+1)/(tf + k1*(1-b+b*dl/avgDocLen)), k1=1.5, b=0.75. Rounded to 6 decimals.",
+  "k1": 1.5,
+  "b": 0.75,
+  "avgDocLen": 4,
+  "docs": [
+    { "id": "d1", "tokens": ["rx", "bajo", "onu", "fibra"] },
+    { "id": "d2", "tokens": ["rx", "rx", "bajo", "bajo", "potencia", "onu"] },
+    { "id": "d3", "tokens": ["rx", "potencia", "olt"] },
+    { "id": "d4", "tokens": ["corte", "fibra", "olt"] }
+  ],
+  "queries": [
+    {
+      "tokens": ["rx", "bajo"],
+      "scores": [2.0, 2.461538, 1.126761, 0],
+      "ranking": ["d2", "d1", "d3", "d4"]
+    },
+    {
+      "tokens": ["onu", "potencia"],
+      "scores": [1.0, 1.632653, 1.126761, 0],
+      "ranking": ["d2", "d3", "d1", "d4"]
+    }
+  ]
+}
