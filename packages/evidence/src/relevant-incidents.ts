@@ -117,3 +117,38 @@ export function retrieveRelevantIncidents(
     .filter((entry) => entry.score >= MIN_SPARSESCORE)
     .slice(0, args.limit ?? DEFAULT_LIMIT);
 }
+
+// ── Spanish rioplatense presentation layer (snapshot-locked) ────────────────
+//
+// Same template-locking discipline as `formatIdentifierNextStep`
+// (`abstention-policy.ts`): the literal lives in one exported constant so the
+// snapshot test is the regression net for any prompt drift. The heading is
+// what keeps retrieved history OUT of the evidence frame — it tells the model
+// explicitly that these rows are context, not measurements.
+
+export const RELEVANT_INCIDENTS_HEADING =
+  '## Incidentes previos relevantes (contexto, no evidencia)\n\n' +
+  '(Estos son contexto de la historia del ISP; no los cites como evidencia de la medición actual.)\n\n';
+
+/** Deterministic UTC `YYYY-MM-DD`; never locale-dependent. */
+function formatDay(isoDatetime: string): string {
+  return new Date(isoDatetime).toISOString().slice(0, 10);
+}
+
+/**
+ * Renders the pre-LLM context block. Returns `''` for an empty list so the
+ * caller can concatenate unconditionally and still guarantee that the
+ * heading never appears without incidents behind it.
+ *
+ * Line format (design-locked, 1-indexed):
+ * `[N] YYYY-MM-DD — {deviceId} {summary}. Causa raíz: {rootCause}. Fix: {fix}. Score: {n.nn}\n`
+ */
+export function formatRelevantIncidentsBlock(incidents: RelevantIncidentResult[]): string {
+  if (incidents.length === 0) return '';
+  const lines = incidents.map(
+    (row, i) =>
+      `[${i + 1}] ${formatDay(row.observedAt)} — ${row.deviceId} ${row.summary}. ` +
+      `Causa raíz: ${row.rootCause}. Fix: ${row.fix}. Score: ${row.score.toFixed(2)}\n`,
+  );
+  return RELEVANT_INCIDENTS_HEADING + lines.join('');
+}

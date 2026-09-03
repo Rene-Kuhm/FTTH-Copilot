@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ConfirmedIncident } from '@ftth-copilot/shared';
+import type { ConfirmedIncident, RelevantIncidentResult } from '@ftth-copilot/shared';
 import {
   DEFAULT_LIMIT,
   DEFAULT_SINCE_DAYS,
   MIN_SPARSESCORE,
   MissingTenantError,
+  RELEVANT_INCIDENTS_HEADING,
   RRF_K,
+  formatRelevantIncidentsBlock,
   retrieveRelevantIncidents,
 } from '../src/relevant-incidents';
 
@@ -220,5 +222,85 @@ describe('retrieveRelevantIncidents — ranking', () => {
     expect(result!.id).toBe('ci-1');
     expect(result!.rootCause).toBe('Conector sucio');
     expect(typeof result!.score).toBe('number');
+  });
+});
+
+// ── D-2.3 — Spanish heading + snapshot-locked block formatter ───────────────
+
+describe('RELEVANT_INCIDENTS_HEADING', () => {
+  it('is byte-identical to the design-locked literal', () => {
+    expect(RELEVANT_INCIDENTS_HEADING).toBe(
+      '## Incidentes previos relevantes (contexto, no evidencia)\n\n' +
+        '(Estos son contexto de la historia del ISP; no los cites como evidencia de la medición actual.)\n\n',
+    );
+  });
+
+  it('carries the "contexto, no evidencia" marker and is stable across reads', () => {
+    expect(RELEVANT_INCIDENTS_HEADING).toContain('contexto, no evidencia');
+    expect(RELEVANT_INCIDENTS_HEADING).toBe(RELEVANT_INCIDENTS_HEADING);
+  });
+});
+
+describe('formatRelevantIncidentsBlock', () => {
+  const rows: RelevantIncidentResult[] = [
+    {
+      ...incident({
+        id: 'ci-1',
+        deviceId: 'ONU-1021',
+        summary: 'RX bajo sostenido en la ONU',
+        rootCause: 'Conector sucio en la caja NAP',
+        fix: 'Limpieza y reempalme del conector',
+        observedAt: '2026-07-14T09:05:00.000Z',
+      }),
+      score: 1,
+    },
+    {
+      ...incident({
+        id: 'ci-2',
+        deviceId: 'OLT-3',
+        deviceKind: 'OLT',
+        summary: 'Caída de puerto PON',
+        rootCause: 'Módulo SFP degradado',
+        fix: 'Reemplazo del SFP',
+        observedAt: '2026-08-02T23:40:00.000Z',
+      }),
+      score: 0.983871,
+    },
+  ];
+
+  it('returns an empty string for an empty list', () => {
+    expect(formatRelevantIncidentsBlock([])).toBe('');
+  });
+
+  it('renders the heading plus one 1-indexed line per incident (byte-locked)', () => {
+    expect(formatRelevantIncidentsBlock(rows)).toBe(
+      RELEVANT_INCIDENTS_HEADING +
+        '[1] 2026-07-14 — ONU-1021 RX bajo sostenido en la ONU. ' +
+        'Causa raíz: Conector sucio en la caja NAP. Fix: Limpieza y reempalme del conector. Score: 1.00\n' +
+        '[2] 2026-08-02 — OLT-3 Caída de puerto PON. ' +
+        'Causa raíz: Módulo SFP degradado. Fix: Reemplazo del SFP. Score: 0.98\n',
+    );
+  });
+
+  it('formats observedAt as UTC YYYY-MM-DD regardless of local timezone', () => {
+    const block = formatRelevantIncidentsBlock([
+      { ...incident({ id: 'ci-3', observedAt: '2026-01-05T23:59:59.000Z' }), score: 0.5 },
+    ]);
+    expect(block).toContain('[1] 2026-01-05 — ');
+  });
+
+  it('preserves Spanish accents and ñ in every interpolated field', () => {
+    const block = formatRelevantIncidentsBlock([
+      {
+        ...incident({
+          id: 'ci-4',
+          summary: 'Señal débil',
+          rootCause: 'Empalme dañado',
+          fix: 'Reparación en la caña',
+        }),
+        score: 0.75,
+      },
+    ]);
+    expect(block).toContain('Señal débil. Causa raíz: Empalme dañado. Fix: Reparación en la caña.');
   });
 });
