@@ -1,0 +1,20 @@
+{
+  "_note": "Locked response shape for POST /api/incidents/:id/confirm on the happy path (status 201). The create writes ConfirmedIncident + AgentActionLog; the response body is the full ConfirmedIncident. Test fixtures in apps/web/tests/api/incidents-confirm.test.ts assert this shape stays stable.",
+  "status": 201,
+  "body": {
+    "id": "ci-1",
+    "tenantId": "tenant-1",
+    "deviceKind": "ONU",
+    "deviceId": "onu-1",
+    "sourceIncidentId": "inc-1",
+    "sourceTool": "__operator_confirm__",
+    "summary": "RX bajo ONU-1",
+    "rootCause": "Conector sucio",
+    "fix": "Limpieza",
+    "observedAt": "2026-09-01T08:00:00.000Z",
+    "resolvedAt": "2026-09-01T12:00:00.000Z",
+    "confirmedBy": "operator",
+    "confirmedByUserId": "user-1",
+    "searchTokens": "1 bajo conector limpieza onu rx sucio"
+  }
+}

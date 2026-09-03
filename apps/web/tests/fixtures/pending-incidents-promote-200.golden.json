@@ -1,0 +1,8 @@
+{
+  "_note": "Locked response shape for POST /api/pending-incidents/promote on the happy path (status 200). The route forwards the helper counters verbatim; the helper writes ConfirmedIncident + AgentActionLog rows. Test fixtures in apps/web/tests/api/pending-incidents-promote.test.ts assert this shape stays stable.",
+  "status": 200,
+  "body": {
+    "promoted": 1,
+    "skipped": 0
+  }
+}
