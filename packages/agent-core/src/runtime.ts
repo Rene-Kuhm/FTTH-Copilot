@@ -1,6 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentResult, ToolCallRecord } from '@ftth-copilot/shared';
-import { classifyEnvelope, classifyUnwrapped, type Verdict } from '@ftth-copilot/evidence';
+import {
+  buildAbstention,
+  classifyEnvelope,
+  classifyUnwrapped,
+  shouldAbstain,
+  type Abstention,
+  type TruthGateMode,
+  type Verdict,
+} from '@ftth-copilot/evidence';
 import { SYSTEM_PROMPT } from './prompts/system';
 import {
   buildTools,
@@ -28,6 +36,48 @@ export interface RunAgentOptions {
   tenantId?: string;
   /** Identificador de conexión/conector (aditivo, provenance; no entra al envelope). */
   connectionId?: string;
+  /**
+   * Modo del TruthGate para esta ejecución (Fase C). `'strict'` (default)
+   * reemplaza el texto del LLM por una abstención cuando la evidencia es
+   * `incomplete`; `'observe'` conserva el comportamiento de Fase B.
+   */
+  mode?: TruthGateMode;
+}
+
+/**
+ * Modo por defecto del TruthGate. Punto único de rollback: cambiarlo a
+ * `'observe'` desactiva la abstención estricta en todo el runtime sin tocar
+ * los call sites.
+ */
+export const DEFAULT_TRUTH_GATE_MODE: TruthGateMode = 'strict';
+
+/**
+ * Resuelve el modo efectivo de una ejecución. Puro: mismo input → mismo
+ * output, sin lecturas de entorno ni de estado global.
+ */
+export function resolveTruthGateMode(mode?: TruthGateMode): TruthGateMode {
+  return mode ?? DEFAULT_TRUTH_GATE_MODE;
+}
+
+/** Encabezado fijo de toda abstención. Bloqueado por snapshot en los tests. */
+const ABSTENTION_HEADING = 'No puedo responder con la evidencia disponible.';
+
+/**
+ * Renderiza el texto que ve el operador cuando el agente se abstiene:
+ * encabezado + bullets de `missing` + `nextStep`. Puro y determinista — mismo
+ * envelope produce siempre los mismos bytes.
+ *
+ * El bloque de bullets se omite cuando `missing` está vacío, para no dejar un
+ * título colgado sin ítems.
+ */
+export function formatAbstentionText(abstention: Abstention): string {
+  const blocks: string[] = [ABSTENTION_HEADING];
+  if (abstention.missing.length > 0) {
+    const bullets = abstention.missing.map((toolName) => `- ${toolName}`).join('\n');
+    blocks.push(`Falta evidencia de:\n${bullets}`);
+  }
+  blocks.push(abstention.nextStep);
+  return blocks.join('\n\n');
 }
 
 /**
@@ -39,8 +89,15 @@ export interface RunAgentOptions {
  * Fase B (observe mode): after each `executeToolCall`, the raw result string
  * is classified by `@ftth-copilot/evidence`'s TruthGate. Verdicts accumulate
  * into `AgentResult.verdicts`; the data still flows to the LLM unchanged.
+ *
+ * Fase C (strict mode, default): the accumulated verdicts are evaluated by
+ * `shouldAbstain` at BOTH return paths. When any verdict is `incomplete`, the
+ * LLM's text is discarded and replaced by the rendered abstention, and
+ * `abstention` / `abstained` are attached. Classification itself is untouched:
+ * the data path to the LLM stays byte-identical in both modes.
  */
 export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
+  const mode = resolveTruthGateMode(opts.mode);
   const llm = createLlmClient();
   const connector = opts.connector ?? buildDefaultConnector();
   const anthropicTools = buildTools(connector);
@@ -89,6 +146,30 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     { role: 'user', content: opts.userMessage },
   ];
 
+  /**
+   * Fase C (strict mode): aplica la política de abstención al resultado final.
+   * Se invoca en AMBOS return paths (corte sin tool calls y corte por límite de
+   * iteraciones) para que ninguna salida del loop escape al gate.
+   *
+   * Cuando la política devuelve `'abstain'`, el texto del LLM se descarta y se
+   * reemplaza por la abstención renderizada. En `observe`, o sin verdicts
+   * `incomplete`, el resultado es exactamente el de Fase B: `abstention` y
+   * `abstained` quedan ausentes.
+   */
+  const finalize = (text: string): AgentResult => {
+    if (shouldAbstain(verdicts, mode) !== 'abstain') {
+      return { text, toolCalls, verdicts };
+    }
+    const abstention = buildAbstention(verdicts);
+    return {
+      text: formatAbstentionText(abstention),
+      toolCalls,
+      verdicts,
+      abstention,
+      abstained: true,
+    };
+  };
+
   const sourcePrompt = opts.dataSource?.mode === 'demo'
     ? '\n\n## Fuente de datos de esta ejecución\nEstás usando DATOS SIMULADOS de demo. Iniciá la respuesta con "[DEMO]" y nunca los presentes como datos reales del ISP.'
     : opts.dataSource
@@ -104,7 +185,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     });
 
     if (response.toolCalls.length === 0) {
-      return { text: response.text || '(sin respuesta)', toolCalls, verdicts };
+      return finalize(response.text || '(sin respuesta)');
     }
 
     // Ejecutar todas las tool calls y收集 sus resultados.
@@ -122,9 +203,5 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     messages.push({ role: 'user', content: toolResultLines.join('\n') });
   }
 
-  return {
-    text: '(el agente excedió el máximo de iteraciones de tool-calling)',
-    toolCalls,
-    verdicts,
-  };
+  return finalize('(el agente excedió el máximo de iteraciones de tool-calling)');
 }

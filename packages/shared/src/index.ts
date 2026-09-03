@@ -2,6 +2,7 @@
  * Tipos compartidos entre el agente y el frontend.
  */
 import type { Verdict } from '@ftth-copilot/evidence';
+import type { Abstention } from './contracts';
 
 export interface ToolCallRecord {
   name: string;
@@ -19,6 +20,19 @@ export interface AgentResult {
    * pre-Fase-B results.
    */
   verdicts?: Verdict[];
+  /**
+   * Optional `ftth.abstention.v1` envelope (Fase C). Present only when the
+   * TruthGate ran in `strict` mode and at least one verdict classified the
+   * evidence as `incomplete`. Omission is valid for observe-mode runs and
+   * for every pre-Fase-C result.
+   */
+  abstention?: Abstention;
+  /**
+   * `true` when `text` is the abstention rendering instead of the LLM's own
+   * answer. Always paired with `abstention`. Omitted (not `false`) when the
+   * agent answered normally, so existing consumers stay untouched.
+   */
+  abstained?: boolean;
 }
 
 export interface ChatRequest {
@@ -33,6 +47,12 @@ export interface ChatResponse {
     args: Record<string, unknown>;
   }>;
   conversationId?: string;
+  /**
+   * Abstention envelope forwarded verbatim from `AgentResult.abstention`
+   * (Fase C) so the client can render the warning bubble. Optional: absent
+   * whenever the agent answered normally.
+   */
+  abstention?: Abstention;
 }
 
 export * from './contracts';

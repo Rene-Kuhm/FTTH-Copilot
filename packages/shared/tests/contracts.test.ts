@@ -149,7 +149,7 @@ describe('evidence.provenance.v1', () => {
   });
 });
 
-import type { AgentResult } from '../src/index';
+import type { AgentResult, ChatResponse } from '../src/index';
 import type { Verdict } from '@ftth-copilot/evidence';
 
 describe('AgentResult backward compatibility (Fase B)', () => {
@@ -254,5 +254,75 @@ describe('ftth.abstention.v1', () => {
 
   it('rejects unknown top-level keys via strict mode', () => {
     expect(abstentionSchema.safeParse({ ...valid, extraField: 'nope' }).success).toBe(false);
+  });
+});
+
+// ── Fase C — additive AgentResult / ChatResponse abstention fields ────────────
+
+describe('AgentResult / ChatResponse abstention fields', () => {
+  const abstention: Abstention = {
+    schema: ABSTENTION_SCHEMA,
+    reason: 'incomplete',
+    severity: 'critical',
+    missing: ['get_onu_detail'],
+    available: ['list_onus'],
+    nextStep: 'Verificá el identificador (ID, SN o filtro) y volvé a intentar.',
+    toolsAffected: ['get_onu_detail'],
+  };
+
+  it('AgentResult carries a valid abstention envelope through a JSON round-trip', () => {
+    const result: AgentResult = {
+      text: 'No puedo responder con la evidencia disponible.',
+      toolCalls: [{ name: 'get_onu_detail', arguments: { onuId: 'ONU-1' }, result: 'boom' }],
+      verdicts: [
+        { toolName: 'get_onu_detail', code: 'incomplete', reason: 'no-envelope', severity: 'critical' },
+      ],
+      abstention,
+      abstained: true,
+    };
+
+    const roundTripped = JSON.parse(JSON.stringify(result)) as AgentResult;
+    expect(roundTripped.abstained).toBe(true);
+    expect(abstentionSchema.safeParse(roundTripped.abstention).success).toBe(true);
+    expect(roundTripped.abstention?.missing).toEqual(['get_onu_detail']);
+    expect(roundTripped.text).toBe('No puedo responder con la evidencia disponible.');
+    expect(roundTripped.verdicts?.[0]?.code).toBe('incomplete');
+  });
+
+  it('AgentResult without abstention fields stays valid (backward compatible)', () => {
+    const result: AgentResult = {
+      text: 'La ONU ONU-1 está online con RX -21.4 dBm.',
+      toolCalls: [{ name: 'get_onu_detail', arguments: { onuId: 'ONU-1' } }],
+    };
+
+    expect(result.abstention).toBeUndefined();
+    expect(result.abstained).toBeUndefined();
+    expect(result.text).toBe('La ONU ONU-1 está online con RX -21.4 dBm.');
+    expect(result.toolCalls).toHaveLength(1);
+  });
+
+  it('ChatResponse forwards the same abstention envelope to the client', () => {
+    const response: ChatResponse = {
+      reply: 'No puedo responder con la evidencia disponible.',
+      toolsUsed: [{ name: 'get_onu_detail', args: { onuId: 'ONU-1' } }],
+      conversationId: 'conv-1',
+      abstention,
+    };
+
+    const roundTripped = JSON.parse(JSON.stringify(response)) as ChatResponse;
+    expect(abstentionSchema.safeParse(roundTripped.abstention).success).toBe(true);
+    expect(roundTripped.abstention?.nextStep).toBe(abstention.nextStep);
+    expect(roundTripped.reply).toBe('No puedo responder con la evidencia disponible.');
+  });
+
+  it('ChatResponse without abstention stays valid (backward compatible)', () => {
+    const response: ChatResponse = {
+      reply: 'Todo OK en la OLT-001.',
+      toolsUsed: [],
+    };
+
+    expect(response.abstention).toBeUndefined();
+    expect(response.reply).toBe('Todo OK en la OLT-001.');
+    expect(response.toolsUsed).toEqual([]);
   });
 });
