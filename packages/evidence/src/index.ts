@@ -68,6 +68,7 @@ export {
   retrieveRelevantIncidents,
   type DeviceHint,
   type RetrieveRelevantIncidentsArgs,
+  type RetrievalTenantPolicy,
 } from './relevant-incidents';
 export {
   PROMOTION_MIN_AGE_MS,

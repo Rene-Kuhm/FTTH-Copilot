@@ -52,6 +52,16 @@ export interface RetrieveRelevantIncidentsArgs {
   confirmedIncidents: ConfirmedIncident[];
 }
 
+/**
+ * Fase E — minimal slice of `TenantPolicy` consulted by
+ * `retrieveRelevantIncidents`. Defined structurally so the evidence
+ * package never pulls the Prisma row through its import graph.
+ */
+export interface RetrievalTenantPolicy {
+  readonly retrievalLimit?: number;
+  readonly retrievalSinceDays?: number;
+}
+
 function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): boolean {
   if (hint === undefined) return false;
   if (typeof hint === 'string') return hint === row.deviceId;
@@ -78,16 +88,22 @@ function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): bool
  * top rank scores `1.0`, and the score stays inside the `[0, 1]` range that
  * `confirmedIncidentSchema.score` requires. `MIN_SPARSESCORE` is enforced on
  * the sparse side, where it is the meaningful filter.
+ *
+ * Fase E — trailing optional `tenantPolicy`. Resolution precedence for both
+ * `limit` and `sinceDays` is `args.X ?? tenantPolicy.X ?? moduleDefault.X`.
+ * Absent `tenantPolicy` → Fase D byte-identical.
  */
 export function retrieveRelevantIncidents(
   args: RetrieveRelevantIncidentsArgs,
+  tenantPolicy?: RetrievalTenantPolicy,
 ): RelevantIncidentResult[] {
   if (!args.tenantId) throw new MissingTenantError();
   if ((args.mode ?? 'live') !== 'live') return [];
   if (args.confirmedIncidents.length === 0) return [];
 
   const now = args.now ?? new Date();
-  const sinceDays = args.sinceDays ?? DEFAULT_SINCE_DAYS;
+  const limit = args.limit ?? tenantPolicy?.retrievalLimit ?? DEFAULT_LIMIT;
+  const sinceDays = args.sinceDays ?? tenantPolicy?.retrievalSinceDays ?? DEFAULT_SINCE_DAYS;
   const cutoff = now.getTime() - sinceDays * DAY_MS;
 
   const candidates = args.confirmedIncidents.filter(
@@ -115,7 +131,7 @@ export function retrieveRelevantIncidents(
       score: (RRF_K + 1) / (RRF_K + index + 1),
     }))
     .filter((entry) => entry.score >= MIN_SPARSESCORE)
-    .slice(0, args.limit ?? DEFAULT_LIMIT);
+    .slice(0, limit);
 }
 
 // ── Spanish rioplatense presentation layer (snapshot-locked) ────────────────

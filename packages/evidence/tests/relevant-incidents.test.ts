@@ -304,3 +304,89 @@ describe('formatRelevantIncidentsBlock', () => {
     expect(block).toContain('Señal débil. Causa raíz: Empalme dañado. Fix: Reparación en la caña.');
   });
 });
+
+// ── Fase E — tenantPolicy 2nd arg (retrievalLimit / retrievalSinceDays) ──────
+
+describe('retrieveRelevantIncidents — Fase E tenantPolicy 2nd arg', () => {
+  const rows = (n: number): ConfirmedIncident[] =>
+    Array.from({ length: n }, (_, i) =>
+      incident({ id: `ci-${i}`, searchTokens: `rx bajo onu-${i}` }),
+    );
+
+  it('tenantPolicy=undefined → byte-identical Fase D behavior (DEFAULT_LIMIT cap)', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      confirmedIncidents: rows(10),
+    });
+    expect(results).toHaveLength(DEFAULT_LIMIT);
+  });
+
+  it('tenantPolicy={retrievalLimit: 10} → returns up to 10 rows (overrides DEFAULT_LIMIT)', () => {
+    const results = retrieveRelevantIncidents(
+      { tenantId: 't1', query: 'rx bajo', now: NOW, confirmedIncidents: rows(12) },
+      { retrievalLimit: 10 },
+    );
+    expect(results).toHaveLength(10);
+  });
+
+  it('tenantPolicy={retrievalSinceDays: 7} → only 7-day window applies', () => {
+    const results = retrieveRelevantIncidents(
+      {
+        tenantId: 't1',
+        query: 'rx bajo',
+        now: NOW,
+        confirmedIncidents: [
+          incident({ id: 'old', searchTokens: 'rx bajo onu', resolvedAt: daysAgo(60) }),
+          incident({ id: 'recent', searchTokens: 'rx bajo onu', resolvedAt: daysAgo(3) }),
+        ],
+      },
+      { retrievalSinceDays: 7 },
+    );
+    expect(results.map((r) => r.id)).toEqual(['recent']);
+  });
+
+  it('both knobs together — narrow window + explicit limit', () => {
+    const results = retrieveRelevantIncidents(
+      {
+        tenantId: 't1',
+        query: 'rx bajo',
+        now: NOW,
+        confirmedIncidents: [
+          incident({ id: 'old', resolvedAt: daysAgo(60) }),
+          incident({ id: 'a', resolvedAt: daysAgo(3) }),
+          incident({ id: 'b', resolvedAt: daysAgo(2) }),
+          incident({ id: 'c', resolvedAt: daysAgo(1) }),
+        ],
+      },
+      { retrievalLimit: 5, retrievalSinceDays: 14 },
+    );
+    expect(results.map((r) => r.id).sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('args.limit wins over tenantPolicy.retrievalLimit (caller arg has higher precedence)', () => {
+    const results = retrieveRelevantIncidents(
+      { tenantId: 't1', query: 'rx bajo', now: NOW, limit: 3, confirmedIncidents: rows(12) },
+      { retrievalLimit: 10 },
+    );
+    expect(results).toHaveLength(3);
+  });
+
+  it('args.sinceDays wins over tenantPolicy.retrievalSinceDays', () => {
+    const results = retrieveRelevantIncidents(
+      {
+        tenantId: 't1',
+        query: 'rx bajo',
+        now: NOW,
+        sinceDays: 365,
+        confirmedIncidents: [
+          incident({ id: 'old', resolvedAt: daysAgo(60) }),
+          incident({ id: 'recent', resolvedAt: daysAgo(3) }),
+        ],
+      },
+      { retrievalSinceDays: 7 },
+    );
+    expect(results.map((r) => r.id).sort()).toEqual(['old', 'recent']);
+  });
+});
