@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentResult, ToolCallRecord } from '@ftth-copilot/shared';
+import { classifyEnvelope, classifyUnwrapped, type Verdict } from '@ftth-copilot/evidence';
 import { SYSTEM_PROMPT } from './prompts/system';
 import {
   buildTools,
@@ -34,6 +35,10 @@ export interface RunAgentOptions {
  * (MiniMax/DeepSeek/Qwen vía `createLlmClient`) que responda (posiblemente
  * llamando tools), ejecuta las tools contra el connector, y devuelve la
  * respuesta final.
+ *
+ * Fase B (observe mode): after each `executeToolCall`, the raw result string
+ * is classified by `@ftth-copilot/evidence`'s TruthGate. Verdicts accumulate
+ * into `AgentResult.verdicts`; the data still flows to the LLM unchanged.
  */
 export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const llm = createLlmClient();
@@ -54,6 +59,31 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   };
 
   const toolCalls: ToolCallRecord[] = [];
+  const verdicts: Verdict[] = [];
+  const referenceNow = new Date();
+
+  /**
+   * Classify a single tool result string. The data still flows to the LLM
+   * unchanged — verdicts are recorded but never gate the data path.
+   */
+  const classifyToolResult = (raw: string, toolName: string): Verdict => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return {
+        toolName,
+        code: 'incomplete',
+        reason: 'parse-error',
+        severity: 'critical',
+      };
+    }
+    if (parsed === null || typeof parsed !== 'object') {
+      return classifyUnwrapped(toolName);
+    }
+    return classifyEnvelope(parsed, toolName, referenceNow);
+  };
+
   const messages: LlmMessage[] = [
     ...(opts.conversationHistory ?? []).map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: opts.userMessage },
@@ -74,13 +104,14 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     });
 
     if (response.toolCalls.length === 0) {
-      return { text: response.text || '(sin respuesta)', toolCalls };
+      return { text: response.text || '(sin respuesta)', toolCalls, verdicts };
     }
 
     // Ejecutar todas las tool calls y收集 sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
       const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider, provenance);
+      verdicts.push(classifyToolResult(result, call.name));
       toolCalls.push({ name: call.name, arguments: call.arguments, result });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
     }
@@ -94,5 +125,6 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   return {
     text: '(el agente excedió el máximo de iteraciones de tool-calling)',
     toolCalls,
+    verdicts,
   };
 }

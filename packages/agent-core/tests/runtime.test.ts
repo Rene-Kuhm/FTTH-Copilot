@@ -107,4 +107,35 @@ describe('runAgent', () => {
     const result = await runAgent({ userMessage: 'loop', connector, maxIterations: 1 });
     expect(result.text).toMatch(/excedió/);
   });
+
+  it('attaches a verdict per tool call to AgentResult.verdicts', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_olts', arguments: {} },
+          { name: 'get_network_overview', arguments: {} },
+          { name: 'get_olt_detail', arguments: { oltId: 'OLT-001' } },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'final', toolCalls: [] });
+    const result = await runAgent({
+      userMessage: 'multi',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+    });
+    expect(result.verdicts).toBeDefined();
+    expect(result.verdicts).toHaveLength(3);
+    for (const verdict of result.verdicts ?? []) {
+      expect(typeof verdict.toolName).toBe('string');
+      expect(verdict.toolName.length).toBeGreaterThan(0);
+    }
+    expect(result.verdicts?.[0]?.toolName).toBe('list_olts');
+    expect(result.verdicts?.[1]?.toolName).toBe('get_network_overview');
+    expect(result.verdicts?.[2]?.toolName).toBe('get_olt_detail');
+    // toolCalls and text unchanged
+    expect(result.toolCalls).toHaveLength(3);
+    expect(result.text).toBe('final');
+  });
 });
