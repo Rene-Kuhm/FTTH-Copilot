@@ -1,8 +1,8 @@
 /**
  * @ftth-copilot/evidence — Phase B (Truth Gate, observation mode).
  *
- * Public API surface is filled in by later tasks. This stub exists so the
- * package compiles, tests resolve, and the workspace can link it via
- * `pnpm install` before the classifier body lands.
+ * Pure envelope classification for `evidence.provenance.v1` tool results.
+ * Verdicts are recorded but never gate the data flow to the LLM (observe mode).
  */
-export {};
+export type { Verdict, VerdictCode, VerdictSeverity } from './types';
+export { classifyEnvelope, classifyUnwrapped } from './truth-gate';

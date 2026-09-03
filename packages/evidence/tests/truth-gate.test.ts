@@ -162,3 +162,110 @@ describe('classifyEnvelope — completeness dimension', () => {
     expect(verdict.severity).toBe('critical');
   });
 });
+
+describe('classifyEnvelope — aggregation and demo == live', () => {
+  const observedAt = '2026-08-30T12:00:00.000Z';
+  const ttlMs = 900000;
+  const baseFields = {
+    schema: EVIDENCE_PROVENANCE_SCHEMA,
+    tenantId: 't1',
+    observedAt,
+    ttlMs,
+    data: [],
+  };
+
+  it('returns stale when low_confidence AND stale (stale wins by severity)', () => {
+    const now = new Date('2026-08-30T12:20:00.000Z'); // 20 min later — stale
+    const verdict = classifyEnvelope(
+      {
+        ...baseFields,
+        source: 'smartolt.poll',
+        completeness: 'complete',
+        confidence: 0.1,
+      },
+      'list_olts',
+      now,
+    );
+    expect(verdict.code).toBe('stale');
+    expect(verdict.reason).toBe('expired-ttl');
+  });
+
+  it('returns incomplete when stale AND minimal (incomplete wins over stale)', () => {
+    const now = new Date('2026-08-30T12:20:00.000Z');
+    const verdict = classifyEnvelope(
+      {
+        ...baseFields,
+        source: 'smartolt.poll',
+        completeness: 'minimal',
+        confidence: 1.0,
+      },
+      'get_predicted_issues',
+      now,
+    );
+    expect(verdict.code).toBe('incomplete');
+    expect(verdict.reason).toBe('minimal-completeness');
+  });
+
+  it('returns incomplete when all three non-ok conditions co-occur', () => {
+    const now = new Date('2026-08-30T12:20:00.000Z');
+    const verdict = classifyEnvelope(
+      {
+        ...baseFields,
+        source: 'smartolt.poll',
+        completeness: 'minimal',
+        confidence: 0.1,
+      },
+      'get_predicted_issues',
+      now,
+    );
+    expect(verdict.code).toBe('incomplete');
+  });
+
+  it('produces byte-identical verdicts for demo vs live envelopes with identical fields', () => {
+    const freshNow = new Date('2026-08-30T12:05:00.000Z');
+    const demoVerdict = classifyEnvelope(
+      {
+        ...baseFields,
+        source: 'smartolt.demo',
+        completeness: 'complete',
+        confidence: 0.5,
+      },
+      'list_olts',
+      freshNow,
+    );
+    const liveVerdict = classifyEnvelope(
+      {
+        ...baseFields,
+        source: 'smartolt.poll',
+        completeness: 'complete',
+        confidence: 0.5,
+      },
+      'list_olts',
+      freshNow,
+    );
+    expect(demoVerdict).toEqual(liveVerdict);
+  });
+
+  it('returns incomplete/parse-error/critical when envelope is malformed', () => {
+    const verdict = classifyEnvelope(
+      { schema: 'wrong', data: 1 },
+      'list_olts',
+      new Date(),
+    );
+    expect(verdict.code).toBe('incomplete');
+    expect(verdict.reason).toBe('parse-error');
+    expect(verdict.severity).toBe('critical');
+  });
+});
+
+import * as Evidence from '../src/index';
+
+describe('public API surface (index re-exports)', () => {
+  it('re-exports classifyEnvelope, classifyUnwrapped, and Verdict types', () => {
+    expect(typeof Evidence.classifyEnvelope).toBe('function');
+    expect(typeof Evidence.classifyUnwrapped).toBe('function');
+    // Type-level check: the import type succeeds at compile time.
+    const verdict: Evidence.Verdict = Evidence.classifyUnwrapped('list_olts');
+    expect(verdict.code).toBe('incomplete');
+  });
+});

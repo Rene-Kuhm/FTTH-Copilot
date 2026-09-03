@@ -1,27 +1,28 @@
 /**
- * TruthGate — Phase B observation-mode envelope classifier (Fase B).
+ * TruthGate — Phase B observation-mode envelope classifier.
  *
- * This file is built incrementally via strict TDD. Each task adds one
- * behaviour with a failing test first, then the minimum code to pass.
- * Until task 2.5 lands the full type surface, local types stay minimal.
+ * Pure functions over `evidence.provenance.v1` envelopes. Verdicts are
+ * collected per dimension (parse, confidence, staleness, completeness)
+ * and the highest-severity verdict wins. Aggregated output is a single
+ * `Verdict` (`@ftth-copilot/evidence/src/types`) that `runAgent`
+ * accumulates onto `AgentResult.verdicts`.
+ *
+ * Observe mode: this module never throws and never blocks data flow.
+ * Callers must always pass the raw tool result string to the LLM as-is.
  */
 import { evidenceProvenanceSchema, type EvidenceProvenance } from '@ftth-copilot/shared';
+import type { Verdict, VerdictCode, VerdictSeverity } from './types';
 
-export interface Verdict {
-  toolName: string;
-  code: 'ok' | 'low_confidence' | 'stale' | 'incomplete';
-  reason: string;
-  severity: 'ok' | 'info' | 'warning' | 'critical';
-}
+export type { Verdict, VerdictCode, VerdictSeverity } from './types';
 
-const SEVERITY_RANK: Record<Verdict['severity'], number> = {
+const SEVERITY_RANK: Record<VerdictSeverity, number> = {
   ok: 0,
   info: 1,
   warning: 2,
   critical: 3,
 };
 
-const CODE_RANK: Record<Verdict['code'], number> = {
+const CODE_RANK: Record<VerdictCode, number> = {
   ok: 0,
   low_confidence: 1,
   stale: 2,
@@ -44,10 +45,9 @@ export function classifyUnwrapped(toolName: string): Verdict {
 }
 
 /**
- * Classifies the confidence dimension of a successfully-parsed
- * envelope. Missing field → `low_confidence / missing-confidence /
- * warning`; value `< 0.3` → `low_confidence / low-confidence-value /
- * warning`; `>= 0.3` → no candidate (passes).
+ * Confidence dimension. Missing → `low_confidence / missing-confidence /
+ * warning`. Value strictly `< 0.3` → `low_confidence / low-confidence-value /
+ * warning`. `>= 0.3` (inclusive) passes.
  */
 function classifyConfidence(env: EvidenceProvenance, toolName: string): Verdict | null {
   if (env.confidence === undefined) {
@@ -60,8 +60,8 @@ function classifyConfidence(env: EvidenceProvenance, toolName: string): Verdict 
 }
 
 /**
- * Classifies the staleness dimension. Strict `now > observedAt + ttlMs`
- * produces `stale / expired-ttl / warning`; equality is fresh.
+ * Staleness dimension. Strict `now > observedAt + ttlMs` produces
+ * `stale / expired-ttl / warning`; edge equality is fresh.
  */
 function classifyStaleness(
   env: EvidenceProvenance,
@@ -77,9 +77,9 @@ function classifyStaleness(
 }
 
 /**
- * Classifies the completeness dimension. `complete` → no candidate
- * (passes); `partial` → `incomplete / partial-completeness /
- * warning`; `minimal` → `incomplete / minimal-completeness / critical`.
+ * Completeness dimension. `complete` → no candidate; `partial` →
+ * `incomplete / partial-completeness / warning`; `minimal` →
+ * `incomplete / minimal-completeness / critical`.
  */
 function classifyCompleteness(env: EvidenceProvenance, toolName: string): Verdict | null {
   switch (env.completeness) {
@@ -104,7 +104,9 @@ function classifyCompleteness(env: EvidenceProvenance, toolName: string): Verdic
 
 /**
  * Picks the highest-severity verdict from a candidate set, returning
- * `ok / fresh-complete / ok` when none apply.
+ * `ok / fresh-complete / ok` when none apply. Tie-break on severity:
+ * `critical > warning > info > ok`. `code` rank wins over `severity`
+ * for the primary sort (`incomplete > stale > low_confidence > ok`).
  */
 function rankVerdicts(candidates: Verdict[], toolName: string): Verdict {
   if (candidates.length === 0) {
@@ -119,12 +121,12 @@ function rankVerdicts(candidates: Verdict[], toolName: string): Verdict {
 }
 
 /**
- * Classifies an already-parsed tool result envelope against the
- * evidence.provenance.v1 schema. Parses with zod's safeParse; if the
- * payload is not an envelope it is recorded as `incomplete /
- * parse-error / critical`. Confidence / staleness / completeness
- * dimensions each contribute a candidate verdict (or none); the highest
- * severity wins. `now` is injected for testability.
+ * Classifies an already-parsed tool result envelope. A non-envelope
+ * payload is recorded as `incomplete / parse-error / critical`;
+ * otherwise, each dimension contributes at most one candidate and the
+ * highest-severity verdict wins. Demo and live envelopes follow the
+ * same path (no mode-conditional thresholds). `now` is injected per
+ * call for testability; defaults to `new Date()`.
  */
 export function classifyEnvelope(parsed: unknown, toolName: string, now?: Date): Verdict {
   const parseResult = evidenceProvenanceSchema.safeParse(parsed);
