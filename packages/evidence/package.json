@@ -1,5 +1,5 @@
 {
-  "name": "@ftth-copilot/shared",
+  "name": "@ftth-copilot/evidence",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -11,23 +11,18 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo \"no lint configured\"",
     "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ftth-copilot/shared": "workspace:*",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^3.2.6",
     "typescript": "^5.7.2",
     "vitest": "^3.2.6"
-  },
-  "peerDependencies": {
-    "@ftth-copilot/evidence": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@ftth-copilot/evidence": {
-      "optional": true
-    }
   }
 }

@@ -10,3 +10,10 @@ export {
 } from './tools/provenance';
 export { SYSTEM_PROMPT } from './prompts/system';
 export { detectAlerts, type Alert } from './alerts';
+export {
+  classifyEnvelope,
+  classifyUnwrapped,
+  type Verdict,
+  type VerdictCode,
+  type VerdictSeverity,
+} from '@ftth-copilot/evidence';

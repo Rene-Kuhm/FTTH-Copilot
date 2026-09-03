@@ -145,3 +145,38 @@ describe('evidence.provenance.v1', () => {
     expect(evidenceProvenanceSchema.safeParse(withoutConfidence).success).toBe(true);
   });
 });
+
+import type { AgentResult } from '../src/index';
+import type { Verdict } from '@ftth-copilot/evidence';
+
+describe('AgentResult backward compatibility (Fase B)', () => {
+  it('still type-checks with no verdicts field (existing consumers)', () => {
+    const legacy: AgentResult = { text: 'respuesta', toolCalls: [] };
+    expect(legacy.text).toBe('respuesta');
+    expect(legacy.toolCalls).toEqual([]);
+  });
+
+  it('accepts an optional verdicts array of the @ftth-copilot/evidence shape', () => {
+    const verdicts: Verdict[] = [
+      {
+        toolName: 'list_olts',
+        code: 'ok',
+        reason: 'fresh-complete',
+        severity: 'ok',
+      },
+      {
+        toolName: 'get_predicted_issues',
+        code: 'incomplete',
+        reason: 'minimal-completeness',
+        severity: 'critical',
+      },
+    ];
+    const withVerdicts: AgentResult = {
+      text: 'respuesta',
+      toolCalls: [],
+      verdicts,
+    };
+    expect(withVerdicts.verdicts).toHaveLength(2);
+    expect(withVerdicts.verdicts?.[0]?.toolName).toBe('list_olts');
+  });
+});

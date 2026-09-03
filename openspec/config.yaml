@@ -48,6 +48,11 @@ projects:
     typecheck: tsc --noEmit
     lint: "echo \"no lint configured\""
     coverage: vitest run --coverage --passWithNoTests
+  - path: packages/evidence
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
   - path: packages/monitoring
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
