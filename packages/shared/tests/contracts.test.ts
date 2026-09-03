@@ -8,6 +8,9 @@ import {
   TELEMETRY_SCHEMA,
   FINDING_SCHEMA,
   ACTION_SCHEMA,
+  ABSTENTION_SCHEMA,
+  abstentionSchema,
+  type Abstention,
 } from '../src/contracts';
 
 describe('telemetry.v1', () => {
@@ -178,5 +181,78 @@ describe('AgentResult backward compatibility (Fase B)', () => {
     };
     expect(withVerdicts.verdicts).toHaveLength(2);
     expect(withVerdicts.verdicts?.[0]?.toolName).toBe('list_olts');
+  });
+});
+
+describe('ftth.abstention.v1', () => {
+  const valid: Abstention = {
+    schema: ABSTENTION_SCHEMA,
+    reason: 'incomplete',
+    severity: 'critical',
+    claim: 'Diagnóstico de ONU MK-7',
+    missing: ['get_onu_detail'],
+    available: ['list_onus'],
+    nextStep: 'No pude respaldar el diagnóstico: el identificador no figura en el NMS. Verificá el identificador (ID, SN o filtro) y volvé a intentar.',
+    toolsAffected: ['get_onu_detail'],
+  };
+
+  it('exports the literal version marker ftth.abstention.v1', () => {
+    expect(ABSTENTION_SCHEMA).toBe('ftth.abstention.v1');
+  });
+
+  it('accepts a valid abstention.v1 envelope', () => {
+    const parsed = abstentionSchema.safeParse(valid);
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects a wrong schema version', () => {
+    expect(abstentionSchema.safeParse({ ...valid, schema: 'ftth.abstention.v2' }).success).toBe(false);
+  });
+
+  it('rejects empty string entries inside missing/available/toolsAffected', () => {
+    expect(abstentionSchema.safeParse({ ...valid, missing: [''] }).success).toBe(false);
+    expect(abstentionSchema.safeParse({ ...valid, available: [''] }).success).toBe(false);
+    expect(abstentionSchema.safeParse({ ...valid, toolsAffected: [''] }).success).toBe(false);
+  });
+
+  it('rejects an empty nextStep', () => {
+    expect(abstentionSchema.safeParse({ ...valid, nextStep: '' }).success).toBe(false);
+  });
+
+  it('rejects an unknown reason value', () => {
+    expect(abstentionSchema.safeParse({ ...valid, reason: 'unknown_reason' }).success).toBe(false);
+  });
+
+  it('rejects an unknown severity value', () => {
+    expect(abstentionSchema.safeParse({ ...valid, severity: 'fatal' }).success).toBe(false);
+  });
+
+  it('accepts an envelope without the optional claim field', () => {
+    const { claim: _, ...withoutClaim } = valid;
+    const parsed = abstentionSchema.safeParse(withoutClaim);
+    expect(parsed.success).toBe(true);
+  });
+
+  it('accepts an empty available array (all-incomplete scenario)', () => {
+    const allIncomplete: Abstention = {
+      ...valid,
+      available: [],
+    };
+    expect(abstentionSchema.safeParse(allIncomplete).success).toBe(true);
+  });
+
+  it('accepts severity=warning (warning-tier abstention path)', () => {
+    const warningTier: Abstention = { ...valid, severity: 'warning' };
+    expect(abstentionSchema.safeParse(warningTier).success).toBe(true);
+  });
+
+  it('accepts every declared VerdictCode enum value', () => {
+    for (const reason of ['ok', 'low_confidence', 'stale', 'incomplete'] as const) {
+      expect(abstentionSchema.safeParse({ ...valid, reason }).success).toBe(true);
+    }
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(abstentionSchema.safeParse({ ...valid, extraField: 'nope' }).success).toBe(false);
   });
 });
