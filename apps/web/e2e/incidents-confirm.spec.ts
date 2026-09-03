@@ -99,6 +99,21 @@ async function mockAllRoutes(
     return route.continue();
   });
 
+  // Topology downstream API for TopologyImpact component
+  await page.route("**/api/topology/downstream**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema: "ftth.topology.v1",
+        kind: "ONU",
+        id: "ONU-1021",
+        onuIds: ["ONU-1021", "ONU-1022"],
+        edgesTraversed: 2,
+      }),
+    });
+  });
+
   await page.route("**/api/incidents/inc-resolved-1/confirm", (route) => {
     const status = opts.confirmStatus ?? 201;
     return route.fulfill({

@@ -63,6 +63,8 @@ export type {
   PendingIncidentCandidate,
   RelevantIncidentResult,
   TenantPolicy,
+  TopologyEdge,
+  TopologyNodeKind,
 } from './contracts';
 export {
   EVIDENCE_PROVENANCE_SCHEMA,
@@ -75,6 +77,9 @@ export {
   pendingIncidentCandidateSchema,
   TENANT_POLICY_SCHEMA,
   tenantPolicySchema,
+  TOPOLOGY_EDGE_SCHEMA,
+  topologyEdgeSchema,
+  topologyNodeKindSchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,
 } from './contracts';

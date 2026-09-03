@@ -11,6 +11,10 @@
 export type { Verdict, VerdictCode, VerdictSeverity } from './types';
 export { classifyEnvelope, classifyUnwrapped } from './truth-gate';
 
+// ── Fase E — temporal topology BFS helpers (pure TS, Prisma-free) ────────────
+export type { TopologyHop } from './topology';
+export { bfsAncestors, bfsDownstream, topologyPath } from './topology';
+
 // ── Fase C — strict-mode abstention policy ──────────────────────────────────
 import type { Abstention } from '@ftth-copilot/shared';
 export type { Abstention } from '@ftth-copilot/shared';
@@ -39,12 +43,17 @@ export type {
   PendingIncidentCandidate,
   RelevantIncidentResult,
   TenantPolicy,
+  TopologyEdge,
+  TopologyNodeKind,
 } from '@ftth-copilot/shared';
 export {
   CONFIRMED_INCIDENT_SCHEMA,
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
   TENANT_POLICY_SCHEMA,
   tenantPolicySchema,
+  TOPOLOGY_EDGE_SCHEMA,
+  topologyEdgeSchema,
+  topologyNodeKindSchema,
 } from '@ftth-copilot/shared';
 export {
   BM25_B,

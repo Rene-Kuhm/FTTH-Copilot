@@ -18,6 +18,7 @@ import {
   executeToolCall,
   buildDefaultConnector,
   type ProvenanceContext,
+  type TopologyProvider,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
 
@@ -104,6 +105,14 @@ export interface RunAgentOptions {
    * envelope field. Per-tenant wins over env over module default.
    */
   tenantPolicy?: TenantPolicy;
+  /**
+   * Fase E — optional closure that returns the tenant-scoped, active-edge
+   * `TopologyEdge[]` for the two topology tools (`get_topology_path`,
+   * `get_downstream_clients`). Absent → those tools surface a clear
+   * Spanish error and the runtime keeps working. The chat route owns the
+   * actual Prisma read; `agent-core` stays Prisma-free.
+   */
+  topologyProvider?: TopologyProvider;
 }
 
 /**
@@ -360,7 +369,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     // Ejecutar todas las tool calls y收集 sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
-      const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider, provenance);
+      const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider, provenance, opts.topologyProvider);
       verdicts.push(classifyToolResult(result, call.name));
       toolCalls.push({ name: call.name, arguments: call.arguments, result });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);

@@ -114,6 +114,18 @@ enum PendingIncidentStatus {
   rejected
 }
 
+// Fase E — temporal topology node kinds. The hierarchy is fixed
+// (OLT → PON_PORT → SPLITTER → CTO → ONU) and the BFS helpers in
+// `@ftth-copilot/evidence` operate against edges only; this enum exists so
+// the parent/child sides of every edge are strongly typed in Postgres.
+enum TopologyNodeKind {
+  OLT
+  PON_PORT
+  SPLITTER
+  CTO
+  ONU
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -133,6 +145,7 @@ model Tenant {
   confirmedIncidents        ConfirmedIncident[]
   pendingIncidentCandidates PendingIncidentCandidate[]
   policy                    TenantPolicy?
+  topologyEdges             TopologyEdge[]
 
   @@map("tenants")
 }
@@ -465,4 +478,29 @@ model TenantPolicy {
   updatedAt          DateTime     @updatedAt
 
   @@map("tenant_policies")
+}
+
+// Fase E — temporal topology (single-edge model). One row per directed
+// parent → child edge in the FTTH hierarchy (OLT → PON_PORT → SPLITTER →
+// CTO → ONU). Soft-expiry via nullable `validTo`; BFS helpers + Prisma
+// reads filter `validTo: null`. The matching zod contract is
+// `topologyEdgeSchema` (`ftth.topology-edge.v1`) in `@ftth-copilot/shared`.
+// `source` is a non-empty free-form string for now (operator-entered,
+// future ingestion layer).
+model TopologyEdge {
+  id         String           @id @default(cuid())
+  tenantId   String
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentKind TopologyNodeKind
+  parentId   String
+  childKind  TopologyNodeKind
+  childId    String
+  validFrom  DateTime         @default(now())
+  validTo    DateTime?
+  source     String
+  createdAt  DateTime         @default(now())
+
+  @@index([tenantId, parentKind, parentId, validTo])
+  @@index([tenantId, childKind, childId, validTo])
+  @@map("topology_edges")
 }

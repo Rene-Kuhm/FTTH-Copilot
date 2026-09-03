@@ -54,6 +54,12 @@ export function defaultProvenance(mode: 'live' | 'demo' | undefined): number {
  * Per-tool completeness / confidence / TTL override metadata. `get_predicted_issues`
  * carries minimal completeness and low confidence with its own short TTL; detail and
  * search tools are partial; everything else is complete.
+ *
+ * Fase E — topology tools (`get_topology_path`, `get_downstream_clients`)
+ * are registered as `partial / 0.9`: the topology graph can be stale
+ * (operators edit edges out of band, soft-expiry via `validTo`) so we
+ * never claim `complete`. Same envelope shape (8-field
+ * `evidence.provenance.v1`) — only the meta flips.
  */
 export const PROVENANCE_TOOL_META: Record<string, ProvenanceToolMeta> = {
   get_predicted_issues: { completeness: 'minimal', confidence: 0.5, ttlOverrideMs: 60000 },
@@ -64,4 +70,6 @@ export const PROVENANCE_TOOL_META: Record<string, ProvenanceToolMeta> = {
   get_onu_detail: { completeness: 'partial', confidence: 0.8 },
   get_onus_with_low_signal: { completeness: 'partial', confidence: 0.8 },
   search_by_customer_name: { completeness: 'partial', confidence: 0.8 },
+  get_topology_path: { completeness: 'partial', confidence: 0.9 },
+  get_downstream_clients: { completeness: 'partial', confidence: 0.9 },
 };
