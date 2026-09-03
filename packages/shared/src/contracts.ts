@@ -16,6 +16,29 @@ import { z } from 'zod';
 export const TELEMETRY_SCHEMA = 'ftth.telemetry.v1' as const;
 export const FINDING_SCHEMA = 'ftth.finding.v1' as const;
 export const ACTION_SCHEMA = 'ftth.action.v1' as const;
+export const EVIDENCE_PROVENANCE_SCHEMA = 'evidence.provenance.v1' as const;
+
+// ── evidence.provenance.v1 ──────────────────────────────────────────────────
+
+export const evidenceProvenanceSchema = z.object({
+  schema: z.literal(EVIDENCE_PROVENANCE_SCHEMA),
+  source: z.string().min(1),
+  tenantId: z.string().min(1),
+  observedAt: z.string().datetime(),
+  ttlMs: z.number().int().nonnegative(),
+  completeness: z.enum(['complete', 'partial', 'minimal']),
+  confidence: z.number().min(0).max(1).optional(),
+  data: z.unknown(),
+});
+
+export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>;
+
+// ── TTL constants ───────────────────────────────────────────────────────────
+
+/** Default TTL for live data provenance (15 minutes). */
+export const DEFAULT_TTL_MS = 15 * 60_000;
+/** TTL for demo/simulated data provenance (60 minutes). */
+export const DEMO_TTL_MS = 60 * 60_000;
 
 // ── telemetry.v1 (salida de ingesta) ─────────────────────────────────────────
 
