@@ -88,6 +88,24 @@ enum DeviceEventCategory {
   other
 }
 
+// Source of truth for how a ConfirmedIncident row was confirmed.
+// `operator` = manual confirmation via the operator UI/POST confirm route.
+// `agent`    = auto-promoted from a PendingIncidentCandidate by the admin
+//              promotion route after the Incident has been resolved ≥24h.
+// `system`   = reserved for backfill or future system-initiated paths.
+enum ConfirmedBy {
+  operator
+  agent
+  system
+}
+
+// Lifecycle of a PendingIncidentCandidate before promotion to ConfirmedIncident.
+enum PendingIncidentStatus {
+  pending
+  promoted
+  rejected
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -95,14 +113,17 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  connections   NmsConnection[]
-  conversations Conversation[]
+  users          User[]
+  connections    NmsConnection[]
+  conversations  Conversation[]
   actionLog      AgentActionLog[]
   metricSamples  MetricSample[]
   detectedAlerts DetectedAlert[]
-  incidents     Incident[]
-  deviceEvents  DeviceEvent[]
+  incidents      Incident[]
+  deviceEvents   DeviceEvent[]
+
+  confirmedIncidents        ConfirmedIncident[]
+  pendingIncidentCandidates PendingIncidentCandidate[]
 
   @@map("tenants")
 }
@@ -118,9 +139,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sessions         Session[]
-  conversations    Conversation[]
-  rateLimitBuckets RateLimitBucket[]
+  sessions           Session[]
+  conversations      Conversation[]
+  rateLimitBuckets   RateLimitBucket[]
+  confirmedIncidents ConfirmedIncident[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -144,24 +166,25 @@ model Session {
 }
 
 model NmsConnection {
-  id             String              @id @default(cuid())
-  tenantId       String
-  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  provider       NmsProvider
-  label          String // human-readable: "SmartOLT prod"
-  encryptedKey   String // AES-256-GCM ciphertext of the NMS API key
-  baseUrl        String? // SmartOLT default, Mikrowisp per-subdomain
-  status         NmsConnectionStatus @default(pending)
-  lastCheckedAt  DateTime?
-  lastError      String? // truncated last error for UI
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider      NmsProvider
+  label         String // human-readable: "SmartOLT prod"
+  encryptedKey  String // AES-256-GCM ciphertext of the NMS API key
+  baseUrl       String? // SmartOLT default, Mikrowisp per-subdomain
+  status        NmsConnectionStatus @default(pending)
+  lastCheckedAt DateTime?
+  lastError     String? // truncated last error for UI
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
-  conversations  Conversation[]
-  metricSamples  MetricSample[]
-  detectedAlerts DetectedAlert[]
-  incidents      Incident[]
-  deviceEvents   DeviceEvent[]
+  conversations      Conversation[]
+  metricSamples      MetricSample[]
+  detectedAlerts     DetectedAlert[]
+  incidents          Incident[]
+  deviceEvents       DeviceEvent[]
+  confirmedIncidents ConfirmedIncident[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -223,9 +246,9 @@ model AgentActionLog {
 }
 
 model MetricSample {
-  id           String        @id @default(cuid())
+  id           String         @id @default(cuid())
   tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connectionId String?
   connection   NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   deviceKind   DeviceKind
@@ -233,8 +256,8 @@ model MetricSample {
   kind         MetricKind
   value        Float? // numeric metrics (rx/tx power, temperature, uptime)
   valueText    String? // categorical metrics (STATUS: online/offline/degraded)
-  sampledAt    DateTime      @default(now())
-  createdAt    DateTime      @default(now())
+  sampledAt    DateTime       @default(now())
+  createdAt    DateTime       @default(now())
 
   @@index([tenantId, connectionId, deviceKind, deviceId, kind, sampledAt])
   @@index([tenantId, sampledAt])
@@ -243,11 +266,11 @@ model MetricSample {
 }
 
 model DetectedAlert {
-  id             String          @id @default(cuid())
+  id             String         @id @default(cuid())
   tenantId       String
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connectionId   String?
-  connection     NmsConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  connection     NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   kind           AlertKind
   severity       AlertSeverity
   deviceKind     DeviceKind
@@ -256,15 +279,15 @@ model DetectedAlert {
   description    String
   etaMs          Int?
   confidence     Float?
-  status         AlertStatus     @default(open)
-  firstSeenAt    DateTime        @default(now())
-  lastSeenAt     DateTime        @default(now())
+  status         AlertStatus    @default(open)
+  firstSeenAt    DateTime       @default(now())
+  lastSeenAt     DateTime       @default(now())
   lastNotifiedAt DateTime?
   resolvedAt     DateTime?
   incidentId     String?
-  incident       Incident?       @relation(fields: [incidentId], references: [id], onDelete: SetNull)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  incident       Incident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@unique([tenantId, connectionId, kind, deviceKind, deviceId])
   @@index([tenantId, status, lastSeenAt])
@@ -276,24 +299,24 @@ model DetectedAlert {
 // (e.g. one ONU with several concurrent problems) so the NOC sees one unit
 // of work instead of an alert storm.
 model Incident {
-  id           String          @id @default(cuid())
+  id           String         @id @default(cuid())
   tenantId     String
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connectionId String?
-  connection   NmsConnection?  @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  connection   NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   deviceKind   DeviceKind
   deviceId     String
   title        String
   description  String
   severity     AlertSeverity
-  status       AlertStatus     @default(open)
-  firstSeenAt  DateTime        @default(now())
-  lastSeenAt   DateTime        @default(now())
+  status       AlertStatus    @default(open)
+  firstSeenAt  DateTime       @default(now())
+  lastSeenAt   DateTime       @default(now())
   resolvedAt   DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  alerts       DetectedAlert[]
+  alerts DetectedAlert[]
 
   @@unique([tenantId, connectionId, deviceKind, deviceId])
   @@index([tenantId, status, lastSeenAt])
@@ -349,4 +372,64 @@ model AuthRateLimit {
   @@unique([key, windowStart])
   @@index([expiresAt])
   @@map("auth_rate_limits")
+}
+
+// Confirmed incident memory (Fase D — sparse-first hybrid RAG).
+//
+// Two confirmation paths feed this table:
+//   - operator: POST /api/incidents/:id/confirm with view_network permission
+//   - agent:    promotePendingIncidents() after Incident resolved ≥24h with no
+//               incomplete verdict in the originating run
+//
+// searchTokens is the pre-computed, lowercased, stop-word-trimmed token string
+// that the BM25 scorer in @ftth-copilot/evidence compares against the query.
+// The Phase 2 pgvector `embedding` column is reserved nullable; no dense path
+// is implemented yet (deferred per the Fase D proposal).
+model ConfirmedIncident {
+  id                String         @id @default(cuid())
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId      String?
+  connection        NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  deviceKind        DeviceKind
+  deviceId          String
+  sourceIncidentId  String? // soft reference to Incident.id; no FK (incidents stay deletable)
+  sourceTool        String
+  summary           String         @db.Text
+  symptoms          Json
+  rootCause         String         @db.Text
+  fix               String         @db.Text
+  observedAt        DateTime
+  resolvedAt        DateTime
+  confirmedBy       ConfirmedBy
+  confirmedByUserId String?
+  confirmedByUser   User?          @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  searchTokens      String         @db.Text // precomputed BM25 tokens, lowercased
+  embedding         Bytes? // nullable; Phase 2 pgvector deferred
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([tenantId, deviceKind, deviceId])
+  @@index([tenantId, resolvedAt])
+  @@index([tenantId, connectionId])
+  @@map("confirmed_incidents")
+}
+
+// Candidate row written by the chat route after a clean (non-abstained, no
+// incomplete verdict) run in live mode. Promoted to ConfirmedIncident by the
+// admin route after the linked Incident has been resolved ≥24h.
+model PendingIncidentCandidate {
+  id                  String                @id @default(cuid())
+  tenantId            String
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceIncidentId    String? // soft reference; no FK
+  summary             String                @db.Text
+  toolCallsJson       Json
+  runSessionId        String?
+  proposedConfirmedAt DateTime
+  status              PendingIncidentStatus @default(pending)
+  createdAt           DateTime              @default(now())
+
+  @@index([tenantId, status])
+  @@map("pending_incident_candidates")
 }
