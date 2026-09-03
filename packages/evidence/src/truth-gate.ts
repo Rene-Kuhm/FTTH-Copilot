@@ -60,6 +60,23 @@ function classifyConfidence(env: EvidenceProvenance, toolName: string): Verdict 
 }
 
 /**
+ * Classifies the staleness dimension. Strict `now > observedAt + ttlMs`
+ * produces `stale / expired-ttl / warning`; equality is fresh.
+ */
+function classifyStaleness(
+  env: EvidenceProvenance,
+  toolName: string,
+  now: Date,
+): Verdict | null {
+  const observedAtMs = new Date(env.observedAt).getTime();
+  const expiresAtMs = observedAtMs + env.ttlMs;
+  if (now.getTime() > expiresAtMs) {
+    return { toolName, code: 'stale', reason: 'expired-ttl', severity: 'warning' };
+  }
+  return null;
+}
+
+/**
  * Picks the highest-severity verdict from a candidate set, returning
  * `ok / fresh-complete / ok` when none apply.
  */
@@ -95,6 +112,10 @@ export function classifyEnvelope(parsed: unknown, toolName: string, now?: Date):
   const candidates: Verdict[] = [];
   const confidenceVerdict = classifyConfidence(parseResult.data, toolName);
   if (confidenceVerdict) candidates.push(confidenceVerdict);
+
+  const referenceNow = now ?? new Date();
+  const stalenessVerdict = classifyStaleness(parseResult.data, toolName, referenceNow);
+  if (stalenessVerdict) candidates.push(stalenessVerdict);
 
   return rankVerdicts(candidates, toolName);
 }

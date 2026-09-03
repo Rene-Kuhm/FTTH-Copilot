@@ -35,9 +35,12 @@ describe('classifyEnvelope — confidence dimension', () => {
     completeness: 'complete' as const,
     data: [],
   };
+  // Inject a `now` close to observedAt so the staleness dimension
+  // does not contaminate these confidence-only tests.
+  const freshNow = new Date('2026-08-30T12:05:00.000Z');
 
   it('returns low_confidence/missing-confidence when confidence field is absent', () => {
-    const verdict = classifyEnvelope(baseEnvelope, 'list_olts');
+    const verdict = classifyEnvelope(baseEnvelope, 'list_olts', freshNow);
     expect(verdict.code).toBe('low_confidence');
     expect(verdict.reason).toBe('missing-confidence');
     expect(verdict.severity).toBe('warning');
@@ -45,28 +48,71 @@ describe('classifyEnvelope — confidence dimension', () => {
   });
 
   it('returns low_confidence/low-confidence-value for confidence strictly below 0.3', () => {
-    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0.2 }, 'list_olts');
+    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0.2 }, 'list_olts', freshNow);
     expect(verdict.code).toBe('low_confidence');
     expect(verdict.reason).toBe('low-confidence-value');
     expect(verdict.severity).toBe('warning');
   });
 
   it('returns ok for confidence exactly at the 0.3 threshold (inclusive)', () => {
-    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0.3 }, 'list_olts');
+    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0.3 }, 'list_olts', freshNow);
     expect(verdict.code).toBe('ok');
     expect(verdict.reason).toBe('fresh-complete');
     expect(verdict.severity).toBe('ok');
   });
 
   it('returns ok for confidence 1.0', () => {
-    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 1.0 }, 'list_olts');
+    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 1.0 }, 'list_olts', freshNow);
     expect(verdict.code).toBe('ok');
     expect(verdict.reason).toBe('fresh-complete');
   });
 
   it('returns low_confidence for confidence 0.0', () => {
-    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0 }, 'list_olts');
+    const verdict = classifyEnvelope({ ...baseEnvelope, confidence: 0 }, 'list_olts', freshNow);
     expect(verdict.code).toBe('low_confidence');
     expect(verdict.reason).toBe('low-confidence-value');
+  });
+});
+
+describe('classifyEnvelope — staleness dimension', () => {
+  const baseEnvelope = {
+    schema: EVIDENCE_PROVENANCE_SCHEMA,
+    source: 'smartolt.poll',
+    tenantId: 't1',
+    completeness: 'complete' as const,
+    confidence: 1.0,
+    data: [],
+  };
+
+  it('does not mark a 5-minute-old envelope with ttlMs=900000 as stale', () => {
+    const observedAt = '2026-08-30T12:00:00.000Z';
+    const now = new Date('2026-08-30T12:05:00.000Z');
+    const verdict = classifyEnvelope({ ...baseEnvelope, observedAt, ttlMs: 900000 }, 'list_olts', now);
+    expect(verdict.code).not.toBe('stale');
+    expect(verdict.code).toBe('ok');
+  });
+
+  it('marks a 20-minute-old envelope with ttlMs=900000 as stale/expired-ttl/warning', () => {
+    const observedAt = '2026-08-30T12:00:00.000Z';
+    const now = new Date('2026-08-30T12:20:00.000Z');
+    const verdict = classifyEnvelope({ ...baseEnvelope, observedAt, ttlMs: 900000 }, 'list_olts', now);
+    expect(verdict.code).toBe('stale');
+    expect(verdict.reason).toBe('expired-ttl');
+    expect(verdict.severity).toBe('warning');
+  });
+
+  it('treats edge equality (now === observedAt + ttlMs) as fresh, not stale', () => {
+    const observedAt = '2026-08-30T12:00:00.000Z';
+    const now = new Date(new Date(observedAt).getTime() + 900000);
+    const verdict = classifyEnvelope({ ...baseEnvelope, observedAt, ttlMs: 900000 }, 'list_olts', now);
+    expect(verdict.code).not.toBe('stale');
+    expect(verdict.code).toBe('ok');
+  });
+
+  it('marks envelope as stale one millisecond past the TTL boundary', () => {
+    const observedAt = '2026-08-30T12:00:00.000Z';
+    const now = new Date(new Date(observedAt).getTime() + 900001);
+    const verdict = classifyEnvelope({ ...baseEnvelope, observedAt, ttlMs: 900000 }, 'list_olts', now);
+    expect(verdict.code).toBe('stale');
   });
 });
