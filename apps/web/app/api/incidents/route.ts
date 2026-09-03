@@ -14,7 +14,10 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const incidents = await prisma.incident.findMany({
-    where: { tenantId: user.tenantId, status: { in: ['open', 'acknowledged'] } },
+    // Fase D WU4: include `resolved` so the operator can confirm historic
+    // incidents from the panel. Open/acknowledged ones still rank first
+    // (same severity + lastSeenAt ordering).
+    where: { tenantId: user.tenantId, status: { in: ['open', 'acknowledged', 'resolved'] } },
     orderBy: [{ severity: 'desc' }, { lastSeenAt: 'desc' }],
     select: {
       id: true,
