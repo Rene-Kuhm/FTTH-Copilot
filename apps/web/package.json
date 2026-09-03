@@ -10,6 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next",
+    "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -36,10 +38,12 @@
     "@types/node": "^22.10.0",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
+    "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.18.0",
     "eslint-config-next": "16.3.1",
     "postcss": "^8.5.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.6"
   }
 }
