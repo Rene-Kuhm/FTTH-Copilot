@@ -133,7 +133,7 @@ test.describe("IncidentsPanel confirm modal (WU4)", () => {
   test("renders the confirm button only on resolved rows and submits to the API", async ({ page }) => {
     const tracker = await mockAllRoutes(page);
 
-    await page.goto("/app");
+    await page.goto("/dashboard");
 
     // Panel heading is rendered once the GET resolves.
     await expect(page.getByText("Incidentes correlacionados")).toBeVisible({ timeout: 10_000 });
@@ -182,7 +182,7 @@ test.describe("IncidentsPanel confirm modal (WU4)", () => {
   test("shows the inline error when the confirm API returns 409", async ({ page }) => {
     await mockAllRoutes(page, { confirmStatus: 409, confirmError: "Solo se pueden confirmar incidentes resueltos." });
 
-    await page.goto("/app");
+    await page.goto("/dashboard");
     const resolvedRow = page.locator('[data-testid="incident-row-inc-resolved-1"]');
     await expect(resolvedRow).toBeVisible({ timeout: 10_000 });
     await resolvedRow.getByRole("button", { name: "Marcar como confirmado" }).click();
