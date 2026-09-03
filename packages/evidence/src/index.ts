@@ -22,6 +22,7 @@ export {
   formatIdentifierNextStep,
   formatMetricsNextStep,
   type AbstentionDecision,
+  type AbstentionTenantPolicy,
   type TruthGateMode,
 } from './abstention-policy';
 

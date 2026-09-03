@@ -14,13 +14,23 @@
  * uniformly. There is no mode-conditional threshold in the policy itself.
  */
 import { ABSTENTION_SCHEMA, type Abstention } from '@ftth-copilot/shared';
-import type { Verdict, VerdictSeverity } from './types';
+import type { Verdict, VerdictCode, VerdictSeverity } from './types';
 
 export type { Verdict, VerdictSeverity };
 
 export type TruthGateMode = 'observe' | 'strict';
 
 export type AbstentionDecision = 'allow' | 'warn' | 'abstain';
+
+/**
+ * Fase E — minimal slice of `TenantPolicy` consulted by `shouldAbstain`.
+ * Defined structurally so the evidence package never pulls the Prisma
+ * row through its import graph (and so the test surface can pass any
+ * `{ abstainOnCodes: [...] }` shape without standing up a row).
+ */
+export interface AbstentionTenantPolicy {
+  readonly abstainOnCodes?: ReadonlyArray<VerdictCode>;
+}
 
 // ── Spanish nextStep templates (Argentine rioplatense voseo) ─────────────────
 //
@@ -55,9 +65,37 @@ export function formatMetricsNextStep(toolsAffected: string[]): string {
  * No source-branching on `verdicts[i].toolName` or any envelope field —
  * decisions are made purely on the verdict codes already aggregated by
  * `classifyEnvelope`. Demo == live parity is preserved.
+ *
+ * Fase E — trailing optional `tenantPolicy`. When defined, the abstention
+ * trigger set becomes `tenantPolicy.abstainOnCodes`:
+ *   - `undefined` → Fase C byte-identical (incomplete triggers abstain)
+ *   - defined (possibly empty) → triggers on those codes instead
+ *   - `[]` → never abstain (per-tenant override disables the gate)
+ *
+ * Observe mode still always returns `'allow'` — the policy never short-
+ * circuits Fase B. `shouldAbstain` is intentionally pure: it never reads
+ * env, never touches Prisma, and never logs.
  */
-export function shouldAbstain(verdicts: Verdict[], mode: TruthGateMode): AbstentionDecision {
+export function shouldAbstain(
+  verdicts: Verdict[],
+  mode: TruthGateMode,
+  tenantPolicy?: AbstentionTenantPolicy,
+): AbstentionDecision {
   if (mode === 'observe') return 'allow';
+  const triggerCodes: ReadonlyArray<VerdictCode> | undefined =
+    tenantPolicy?.abstainOnCodes !== undefined ? tenantPolicy.abstainOnCodes : undefined;
+  // When `tenantPolicy` is undefined → fall through to the Fase C default
+  // (incomplete). When it is defined (even `[]`) → use it verbatim.
+  const active = triggerCodes;
+  if (active !== undefined) {
+    for (const v of verdicts) {
+      if (active.includes(v.code)) return 'abstain';
+    }
+    for (const v of verdicts) {
+      if (v.code === 'stale' || v.code === 'low_confidence') return 'warn';
+    }
+    return 'allow';
+  }
   for (const v of verdicts) {
     if (v.code === 'incomplete') return 'abstain';
   }
