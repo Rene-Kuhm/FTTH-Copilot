@@ -56,12 +56,22 @@ export interface ChatResponse {
 }
 
 export * from './contracts';
-export type { EvidenceProvenance, Abstention } from './contracts';
+export type {
+  EvidenceProvenance,
+  Abstention,
+  ConfirmedIncident,
+  PendingIncidentCandidate,
+  RelevantIncidentResult,
+} from './contracts';
 export {
   EVIDENCE_PROVENANCE_SCHEMA,
   evidenceProvenanceSchema,
   ABSTENTION_SCHEMA,
   abstentionSchema,
+  CONFIRMED_INCIDENT_SCHEMA,
+  PENDING_INCIDENT_CANDIDATE_SCHEMA,
+  confirmedIncidentSchema,
+  pendingIncidentCandidateSchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,
 } from './contracts';

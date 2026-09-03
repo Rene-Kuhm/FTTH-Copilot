@@ -18,6 +18,10 @@ export const FINDING_SCHEMA = 'ftth.finding.v1' as const;
 export const ACTION_SCHEMA = 'ftth.action.v1' as const;
 export const EVIDENCE_PROVENANCE_SCHEMA = 'evidence.provenance.v1' as const;
 export const ABSTENTION_SCHEMA = 'ftth.abstention.v1' as const;
+// Fase D — confirmed-incident memory (sparse-first hybrid RAG).
+export const CONFIRMED_INCIDENT_SCHEMA = 'ftth.confirmed-incident.v1' as const;
+export const PENDING_INCIDENT_CANDIDATE_SCHEMA =
+  'ftth.pending-incident-candidate.v1' as const;
 
 // ── evidence.provenance.v1 ──────────────────────────────────────────────────
 
@@ -168,3 +172,88 @@ export const abstentionSchema = z
   .strict();
 
 export type Abstention = z.infer<typeof abstentionSchema>;
+
+// ── ftth.confirmed-incident.v1 (Fase D — confirmed-incident memory) ──────────
+
+/**
+ * Stable JSON envelope for a confirmed incident. Two confirmation paths feed
+ * this table (operator + agent); the sparse-first BM25 retriever in
+ * `@ftth-copilot/evidence` consumes it via the `RelevantIncidentResult`
+ * subtype (adds `score`).
+ *
+ * Fields:
+ * - `schema` is the version literal — must match the producer exactly.
+ * - `deviceKind` is reused from the existing OLT/ONU vocabulary.
+ * - `searchTokens` is the pre-computed, lowercased, stop-word-trimmed token
+ *   string that BM25 compares against the query token stream.
+ * - `score` is retrieval-only and may be omitted when the row is being
+ *   written to the DB (no retrieval happened yet). When present, it must be
+ *   in the [0, 1] range.
+ * - `embedding` is reserved for the Phase 2 pgvector dense path (currently
+ *   unused; the column is nullable in the Prisma model).
+ *
+ * `.strict()` rejects any unknown top-level keys so a producer can never
+ * silently drift the wire format.
+ */
+export const confirmedIncidentSchema = z
+  .object({
+    schema: z.literal(CONFIRMED_INCIDENT_SCHEMA),
+    id: z.string().min(1),
+    tenantId: z.string().min(1),
+    connectionId: z.string().min(1).nullable().optional(),
+    deviceKind: z.enum(['OLT', 'ONU']),
+    deviceId: z.string().min(1),
+    sourceIncidentId: z.string().min(1).optional(),
+    sourceTool: z.string().min(1),
+    summary: z.string().min(1),
+    symptoms: z.unknown(),
+    rootCause: z.string().min(1),
+    fix: z.string().min(1),
+    observedAt: z.string().datetime(),
+    resolvedAt: z.string().datetime(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+    confirmedBy: z.enum(['operator', 'agent', 'system']),
+    confirmedByUserId: z.string().min(1).nullable().optional(),
+    searchTokens: z.string(), // may be empty; the BM25 scorer handles empty intersection
+    score: z.number().min(0).max(1).optional(),
+    embedding: z.unknown().optional(),
+  })
+  .strict();
+
+export type ConfirmedIncident = z.infer<typeof confirmedIncidentSchema>;
+
+/**
+ * A retrieval result: a `ConfirmedIncident` enriched with the BM25 (and,
+ * later, dense-merge) score. Always has a `score` in [0, 1] because the
+ * scorer only emits rows above `MIN_SPARSESCORE`.
+ */
+export type RelevantIncidentResult = ConfirmedIncident & { score: number };
+
+// ── ftth.pending-incident-candidate.v1 (Fase D — chat-route write gate) ──────
+
+/**
+ * Stable JSON envelope for a candidate row written by the chat route after
+ * a clean (non-abstained, no incomplete verdict) run in live mode. The admin
+ * promotion route promotes candidates whose linked Incident has been
+ * resolved ≥24h with no incomplete verdict in `toolCallsJson`.
+ *
+ * `sourceIncidentId` is a soft reference (no FK in Prisma) — Incidents stay
+ * deletable.
+ */
+export const pendingIncidentCandidateSchema = z
+  .object({
+    schema: z.literal(PENDING_INCIDENT_CANDIDATE_SCHEMA),
+    id: z.string().min(1),
+    tenantId: z.string().min(1),
+    sourceIncidentId: z.string().min(1).optional(),
+    runSessionId: z.string().min(1).optional(),
+    summary: z.string().min(1),
+    toolCallsJson: z.unknown(),
+    proposedConfirmedAt: z.string().datetime(),
+    status: z.enum(['pending', 'promoted', 'rejected']),
+    createdAt: z.string().datetime().optional(),
+  })
+  .strict();
+
+export type PendingIncidentCandidate = z.infer<typeof pendingIncidentCandidateSchema>;
