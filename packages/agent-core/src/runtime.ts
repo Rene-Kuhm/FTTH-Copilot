@@ -5,6 +5,7 @@ import {
   buildTools,
   executeToolCall,
   buildDefaultConnector,
+  type ProvenanceContext,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
 
@@ -22,6 +23,10 @@ export interface RunAgentOptions {
   maxIterations?: number;
   /** Fuente de problemas pronosticados (detección temprana) para la tool get_predicted_issues. */
   predictionProvider?: () => Promise<unknown>;
+  /** Tenant al que pertenece esta ejecución (aditivo, provenance). */
+  tenantId?: string;
+  /** Identificador de conexión/conector (aditivo, provenance; no entra al envelope). */
+  connectionId?: string;
 }
 
 /**
@@ -40,6 +45,13 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     inputSchema: (t as unknown as { input_schema?: Record<string, unknown> }).input_schema ?? {},
   }));
   const maxIterations = opts.maxIterations ?? 6;
+
+  const provenance: ProvenanceContext = {
+    tenantId: opts.tenantId,
+    connectionId: opts.connectionId,
+    mode: opts.dataSource?.mode,
+    provider: opts.dataSource?.provider,
+  };
 
   const toolCalls: ToolCallRecord[] = [];
   const messages: LlmMessage[] = [
@@ -68,7 +80,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     // Ejecutar todas las tool calls y收集 sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
-      const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider);
+      const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider, provenance);
       toolCalls.push({ name: call.name, arguments: call.arguments, result });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
     }

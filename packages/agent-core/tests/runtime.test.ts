@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
+import { evidenceProvenanceSchema, EVIDENCE_PROVENANCE_SCHEMA } from '@ftth-copilot/shared';
 
 const createMessage = vi.hoisted(() => vi.fn());
 
@@ -51,11 +52,42 @@ describe('runAgent', () => {
       userMessage: 'listar',
       connector,
       dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
+      tenantId: 't1',
+      connectionId: 'conn-1',
     });
     expect(result.toolCalls).toHaveLength(1);
     expect(result.text).toContain('[DEMO]');
     expect(createMessage.mock.calls[0]?.[0].system).toContain('DATOS SIMULADOS');
     expect(createMessage.mock.calls[1]?.[0].messages).toHaveLength(3);
+
+    // Provenance envelope under toolCalls[].result with tenantId threaded through
+    const toolResult = result.toolCalls[0]?.result;
+    expect(typeof toolResult).toBe('string');
+    const envelope = JSON.parse(toolResult as string) as Record<string, unknown>;
+    const parsed = evidenceProvenanceSchema.safeParse(envelope);
+    expect(parsed.success).toBe(true);
+    expect(envelope.schema).toBe(EVIDENCE_PROVENANCE_SCHEMA);
+    expect(envelope.tenantId).toBe('t1');
+    expect(envelope.source).toBe('smartolt.demo');
+  });
+
+  it('threads tenantId in live mode with .poll source', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ name: 'list_olts', arguments: {} }],
+      })
+      .mockResolvedValueOnce({ text: 'resultado', toolCalls: [] });
+    const result = await runAgent({
+      userMessage: 'listar',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+    });
+    const toolResult = result.toolCalls[0]?.result;
+    const envelope = JSON.parse(toolResult as string) as Record<string, unknown>;
+    expect(envelope.tenantId).toBe('t1');
+    expect(envelope.source).toBe('smartolt.poll');
   });
 
   it('fails closed when the LLM factory raises', async () => {
