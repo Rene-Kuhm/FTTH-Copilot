@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 import { evidenceProvenanceSchema, EVIDENCE_PROVENANCE_SCHEMA } from '@ftth-copilot/shared';
-import { abstentionSchema, buildAbstention, type Abstention } from '@ftth-copilot/evidence';
+import {
+  abstentionSchema,
+  buildAbstention,
+  formatRelevantIncidentsBlock,
+  RELEVANT_INCIDENTS_HEADING,
+  type Abstention,
+  type RelevantIncidentResult,
+} from '@ftth-copilot/evidence';
 
 const createMessage = vi.hoisted(() => vi.fn());
 
@@ -589,5 +596,197 @@ describe('runAgent strict-mode abstention override', () => {
     expect(demo.abstention).toEqual(live.abstention);
     expect(demo.verdicts?.[0]?.reason).toBe('minimal-completeness');
     expect(live.verdicts?.[0]?.reason).toBe('minimal-completeness');
+  });
+});
+
+// ── Fase D — retrievalProvider injection (task 3.1) ──────────────────────────
+//
+// Contract: `RunAgentOptions.retrievalProvider` is opt-in. When provided AND
+// `dataSource.mode === 'live'`, runAgent calls it once before the loop and
+// appends `RELEVANT_INCIDENTS_HEADING + formatRelevantIncidentsBlock(results)`
+// to the LLM system prompt. In every other case (provider undefined, returns
+// empty, mode is demo, or provider throws) the system prompt is byte-identical
+// to the pre-Fase-D baseline. Retrieved rows never enter the Truth Gate data
+// path: `result.verdicts` and `result.toolCalls` count only tool calls.
+
+const incident = (
+  overrides: Partial<RelevantIncidentResult> & { id: string },
+): RelevantIncidentResult => ({
+  schema: 'ftth.confirmed-incident.v1',
+  id: overrides.id,
+  tenantId: 't1',
+  deviceKind: 'ONU',
+  deviceId: 'onu-1',
+  sourceTool: 'get_onu_detail',
+  summary: 'RX bajo en la ONU',
+  symptoms: [],
+  rootCause: 'Conector sucio',
+  fix: 'Limpieza de conector',
+  observedAt: '2026-08-30T12:00:00.000Z',
+  resolvedAt: '2026-08-30T13:00:00.000Z',
+  createdAt: '2026-08-30T12:00:00.000Z',
+  updatedAt: '2026-08-30T13:00:00.000Z',
+  confirmedBy: 'operator',
+  searchTokens: ['rx', 'bajo', 'onu'],
+  score: 1,
+  ...overrides,
+});
+
+describe('runAgent — retrievalProvider injection (Fase D / WU3)', () => {
+  it('does NOT inject the heading when retrievalProvider is undefined', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'sin retrieval', toolCalls: [] });
+    const result = await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+    });
+    expect(result.text).toBe('sin retrieval');
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    expect(system).not.toContain(RELEVANT_INCIDENTS_HEADING);
+  });
+
+  it('does NOT inject the heading when retrievalProvider returns []', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'vacio', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => []);
+    await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider,
+    });
+    expect(retrievalProvider).toHaveBeenCalledTimes(1);
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    expect(system).not.toContain(RELEVANT_INCIDENTS_HEADING);
+  });
+
+  it('injects RELEVANT_INCIDENTS_HEADING + 2 per-incident lines when provider returns 2 rows (live)', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'con contexto', toolCalls: [] });
+    const results: RelevantIncidentResult[] = [
+      incident({ id: 'ci-1', deviceId: 'onu-1', score: 1 }),
+      incident({ id: 'ci-2', deviceId: 'onu-2', score: 0.5 }),
+    ];
+    await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider: async () => results,
+    });
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    expect(system).toContain(RELEVANT_INCIDENTS_HEADING);
+    expect(system.split('\n').filter((line) => /^\[\d+\] /.test(line))).toHaveLength(2);
+    expect(system).toContain('onu-1');
+    expect(system).toContain('onu-2');
+  });
+
+  it('byte-identical snapshot: augmented system-prompt block with 2 incidents', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'snapshot', toolCalls: [] });
+    const results: RelevantIncidentResult[] = [
+      incident({ id: 'ci-1', deviceId: 'onu-1', score: 1 }),
+      incident({ id: 'ci-2', deviceId: 'onu-2', score: 0.5 }),
+    ];
+    await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider: async () => results,
+    });
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    const expectedBlock = formatRelevantIncidentsBlock(results);
+    // The retrieval block must be present verbatim and placed at the tail of
+    // the system prompt (after the data-source block).
+    expect(system.endsWith(expectedBlock)).toBe(true);
+    expect(system).toContain(expectedBlock);
+  });
+
+  it('skips retrieval when mode is demo even if retrievalProvider is defined', async () => {
+    createMessage.mockResolvedValueOnce({ text: '[DEMO] respuesta', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => [incident({ id: 'ci-1' })]);
+    const result = await runAgent({
+      userMessage: 'hola',
+      connector,
+      dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
+      tenantId: 't1',
+      retrievalProvider,
+    });
+    expect(result.text).toContain('[DEMO]');
+    expect(retrievalProvider).not.toHaveBeenCalled();
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    expect(system).not.toContain(RELEVANT_INCIDENTS_HEADING);
+    expect(system).toContain('DATOS SIMULADOS');
+  });
+
+  it('fails open: retrievalProvider throws and the agent continues without augmentation', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'sin contexto', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => {
+      throw new Error('retrieval down');
+    });
+    await expect(
+      runAgent({
+        userMessage: 'hola',
+        connector,
+        dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+        tenantId: 't1',
+        retrievalProvider,
+      }),
+    ).resolves.toMatchObject({ text: 'sin contexto' });
+    const system = createMessage.mock.calls[0]?.[0].system as string;
+    expect(system).not.toContain(RELEVANT_INCIDENTS_HEADING);
+    expect(retrievalProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it('Truth-Gate invariant: 2 retrieved + 2 tool calls → verdicts.length===2 AND toolCalls has no retrieved rows', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_olts', arguments: {} },
+          { name: 'list_onus', arguments: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'final', toolCalls: [] });
+    const results: RelevantIncidentResult[] = [
+      incident({ id: 'ci-1' }),
+      incident({ id: 'ci-2', deviceId: 'onu-2' }),
+    ];
+    const result = await runAgent({
+      userMessage: 'multi',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      // observe mode so the stale/incomplete verdict from the stub connector
+      // does not abstain — keeps the test focused on Truth-Gate data path.
+      mode: 'observe',
+      retrievalProvider: async () => results,
+    });
+    expect(result.verdicts).toHaveLength(2);
+    expect(result.toolCalls).toHaveLength(2);
+    expect(result.toolCalls?.map((tc) => tc.name)).toEqual(['list_olts', 'list_onus']);
+    // The retrieved rows MUST NOT leak into the LLM payload as a tool result.
+    const secondCallMessages = createMessage.mock.calls[1]?.[0].messages as Array<{
+      role: string;
+      content: string;
+    }>;
+    const userPayload = secondCallMessages[secondCallMessages.length - 1]?.content ?? '';
+    expect(userPayload).not.toContain('ci-1');
+    expect(userPayload).not.toContain('ci-2');
+  });
+
+  it('extracts a deviceHint from the user message and forwards it to the provider (live)', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'listo', toolCalls: [] });
+    const retrievalProvider = vi.fn(async () => []);
+    await runAgent({
+      userMessage: 'Hay un problema con ONU-123 que perdió RX',
+      connector,
+      dataSource: { mode: 'live', provider: 'SMARTOLT', label: 'Producción' },
+      tenantId: 't1',
+      retrievalProvider,
+    });
+    expect(retrievalProvider).toHaveBeenCalledTimes(1);
+    const args = retrievalProvider.mock.calls[0]?.[0] as { deviceHint?: string };
+    expect(args.deviceHint).toBe('ONU-123');
   });
 });

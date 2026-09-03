@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   prismaMessageFindMany: vi.fn(),
   prismaAgentActionLogCreate: vi.fn(),
   prismaDetectedAlertFindMany: vi.fn(),
+  prismaConfirmedIncidentFindMany: vi.fn(),
+  prismaPendingIncidentCandidateCreate: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   resolveTenantConnector: vi.fn(),
@@ -56,6 +58,12 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     detectedAlert: {
       findMany: mocks.prismaDetectedAlertFindMany,
+    },
+    confirmedIncident: {
+      findMany: mocks.prismaConfirmedIncidentFindMany,
+    },
+    pendingIncidentCandidate: {
+      create: mocks.prismaPendingIncidentCandidateCreate,
     },
   },
 }));
@@ -136,6 +144,8 @@ function setupHappyPath() {
   mocks.prismaMessageCreate.mockReset();
   mocks.prismaAgentActionLogCreate.mockReset();
   mocks.prismaDetectedAlertFindMany.mockReset();
+  mocks.prismaConfirmedIncidentFindMany.mockReset();
+  mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.getCurrentUser.mockResolvedValue(fakeUser);
   mocks.hasPermission.mockReturnValue(true);
   mocks.resolveTenantConnector.mockResolvedValue({
@@ -148,6 +158,11 @@ function setupHappyPath() {
   mocks.prismaMessageCreate.mockResolvedValue({ id: 'msg' });
   mocks.prismaAgentActionLogCreate.mockResolvedValue({ id: 'log' });
   mocks.prismaDetectedAlertFindMany.mockResolvedValue([]);
+  // WU3 — default: empty confirmed-incident window (retrieval short-circuits).
+  mocks.prismaConfirmedIncidentFindMany.mockResolvedValue([]);
+  // WU3 — default: write gate never fires in this suite (we assert the abstention
+  // path explicitly, where the gate MUST stay closed).
+  mocks.prismaPendingIncidentCandidateCreate.mockResolvedValue({ id: 'pending-1' });
 }
 
 beforeEach(() => {

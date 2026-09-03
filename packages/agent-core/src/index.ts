@@ -2,6 +2,9 @@ export {
   runAgent,
   resolveTruthGateMode,
   DEFAULT_TRUTH_GATE_MODE,
+  extractDeviceHintFromMessage,
+  type RetrievalProvider,
+  type RetrievalProviderArgs,
   type RunAgentOptions,
 } from './runtime';
 export { buildTools, executeToolCall, buildDefaultConnector } from './tools/index';

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runAgent, type TruthGateMode } from '@ftth-copilot/agent-core';
-import type { Abstention } from '@ftth-copilot/shared';
+import type { Abstention, ConfirmedIncident } from '@ftth-copilot/shared';
+import type { RelevantIncidentResult } from '@ftth-copilot/evidence';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
@@ -11,6 +12,15 @@ import {
 } from '@/lib/connectors/chat-client';
 import { consumeChatQuota } from '@/lib/rate-limit';
 import { logRequest } from '@/lib/logging';
+import {
+  buildPendingIncidentCandidate,
+  retrieveRelevantIncidents,
+} from '@ftth-copilot/evidence';
+
+/** WU3 — pre-LLM recall window for confirmed-incident ranking. */
+const RETRIEVAL_WINDOW_DAYS = 90;
+/** WU3 — top-K for the pre-LLM context block. */
+const RETRIEVAL_LIMIT = 5;
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -146,6 +156,58 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     data: { conversationId: conversation.id, role: 'user', content: message },
   });
 
+  /**
+   * WU3 — Phase D retrieval closure. Loads the tenant-scoped candidate
+   * window (last 90 days), delegates the ranking to the pure-TS
+   * `retrieveRelevantIncidents`, and returns the result set. Demo mode
+   * short-circuits to `[]` without touching the DB — keeping Fase C
+   * behaviour identical to Fase B/C for demo connectors.
+   */
+  const retrievalProvider = async (providerArgs: {
+    tenantId: string;
+    query: string;
+    deviceHint?: string;
+    limit?: number;
+    sinceDays?: number;
+    mode?: 'live' | 'demo';
+  }): Promise<RelevantIncidentResult[]> => {
+    if ((providerArgs.mode ?? resolved.dataSource.mode) !== 'live') return [];
+    const cutoff = new Date(Date.now() - (providerArgs.sinceDays ?? RETRIEVAL_WINDOW_DAYS) * 86_400_000);
+    const confirmedIncidents = (await prisma.confirmedIncident.findMany({
+      where: {
+        tenantId: providerArgs.tenantId,
+        resolvedAt: { gte: cutoff },
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        deviceKind: true,
+        deviceId: true,
+        sourceTool: true,
+        summary: true,
+        rootCause: true,
+        fix: true,
+        symptoms: true,
+        observedAt: true,
+        resolvedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        confirmedBy: true,
+        confirmedByUserId: true,
+        searchTokens: true,
+      },
+    })) as unknown as ConfirmedIncident[];
+    return retrieveRelevantIncidents({
+      tenantId: providerArgs.tenantId,
+      query: providerArgs.query,
+      deviceHint: providerArgs.deviceHint,
+      limit: providerArgs.limit ?? RETRIEVAL_LIMIT,
+      sinceDays: providerArgs.sinceDays ?? RETRIEVAL_WINDOW_DAYS,
+      mode: 'live',
+      confirmedIncidents,
+    });
+  };
+
   let result;
   try {
     result = await runAgent({
@@ -156,6 +218,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       tenantId: user.tenantId,
       connectionId: resolved.dataSource.connectionId ?? undefined,
       mode: resolveTruthGateModeFromEnv(),
+      retrievalProvider,
       predictionProvider: async () =>
         prisma.detectedAlert.findMany({
           where: { tenantId: user.tenantId, status: 'open' },
@@ -222,6 +285,43 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         parameters: toolCall.arguments as unknown as object,
         result: (toolCall.result as unknown as object) ?? undefined,
         durationMs: 0,
+      },
+    });
+  }
+
+  /**
+   * WU3 — Fase D PendingIncidentCandidate write gate. Admin promotion is
+   * owned by `/api/pending-incidents/promote` (WU5). The chat route is the
+   * drafter: one row per clean (non-abstained, no `incomplete` verdict)
+   * live run, persisted as `status: 'pending'`. Demo mode AND abstained
+   * runs AND any run with an `incomplete` verdict write ZERO rows — the
+   * promotion helper then has nothing to skip on the admin path.
+   *
+   * `buildPendingIncidentCandidate` is a pure constructor (no DB), the
+   * schema is locked to `ftth.pending-incident-candidate.v1`, and
+   * `runSessionId` is the conversation ID so a future query can join the
+   * candidate back to the originating Message.toolCalls audit trail.
+   */
+  const hasIncompleteVerdict = (result.verdicts ?? []).some((v) => v.code === 'incomplete');
+  const shouldWriteCandidate =
+    !abstained &&
+    !hasIncompleteVerdict &&
+    resolved.dataSource.mode === 'live';
+  if (shouldWriteCandidate) {
+    const draft = buildPendingIncidentCandidate({
+      tenantId: user.tenantId,
+      summary: result.text,
+      toolCallsJson: persistedToolCalls as unknown as object,
+      runSessionId: conversation.id,
+    });
+    await prisma.pendingIncidentCandidate.create({
+      data: {
+        tenantId: draft.tenantId,
+        summary: draft.summary,
+        toolCallsJson: draft.toolCallsJson as object,
+        runSessionId: draft.runSessionId,
+        proposedConfirmedAt: new Date(draft.proposedConfirmedAt),
+        status: 'pending',
       },
     });
   }

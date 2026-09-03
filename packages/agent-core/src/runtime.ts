@@ -4,8 +4,10 @@ import {
   buildAbstention,
   classifyEnvelope,
   classifyUnwrapped,
+  formatRelevantIncidentsBlock,
   shouldAbstain,
   type Abstention,
+  type RelevantIncidentResult,
   type TruthGateMode,
   type Verdict,
 } from '@ftth-copilot/evidence';
@@ -17,6 +19,33 @@ import {
   type ProvenanceContext,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
+
+/**
+ * Args passed to an injected `retrievalProvider`. The runtime extracts a
+ * simple `deviceHint` from `opts.userMessage` via regex and forwards the
+ * caller-supplied tenantId + query verbatim. The runtime never asks for a
+ * DB connection itself — keeping `@ftth-copilot/agent-core` DB-free, the
+ * chat route owns the Prisma read and the tenant scope.
+ */
+export interface RetrievalProviderArgs {
+  tenantId: string;
+  query: string;
+  deviceHint?: string;
+  limit?: number;
+  sinceDays?: number;
+  mode?: 'live' | 'demo';
+}
+
+/**
+ * Optional opt-in callback that returns prior confirmed incidents as
+ * background context. Called exactly once per `runAgent` invocation, only
+ * when `opts.dataSource.mode === 'live'`. Must NEVER throw — failure here
+ * must not break the chat (the runtime wraps the call in try/catch). When
+ * undefined, retrieval is a no-op (Phase A/B/C behaviour is preserved).
+ */
+export type RetrievalProvider = (
+  args: RetrievalProviderArgs,
+) => Promise<RelevantIncidentResult[]> | RelevantIncidentResult[];
 
 export interface RunAgentOptions {
   userMessage: string;
@@ -42,6 +71,14 @@ export interface RunAgentOptions {
    * `incomplete`; `'observe'` conserva el comportamiento de Fase B.
    */
   mode?: TruthGateMode;
+  /**
+   * Optional retrieval hook for the Fase D pre-LLM context block. See
+   * `RetrievalProvider`. When defined AND `dataSource.mode === 'live'`, the
+   * runtime invokes it once before the LLM loop and appends the rendered
+   * block to the system prompt. In demo mode (or when omitted / throwing)
+   * the system prompt is byte-identical to the pre-Fase-D baseline.
+   */
+  retrievalProvider?: RetrievalProvider;
 }
 
 /**
@@ -61,6 +98,19 @@ export function resolveTruthGateMode(mode?: TruthGateMode): TruthGateMode {
 
 /** Encabezado fijo de toda abstención. Bloqueado por snapshot en los tests. */
 const ABSTENTION_HEADING = 'No puedo responder con la evidencia disponible.';
+
+/**
+ * Lightweight `(ONU|OLT)-?\d+` matcher over the user message. Returns the
+ * first captured device identifier (e.g. `ONU-123`, `OLT7`) or `undefined`
+ * when none is present. Deliberately cheap: no LLM call, no per-tool-call
+ * state — the runtime runs before the loop and only sees the operator
+ * question. Used as a soft hint to `retrievalProvider`; the actual ranking
+ * is still owned by `@ftth-copilot/evidence`.
+ */
+export function extractDeviceHintFromMessage(userMessage: string): string | undefined {
+  const match = /(ONU|OLT)-?\d+/i.exec(userMessage);
+  return match ? match[0].toUpperCase() : undefined;
+}
 
 /**
  * Renderiza el texto que ve el operador cuando el agente se abstiene:
@@ -176,9 +226,24 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       ? `\n\n## Fuente de datos de esta ejecución\nUsás el conector real ${opts.dataSource.provider} llamado "${opts.dataSource.label}".`
       : '';
 
+  /**
+   * Fase D (WU3): pre-LLM retrieval block. Augments the system prompt with
+   * the snapshot-locked Spanish heading + per-incident lines when:
+   *  1. `opts.retrievalProvider` is defined;
+   *  2. `opts.dataSource?.mode === 'live'` (demo is always skipped);
+   *  3. the provider returns a non-empty array.
+   *
+   * Failure modes (provider throws, returns `[]`, demo, undefined) all keep
+   * the system prompt byte-identical to the pre-Fase-D baseline — the
+   * retrieval block is pure augmentation, never required for the loop.
+   * Retrieved rows are BACKGROUND CONTEXT, never evidence: they never enter
+   * the Truth Gate data path (`result.verdicts`, `result.toolCalls`).
+   */
+  const retrievalBlock = await loadRetrievalBlock(opts);
+
   for (let i = 0; i < maxIterations; i++) {
     const response = await llm.createMessage({
-      system: SYSTEM_PROMPT + sourcePrompt,
+      system: SYSTEM_PROMPT + sourcePrompt + retrievalBlock,
       messages,
       tools,
       maxTokens: 2048,
@@ -204,4 +269,31 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   }
 
   return finalize('(el agente excedió el máximo de iteraciones de tool-calling)');
+}
+
+/**
+ * Loads the pre-LLM context block. Returns `''` whenever retrieval is
+ * skipped (provider undefined / demo mode / provider throws / empty
+ * result) so the caller can concatenate unconditionally. Every failure
+ * mode logs nothing and degrades silently: retrieval is augmentation,
+ * never a precondition for the loop. Snapshot-locked output via
+ * `formatRelevantIncidentsBlock`.
+ */
+async function loadRetrievalBlock(opts: RunAgentOptions): Promise<string> {
+  if (!opts.retrievalProvider) return '';
+  if (opts.dataSource?.mode !== 'live') return '';
+  let results: RelevantIncidentResult[];
+  try {
+    results = await opts.retrievalProvider({
+      tenantId: opts.tenantId ?? '',
+      query: opts.userMessage,
+      deviceHint: extractDeviceHintFromMessage(opts.userMessage),
+      mode: 'live',
+    });
+  } catch {
+    // Fail-safe: retrieval is augmentation, never required.
+    return '';
+  }
+  if (!Array.isArray(results) || results.length === 0) return '';
+  return formatRelevantIncidentsBlock(results);
 }
