@@ -5,6 +5,26 @@ import { useAuth } from '@/lib/auth/client';
 import { hasPermission } from '@/lib/auth/permissions';
 import { ServerStackIcon } from './icons';
 
+// ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
+//
+// Both roles fetch the same JSON body (`/api/topology/downstream`) and only
+// differ in rendering: OWNER/ADMIN see an expandable accordion with the full
+// ONU list + per-ONU status; OPERATOR/MEMBER see a compact summary line.
+// Snapshot-locked Spanish strings — the snapshot test in
+// `apps/web/tests/components/topology-impact.test.tsx` asserts byte equality.
+export const TOPOLOGY_HEADING_OWNER_ADMIN = 'Análisis de impacto';
+export const TOPOLOGY_HEADING_OPERATOR_MEMBER = 'Resumen';
+export const TOPOLOGY_EMPTY_MESSAGE = 'No hay datos de topología para este dispositivo.';
+
+type TopologyNodeKind = 'OLT' | 'PON_PORT' | 'SPLITTER' | 'CTO' | 'ONU';
+
+interface TopologyImpactProps {
+  deviceKind: TopologyNodeKind | string;
+  deviceId: string;
+  /** When true, renders the expandable accordion (OWNER/ADMIN). */
+  expandable: boolean;
+}
+
 interface Incident {
   id: string;
   deviceKind: string;
@@ -171,6 +191,15 @@ export function IncidentsPanel() {
                   <div className="mt-1 text-[11px] text-neutral-500">
                     <span className="font-mono">{incident.deviceKind} · {incident.deviceId}</span>
                   </div>
+                  {auth.user ? (
+                    <TopologyImpact
+                      deviceKind={incident.deviceKind}
+                      deviceId={incident.deviceId}
+                      expandable={
+                        auth.user.role === 'OWNER' || auth.user.role === 'ADMIN'
+                      }
+                    />
+                  ) : null}
                 </div>
                 {resolved && canConfirm ? (
                   <button
@@ -288,6 +317,121 @@ function ConfirmModal({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Fase E — `<TopologyImpact>` subcomponent. Fetches the downstream ONU list
+ * for the impacted device from `/api/topology/downstream` and renders it
+ * differently per role. Both roles always get the same JSON body; the
+ * divergence is purely presentational (per design decision #9 in
+ * `openspec/changes/fase-e-tenant-topology/design.md`).
+ */
+export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImpactProps) {
+  const [onuIds, setOnuIds] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/topology/downstream?kind=${encodeURIComponent(deviceKind)}&id=${encodeURIComponent(deviceId)}`,
+          { credentials: 'include' },
+        );
+        if (!response.ok) {
+          if (!cancelled) {
+            setOnuIds([]);
+            setLoading(false);
+          }
+          return;
+        }
+        const body = (await response.json().catch(() => ({}))) as { onuIds?: string[] };
+        if (!cancelled) {
+          setOnuIds(Array.isArray(body.onuIds) ? body.onuIds : []);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setOnuIds([]);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceKind, deviceId]);
+
+  if (loading) {
+    return (
+      <p className="mt-2 text-xs text-neutral-500" data-testid="topology-impact-loading">
+        …
+      </p>
+    );
+  }
+
+  const heading = expandable ? TOPOLOGY_HEADING_OWNER_ADMIN : TOPOLOGY_HEADING_OPERATOR_MEMBER;
+  const ids = onuIds ?? [];
+
+  // Compact summary for OPERATOR/MEMBER — single line, no expansion.
+  if (!expandable) {
+    return (
+      <div className="mt-2 text-xs text-neutral-400" data-testid="topology-impact-compact">
+        <span className="font-medium text-neutral-300">{heading}:</span>{' '}
+        {ids.length === 0 ? (
+          <span className="text-neutral-500">{TOPOLOGY_EMPTY_MESSAGE}</span>
+        ) : (
+          <span>
+            {deviceKind} · {ids.length} ONU{ids.length === 1 ? '' : 's'} afectadas
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Expandable accordion for OWNER/ADMIN — click to reveal the full list.
+  return (
+    <div className="mt-2" data-testid="topology-impact-accordion">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        data-testid="topology-impact-toggle"
+        className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs font-medium text-neutral-200 hover:bg-white/[0.06]"
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span>
+          {heading}
+          {ids.length === 0 ? null : (
+            <span className="ml-1.5 text-neutral-500">
+              · {ids.length} ONU{ids.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </span>
+      </button>
+      {open ? (
+        <div className="mt-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-xs text-neutral-300">
+          {ids.length === 0 ? (
+            <p className="text-neutral-500" data-testid="topology-impact-empty">
+              {TOPOLOGY_EMPTY_MESSAGE}
+            </p>
+          ) : (
+            <ul className="space-y-0.5" data-testid="topology-impact-list">
+              {ids.map((onuId) => (
+                <li key={onuId} className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-neutral-200">{onuId}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-500">
+                    afectado
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
