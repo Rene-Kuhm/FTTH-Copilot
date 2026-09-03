@@ -25,6 +25,13 @@ export const PENDING_INCIDENT_CANDIDATE_SCHEMA =
 // Fase E — per-tenant override envelope (1:1 with Tenant). Absent row →
 // byte-identical to Fase C/D; per-tenant wins over env over module default.
 export const TENANT_POLICY_SCHEMA = 'ftth.tenant-policy.v1' as const;
+// Fase E — temporal topology (single-edge model). 5 node kinds; the BFS
+// helpers + Prisma reads filter `validTo: null` to derive the live graph.
+export const TOPOLOGY_EDGE_SCHEMA = 'ftth.topology-edge.v1' as const;
+
+/** Node kinds allowed on either side of a `TopologyEdge`. */
+export const topologyNodeKindSchema = z.enum(['OLT', 'PON_PORT', 'SPLITTER', 'CTO', 'ONU']);
+export type TopologyNodeKind = z.infer<typeof topologyNodeKindSchema>;
 
 // ── evidence.provenance.v1 ──────────────────────────────────────────────────
 
@@ -298,3 +305,52 @@ export const tenantPolicySchema = z
   .strict();
 
 export type TenantPolicy = z.infer<typeof tenantPolicySchema>;
+
+// ── ftth.topology-edge.v1 (Fase E — temporal topology) ───────────────────────
+//
+// Stable JSON envelope for a single directed edge in the FTTH hierarchy
+// (OLT → PON_PORT → SPLITTER → CTO → ONU). One row per edge; the BFS
+// helpers (`bfsDownstream`, `bfsAncestors`, `topologyPath`) in
+// `@ftth-copilot/evidence/src/topology.ts` traverse the live graph filtered
+// by `validTo === null`.
+//
+// Field bounds:
+//   - schema         : literal `'ftth.topology-edge.v1'`
+//   - id             : non-empty cuid/uuid (Prisma-side default)
+//   - tenantId       : non-empty; FK to `tenants.id` in the DB
+//   - parentKind / childKind : `OLT | PON_PORT | SPLITTER | CTO | ONU`
+//   - parentId / childId     : non-empty device identifiers
+//   - validFrom      : ISO datetime; required
+//   - validTo        : ISO datetime; nullable; when set MUST be > validFrom
+//   - source         : non-empty free-form (operator entry, future ingestion)
+//
+// `.strict()` rejects unknown top-level keys; the cross-field `refine`
+// enforces `validTo > validFrom` whenever `validTo` is provided. Self-loops
+// (parent == child on both sides) are allowed — the cycle guard in the BFS
+// helpers prevents infinite loops. The DB layer does not enforce a unique
+// constraint on (tenant, parent, child) because historical edges may
+// legitimately repeat the same (parent, child) tuple with different
+// `validFrom` / `validTo` windows.
+export const topologyEdgeSchema = z
+  .object({
+    schema: z.literal(TOPOLOGY_EDGE_SCHEMA),
+    id: z.string().min(1),
+    tenantId: z.string().min(1),
+    parentKind: topologyNodeKindSchema,
+    parentId: z.string().min(1),
+    childKind: topologyNodeKindSchema,
+    childId: z.string().min(1),
+    validFrom: z.string().datetime(),
+    validTo: z.string().datetime().nullable().optional(),
+    source: z.string().min(1),
+    createdAt: z.string().datetime(),
+  })
+  .strict()
+  .refine(
+    (e) =>
+      e.validTo == null ||
+      new Date(e.validTo).getTime() > new Date(e.validFrom).getTime(),
+    { message: 'validTo must be greater than validFrom', path: ['validTo'] },
+  );
+
+export type TopologyEdge = z.infer<typeof topologyEdgeSchema>;

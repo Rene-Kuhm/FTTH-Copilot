@@ -16,11 +16,16 @@ import {
   pendingIncidentCandidateSchema,
   TENANT_POLICY_SCHEMA,
   tenantPolicySchema,
+  TOPOLOGY_EDGE_SCHEMA,
+  topologyEdgeSchema,
+  topologyNodeKindSchema,
   type Abstention,
   type ConfirmedIncident,
   type PendingIncidentCandidate,
   type RelevantIncidentResult,
   type TenantPolicy,
+  type TopologyEdge,
+  type TopologyNodeKind,
 } from '../src/contracts';
 
 describe('telemetry.v1', () => {
@@ -649,5 +654,140 @@ describe('ftth.tenant-policy.v1', () => {
     expect(roundTripped.tenantId).toBe('t1');
     expect(roundTripped.truthGateMode).toBe('observe');
     expect(roundTripped.abstainOnCodes).toEqual(['incomplete', 'stale']);
+  });
+});
+
+// ── Fase E — ftth.topology-edge.v1 ───────────────────────────────────────────
+
+describe('ftth.topology-edge.v1', () => {
+  const valid: TopologyEdge = {
+    schema: TOPOLOGY_EDGE_SCHEMA,
+    id: 'te-1',
+    tenantId: 't1',
+    parentKind: 'OLT',
+    parentId: 'OLT-001',
+    childKind: 'PON_PORT',
+    childId: 'PON-1',
+    validFrom: '2026-09-01T11:00:00.000Z',
+    validTo: null,
+    source: 'manual:ops@isp.com',
+    createdAt: '2026-09-01T11:00:00.000Z',
+  };
+
+  it('exports the literal version marker ftth.topology-edge.v1', () => {
+    expect(TOPOLOGY_EDGE_SCHEMA).toBe('ftth.topology-edge.v1');
+  });
+
+  it('exports a topologyNodeKindSchema enum covering exactly 5 kinds', () => {
+    const parsed = topologyNodeKindSchema.safeParse('OLT');
+    expect(parsed.success).toBe(true);
+    const values: ReadonlyArray<TopologyNodeKind> = [
+      'OLT',
+      'PON_PORT',
+      'SPLITTER',
+      'CTO',
+      'ONU',
+    ];
+    for (const v of values) {
+      expect(topologyNodeKindSchema.safeParse(v).success).toBe(true);
+    }
+    expect(topologyNodeKindSchema.safeParse('SWITCH').success).toBe(false);
+  });
+
+  it('accepts a valid envelope', () => {
+    expect(topologyEdgeSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects a wrong schema literal (v2)', () => {
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, schema: 'ftth.topology-edge.v2' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown parentKind or childKind', () => {
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, parentKind: 'SWITCH' as never }).success,
+    ).toBe(false);
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, childKind: 'DSLAM' as never }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an empty tenantId / parentId / childId / id / source', () => {
+    expect(topologyEdgeSchema.safeParse({ ...valid, tenantId: '' }).success).toBe(false);
+    expect(topologyEdgeSchema.safeParse({ ...valid, parentId: '' }).success).toBe(false);
+    expect(topologyEdgeSchema.safeParse({ ...valid, childId: '' }).success).toBe(false);
+    expect(topologyEdgeSchema.safeParse({ ...valid, id: '' }).success).toBe(false);
+    expect(topologyEdgeSchema.safeParse({ ...valid, source: '' }).success).toBe(false);
+  });
+
+  it('accepts validTo = null (live edge) and rejects validTo <= validFrom', () => {
+    expect(topologyEdgeSchema.safeParse({ ...valid, validTo: null }).success).toBe(true);
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, validTo: valid.validFrom }).success,
+    ).toBe(false);
+    expect(
+      topologyEdgeSchema.safeParse({
+        ...valid,
+        validFrom: '2026-09-02T00:00:00.000Z',
+        validTo: '2026-09-01T00:00:00.000Z',
+      }).success,
+    ).toBe(false);
+    // validTo strictly greater than validFrom passes.
+    expect(
+      topologyEdgeSchema.safeParse({
+        ...valid,
+        validFrom: '2026-09-01T00:00:00.000Z',
+        validTo: '2026-09-02T00:00:00.000Z',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects an invalid datetime on validFrom / validTo / createdAt', () => {
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, validFrom: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, validTo: 'not-a-date' }).success,
+    ).toBe(false);
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, createdAt: 'not-a-date' }).success,
+    ).toBe(false);
+  });
+
+  it('accepts every declared TopologyNodeKind value on either side', () => {
+    const kinds: ReadonlyArray<TopologyNodeKind> = ['OLT', 'PON_PORT', 'SPLITTER', 'CTO', 'ONU'];
+    for (const parentKind of kinds) {
+      for (const childKind of kinds) {
+        expect(
+          topologyEdgeSchema.safeParse({ ...valid, parentKind, childKind }).success,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('accepts a self-loop edge (BFS cycle guard handles it; the schema is permissive)', () => {
+    const selfLoop: TopologyEdge = {
+      ...valid,
+      parentKind: 'OLT',
+      parentId: 'OLT-001',
+      childKind: 'OLT',
+      childId: 'OLT-001',
+    };
+    expect(topologyEdgeSchema.safeParse(selfLoop).success).toBe(true);
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(
+      topologyEdgeSchema.safeParse({ ...valid, extraField: 'nope' }).success,
+    ).toBe(false);
+  });
+
+  it('round-trips through JSON.parse(JSON.stringify(...)) preserving all fields', () => {
+    const roundTripped = JSON.parse(JSON.stringify(valid)) as TopologyEdge;
+    expect(topologyEdgeSchema.safeParse(roundTripped).success).toBe(true);
+    expect(roundTripped.parentId).toBe('OLT-001');
+    expect(roundTripped.validTo).toBeNull();
+    expect(roundTripped.parentKind).toBe('OLT');
   });
 });
