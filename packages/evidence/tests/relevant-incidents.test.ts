@@ -1,0 +1,224 @@
+import { describe, expect, it } from 'vitest';
+import type { ConfirmedIncident } from '@ftth-copilot/shared';
+import {
+  DEFAULT_LIMIT,
+  DEFAULT_SINCE_DAYS,
+  MIN_SPARSESCORE,
+  MissingTenantError,
+  RRF_K,
+  retrieveRelevantIncidents,
+} from '../src/relevant-incidents';
+
+const NOW = new Date('2026-09-01T12:00:00.000Z');
+const DAY_MS = 86_400_000;
+
+function daysAgo(days: number): string {
+  return new Date(NOW.getTime() - days * DAY_MS).toISOString();
+}
+
+function incident(overrides: Partial<ConfirmedIncident> & { id: string }): ConfirmedIncident {
+  return {
+    schema: 'ftth.confirmed-incident.v1',
+    tenantId: 't1',
+    deviceKind: 'ONU',
+    deviceId: 'onu-1',
+    sourceTool: 'get_onu_detail',
+    summary: 'RX bajo en la ONU',
+    symptoms: [],
+    rootCause: 'Conector sucio',
+    fix: 'Limpieza de conector',
+    searchTokens: 'rx bajo onu potencia',
+    observedAt: daysAgo(30),
+    resolvedAt: daysAgo(30),
+    createdAt: daysAgo(30),
+    updatedAt: daysAgo(30),
+    confirmedBy: 'operator',
+    ...overrides,
+  };
+}
+
+describe('retrieveRelevantIncidents — constants', () => {
+  it('locks the RRF and retrieval defaults', () => {
+    expect(RRF_K).toBe(60);
+    expect(MIN_SPARSESCORE).toBe(0.05);
+    expect(DEFAULT_LIMIT).toBe(5);
+    expect(DEFAULT_SINCE_DAYS).toBe(90);
+  });
+});
+
+describe('retrieveRelevantIncidents — refusal and short-circuits', () => {
+  it('throws MissingTenantError when tenantId is empty', () => {
+    expect(() =>
+      retrieveRelevantIncidents({ tenantId: '', query: 'rx bajo', confirmedIncidents: [] }),
+    ).toThrow(MissingTenantError);
+  });
+
+  it('returns [] on cold start (no confirmed incidents at all)', () => {
+    expect(
+      retrieveRelevantIncidents({ tenantId: 't1', query: 'rx bajo', confirmedIncidents: [] }),
+    ).toEqual([]);
+  });
+
+  it('returns [] in demo mode even when rows would match', () => {
+    const rows = [incident({ id: 'ci-1' })];
+    expect(
+      retrieveRelevantIncidents({
+        tenantId: 't1',
+        query: 'rx bajo',
+        mode: 'demo',
+        now: NOW,
+        confirmedIncidents: rows,
+      }),
+    ).toEqual([]);
+    // Same rows in live mode DO return — proves the short-circuit is the cause.
+    expect(
+      retrieveRelevantIncidents({
+        tenantId: 't1',
+        query: 'rx bajo',
+        mode: 'live',
+        now: NOW,
+        confirmedIncidents: rows,
+      }),
+    ).toHaveLength(1);
+  });
+});
+
+describe('retrieveRelevantIncidents — filtering', () => {
+  it('drops rows belonging to another tenant (cross-tenant isolation)', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't2',
+      query: 'rx bajo',
+      now: NOW,
+      confirmedIncidents: [incident({ id: 'ci-1', tenantId: 't1' })],
+    });
+    expect(results).toEqual([]);
+  });
+
+  it('keeps only rows resolved inside the sinceDays window', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      sinceDays: 90,
+      confirmedIncidents: [
+        incident({ id: 'old', resolvedAt: daysAgo(100) }),
+        incident({ id: 'recent', resolvedAt: daysAgo(30) }),
+      ],
+    });
+    expect(results.map((r) => r.id)).toEqual(['recent']);
+  });
+
+  it('drops rows whose sparse score is below MIN_SPARSESCORE', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      confirmedIncidents: [
+        incident({ id: 'match', searchTokens: 'rx bajo onu' }),
+        incident({ id: 'unrelated', searchTokens: 'corte fibra troncal' }),
+      ],
+    });
+    expect(results.map((r) => r.id)).toEqual(['match']);
+  });
+
+  it('caps the output at the requested limit', () => {
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      incident({ id: `ci-${i}`, searchTokens: `rx bajo onu-${i}` }),
+    );
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      limit: 3,
+      confirmedIncidents: rows,
+    });
+    expect(results).toHaveLength(3);
+    for (const row of results) {
+      expect(row.score).toBeGreaterThanOrEqual(MIN_SPARSESCORE);
+    }
+  });
+
+  it('caps at DEFAULT_LIMIT when no limit is given', () => {
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      incident({ id: `ci-${i}`, searchTokens: `rx bajo onu-${i}` }),
+    );
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      confirmedIncidents: rows,
+    });
+    expect(results).toHaveLength(DEFAULT_LIMIT);
+  });
+});
+
+describe('retrieveRelevantIncidents — ranking', () => {
+  it('ranks the deviceHint-matched row above an otherwise identical row', () => {
+    const rows = [
+      incident({ id: 'other', deviceId: 'onu-9' }),
+      incident({ id: 'hinted', deviceId: 'onu-1' }),
+    ];
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      deviceHint: 'onu-1',
+      now: NOW,
+      confirmedIncidents: rows,
+    });
+    expect(results.map((r) => r.id)).toEqual(['hinted', 'other']);
+    expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
+  });
+
+  it('accepts an object deviceHint and matches on deviceKind + deviceId', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      deviceHint: { deviceKind: 'ONU', deviceId: 'onu-1' },
+      now: NOW,
+      confirmedIncidents: [
+        incident({ id: 'other', deviceId: 'onu-9' }),
+        incident({ id: 'hinted', deviceId: 'onu-1' }),
+      ],
+    });
+    expect(results.map((r) => r.id)).toEqual(['hinted', 'other']);
+  });
+
+  it('returns scores in [0, 1], sorted descending, with rank 1 at RRF top', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo potencia',
+      now: NOW,
+      confirmedIncidents: [
+        incident({ id: 'weak', searchTokens: 'rx corte' }),
+        incident({ id: 'strong', searchTokens: 'rx bajo potencia onu' }),
+      ],
+    });
+    expect(results.map((r) => r.id)).toEqual(['strong', 'weak']);
+    expect(results[0]!.score).toBeCloseTo(1, 6);
+    expect(results[1]!.score).toBeCloseTo((RRF_K + 1) / (RRF_K + 2), 6);
+    expect(results[1]!.score).toBeLessThan(results[0]!.score);
+  });
+
+  it('is deterministic: identical input yields identical output', () => {
+    const rows = [
+      incident({ id: 'a', searchTokens: 'rx bajo onu' }),
+      incident({ id: 'b', searchTokens: 'rx bajo potencia onu' }),
+    ];
+    const args = { tenantId: 't1', query: 'rx bajo', now: NOW, confirmedIncidents: rows } as const;
+    expect(retrieveRelevantIncidents({ ...args })).toEqual(
+      retrieveRelevantIncidents({ ...args }),
+    );
+  });
+
+  it('preserves every ConfirmedIncident field and adds score', () => {
+    const [result] = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      confirmedIncidents: [incident({ id: 'ci-1' })],
+    });
+    expect(result!.id).toBe('ci-1');
+    expect(result!.rootCause).toBe('Conector sucio');
+    expect(typeof result!.score).toBe('number');
+  });
+});
