@@ -36,10 +36,12 @@ export interface ChatResponse {
 }
 
 export * from './contracts';
-export type { EvidenceProvenance } from './contracts';
+export type { EvidenceProvenance, Abstention } from './contracts';
 export {
   EVIDENCE_PROVENANCE_SCHEMA,
   evidenceProvenanceSchema,
+  ABSTENTION_SCHEMA,
+  abstentionSchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,
 } from './contracts';
