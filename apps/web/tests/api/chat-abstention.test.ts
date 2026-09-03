@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   prismaDetectedAlertFindMany: vi.fn(),
   prismaConfirmedIncidentFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
+  prismaTenantPolicyFindUnique: vi.fn(),
+  loadTenantPolicy: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   resolveTenantConnector: vi.fn(),
@@ -65,7 +67,14 @@ vi.mock('@ftth-copilot/db', () => ({
     pendingIncidentCandidate: {
       create: mocks.prismaPendingIncidentCandidateCreate,
     },
+    tenantPolicy: {
+      findUnique: mocks.prismaTenantPolicyFindUnique,
+    },
   },
+}));
+
+vi.mock('@/lib/policies/load-tenant-policy', () => ({
+  loadTenantPolicy: mocks.loadTenantPolicy,
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -146,6 +155,8 @@ function setupHappyPath() {
   mocks.prismaDetectedAlertFindMany.mockReset();
   mocks.prismaConfirmedIncidentFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
+  mocks.prismaTenantPolicyFindUnique.mockReset();
+  mocks.loadTenantPolicy.mockReset();
   mocks.getCurrentUser.mockResolvedValue(fakeUser);
   mocks.hasPermission.mockReturnValue(true);
   mocks.resolveTenantConnector.mockResolvedValue({
@@ -163,6 +174,9 @@ function setupHappyPath() {
   // WU3 — default: write gate never fires in this suite (we assert the abstention
   // path explicitly, where the gate MUST stay closed).
   mocks.prismaPendingIncidentCandidateCreate.mockResolvedValue({ id: 'pending-1' });
+  // Fase E — default: no TenantPolicy row → runAgent receives tenantPolicy: undefined.
+  mocks.prismaTenantPolicyFindUnique.mockResolvedValue(null);
+  mocks.loadTenantPolicy.mockResolvedValue(null);
 }
 
 beforeEach(() => {
