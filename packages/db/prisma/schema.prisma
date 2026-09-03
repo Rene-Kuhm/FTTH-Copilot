@@ -99,6 +99,14 @@ enum ConfirmedBy {
   system
 }
 
+// Fase E — per-tenant override of Fase C/D module constants. One row per
+// Tenant (1:1). Absent → byte-identical to Fase C/D; per-tenant wins over
+// env over module default. See `openspec/changes/fase-e-tenant-topology/`.
+enum TruthGateMode {
+  observe
+  strict
+}
+
 // Lifecycle of a PendingIncidentCandidate before promotion to ConfirmedIncident.
 enum PendingIncidentStatus {
   pending
@@ -124,6 +132,7 @@ model Tenant {
 
   confirmedIncidents        ConfirmedIncident[]
   pendingIncidentCandidates PendingIncidentCandidate[]
+  policy                    TenantPolicy?
 
   @@map("tenants")
 }
@@ -432,4 +441,28 @@ model PendingIncidentCandidate {
 
   @@index([tenantId, status])
   @@map("pending_incident_candidates")
+}
+
+// Fase E — per-tenant override envelope (1:1 with Tenant). Five nullable
+// knobs, all independently optional; absent → Fase C/D module default.
+// `schemaVersion` is a forward-compat migration lever; the matching zod
+// contract is `tenantPolicySchema` (`ftth.tenant-policy.v1`) in
+// `@ftth-copilot/shared`. `lastEvaluatedAt` is the timestamp the runtime
+// last consulted the row (cheap observability hook for Fase E precedence
+// logging). `abstainOnCodes` is JSON-stringified so we can ship without a
+// Postgres-array dep — the chat route / promotion loader both decode it.
+model TenantPolicy {
+  tenantId           String       @id
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  schemaVersion      Int          @default(1)
+  retrievalLimit     Int?
+  retrievalSinceDays Int?
+  truthGateMode      TruthGateMode?
+  abstainOnCodes     Json?
+  promotionMinAgeMs  Int?
+  lastEvaluatedAt    DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@map("tenant_policies")
 }
