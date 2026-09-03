@@ -1,0 +1,12 @@
+{
+  "_note": "Golden response for GET /api/topology/path?kind=ONU&id=ONU-1 with a single OLT-1 → PON-1 → CTO-1 → ONU-1 chain. Locked snapshot — the regression net for any UI rendering of the parent → leaf chain.",
+  "schema": "ftth.topology.v1",
+  "kind": "ONU",
+  "id": "ONU-1",
+  "path": [
+    { "kind": "ONU", "id": "ONU-1" },
+    { "kind": "CTO", "id": "CTO-1" },
+    { "kind": "PON_PORT", "id": "PON-1" },
+    { "kind": "OLT", "id": "OLT-1" }
+  ]
+}

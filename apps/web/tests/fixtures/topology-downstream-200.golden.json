@@ -1,0 +1,8 @@
+{
+  "_note": "Golden response for GET /api/topology/downstream?kind=OLT&id=OLT-1 with three direct ONU children. Locked snapshot — the regression net for any UI rendering of the downstream impact list.",
+  "schema": "ftth.topology.v1",
+  "kind": "OLT",
+  "id": "OLT-1",
+  "onuIds": ["ONU-1", "ONU-2", "ONU-3"],
+  "edgesTraversed": 3
+}
