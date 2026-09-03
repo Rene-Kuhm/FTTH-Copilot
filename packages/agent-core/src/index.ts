@@ -9,7 +9,7 @@ export {
   type RunAgentOptions,
   type ResolvedTenantPolicy,
 } from './runtime';
-export { buildTools, executeToolCall, buildDefaultConnector } from './tools/index';
+export { buildTools, executeToolCall, buildDefaultConnector, type TopologyProvider } from './tools/index';
 export {
   PROVENANCE_TOOL_META,
   defaultProvenance,
