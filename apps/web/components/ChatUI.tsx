@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
+import type { Abstention } from '@ftth-copilot/shared';
 import { useAuth } from '@/lib/auth/client';
 import { useConnectors } from '@/lib/connectors/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
@@ -27,11 +28,26 @@ interface DataSource {
   label: string;
 }
 
+/**
+ * Synthetic tool row emitted by `/api/chat` whenever the agent abstains
+ * in strict mode (Fase C). The ChatUI keys the warning bubble off this
+ * pseudo-name and suppresses the regular tool chip for it.
+ */
+const ABSTENTION_PSEUDO_TOOL = '__abstention__';
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   toolsUsed?: ToolCall[];
+  /**
+   * Optional `ftth.abstention.v1` envelope forwarded by `/api/chat`
+   * when the agent abstained. Drives the warning bubble; independent
+   * of `toolsUsed` so server reloads (where the synthetic row is
+   * reconstructed from Message.toolCalls) and live responses (where
+   * the envelope is on the response body) both render correctly.
+   */
+  abstention?: Abstention;
   /** Monotonic sequence number used for ordering in the UI. */
   seq: number;
 }
@@ -145,6 +161,7 @@ export default function ChatUI() {
         toolsUsed: ToolCall[];
         conversationId: string;
         dataSource: DataSource;
+        abstention?: Abstention;
       };
       if (data.conversationId) setConversationId(data.conversationId);
       setDataSource(data.dataSource);
@@ -154,6 +171,7 @@ export default function ChatUI() {
         role: 'assistant',
         content: data.reply,
         toolsUsed: data.toolsUsed,
+        abstention: data.abstention,
         seq: nextSeq(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -407,15 +425,36 @@ function EmptyState({
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
+  // The synthetic `__abstention__` tool row (Phase 3) drives the warning
+  // bubble. We hide it from the chip list so operators only see the real
+  // tool calls the agent attempted.
+  const abstentionRow = message.toolsUsed?.find(
+    (t) => t.name === ABSTENTION_PSEUDO_TOOL,
+  );
+  const abstentionFromRow =
+    abstentionRow && typeof abstentionRow === 'object'
+      ? ((abstentionRow as unknown as { args?: { mode?: unknown } }).args as
+          | { mode?: unknown }
+          | undefined)
+      : undefined;
+  const effectiveAbstention = message.abstention;
+  const visibleTools = message.toolsUsed?.filter(
+    (t) => t.name !== ABSTENTION_PSEUDO_TOOL,
+  );
+  const showAbstentionBubble = !!abstentionRow || !!effectiveAbstention;
+  // Suppress the unused-variable warning when neither field is set — the
+  // bubble trigger ignores the `mode` arg today, but the row carries it for
+  // future per-tool filtering.
+  void abstentionFromRow;
   return (
     <div
       className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}
     >
-      {message.toolsUsed && message.toolsUsed.length > 0 && (
+      {visibleTools && visibleTools.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
           <CommandLineIcon className="h-3.5 w-3.5" />
           <span className="font-medium">Herramientas:</span>
-          {message.toolsUsed.map((t, i) => (
+          {visibleTools.map((t, i) => (
             <span
               key={i}
               className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-0.5 font-mono text-[11px] text-neutral-400"
@@ -424,6 +463,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             </span>
           ))}
         </div>
+      )}
+      {showAbstentionBubble && effectiveAbstention && (
+        <AbstentionBubble abstention={effectiveAbstention} />
       )}
       <div
         className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
@@ -434,6 +476,49 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       >
         <div className="whitespace-pre-wrap">{message.content}</div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Phase 3 warning bubble rendered when the agent abstained in strict
+ * mode (Fase C). The bubble is keyed off the `abstention` envelope —
+ * either forwarded live on the `/api/chat` response body or
+ * reconstructed from the persisted `__abstention__` row in history.
+ *
+ * Style matches the existing `text-amber-*` warning tint used by the
+ * data-source banner and the read-only notice, so the operator sees
+ * one consistent warning visual across the surface.
+ */
+function AbstentionBubble({ abstention }: { abstention: Abstention }) {
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      data-testid="abstention-bubble"
+      className="flex w-full max-w-[88%] flex-col gap-2 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-amber-200"
+    >
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+        <span aria-hidden="true">🔒</span>
+        No se pudo respaldar el diagnóstico
+      </h3>
+      {abstention.missing.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-300/80">
+            Falta evidencia de
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px] leading-5 text-amber-100">
+            {abstention.missing.map((toolName) => (
+              <li key={toolName} className="font-mono">
+                {toolName}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-[13px] leading-5 text-amber-100">
+        {abstention.nextStep}
+      </p>
     </div>
   );
 }
