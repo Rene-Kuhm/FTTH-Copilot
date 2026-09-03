@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   prismaConfirmedIncidentCreate: vi.fn(),
   prismaAgentActionLogCreate: vi.fn(),
   prismaPendingIncidentCandidateUpdate: vi.fn(),
+  prismaTenantPolicyFindMany: vi.fn(),
 }));
 
 vi.mock('@ftth-copilot/db', () => ({
@@ -43,6 +44,9 @@ vi.mock('@ftth-copilot/db', () => ({
     agentActionLog: {
       create: mocks.prismaAgentActionLogCreate,
     },
+    tenantPolicy: {
+      findMany: mocks.prismaTenantPolicyFindMany,
+    },
   },
 }));
 
@@ -52,9 +56,11 @@ beforeEach(() => {
   mocks.prismaConfirmedIncidentCreate.mockReset();
   mocks.prismaAgentActionLogCreate.mockReset();
   mocks.prismaPendingIncidentCandidateUpdate.mockReset();
+  mocks.prismaTenantPolicyFindMany.mockReset();
   mocks.prismaConfirmedIncidentCreate.mockImplementation(({ data }) => ({ id: 'ci-1', ...data }));
   mocks.prismaAgentActionLogCreate.mockResolvedValue({ id: 'log-1' });
   mocks.prismaPendingIncidentCandidateUpdate.mockResolvedValue({ id: 'pc-1' });
+  mocks.prismaTenantPolicyFindMany.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -221,5 +227,135 @@ describe('promotePendingIncidents — eligibility gate', () => {
     const result = await promotePendingIncidents(NOW);
     expect(result).toEqual({ promoted: 0, skipped: 0 });
     expect(mocks.prismaConfirmedIncidentCreate).not.toHaveBeenCalled();
+  });
+});
+
+// ── Fase E — per-tenant promotionMinAgeMs (policyLoader 2nd arg) ─────────────
+
+describe('promotePendingIncidents — Fase E per-tenant policyLoader', () => {
+  const policyFor = (
+    overrides: Record<string, unknown>,
+  ): {
+    schema: 'ftth.tenant-policy.v1';
+    schemaVersion: 1;
+    tenantId: string;
+    [k: string]: unknown;
+  } => ({
+    schema: 'ftth.tenant-policy.v1',
+    schemaVersion: 1,
+    tenantId: 'tenant-1',
+    ...overrides,
+  });
+
+  function setupCandidates(
+    candidates: Array<{ id: string; tenantId: string; hoursAgo: number }>,
+  ): void {
+    mocks.prismaPendingIncidentCandidateFindMany.mockResolvedValue(
+      candidates.map((c) => ({
+        id: c.id,
+        tenantId: c.tenantId,
+        sourceIncidentId: `inc-${c.id}`,
+        summary: 'RX bajo',
+        toolCallsJson: [{ toolName: 'get_onu_detail', code: 'ok' }],
+        runSessionId: 'conv-1',
+        proposedConfirmedAt: hoursAgo(c.hoursAgo),
+        status: 'pending',
+      })),
+    );
+    mocks.prismaIncidentFindMany.mockResolvedValue(
+      candidates.map((c) => ({
+        id: `inc-${c.id}`,
+        tenantId: c.tenantId,
+        deviceKind: 'ONU',
+        deviceId: 'onu-1',
+        status: 'resolved',
+        resolvedAt: hoursAgo(c.hoursAgo),
+      })),
+    );
+  }
+
+  it('absent policyLoader → Fase D 24h baseline (per-tenant override never applies)', async () => {
+    setupCandidates([{ id: 'pc-1', tenantId: 'tenant-1', hoursAgo: 25 }]);
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW);
+    expect(result).toEqual({ promoted: 1, skipped: 0 });
+    expect(mocks.prismaTenantPolicyFindMany).not.toHaveBeenCalled();
+  });
+
+  it('per-tenant promotionMinAgeMs: 60_000 (1min) promotes a 5-minute-old candidate', async () => {
+    setupCandidates([{ id: 'pc-1', tenantId: 'tenant-1', hoursAgo: 0.083 }]); // ~5 min
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW, async () =>
+      new Map([['tenant-1', policyFor({ promotionMinAgeMs: 60_000 })]]),
+    );
+    expect(result).toEqual({ promoted: 1, skipped: 0 });
+  });
+
+  it('per-tenant promotionMinAgeMs: 259_200_000 (72h) blocks a 25h-old candidate', async () => {
+    setupCandidates([{ id: 'pc-1', tenantId: 'tenant-1', hoursAgo: 25 }]);
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW, async () =>
+      new Map([['tenant-1', policyFor({ promotionMinAgeMs: 259_200_000 })]]),
+    );
+    expect(result).toEqual({ promoted: 0, skipped: 1 });
+  });
+
+  it('per-tenant promotionMinAgeMs: 0 promotes immediately', async () => {
+    setupCandidates([{ id: 'pc-1', tenantId: 'tenant-1', hoursAgo: 0 }]);
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW, async () =>
+      new Map([['tenant-1', policyFor({ promotionMinAgeMs: 0 })]]),
+    );
+    expect(result).toEqual({ promoted: 1, skipped: 0 });
+  });
+
+  it('10 candidates across 4 tenants → exactly ONE policyLoader call (batched Map, no N+1)', async () => {
+    setupCandidates([
+      { id: 'pc-1', tenantId: 't1', hoursAgo: 25 },
+      { id: 'pc-2', tenantId: 't2', hoursAgo: 25 },
+      { id: 'pc-3', tenantId: 't3', hoursAgo: 25 },
+      { id: 'pc-4', tenantId: 't4', hoursAgo: 25 },
+      { id: 'pc-5', tenantId: 't1', hoursAgo: 25 },
+      { id: 'pc-6', tenantId: 't2', hoursAgo: 25 },
+      { id: 'pc-7', tenantId: 't3', hoursAgo: 25 },
+      { id: 'pc-8', tenantId: 't4', hoursAgo: 25 },
+      { id: 'pc-9', tenantId: 't1', hoursAgo: 25 },
+      { id: 'pc-10', tenantId: 't2', hoursAgo: 25 },
+    ]);
+    const policyLoader = vi.fn(
+      async (tenantIds: ReadonlyArray<string>) =>
+        new Map(tenantIds.map((t) => [t, policyFor({ tenantId: t })])),
+    );
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW, policyLoader);
+    expect(result.promoted).toBe(10);
+    expect(policyLoader).toHaveBeenCalledTimes(1);
+    // The single call must receive the deduped tenantIds list.
+    expect(policyLoader.mock.calls[0]?.[0].sort()).toEqual(['t1', 't2', 't3', 't4']);
+  });
+
+  it('mixed scenario: some tenants have a policy, others use the 24h default', async () => {
+    setupCandidates([
+      { id: 'pc-1', tenantId: 'fast', hoursAgo: 0.083 }, // 5min
+      { id: 'pc-2', tenantId: 'slow', hoursAgo: 25 }, // resolved 25h ago, slow policy requires 72h
+      { id: 'pc-3', tenantId: 'default', hoursAgo: 25 }, // resolved 25h ago, no policy → 24h passes
+    ]);
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    const result = await promotePendingIncidents(NOW, async () =>
+      new Map([
+        ['fast', policyFor({ tenantId: 'fast', promotionMinAgeMs: 60_000 })],
+        ['slow', policyFor({ tenantId: 'slow', promotionMinAgeMs: 259_200_000 })],
+      ]),
+    );
+    // fast (5min > 1min) → promoted; slow (25h < 72h) → skipped; default (25h > 24h) → promoted
+    expect(result).toEqual({ promoted: 2, skipped: 1 });
+  });
+
+  it('no candidates → policyLoader is not invoked', async () => {
+    mocks.prismaPendingIncidentCandidateFindMany.mockResolvedValue([]);
+    const policyLoader = vi.fn(async () => new Map());
+    const { promotePendingIncidents } = await import('@/lib/promote-pending-incidents');
+    await promotePendingIncidents(NOW, policyLoader);
+    expect(policyLoader).not.toHaveBeenCalled();
   });
 });

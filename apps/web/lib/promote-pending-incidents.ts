@@ -5,14 +5,24 @@
  * have aged past the 24h grace period. Pure eligibility logic lives in
  * `@ftth-copilot/evidence` (`eligibleForPromotion`); this module only
  * orchestrates the persistence shell so the admin route stays thin.
+ *
+ * Fase E — optional `policyLoader` argument. The route passes
+ * `loadTenantPolicy` so each candidate can consult its tenant's
+ * `promotionMinAgeMs` override without an N+1 DB round-trip. The loader
+ * is called AT MOST once (batched `findMany` → `Map<tenantId, TenantPolicy>`).
  */
 import { prisma } from '@ftth-copilot/db';
 import { PROMOTION_MIN_AGE_MS, eligibleForPromotion } from '@ftth-copilot/evidence';
+import type { TenantPolicy } from '@ftth-copilot/shared';
 
 export interface PromotePendingIncidentsResult {
   promoted: number;
   skipped: number;
 }
+
+export type PolicyLoader = (
+  tenantIds: ReadonlyArray<string>,
+) => Promise<Map<string, TenantPolicy>>;
 
 function hasIncompleteVerdict(toolCallsJson: unknown): boolean {
   if (!Array.isArray(toolCallsJson)) return false;
@@ -55,9 +65,16 @@ function toCandidateShape(candidate: {
  *
  * `now` is injected so the test can lock the 24h boundary deterministically;
  * callers that want the system clock can simply omit it.
+ *
+ * `policyLoader` is optional. When present, the helper batches a single
+ * `loadTenantPolicy` call (covering every distinct `tenantId` in the
+ * candidate set) and looks up each candidate's per-tenant
+ * `promotionMinAgeMs` from the resulting `Map` in O(1). Absent loader or
+ * absent row → Fase D 24h baseline.
  */
 export async function promotePendingIncidents(
   now: Date = new Date(),
+  policyLoader?: PolicyLoader,
 ): Promise<PromotePendingIncidentsResult> {
   const candidates = await prisma.pendingIncidentCandidate.findMany({
     where: { status: 'pending' },
@@ -69,6 +86,12 @@ export async function promotePendingIncidents(
     where: { tenantId: { in: tenantIds } },
   });
   const incidentById = new Map(incidents.map((i) => [i.id, i]));
+
+  // Fase E — single batched tenantPolicy lookup. The route passes
+  // `loadTenantPolicy`; tests pass a stub to assert N+1 avoidance.
+  const policyByTenantId: Map<string, TenantPolicy> = policyLoader
+    ? await policyLoader(tenantIds)
+    : new Map();
 
   let promoted = 0;
   let skipped = 0;
@@ -97,11 +120,13 @@ export async function promotePendingIncidents(
       skipped += 1;
       continue;
     }
+    const tenantPolicy = policyByTenantId.get(candidate.tenantId);
     const eligible = eligibleForPromotion(
       toCandidateShape(candidate),
       { status: sourceIncident.status, resolvedAt: sourceIncident.resolvedAt },
       now,
       hasIncomplete,
+      tenantPolicy ? { promotionMinAgeMs: tenantPolicy.promotionMinAgeMs } : undefined,
     );
     if (!eligible) {
       skipped += 1;
