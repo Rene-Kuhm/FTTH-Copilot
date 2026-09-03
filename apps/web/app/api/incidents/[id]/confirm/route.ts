@@ -54,7 +54,7 @@ export async function POST(
 
   const incident = await prisma.incident.findFirst({
     where: { id, tenantId: user.tenantId },
-    select: { id: true, tenantId: true, deviceKind: true, deviceId: true, status: true, observedAt: true, resolvedAt: true },
+    select: { id: true, tenantId: true, deviceKind: true, deviceId: true, status: true, firstSeenAt: true, resolvedAt: true },
   });
   if (!incident) {
     return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
@@ -89,7 +89,7 @@ export async function POST(
       symptoms: {} as object,
       rootCause: parsed.data.rootCause,
       fix: parsed.data.fix,
-      observedAt: incident.observedAt,
+      observedAt: incident.firstSeenAt,
       resolvedAt: incident.resolvedAt ?? now,
       confirmedBy: 'operator',
       confirmedByUserId: user.id,
