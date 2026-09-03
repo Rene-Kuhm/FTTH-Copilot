@@ -37,10 +37,13 @@ export type {
   ConfirmedIncident,
   PendingIncidentCandidate,
   RelevantIncidentResult,
+  TenantPolicy,
 } from '@ftth-copilot/shared';
 export {
   CONFIRMED_INCIDENT_SCHEMA,
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
+  TENANT_POLICY_SCHEMA,
+  tenantPolicySchema,
 } from '@ftth-copilot/shared';
 export {
   BM25_B,
