@@ -92,3 +92,49 @@ describe('evidence public API surface — Fase D type re-exports', () => {
     expect(retrieved.score).toBe(0.8);
   });
 });
+// ── Fase D WU2 — retrieval runtime surface ──────────────────────────────────
+
+describe('evidence public API surface — Fase D WU2 retrieval helpers', () => {
+  it('re-exports the BM25Lite scorer surface', () => {
+    expect(typeof Evidence.tokenize).toBe('function');
+    expect(typeof Evidence.scoreBM25).toBe('function');
+    expect(typeof Evidence.scoreCorpus).toBe('function');
+    expect(Evidence.BM25_K1).toBe(1.5);
+    expect(Evidence.BM25_B).toBe(0.75);
+    expect(Evidence.BM25_STOPWORDS).toContain('de');
+  });
+
+  it('re-exports the retrieval surface with its locked constants', () => {
+    expect(typeof Evidence.retrieveRelevantIncidents).toBe('function');
+    expect(typeof Evidence.formatRelevantIncidentsBlock).toBe('function');
+    expect(Evidence.RRF_K).toBe(60);
+    expect(Evidence.MIN_SPARSESCORE).toBe(0.05);
+    expect(Evidence.DEFAULT_LIMIT).toBe(5);
+    expect(Evidence.DEFAULT_SINCE_DAYS).toBe(90);
+    expect(Evidence.RELEVANT_INCIDENTS_HEADING).toContain('contexto, no evidencia');
+  });
+
+  it('re-exports MissingTenantError as a throwable class', () => {
+    expect(() =>
+      Evidence.retrieveRelevantIncidents({ tenantId: '', query: 'x', confirmedIncidents: [] }),
+    ).toThrow(Evidence.MissingTenantError);
+  });
+
+  it('re-exports the pending-candidate helpers', () => {
+    const draft = Evidence.buildPendingIncidentCandidate({
+      tenantId: 't1',
+      summary: 's',
+      toolCallsJson: [],
+      now: new Date('2026-09-01T12:00:00.000Z'),
+    });
+    expect(draft.status).toBe('pending');
+    expect(
+      Evidence.eligibleForPromotion(
+        draft,
+        { status: 'resolved', resolvedAt: new Date('2026-08-30T12:00:00.000Z') },
+        new Date('2026-09-01T12:00:00.000Z'),
+        false,
+      ),
+    ).toBe(true);
+  });
+});

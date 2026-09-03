@@ -25,13 +25,14 @@ export {
   type TruthGateMode,
 } from './abstention-policy';
 
-// ── Fase D — confirmed-incident memory contracts (type-only WU1 re-export) ──
+// ── Fase D — confirmed-incident memory contracts + retrieval runtime ────────
 //
-// WU1 only needs the type-level surface so downstream packages
-// (`@ftth-copilot/agent-core`, `apps/web`) can type their retrieval call
-// signatures without depending on `@ftth-copilot/shared` directly. The
-// runtime retrieval helpers (`retrieveRelevantIncidents`, `scoreBM25`, …)
-// land in WU2 alongside the BM25 scorer and the sparse-first RRF plumbing.
+// The type surface lets downstream packages (`@ftth-copilot/agent-core`,
+// `apps/web`) type their retrieval call signatures without depending on
+// `@ftth-copilot/shared` directly. The runtime helpers below are the
+// sparse-first retrieval path: BM25 scoring, tenant-scoped ranking with RRF
+// plumbing, the snapshot-locked Spanish context block, and the pending
+// candidate constructor + promotion gate.
 export type {
   ConfirmedIncident,
   PendingIncidentCandidate,
@@ -41,3 +42,32 @@ export {
   CONFIRMED_INCIDENT_SCHEMA,
   PENDING_INCIDENT_CANDIDATE_SCHEMA,
 } from '@ftth-copilot/shared';
+export {
+  BM25_B,
+  BM25_K1,
+  BM25_STOPWORDS,
+  BM25_STOPWORDS_FULL,
+  TOKEN_REGEX,
+  scoreBM25,
+  scoreCorpus,
+  tokenize,
+} from './bm25-lite';
+export {
+  DEFAULT_LIMIT,
+  DEFAULT_SINCE_DAYS,
+  DEVICE_HINT_BOOST,
+  MIN_SPARSESCORE,
+  MissingTenantError,
+  RELEVANT_INCIDENTS_HEADING,
+  RRF_K,
+  formatRelevantIncidentsBlock,
+  retrieveRelevantIncidents,
+  type DeviceHint,
+  type RetrieveRelevantIncidentsArgs,
+} from './relevant-incidents';
+export {
+  PROMOTION_MIN_AGE_MS,
+  buildPendingIncidentCandidate,
+  eligibleForPromotion,
+  type BuildPendingIncidentCandidateArgs,
+} from './pending-incident';
