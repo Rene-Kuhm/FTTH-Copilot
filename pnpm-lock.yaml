@@ -62,6 +62,9 @@ importers:
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ftth-copilot/evidence':
+        specifier: workspace:*
+        version: link:../../packages/evidence
       '@ftth-copilot/monitoring':
         specifier: workspace:*
         version: link:../../packages/monitoring
