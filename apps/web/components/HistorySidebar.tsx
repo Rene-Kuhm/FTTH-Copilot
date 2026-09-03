@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Abstention } from '@ftth-copilot/shared';
 import { useAuth } from '@/lib/auth/client';
 import {
   ArrowDownTrayIcon,
@@ -226,6 +227,7 @@ export async function loadConversation(
     role: 'user' | 'assistant';
     content: string;
     toolsUsed?: Array<{ name: string; args: Record<string, unknown> }>;
+    abstention?: Abstention;
     timestamp: number;
   }>;
   connectionId: string | null;
@@ -236,12 +238,50 @@ export async function loadConversation(
   if (!data.conversation) return null;
   return {
     connectionId: data.conversation.connectionId,
-    messages: data.conversation.messages.map((m) => ({
-      id: m.id,
-      role: (m.role === 'tool' ? 'assistant' : m.role) as 'user' | 'assistant',
-      content: m.content,
-      toolsUsed: m.toolCalls ?? undefined,
-      timestamp: new Date(m.createdAt).getTime(),
-    })),
+    messages: data.conversation.messages.map((m) => {
+      // Reconstruct the abstention envelope from the synthetic
+      // `__abstention__` row that the route persisted into
+      // `Message.toolCalls`. Older messages (pre-Fase-C) won't have the
+      // row, so we leave `abstention` undefined.
+      const toolCalls = m.toolCalls ?? undefined;
+      const abstentionRow = toolCalls?.find(
+        (t) => t && (t as { name?: string }).name === '__abstention__',
+      );
+      const rawResult = abstentionRow
+        ? (abstentionRow as unknown as { result?: unknown }).result
+        : undefined;
+      // Light-shape validation: the route only writes envelopes that pass
+      // `abstentionSchema`, but a defensive cast here keeps a corrupted row
+      // from crashing the bubble render.
+      const abstention = isAbstention(rawResult) ? rawResult : undefined;
+      return {
+        id: m.id,
+        role: (m.role === 'tool' ? 'assistant' : m.role) as 'user' | 'assistant',
+        content: m.content,
+        toolsUsed: toolCalls ?? undefined,
+        abstention,
+        timestamp: new Date(m.createdAt).getTime(),
+      };
+    }),
   };
+}
+
+/**
+ * Lightweight runtime guard for the `ftth.abstention.v1` envelope shape
+ * reconstructed from `Message.toolCalls[].result`. Mirrors the contract
+ * defined in `packages/shared/src/contracts.ts`; we don't pull the zod
+ * schema into the browser bundle just to validate history rows.
+ */
+function isAbstention(value: unknown): value is Abstention {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v['schema'] === 'ftth.abstention.v1' &&
+    typeof v['reason'] === 'string' &&
+    typeof v['severity'] === 'string' &&
+    Array.isArray(v['missing']) &&
+    Array.isArray(v['available']) &&
+    typeof v['nextStep'] === 'string' &&
+    Array.isArray(v['toolsAffected'])
+  );
 }
