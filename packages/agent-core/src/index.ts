@@ -1,4 +1,9 @@
-export { runAgent, type RunAgentOptions } from './runtime';
+export {
+  runAgent,
+  resolveTruthGateMode,
+  DEFAULT_TRUTH_GATE_MODE,
+  type RunAgentOptions,
+} from './runtime';
 export { buildTools, executeToolCall, buildDefaultConnector } from './tools/index';
 export {
   PROVENANCE_TOOL_META,
@@ -16,4 +21,5 @@ export {
   type Verdict,
   type VerdictCode,
   type VerdictSeverity,
+  type TruthGateMode,
 } from '@ftth-copilot/evidence';

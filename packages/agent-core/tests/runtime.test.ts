@@ -9,7 +9,8 @@ vi.mock('../src/llm', () => ({
   createLlmClient: () => ({ provider: 'mock', createMessage }),
 }));
 
-import { runAgent } from '../src/runtime';
+import { runAgent, DEFAULT_TRUTH_GATE_MODE, resolveTruthGateMode } from '../src/runtime';
+import { DEFAULT_TRUTH_GATE_MODE as INDEX_DEFAULT_TRUTH_GATE_MODE } from '../src/index';
 
 const connector = {
   providerName: 'test',
@@ -228,5 +229,38 @@ describe('runAgent', () => {
     } finally {
       vi.mocked(tools.executeToolCall).mockRestore();
     }
+  });
+});
+
+// ── Fase C — TruthGate mode plumbing (task 2.1) ──────────────────────────────
+
+describe('TruthGate mode resolution', () => {
+  it('defaults to strict', () => {
+    expect(DEFAULT_TRUTH_GATE_MODE).toBe('strict');
+  });
+
+  it('is re-exported from the package entrypoint with the same value', () => {
+    expect(INDEX_DEFAULT_TRUTH_GATE_MODE).toBe('strict');
+    expect(INDEX_DEFAULT_TRUTH_GATE_MODE).toBe(DEFAULT_TRUTH_GATE_MODE);
+  });
+
+  it('resolves an omitted mode to the strict default', () => {
+    expect(resolveTruthGateMode(undefined)).toBe('strict');
+  });
+
+  it('preserves an explicit observe mode', () => {
+    expect(resolveTruthGateMode('observe')).toBe('observe');
+  });
+
+  it('preserves an explicit strict mode', () => {
+    expect(resolveTruthGateMode('strict')).toBe('strict');
+  });
+
+  it('accepts mode on RunAgentOptions without altering the Fase B result shape', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'respuesta observe', toolCalls: [] });
+    const result = await runAgent({ userMessage: 'hola', connector, mode: 'observe' });
+    expect(result.text).toBe('respuesta observe');
+    expect(result.toolCalls).toEqual([]);
+    expect(result.verdicts).toEqual([]);
   });
 });
