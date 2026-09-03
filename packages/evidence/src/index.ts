@@ -75,4 +75,5 @@ export {
   buildPendingIncidentCandidate,
   eligibleForPromotion,
   type BuildPendingIncidentCandidateArgs,
+  type PromotionTenantPolicy,
 } from './pending-incident';

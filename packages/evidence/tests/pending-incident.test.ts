@@ -118,3 +118,81 @@ describe('eligibleForPromotion', () => {
     ).toBe(false);
   });
 });
+
+// ── Fase E — eligibleForPromotion 5th arg (per-tenant promotionMinAgeMs) ─────
+
+describe('eligibleForPromotion — Fase E tenantPolicy 5th arg', () => {
+  const localResolved25h = { status: 'resolved', resolvedAt: hoursAgo(25) };
+
+  it('tenantPolicy=undefined → 24h baseline (Fase D byte-identical)', () => {
+    expect(eligibleForPromotion(candidate, localResolved25h, NOW, false, undefined)).toBe(true);
+    // 12h < 24h gate
+    expect(
+      eligibleForPromotion(
+        candidate,
+        { status: 'resolved', resolvedAt: hoursAgo(12) },
+        NOW,
+        false,
+        undefined,
+      ),
+    ).toBe(false);
+  });
+
+  it('tenantPolicy={promotionMinAgeMs: 60_000} → 1-minute gate (30s resolves false)', () => {
+    const recent = { status: 'resolved' as const, resolvedAt: new Date(NOW.getTime() - 30_000) };
+    expect(eligibleForPromotion(candidate, recent, NOW, false, { promotionMinAgeMs: 60_000 })).toBe(
+      false,
+    );
+    // 5 minutes resolves true
+    const fiveMinAgo = {
+      status: 'resolved' as const,
+      resolvedAt: new Date(NOW.getTime() - 5 * 60_000),
+    };
+    expect(
+      eligibleForPromotion(candidate, fiveMinAgo, NOW, false, { promotionMinAgeMs: 60_000 }),
+    ).toBe(true);
+  });
+
+  it('tenantPolicy={promotionMinAgeMs: 259_200_000} → 72h gate (25h resolves false)', () => {
+    expect(
+      eligibleForPromotion(candidate, localResolved25h, NOW, false, {
+        promotionMinAgeMs: 259_200_000,
+      }),
+    ).toBe(false);
+  });
+
+  it('tenantPolicy={promotionMinAgeMs: 0} → promotes immediately', () => {
+    const oneSecondAgo = {
+      status: 'resolved' as const,
+      resolvedAt: new Date(NOW.getTime() - 1000),
+    };
+    expect(eligibleForPromotion(candidate, oneSecondAgo, NOW, false, { promotionMinAgeMs: 0 })).toBe(
+      true,
+    );
+  });
+
+  it('boundary: now - resolvedAt === minAge is eligible (>= inclusive)', () => {
+    const exactlyAtGate = {
+      status: 'resolved' as const,
+      resolvedAt: new Date(NOW.getTime() - 60_000),
+    };
+    expect(
+      eligibleForPromotion(candidate, exactlyAtGate, NOW, false, { promotionMinAgeMs: 60_000 }),
+    ).toBe(true);
+  });
+
+  it('still respects status / incomplete guards with tenantPolicy set', () => {
+    expect(
+      eligibleForPromotion(
+        candidate,
+        { status: 'open', resolvedAt: hoursAgo(48) },
+        NOW,
+        false,
+        { promotionMinAgeMs: 60_000 },
+      ),
+    ).toBe(false);
+    expect(
+      eligibleForPromotion(candidate, localResolved25h, NOW, true, { promotionMinAgeMs: 0 }),
+    ).toBe(false);
+  });
+});
