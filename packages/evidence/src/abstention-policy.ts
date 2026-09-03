@@ -1,0 +1,158 @@
+/**
+ * Abstention policy — Fase C strict-mode asymmetric enforcement.
+ *
+ * Pure functions over `Verdict[]`. `shouldAbstain` answers the central
+ * question "does the current evidence permit an answer?" — the answer is
+ * strictly a function of the verdict codes emitted by Fase B's classifier
+ * and the active `TruthGateMode`. `buildAbstention` and `nextStepFor` turn
+ * that decision into a deterministic operator-facing envelope and Spanish
+ * remediation hint.
+ *
+ * No source-branching: demo envelopes (`*.demo`) and live envelopes
+ * (`*.poll`) flow through the same `classifyEnvelope` path (Fase B
+ * invariant), and `buildAbstention` consumes the resulting verdicts
+ * uniformly. There is no mode-conditional threshold in the policy itself.
+ */
+import { ABSTENTION_SCHEMA, type Abstention } from '@ftth-copilot/shared';
+import type { Verdict, VerdictSeverity } from './types';
+
+export type { Verdict, VerdictSeverity };
+
+export type TruthGateMode = 'observe' | 'strict';
+
+export type AbstentionDecision = 'allow' | 'warn' | 'abstain';
+
+// ── Spanish nextStep templates (Argentine rioplatense voseo) ─────────────────
+//
+// These two template builders produce the canonical remediation hint
+// rendered by the ChatUI bubble. Snapshot-locked by
+// `abstention-policy.test.ts`. The verbs (`verificá`, `recolectá`, `volvé`)
+// match the voseo voice used in `prompts/system.ts:1-52` so the operator
+// sees one consistent register across the product. Each template
+// interpolates the joined `toolsAffected` list so the message references
+// the specific tool that failed (per spec scenario "voseo + tool
+// reference + determinism").
+
+export function formatIdentifierNextStep(toolsAffected: string[]): string {
+  return `No pude respaldar el diagnóstico: el identificador ${toolsAffected.join(', ')} no figura en el NMS. Verificá el identificador (ID, SN o filtro) y volvé a intentar.`;
+}
+
+export function formatMetricsNextStep(toolsAffected: string[]): string {
+  return `No pude respaldar el diagnóstico: las métricas ${toolsAffected.join(', ')} están vencidas o incompletas. Re-colectá datos frescos de los últimos 15 minutos antes de diagnosticar.`;
+}
+
+// ── Policy ────────────────────────────────────────────────────────────────────
+
+/**
+ * Asymmetric policy table. Strict mode:
+ *   - any `incomplete` verdict → `'abstain'`
+ *   - else any `stale` / `low_confidence` → `'warn'`
+ *   - else → `'allow'`
+ * Observe mode (legacy Fase B behaviour): always `'allow'`. The gate never
+ * blocks data flow; `runAgent` always passes the raw tool result string to
+ * the LLM as-is when in observe.
+ *
+ * No source-branching on `verdicts[i].toolName` or any envelope field —
+ * decisions are made purely on the verdict codes already aggregated by
+ * `classifyEnvelope`. Demo == live parity is preserved.
+ */
+export function shouldAbstain(verdicts: Verdict[], mode: TruthGateMode): AbstentionDecision {
+  if (mode === 'observe') return 'allow';
+  for (const v of verdicts) {
+    if (v.code === 'incomplete') return 'abstain';
+  }
+  for (const v of verdicts) {
+    if (v.code === 'stale' || v.code === 'low_confidence') return 'warn';
+  }
+  return 'allow';
+}
+
+// ── Derivation ───────────────────────────────────────────────────────────────
+
+function distinct(xs: string[]): string[] {
+  return Array.from(new Set(xs));
+}
+
+/**
+ * Builds the `ftth.abstention.v1` envelope from a verdict set.
+ *
+ * Contract:
+ * - Throws when no `incomplete` verdict is present — this function is
+ *   only called after `shouldAbstain` has decided to abstain, so the
+ *   precondition is hard-enforced.
+ * - `missing` is the distinct set of toolNames that emitted `incomplete`
+ *   verdicts.
+ * - `available` is the distinct set of toolNames that emitted `ok`
+ *   verdicts. May be empty when every tool in the run failed.
+ * - `toolsAffected` is the distinct union of toolNames across every
+ *   non-`ok` verdict (includes `stale` and `low_confidence`).
+ * - `reason` is the literal VerdictCode `'incomplete'`.
+ * - `severity` is taken from the first `incomplete` verdict (matches
+ *   the dominant failure surfaced to the operator).
+ * - `claim` is forwarded as-is when provided; omitted otherwise.
+ * - `nextStep` is delegated to `nextStepFor('incomplete', toolsAffected)`.
+ *
+ * Determinism: identical input verdict sets produce identical envelopes
+ * (Fase B demo == live invariant honored here too).
+ */
+export function buildAbstention(verdicts: Verdict[], claim?: string): Abstention {
+  const incompletes = verdicts.filter((v) => v.code === 'incomplete');
+  if (incompletes.length === 0) {
+    throw new Error(
+      'buildAbstention requires at least one incomplete verdict; ' +
+        'call only when shouldAbstain() === "abstain"',
+    );
+  }
+
+  const missing = distinct(incompletes.map((v) => v.toolName));
+  const oks = verdicts.filter((v) => v.code === 'ok');
+  const available = distinct(oks.map((v) => v.toolName));
+  const nonOks = verdicts.filter((v) => v.code !== 'ok');
+  const toolsAffected = distinct(nonOks.map((v) => v.toolName));
+
+  const reason = 'incomplete' as const;
+  const severity: VerdictSeverity = incompletes[0]!.severity;
+  const nextStep = nextStepFor(reason, toolsAffected);
+
+  return {
+    schema: ABSTENTION_SCHEMA,
+    reason,
+    severity,
+    claim,
+    missing,
+    available,
+    nextStep,
+    toolsAffected,
+  };
+}
+
+// ── nextStep ─────────────────────────────────────────────────────────────────
+
+const IDENTIFIER_HINT = /(?:onu|olt)/i;
+const METRICS_HINT = /(?:metric|telemetry|history)/i;
+
+/**
+ * Returns the deterministic Spanish `nextStep` string for the abstention
+ * bubble. The caller MUST be in the "we should abstain" branch — i.e.
+ * `reason === 'incomplete'` — but the function stays defensive for any
+ * future caller that passes another reason (returns the metrics template).
+ *
+ * Template selection (when `reason === 'incomplete'`):
+ *   - any toolName matches `onu` or `olt` (identifier-style lookup) →
+ *     `IDENTIFIER_NEXTSTEP` ("el identificador no figura en el NMS…").
+ *   - otherwise (metrics / telemetry / history / no hint) →
+ *     `METRICS_NEXTSTEP` ("las métricas están vencidas o incompletas…").
+ *
+ * The two strings are exported as constants so they can be referenced
+ * directly from the snapshot tests and from the runtime formatter.
+ */
+export function nextStepFor(reason: string, toolsAffected: string[]): string {
+  if (reason !== 'incomplete') {
+    return formatMetricsNextStep(toolsAffected);
+  }
+  const hasIdentifierHint = toolsAffected.some((name) => IDENTIFIER_HINT.test(name));
+  if (hasIdentifierHint) {
+    return formatIdentifierNextStep(toolsAffected);
+  }
+  return formatMetricsNextStep(toolsAffected);
+}

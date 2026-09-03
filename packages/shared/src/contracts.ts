@@ -17,6 +17,7 @@ export const TELEMETRY_SCHEMA = 'ftth.telemetry.v1' as const;
 export const FINDING_SCHEMA = 'ftth.finding.v1' as const;
 export const ACTION_SCHEMA = 'ftth.action.v1' as const;
 export const EVIDENCE_PROVENANCE_SCHEMA = 'evidence.provenance.v1' as const;
+export const ABSTENTION_SCHEMA = 'ftth.abstention.v1' as const;
 
 // ── evidence.provenance.v1 ──────────────────────────────────────────────────
 
@@ -129,3 +130,41 @@ export const actionSchema = z.object({
 });
 
 export type Action = z.infer<typeof actionSchema>;
+
+// ── ftth.abstention.v1 (Fase C — strict-mode override payload) ────────────────
+
+/**
+ * Stable JSON envelope emitted by `runAgent` in strict mode when at least one
+ * `Verdict` classifies the evidence as `incomplete`. Stored under
+ * `Message.toolCalls` (DB JSON column) as a synthetic `{ name: '__abstention__' }`
+ * row and surfaced to the operator as a warning bubble in the ChatUI.
+ *
+ * - `reason` is the VerdictCode emitted by `classifyEnvelope` /
+ *   `classifyUnwrapped`. Strict mode abstains only on `incomplete`; `stale`
+ *   and `low_confidence` keep flowing to the LLM (warnings only).
+ * - `severity` mirrors the originating incomplete verdict.
+ * - `claim` is optional free-form context (e.g. the assistant's intended
+ *   diagnosis). Omitted when not provided.
+ * - `missing` lists the distinct toolNames that produced `incomplete` verdicts.
+ * - `available` lists distinct toolNames from `ok` verdicts (may be empty when
+ *   every tool in the run failed).
+ * - `nextStep` is a deterministic Spanish string keyed on `reason`; rendered
+ *   by the ChatUI bubble.
+ * - `toolsAffected` is the union of distinct toolNames across non-`ok` verdicts;
+ *   always non-empty (buildAbstention only runs when at least one incomplete
+ *   verdict exists).
+ */
+export const abstentionSchema = z
+  .object({
+    schema: z.literal(ABSTENTION_SCHEMA),
+    reason: z.enum(['ok', 'low_confidence', 'stale', 'incomplete']),
+    severity: z.enum(['ok', 'info', 'warning', 'critical']),
+    claim: z.string().optional(),
+    missing: z.array(z.string().min(1)),
+    available: z.array(z.string().min(1)),
+    nextStep: z.string().min(1),
+    toolsAffected: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+
+export type Abstention = z.infer<typeof abstentionSchema>;
