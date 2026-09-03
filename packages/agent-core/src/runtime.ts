@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AgentResult, ToolCallRecord } from '@ftth-copilot/shared';
+import type { AgentResult, ToolCallRecord, TenantPolicy, VerdictCode } from '@ftth-copilot/shared';
 import {
   buildAbstention,
   classifyEnvelope,
@@ -47,6 +47,22 @@ export type RetrievalProvider = (
   args: RetrievalProviderArgs,
 ) => Promise<RelevantIncidentResult[]> | RelevantIncidentResult[];
 
+/**
+ * Fase E — resolved per-tenant policy knobs the runtime threads through
+ * `shouldAbstain` + the retrieval closure. Shape is fixed; absence of a
+ * knob (resolved value = `undefined`) means "fall through to the env /
+ * module default". Built once per `runAgent` invocation by
+ * `resolveTenantPolicy` and consumed via `opts.tenantPolicy`-derived
+ * helpers below — never by direct env reads inside the loop.
+ */
+export interface ResolvedTenantPolicy {
+  readonly truthGateMode: TruthGateMode | undefined;
+  readonly retrievalLimit: number | undefined;
+  readonly retrievalSinceDays: number | undefined;
+  readonly abstainOnCodes: ReadonlyArray<VerdictCode> | undefined;
+  readonly promotionMinAgeMs: number | undefined;
+}
+
 export interface RunAgentOptions {
   userMessage: string;
   /** Historial ya autorizado y acotado por el caller. */
@@ -79,6 +95,14 @@ export interface RunAgentOptions {
    * the system prompt is byte-identical to the pre-Fase-D baseline.
    */
   retrievalProvider?: RetrievalProvider;
+  /**
+   * Fase E — optional per-tenant override row. Absent → Fase C/D
+   * byte-identical. Threaded through `shouldAbstain` (abstainOnCodes) and
+   * the retrieval closure (retrievalLimit / retrievalSinceDays). Never
+   * enters the `evidence.provenance.v1` envelope and never alters any
+   * envelope field. Per-tenant wins over env over module default.
+   */
+  tenantPolicy?: TenantPolicy;
 }
 
 /**
@@ -94,6 +118,57 @@ export const DEFAULT_TRUTH_GATE_MODE: TruthGateMode = 'strict';
  */
 export function resolveTruthGateMode(mode?: TruthGateMode): TruthGateMode {
   return mode ?? DEFAULT_TRUTH_GATE_MODE;
+}
+
+/**
+ * Fase E — pure per-tenant policy resolver. Precedence per knob is
+ * `tenantPolicy.X ?? env.X ?? moduleDefault.X`. The function never reads
+ * env directly; the caller injects the `env` snapshot so tests stay
+ * deterministic. When a per-tenant knob applies, the runtime emits exactly
+ * one `console.info` log line with the format
+ * `[ftth-copilot/tenant-policy] tenant=<id> knob=<name> resolved=<value>`.
+ *
+ * Absent `tenantPolicy` → every resolved knob is `undefined` and zero log
+ * lines fire. The downstream call sites (`shouldAbstain`, retrieval
+ * closure) treat `undefined` as "fall through to env / module default".
+ */
+export function resolveTenantPolicy(
+  opts: { tenantPolicy?: TenantPolicy },
+  env: { TRUTH_GATE_MODE?: string },
+): ResolvedTenantPolicy {
+  const tp = opts.tenantPolicy;
+  const fromPolicy = (knob: keyof TenantPolicy): unknown => tp?.[knob];
+  const resolved: ResolvedTenantPolicy = {
+    truthGateMode: (fromPolicy('truthGateMode') as TruthGateMode | undefined) ?? undefined,
+    retrievalLimit: (fromPolicy('retrievalLimit') as number | undefined) ?? undefined,
+    retrievalSinceDays: (fromPolicy('retrievalSinceDays') as number | undefined) ?? undefined,
+    abstainOnCodes: (fromPolicy('abstainOnCodes') as ReadonlyArray<VerdictCode> | undefined) ??
+      undefined,
+    promotionMinAgeMs: (fromPolicy('promotionMinAgeMs') as number | undefined) ?? undefined,
+  };
+
+  if (!tp) return resolved;
+
+  // Emit one precedence log per knob that the tenant actually overrides.
+  // The `resolved` value is the value the runtime will use downstream —
+  // for `abstainOnCodes` and arrays we JSON-stringify for stable log shape.
+  const emit = (knob: string, value: unknown): void => {
+    console.info(
+      `[ftth-copilot/tenant-policy] tenant=${tp.tenantId} knob=${knob} resolved=${JSON.stringify(value)}`,
+    );
+  };
+  if (tp.truthGateMode !== undefined) emit('truthGateMode', tp.truthGateMode);
+  if (tp.retrievalLimit !== undefined) emit('retrievalLimit', tp.retrievalLimit);
+  if (tp.retrievalSinceDays !== undefined) emit('retrievalSinceDays', tp.retrievalSinceDays);
+  if (tp.abstainOnCodes !== undefined) emit('abstainOnCodes', tp.abstainOnCodes);
+  if (tp.promotionMinAgeMs !== undefined) emit('promotionMinAgeMs', tp.promotionMinAgeMs);
+  // `env` is reserved for downstream `runAgent` to consult when
+  // `tenantPolicy` is absent — the spec states "absent → fall through to
+  // env / module default", so the env parameter is part of the contract
+  // even though this resolver does not consult it directly.
+  void env;
+
+  return resolved;
 }
 
 /** Encabezado fijo de toda abstención. Bloqueado por snapshot en los tests. */
@@ -147,7 +222,15 @@ export function formatAbstentionText(abstention: Abstention): string {
  * the data path to the LLM stays byte-identical in both modes.
  */
 export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
-  const mode = resolveTruthGateMode(opts.mode);
+  // Fase E — resolve the per-tenant policy once per invocation; the
+  // resolved knobs are threaded through `shouldAbstain` and the retrieval
+  // closure consumer. Absent tenantPolicy → all knobs are `undefined` and
+  // downstream callers fall through to env / module default. The
+  // resolved truthGateMode wins over `opts.mode` (per-tenant > caller
+  // explicit arg > env > module default).
+  const env = { TRUTH_GATE_MODE: process.env['TRUTH_GATE_MODE'] };
+  const resolvedTenantPolicy = resolveTenantPolicy({ tenantPolicy: opts.tenantPolicy }, env);
+  const mode = resolvedTenantPolicy.truthGateMode ?? resolveTruthGateMode(opts.mode);
   const llm = createLlmClient();
   const connector = opts.connector ?? buildDefaultConnector();
   const anthropicTools = buildTools(connector);
@@ -205,12 +288,32 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    * reemplaza por la abstención renderizada. En `observe`, o sin verdicts
    * `incomplete`, el resultado es exactamente el de Fase B: `abstention` y
    * `abstained` quedan ausentes.
+   *
+   * Fase E — when the resolved tenant policy carries `abstainOnCodes`, we
+   * forward it as the 3rd arg so `shouldAbstain` consults the override
+   * set. Absent tenant policy → undefined → Fase C byte-identical. When
+   * the override triggers on a non-incomplete code (e.g. `['stale']`), we
+   * locate the trigger verdict and pass its code into `buildAbstention` so
+   * the envelope `reason` reflects the actual trigger.
    */
   const finalize = (text: string): AgentResult => {
-    if (shouldAbstain(verdicts, mode) !== 'abstain') {
+    const policyArg =
+      resolvedTenantPolicy.abstainOnCodes !== undefined
+        ? { abstainOnCodes: resolvedTenantPolicy.abstainOnCodes }
+        : undefined;
+    if (shouldAbstain(verdicts, mode, policyArg) !== 'abstain') {
       return { text, toolCalls, verdicts };
     }
-    const abstention = buildAbstention(verdicts);
+    // Determine the trigger code: when the tenant policy is the override,
+    // use the first code that fires; otherwise (Fase C path) it's always
+    // `incomplete`. `shouldAbstain` already returned 'abstain', so at
+    // least one matching verdict exists.
+    let triggerCode: VerdictCode = 'incomplete';
+    if (policyArg) {
+      const trigger = verdicts.find((v) => policyArg.abstainOnCodes.includes(v.code));
+      if (trigger) triggerCode = trigger.code;
+    }
+    const abstention = buildAbstention(verdicts, undefined, triggerCode);
     return {
       text: formatAbstentionText(abstention),
       toolCalls,
@@ -239,7 +342,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    * Retrieved rows are BACKGROUND CONTEXT, never evidence: they never enter
    * the Truth Gate data path (`result.verdicts`, `result.toolCalls`).
    */
-  const retrievalBlock = await loadRetrievalBlock(opts);
+  const retrievalBlock = await loadRetrievalBlock(opts, resolvedTenantPolicy);
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await llm.createMessage({
@@ -278,8 +381,19 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
  * mode logs nothing and degrades silently: retrieval is augmentation,
  * never a precondition for the loop. Snapshot-locked output via
  * `formatRelevantIncidentsBlock`.
+ *
+ * Fase E — when `resolved.tenantPolicy.retrievalLimit` or
+ * `resolved.tenantPolicy.retrievalSinceDays` are set, the corresponding
+ * `limit` / `sinceDays` args are forwarded to the retrieval provider so
+ * the per-tenant cap / window apply without the caller wiring a custom
+ * closure. Absent tenantPolicy → both forwarded values are `undefined`
+ * and the provider falls through to its own module defaults (Fase D
+ * byte-identical).
  */
-async function loadRetrievalBlock(opts: RunAgentOptions): Promise<string> {
+async function loadRetrievalBlock(
+  opts: RunAgentOptions,
+  resolved: ResolvedTenantPolicy,
+): Promise<string> {
   if (!opts.retrievalProvider) return '';
   if (opts.dataSource?.mode !== 'live') return '';
   let results: RelevantIncidentResult[];
@@ -288,6 +402,8 @@ async function loadRetrievalBlock(opts: RunAgentOptions): Promise<string> {
       tenantId: opts.tenantId ?? '',
       query: opts.userMessage,
       deviceHint: extractDeviceHintFromMessage(opts.userMessage),
+      ...(resolved.retrievalLimit !== undefined ? { limit: resolved.retrievalLimit } : {}),
+      ...(resolved.retrievalSinceDays !== undefined ? { sinceDays: resolved.retrievalSinceDays } : {}),
       mode: 'live',
     });
   } catch {

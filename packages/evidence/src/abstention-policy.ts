@@ -115,41 +115,49 @@ function distinct(xs: string[]): string[] {
  * Builds the `ftth.abstention.v1` envelope from a verdict set.
  *
  * Contract:
- * - Throws when no `incomplete` verdict is present — this function is
- *   only called after `shouldAbstain` has decided to abstain, so the
- *   precondition is hard-enforced.
- * - `missing` is the distinct set of toolNames that emitted `incomplete`
- *   verdicts.
+ * - When `triggerCode` is omitted (the Fase C call path) the function
+ *   requires at least one `incomplete` verdict — the precondition is
+ *   hard-enforced and the call site MUST consult `shouldAbstain` first.
+ * - When `triggerCode` is supplied (the Fase E call path) the function
+ *   requires at least one verdict whose code matches it; the envelope
+ *   is built against those matching verdicts so the abstention can be
+ *   emitted even when the trigger is `stale` or `low_confidence`.
+ * - `missing` is the distinct set of toolNames that emitted verdicts
+ *   matching the trigger code.
  * - `available` is the distinct set of toolNames that emitted `ok`
  *   verdicts. May be empty when every tool in the run failed.
  * - `toolsAffected` is the distinct union of toolNames across every
  *   non-`ok` verdict (includes `stale` and `low_confidence`).
- * - `reason` is the literal VerdictCode `'incomplete'`.
- * - `severity` is taken from the first `incomplete` verdict (matches
- *   the dominant failure surfaced to the operator).
+ * - `reason` equals the trigger code (literal VerdictCode).
+ * - `severity` is taken from the first matching verdict (matches the
+ *   dominant failure surfaced to the operator).
  * - `claim` is forwarded as-is when provided; omitted otherwise.
- * - `nextStep` is delegated to `nextStepFor('incomplete', toolsAffected)`.
+ * - `nextStep` is delegated to `nextStepFor(reason, toolsAffected)`.
  *
  * Determinism: identical input verdict sets produce identical envelopes
  * (Fase B demo == live invariant honored here too).
  */
-export function buildAbstention(verdicts: Verdict[], claim?: string): Abstention {
-  const incompletes = verdicts.filter((v) => v.code === 'incomplete');
-  if (incompletes.length === 0) {
+export function buildAbstention(
+  verdicts: Verdict[],
+  claim?: string,
+  triggerCode: VerdictCode = 'incomplete',
+): Abstention {
+  const triggers = verdicts.filter((v) => v.code === triggerCode);
+  if (triggers.length === 0) {
     throw new Error(
-      'buildAbstention requires at least one incomplete verdict; ' +
+      `buildAbstention requires at least one "${triggerCode}" verdict; ` +
         'call only when shouldAbstain() === "abstain"',
     );
   }
 
-  const missing = distinct(incompletes.map((v) => v.toolName));
+  const missing = distinct(triggers.map((v) => v.toolName));
   const oks = verdicts.filter((v) => v.code === 'ok');
   const available = distinct(oks.map((v) => v.toolName));
   const nonOks = verdicts.filter((v) => v.code !== 'ok');
   const toolsAffected = distinct(nonOks.map((v) => v.toolName));
 
-  const reason = 'incomplete' as const;
-  const severity: VerdictSeverity = incompletes[0]!.severity;
+  const reason: VerdictCode = triggerCode;
+  const severity: VerdictSeverity = triggers[0]!.severity;
   const nextStep = nextStepFor(reason, toolsAffected);
 
   return {

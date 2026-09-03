@@ -1,11 +1,13 @@
 export {
   runAgent,
   resolveTruthGateMode,
+  resolveTenantPolicy,
   DEFAULT_TRUTH_GATE_MODE,
   extractDeviceHintFromMessage,
   type RetrievalProvider,
   type RetrievalProviderArgs,
   type RunAgentOptions,
+  type ResolvedTenantPolicy,
 } from './runtime';
 export { buildTools, executeToolCall, buildDefaultConnector } from './tools/index';
 export {
@@ -26,3 +28,4 @@ export {
   type VerdictSeverity,
   type TruthGateMode,
 } from '@ftth-copilot/evidence';
+export type { TenantPolicy } from '@ftth-copilot/shared';
