@@ -28,3 +28,10 @@ export interface ChatResponse {
 }
 
 export * from './contracts';
+export type { EvidenceProvenance } from './contracts';
+export {
+  EVIDENCE_PROVENANCE_SCHEMA,
+  evidenceProvenanceSchema,
+  DEFAULT_TTL_MS,
+  DEMO_TTL_MS,
+} from './contracts';

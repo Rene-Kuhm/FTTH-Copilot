@@ -1,0 +1,103 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Node.js 22+ / TypeScript 5.7 / pnpm 11 monorepo + Turborepo
+  Architecture: Monorepo (packages/*, packages/connectors/*, apps/web)
+  Testing: Vitest per-package, Playwright E2E (web), turbo run test workspace-wide
+  Style: TypeScript strict, Prisma ORM, Next.js 16 (web), Tailwind CSS
+
+projects:
+  - path: packages/agent-core
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/alerts
+    test: vitest run --passWithNoTests
+    test:integration: vitest run --config vitest.integration.config.ts
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/analytics
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/connectors/core
+    test: vitest run
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage
+  - path: packages/connectors/smartolt
+    test: vitest run
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage
+  - path: packages/connectors/mikrowisp
+    test: vitest run
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage
+  - path: packages/db
+    test: vitest run
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/detection
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/monitoring
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/security
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/shared
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/soc
+    test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "echo \"no lint configured\""
+    coverage: vitest run --coverage --passWithNoTests
+  - path: apps/web
+    test: "—"
+    test:e2e: playwright test
+    test:e2e:ui: playwright test --ui
+    typecheck: tsc --noEmit
+    lint: eslint .
+
+strict_tdd: true
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing code patterns
+      - Run pnpm test before committing
+    tdd: true
+    test_command: "turbo run test"
+  verify:
+    test_command: "turbo run test"
+    build_command: "turbo run build"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas

@@ -1,6 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
+import { EVIDENCE_PROVENANCE_SCHEMA, evidenceProvenanceSchema } from '@ftth-copilot/shared';
+import {
+  PROVENANCE_TOOL_META,
+  defaultProvenance,
+  deriveSource,
+  type ProvenanceContext,
+} from './provenance';
 
 /**
  * Construye las tools (function calling) que Claude puede invocar.
@@ -18,6 +25,52 @@ function asJsonSchema(description: string, properties: Record<string, unknown>, 
 
 /** Provides the tenant's proactively-detected (early-warning) issues. */
 export type PredictionProvider = () => Promise<unknown>;
+
+export type { ProvenanceContext };
+
+/**
+ * Envuelve un payload de tool en el envelope `evidence.provenance.v1`.
+ * Se conserva el payload crudo bajo `data` sin truncar ni transformar.
+ */
+function buildProvenanceEnvelope(
+  data: unknown,
+  toolName: string,
+  provenance?: ProvenanceContext,
+): string {
+  const meta = PROVENANCE_TOOL_META[toolName] ?? {
+    completeness: 'complete' as const,
+    confidence: 1.0,
+  };
+  const mode = provenance?.mode ?? 'live';
+  const ttlOverride = meta.ttlOverrideMs;
+  const ttlMs = ttlOverride ?? defaultProvenance(mode);
+  const source = deriveSource(
+    mode,
+    provenance?.provider,
+    toolName,
+    provenance?.source,
+  );
+
+  const envelope = {
+    schema: EVIDENCE_PROVENANCE_SCHEMA,
+    source,
+    tenantId: provenance?.tenantId ?? '',
+    observedAt: new Date().toISOString(),
+    ttlMs,
+    completeness: meta.completeness,
+    confidence: meta.confidence,
+    data,
+  };
+
+  const parsed = evidenceProvenanceSchema.safeParse(envelope);
+  if (!parsed.success) {
+    return JSON.stringify({
+      error: `Provenance envelope inválido: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+    });
+  }
+
+  return JSON.stringify(parsed.data);
+}
 
 export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
   return [
@@ -128,6 +181,7 @@ export async function executeToolCall(
   toolName: string,
   args: Record<string, unknown>,
   predictionProvider?: PredictionProvider,
+  provenance?: ProvenanceContext,
 ): Promise<string> {
   try {
     let data: unknown;
@@ -181,7 +235,7 @@ export async function executeToolCall(
     if (data === null || data === undefined) {
       return 'No encontrado en el NMS. Verificá el identificador (ID, SN, o filtro).';
     }
-    return JSON.stringify(data, null, 2);
+    return buildProvenanceEnvelope(data, toolName, provenance);
   } catch (err) {
     return JSON.stringify({
       error: err instanceof Error ? err.message : 'Error desconocido',

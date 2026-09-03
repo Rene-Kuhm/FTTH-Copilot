@@ -49,3 +49,6 @@ prisma/migrations/dev/
 .cache/
 .parcel-cache/
 apps/web/test-results/
+
+# SDD
+.atl/

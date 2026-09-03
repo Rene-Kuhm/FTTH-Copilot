@@ -133,6 +133,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       conversationHistory: history,
       connector: resolved.connector,
       dataSource: resolved.dataSource,
+      tenantId: user.tenantId,
+      connectionId: resolved.dataSource.connectionId ?? undefined,
       predictionProvider: async () =>
         prisma.detectedAlert.findMany({
           where: { tenantId: user.tenantId, status: 'open' },

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   actionSchema,
+  evidenceProvenanceSchema,
+  EVIDENCE_PROVENANCE_SCHEMA,
   findingSchema,
   telemetryEventSchema,
   TELEMETRY_SCHEMA,
@@ -83,5 +85,63 @@ describe('action.v1', () => {
 
   it('rejects an unknown action type', () => {
     expect(actionSchema.safeParse({ ...valid, type: 'sms' }).success).toBe(false);
+  });
+});
+
+describe('evidence.provenance.v1', () => {
+  const valid = {
+    schema: EVIDENCE_PROVENANCE_SCHEMA,
+    source: 'smartolt.demo',
+    tenantId: 't1',
+    observedAt: '2026-08-30T12:00:00.000Z',
+    ttlMs: 900000,
+    completeness: 'complete' as const,
+    confidence: 1.0,
+    data: [{ id: 'olt-1' }],
+  };
+
+  it('accepts a valid provenance envelope', () => {
+    expect(evidenceProvenanceSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects a wrong schema version', () => {
+    expect(
+      evidenceProvenanceSchema.safeParse({ ...valid, schema: 'evidence.provenance.v2' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an empty source', () => {
+    expect(evidenceProvenanceSchema.safeParse({ ...valid, source: '' }).success).toBe(false);
+  });
+
+  it('rejects an empty tenantId', () => {
+    expect(evidenceProvenanceSchema.safeParse({ ...valid, tenantId: '' }).success).toBe(false);
+  });
+
+  it('rejects an invalid observedAt', () => {
+    expect(
+      evidenceProvenanceSchema.safeParse({ ...valid, observedAt: 'not-a-date' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a negative ttlMs', () => {
+    expect(evidenceProvenanceSchema.safeParse({ ...valid, ttlMs: -1 }).success).toBe(false);
+  });
+
+  it('rejects a completeness value outside the enum', () => {
+    expect(
+      evidenceProvenanceSchema.safeParse({ ...valid, completeness: 'full' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a confidence value outside [0,1]', () => {
+    expect(
+      evidenceProvenanceSchema.safeParse({ ...valid, confidence: 1.5 }).success,
+    ).toBe(false);
+  });
+
+  it('accepts a valid envelope without optional confidence', () => {
+    const { confidence: _, ...withoutConfidence } = valid;
+    expect(evidenceProvenanceSchema.safeParse(withoutConfidence).success).toBe(true);
   });
 });
