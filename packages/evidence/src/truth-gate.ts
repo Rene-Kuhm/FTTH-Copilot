@@ -33,7 +33,13 @@ const CODE_RANK: Record<VerdictCode, number> = {
  * Classifies a tool result that does not carry a parseable envelope
  * (`null`, `undefined`, error JSON, plain text). The gate records it
  * as `incomplete / no-envelope / critical`; the data still reaches
- * the LLM unchanged.
+ * the LLM unchanged (observe mode never gates data flow).
+ *
+ * @param toolName - The name of the tool whose result failed to
+ *   produce an envelope. Stored on the verdict so Fase C can correlate
+ *   with `toolCalls[i].name`.
+ * @returns A `Verdict` with `code='incomplete'`, `reason='no-envelope'`,
+ *   `severity='critical'`, and the supplied `toolName`.
  */
 export function classifyUnwrapped(toolName: string): Verdict {
   return {
@@ -121,12 +127,34 @@ function rankVerdicts(candidates: Verdict[], toolName: string): Verdict {
 }
 
 /**
- * Classifies an already-parsed tool result envelope. A non-envelope
- * payload is recorded as `incomplete / parse-error / critical`;
- * otherwise, each dimension contributes at most one candidate and the
- * highest-severity verdict wins. Demo and live envelopes follow the
- * same path (no mode-conditional thresholds). `now` is injected per
- * call for testability; defaults to `new Date()`.
+ * Classifies an already-parsed tool result envelope.
+ *
+ * Behaviour by input shape:
+ * - Non-object payload or JSON-parse failure: returns
+ *   `incomplete / parse-error / critical` directly (no envelope found).
+ * - Valid envelope: collects candidate verdicts from the three
+ *   independent dimensions (confidence, staleness, completeness) and
+ *   returns the highest-severity candidate. If none apply, returns
+ *   `ok / fresh-complete / ok`.
+ *
+ * Severity ordering: `incomplete (3) > stale (2) > low_confidence (1)
+ * > ok (0)`. Within a code, the `severity` field breaks the tie
+ * (`critical > warning > info > ok`).
+ *
+ * Single classification path — demo envelopes (`source: '*.demo'`)
+ * and live envelopes (`source: '*.poll'`) with identical fields
+ * produce identical verdicts. There is no mode-conditional threshold.
+ *
+ * @param parsed - The result of `JSON.parse(rawToolResult)`. If this is
+ *   not an envelope, the verdict is `incomplete / parse-error`.
+ * @param toolName - The name of the originating tool; stored on every
+ *   returned verdict.
+ * @param now - Optional reference clock for the staleness check.
+ *   Defaults to `new Date()` (the time the gate is invoked). Inject
+ *   for testability.
+ * @returns A `Verdict` describing the highest-severity classification.
+ *   Observe mode: the caller must still pass the raw tool result
+ *   string to the LLM unchanged.
  */
 export function classifyEnvelope(parsed: unknown, toolName: string, now?: Date): Verdict {
   const parseResult = evidenceProvenanceSchema.safeParse(parsed);
