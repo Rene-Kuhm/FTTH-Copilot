@@ -11,7 +11,8 @@
  * The helper never throws. The chat route wraps the call site with
  * `Promise.all`; a throw here would break the chat.
  */
-import type { TenantPolicy, VerdictCode } from '@ftth-copilot/shared';
+import type { TenantPolicy } from '@ftth-copilot/shared';
+import type { VerdictCode } from '@ftth-copilot/evidence';
 import { prisma } from '@ftth-copilot/db';
 
 export type { TenantPolicy } from '@ftth-copilot/shared';
@@ -40,7 +41,7 @@ function isVerdictCode(value: unknown): value is VerdictCode {
  * decoded as JSON or is not an array — the caller MUST treat this as a
  * malformed row and return `null` for the whole policy.
  */
-function decodeAbstainOnCodes(value: unknown): ReadonlyArray<VerdictCode> | undefined | '__invalid__' {
+function decodeAbstainOnCodes(value: unknown): VerdictCode[] | undefined | '__invalid__' {
   if (value === null || value === undefined) return undefined;
   let raw: unknown;
   if (typeof value === 'string') {

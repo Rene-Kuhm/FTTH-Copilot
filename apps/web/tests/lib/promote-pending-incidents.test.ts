@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TenantPolicy } from '@ftth-copilot/shared';
 
 /**
  * RED tests for `promotePendingIncidents(now)` at
@@ -233,17 +234,12 @@ describe('promotePendingIncidents — eligibility gate', () => {
 // ── Fase E — per-tenant promotionMinAgeMs (policyLoader 2nd arg) ─────────────
 
 describe('promotePendingIncidents — Fase E per-tenant policyLoader', () => {
-  const policyFor = (
-    overrides: Record<string, unknown>,
-  ): {
-    schema: 'ftth.tenant-policy.v1';
-    schemaVersion: 1;
-    tenantId: string;
-    [k: string]: unknown;
-  } => ({
+  const policyFor = (overrides: Partial<TenantPolicy>): TenantPolicy => ({
     schema: 'ftth.tenant-policy.v1',
     schemaVersion: 1,
     tenantId: 'tenant-1',
+    createdAt: '2026-09-01T11:00:00.000Z',
+    updatedAt: '2026-09-01T11:00:00.000Z',
     ...overrides,
   });
 
@@ -331,7 +327,7 @@ describe('promotePendingIncidents — Fase E per-tenant policyLoader', () => {
     expect(result.promoted).toBe(10);
     expect(policyLoader).toHaveBeenCalledTimes(1);
     // The single call must receive the deduped tenantIds list.
-    expect(policyLoader.mock.calls[0]?.[0].sort()).toEqual(['t1', 't2', 't3', 't4']);
+    expect([...policyLoader.mock.calls[0]?.[0]].sort()).toEqual(['t1', 't2', 't3', 't4']);
   });
 
   it('mixed scenario: some tenants have a policy, others use the 24h default', async () => {

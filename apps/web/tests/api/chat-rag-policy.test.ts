@@ -234,10 +234,10 @@ describe('POST /api/chat — per-tenant TenantPolicy enforcement (Fase E)', () =
     await callRoute({ message: 'hola' });
 
     expect(mocks.loadTenantPolicy).toHaveBeenCalledWith('tenant-1');
-    const args = mocks.runAgent.mock.calls[0]?.[0] as { tenantPolicy: typeof policy };
+    const args = mocks.runAgent.mock.calls[0]?.[0] as { tenantPolicy: typeof policy | null };
     expect(args.tenantPolicy).toEqual(policy);
-    expect(args.tenantPolicy?.retrievalLimit).toBe(7);
-    expect(args.tenantPolicy?.truthGateMode).toBe('observe');
+    expect(args.tenantPolicy && 'retrievalLimit' in args.tenantPolicy ? args.tenantPolicy.retrievalLimit : undefined).toBe(7);
+    expect(args.tenantPolicy && 'truthGateMode' in args.tenantPolicy ? args.tenantPolicy.truthGateMode : undefined).toBe('observe');
   });
 
   it('loadTenantPolicy fires exactly once per turn (parallel with resolveTenantConnector)', async () => {
