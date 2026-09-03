@@ -1,6 +1,13 @@
 /**
  * Permission helper — self-contained (no @ftth-copilot/db import).
  * Works on both client and server.
+ *
+ * Fase D WU5 note: admin promotion of PendingIncidentCandidate →
+ * ConfirmedIncident is gated on the OWNER role itself (not on a dedicated
+ * permission) because the blast radius is "writes a row the retrieval
+ * path surfaces to the LLM as background context". No new permission is
+ * added in Phase D; OWNER/ADMIN already have the surface. Add a dedicated
+ * `confirm_incident` permission in Fase E if non-admins need to promote.
  */
 
 export type Role = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
