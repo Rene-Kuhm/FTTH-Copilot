@@ -67,3 +67,18 @@ export {
   type PrecisionLabels,
 } from './metrics';
 
+// Phase F-5.1 — verdict-log writer (pure TS, no DB). Builds
+// `VerdictLogEntryInput` rows from `Verdict[]` (one per verdict) with the
+// `injectionSuspicion` denormalized fast-filter bit pre-stamped. The
+// chat route (F-5.2) consumes the builder; the F-4 nightly leg consumes
+// the same builder for recompute / metrics. `serializeVerdictLogEntries`
+// is the JSON fallback path for the `agentActionLog.parameters` JSON
+// column when Prisma is unavailable.
+export {
+  buildVerdictLogEntries,
+  isInjectionSuspicionCode,
+  serializeVerdictLogEntries,
+  type BuildVerdictLogEntriesOpts,
+  type VerdictLogEntryInput,
+} from './verdict-log-writer';
+

@@ -32,6 +32,11 @@ const mocks = vi.hoisted(() => ({
   prismaConfirmedIncidentFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
   prismaTenantPolicyFindUnique: vi.fn(),
+  // Fase F — verdictLog.write surface. The chat route calls
+  // `prisma.verdictLog.createMany` once per chat completion when
+  // `result.verdicts` is non-empty. Wrapped in a try/catch so a thrown
+  // promise (e.g. DB blip) keeps the chat at HTTP 200.
+  prismaVerdictLogCreateMany: vi.fn(),
   loadTenantPolicy: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
@@ -69,6 +74,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     tenantPolicy: {
       findUnique: mocks.prismaTenantPolicyFindUnique,
+    },
+    verdictLog: {
+      createMany: mocks.prismaVerdictLogCreateMany,
     },
   },
 }));
@@ -156,6 +164,10 @@ function setupHappyPath() {
   mocks.prismaConfirmedIncidentFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.prismaTenantPolicyFindUnique.mockReset();
+  // Fase F — verdictLog default: success. The chat route's try/catch
+  // surrounds `createMany`; tests that want the fail-safe path override
+  // this with `mockRejectedValueOnce`.
+  mocks.prismaVerdictLogCreateMany.mockReset();
   mocks.loadTenantPolicy.mockReset();
   mocks.getCurrentUser.mockResolvedValue(fakeUser);
   mocks.hasPermission.mockReturnValue(true);
@@ -177,6 +189,8 @@ function setupHappyPath() {
   // Fase E — default: no TenantPolicy row → runAgent receives tenantPolicy: undefined.
   mocks.prismaTenantPolicyFindUnique.mockResolvedValue(null);
   mocks.loadTenantPolicy.mockResolvedValue(null);
+  // Fase F — verdictLog default: success (count: 0 → no-op no-op shape).
+  mocks.prismaVerdictLogCreateMany.mockResolvedValue({ count: 0 });
 }
 
 beforeEach(() => {
@@ -332,5 +346,239 @@ describe('POST /api/chat — observe-mode non-abstention persistence', () => {
     const res = await callRoute({ message: 'listar ONUs' });
     const body = (await res.json()) as { abstention?: unknown };
     expect(body.abstention).toBeUndefined();
+  });
+});
+
+/**
+ * Fase F — verdict_log persistence path (F-5.2 — chat-route writes).
+ *
+ * Contract under test:
+ *   1. When `runAgent` returns `result.warnings: VerdictCode[]` (the F-3
+ *      'warn' finalize branch), the chat route persists exactly one
+ *      `AgentActionLog` row with `toolName === '__injection_suspicion__'`
+ *      carrying the warn codes.
+ *   2. When `runAgent` returns NO warnings, NO `__injection_suspicion__`
+ *      row is written — the chat route does not emit a row when warnings
+ *      is empty.
+ *   3. The chat route persists ONE `verdict_log` row per verdict in
+ *      `result.verdicts` via `prisma.verdictLog.createMany`. Empty
+ *      verdicts → zero rows (the createMany call is short-circuited).
+ *   4. The `prisma.verdictLog.createMany` call is wrapped in a fail-safe
+ *      try/catch — a thrown promise keeps the chat at HTTP 200.
+ *   5. The chat route does NOT add a synthetic `__injection_suspicion__`
+ *      row to `Message.toolCalls`; the warning bubble is surfaced via
+ *      `result.warnings` for the API consumer (see also the API
+ *      response contract below).
+ *
+ * RED proof: before F-5.2 wires the writer into the chat route, every
+ * test below fails because the `__injection_suspicion__` row and the
+ * `prismaVerdictLogCreateMany` call do not happen.
+ *
+ * GREEN proof: after F-5.2 ships, the chat route reads
+ * `result.warnings` + `result.verdicts` and persists both side effects
+ * inside fail-safe guards.
+ */
+describe('POST /api/chat — Fase F warn path + verdict_log persistence (F-5.2)', () => {
+  function findSuspicionLogRow() {
+    return mocks.prismaAgentActionLogCreate.mock.calls.find(
+      (c) =>
+        (c[0] as { data: { toolName: string } }).data.toolName ===
+        '__injection_suspicion__',
+    );
+  }
+
+  function findVerdictLogCreateManyArgs() {
+    const call = mocks.prismaVerdictLogCreateMany.mock.calls[0];
+    if (!call) return undefined;
+    return (call[0] as { data: unknown[] }).data;
+  }
+
+  it('emits exactly one __injection_suspicion__ AgentActionLog row when result.warnings=[stale]', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM (byte-identical).',
+      toolCalls: [{ name: 'list_onus', arguments: {}, result: '[]' }],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    });
+
+    const res = await callRoute({ message: 'stale' });
+
+    expect(res.status).toBe(200);
+    const suspicionRow = findSuspicionLogRow();
+    expect(suspicionRow).toBeDefined();
+    const data = (suspicionRow![0] as { data: Record<string, unknown> }).data;
+    expect(data.toolName).toBe('__injection_suspicion__');
+    expect(data.parameters).toEqual({
+      mode: 'strict',
+      warnCodes: ['stale'],
+    });
+  });
+
+  it('packs both warn codes into the same __injection_suspicion__ row when warnings=[stale,low_confidence]', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM (byte-identical).',
+      toolCalls: [
+        { name: 'list_onus', arguments: {}, result: '[]' },
+        { name: 'list_olts', arguments: {}, result: '[]' },
+      ],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+        { toolName: 'list_olts', code: 'low_confidence', reason: 'low', severity: 'warning' },
+      ],
+      warnings: ['stale', 'low_confidence'],
+    });
+
+    await callRoute({ message: 'multi-warn' });
+
+    const suspicionRows = mocks.prismaAgentActionLogCreate.mock.calls.filter(
+      (c) =>
+        (c[0] as { data: { toolName: string } }).data.toolName ===
+        '__injection_suspicion__',
+    );
+    // Exactly one row regardless of how many warn codes were emitted.
+    expect(suspicionRows).toHaveLength(1);
+    const data = (suspicionRows[0]![0] as { data: Record<string, unknown> }).data;
+    expect(data.parameters).toEqual({
+      mode: 'strict',
+      warnCodes: ['stale', 'low_confidence'],
+    });
+  });
+
+  it('emits NO __injection_suspicion__ row when runAgent returns no warnings', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte normal.',
+      toolCalls: [{ name: 'list_onus', arguments: {}, result: '[]' }],
+      verdicts: [
+        { toolName: 'list_onus', code: 'ok', reason: 'fresh', severity: 'info' },
+      ],
+      // No `warnings` field — allow path → chat route MUST NOT write the row.
+    });
+
+    await callRoute({ message: 'allow' });
+
+    const suspicionRows = mocks.prismaAgentActionLogCreate.mock.calls.filter(
+      (c) =>
+        (c[0] as { data: { toolName: string } }).data.toolName ===
+        '__injection_suspicion__',
+    );
+    expect(suspicionRows).toHaveLength(0);
+  });
+
+  it('persists verdict_log rows via createMany (one row per verdict)', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM.',
+      toolCalls: [
+        { name: 'list_onus', arguments: {}, result: '[]' },
+        { name: 'list_olts', arguments: {}, result: '[]' },
+      ],
+      verdicts: [
+        { toolName: 'list_onus', code: 'ok', reason: 'fresh', severity: 'info' },
+        { toolName: 'list_olts', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    });
+
+    await callRoute({ message: 'verdict_log' });
+
+    expect(mocks.prismaVerdictLogCreateMany).toHaveBeenCalledTimes(1);
+    const entries = findVerdictLogCreateManyArgs() as Array<Record<string, unknown>>;
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      tenantId: 'tenant-1',
+      toolName: 'list_onus',
+      code: 'ok',
+      severity: 'info',
+      injectionSuspicion: false,
+    });
+    expect(entries[1]).toMatchObject({
+      tenantId: 'tenant-1',
+      toolName: 'list_olts',
+      code: 'stale',
+      severity: 'warning',
+      injectionSuspicion: true,
+    });
+    // Correlation keys must be present (confirmed-incident-memory spec
+    // §"Correlation keys present" scenario).
+    for (const entry of entries) {
+      expect(entry.tenantId).toBe('tenant-1');
+      expect(typeof entry.messageId).toBe('string');
+      expect((entry.messageId as string).length).toBeGreaterThan(0);
+      expect(typeof entry.conversationId).toBe('string');
+      expect((entry.conversationId as string).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('does NOT call prisma.verdictLog.createMany when verdicts is empty', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte sin tool calls.',
+      toolCalls: [],
+      verdicts: [],
+      warnings: [],
+    });
+
+    await callRoute({ message: 'empty-verdicts' });
+
+    // Empty `verdicts` → zero `verdict_log` rows → createMany is
+    // skipped entirely (no wasted DB round-trip on the happy path).
+    expect(mocks.prismaVerdictLogCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the chat at HTTP 200 when prisma.verdictLog.createMany throws (fail-safe)', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.prismaVerdictLogCreateMany.mockRejectedValueOnce(
+      new Error('simulated DB blip'),
+    );
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM.',
+      toolCalls: [{ name: 'list_onus', arguments: {}, result: '[]' }],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    });
+
+    const res = await callRoute({ message: 'fail-safe' });
+
+    // The fail-safe guarantee: a thrown `createMany` MUST NOT break chat.
+    // The agent's LLM text already shipped to the operator; verdict_log
+    // is observability-only and never gates the HTTP response.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { reply: string };
+    expect(body.reply).toBe('Reporte LLM.');
+  });
+
+  it('does NOT add a synthetic __injection_suspicion__ row to Message.toolCalls', async () => {
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM.',
+      toolCalls: [{ name: 'list_onus', arguments: {}, result: '[]' }],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    });
+
+    await callRoute({ message: 'no-tool-call-row' });
+
+    const assistantCall = findAssistantCreate();
+    const toolCalls = (assistantCall![0] as { data: { toolCalls?: unknown[] } }).data
+      .toolCalls;
+    // The only row persisted to toolCalls is the original `list_onus`
+    // call; the chat route MUST NOT synthesize a __injection_suspicion__
+    // row here (that bubble comes via the HTTP API surface, not the
+    // Message audit JSON).
+    expect(toolCalls).toEqual([
+      { name: 'list_onus', arguments: {}, result: '[]' },
+    ]);
+    expect(
+      (toolCalls as Array<{ name: string }>).some((t) => t.name === '__injection_suspicion__'),
+    ).toBe(false);
   });
 });
