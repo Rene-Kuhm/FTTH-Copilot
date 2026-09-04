@@ -126,6 +126,29 @@ enum TopologyNodeKind {
   ONU
 }
 
+// Fase F — VerdictCode enumeration. Mirrors the TypeScript `VerdictCode`
+// union in `@ftth-copilot/evidence` (Fase B TruthGate). Used by the
+// `verdict_log` table to classify each persisted verdict at write time so
+// the v1 persistence layer is filterable by code without a JSON cast.
+enum VerdictCode {
+  ok
+  low_confidence
+  stale
+  incomplete
+}
+
+// Fase F — VerdictSeverity enumeration. Mirrors the TypeScript
+// `VerdictSeverity` union in `@ftth-copilot/evidence`. Severity is the
+// "how loud should we be" dimension that complements `code` (the "what
+// happened" dimension) — Fase F persistence keeps both so nightly
+// coverage / abstention / gate-FP metrics can slice on either.
+enum VerdictSeverity {
+  ok
+  info
+  warning
+  critical
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -146,6 +169,7 @@ model Tenant {
   pendingIncidentCandidates PendingIncidentCandidate[]
   policy                    TenantPolicy?
   topologyEdges             TopologyEdge[]
+  verdictLog                VerdictLog[]
 
   @@map("tenants")
 }
@@ -243,6 +267,7 @@ model Message {
   toolName       String? // for role = 'tool', which tool produced this
   toolResultJson Json? // raw tool result for tool messages
   createdAt      DateTime     @default(now())
+  verdictLog     VerdictLog[]
 
   @@index([conversationId, createdAt])
   @@map("messages")
@@ -503,4 +528,38 @@ model TopologyEdge {
   @@index([tenantId, parentKind, parentId, validTo])
   @@index([tenantId, childKind, childId, validTo])
   @@map("topology_edges")
+}
+
+// Fase F — verdict log (v1 persistence surface for `AgentResult.verdicts`).
+//
+// One row per (message, tool-call verdict) emitted by the chat route after a
+// `runAgent` returns with a non-empty `verdicts` array. `injectionSuspicion`
+// is the fast-filter bit used to derive the nightly
+// `injection_suspicion_total` metric from rows with code ∈
+// {`stale`, `low_confidence`} — see `openspec/changes/fase-f-eval-injection/`
+// §Risks. Conversation/message references are FK + CASCADE so deleting a
+// tenant or a message removes its verdict log atomically.
+//
+// The matching zod contract is `verdictLogEntrySchema`
+// (`ftth.verdict-log.v1`) in `@ftth-copilot/shared`. Fase 2 MAY consolidate
+// this into `Message.verdicts Json?`; v1 keeps the table separate so the
+// `Message` envelope stays byte-identical and every read path keeps its
+// current shape (per design.md §Architecture Decisions #6).
+model VerdictLog {
+  id                  String          @id @default(cuid())
+  tenantId            String
+  tenant              Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId           String
+  message             Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversationId      String? // soft ref; Message cascade covers cleanup
+  toolName            String
+  code                VerdictCode
+  severity            VerdictSeverity
+  observedAt          DateTime        @default(now())
+  injectionSuspicion  Boolean         @default(false)
+
+  @@index([tenantId, observedAt])
+  @@index([tenantId, code, observedAt])
+  @@index([messageId])
+  @@map("verdict_log")
 }
