@@ -983,3 +983,196 @@ describe('runAgent — Fase E tenantPolicy integration', () => {
     expect(args.sinceDays).toBeUndefined();
   });
 });
+
+// ── Fase F (F-3) — finalize consume-warn tier (text byte-identical) ───────────
+//
+// The `'warn'` decision is the F-3 additive channel: `result.text` stays
+// byte-identical to the LLM string, `result.warnings: VerdictCode[]` is
+// populated from the warn sources (`'stale'` + `'low_confidence'`), and
+// `result.abstention` / `result.abstained` stay undefined. The abstention
+// path remains unchanged — `'incomplete'` still supersedes the warn tier.
+//
+// Byte-identity is asserted via `expect(result.text).toBe(LLM_TEXT_LITERAL)` —
+// NOT a JSON round-trip. A JSON round-trip would normalize the deliberate
+// whitespace inside `LLM_TEXT_LITERAL` and any silent formatter / clone
+// would slip through. The `.toBe()` comparison catches every byte shift.
+
+describe('runAgent — Fase F warn-tier consume (text byte-identical)', () => {
+  // Multi-line literal with deliberate whitespace: blank line between paragraphs,
+  // indented continuation, trailing newline. A `String(text).trim()` /
+  // `JSON.parse(JSON.stringify(text))` round-trip would shift these bytes.
+  const LLM_TEXT_LITERAL =
+    'Línea 1: diagnóstico completo.\n' +
+    '\n' +
+    'Línea 2 (separada por línea vacía).\n' +
+    '   Línea 3 con sangría y trailing whitespace.\n';
+
+  it('strict + [stale] → text byte-identical to LLM, warnings=["stale"], no abstention/abstained', async () => {
+    createMessage
+      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'list_onus', arguments: {} }] })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ observedAt: '2026-08-30T12:00:00.000Z' }),
+      () => runAgent({ userMessage: 'stale', connector }),
+    );
+
+    // Byte-identity on text; warn channel populated; abstention path stays off.
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toEqual(['stale']);
+    expect(result.abstained).toBeUndefined();
+    expect(result.abstention).toBeUndefined();
+    expect(result.verdicts?.[0]?.code).toBe('stale');
+  });
+
+  it('strict + [low_confidence] → text byte-identical, warnings=["low_confidence"]', async () => {
+    createMessage
+      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'list_onus', arguments: {} }] })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ confidence: 0.1 }),
+      () => runAgent({ userMessage: 'low conf', connector }),
+    );
+
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toEqual(['low_confidence']);
+    expect(result.abstained).toBeUndefined();
+    expect(result.abstention).toBeUndefined();
+    expect(result.verdicts?.[0]?.code).toBe('low_confidence');
+  });
+
+  it('strict + mixed [ok, stale, incomplete] → still abstains (incomplete wins), warnings undefined', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_onus', arguments: {} },
+          { name: 'list_olts', arguments: {} },
+          { name: 'get_onu_detail', arguments: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      (toolName) => {
+        if (toolName === 'get_onu_detail') return 'esto no es JSON'; // incomplete (parse-error)
+        if (toolName === 'list_onus') return envelope({ observedAt: '2026-08-30T12:00:00.000Z' }); // stale
+        return envelope(); // ok
+      },
+      () => runAgent({ userMessage: 'mixto', connector }),
+    );
+
+    // Abstain path supersedes the warn channel — no dual-fire.
+    expect(result.abstained).toBe(true);
+    expect(result.abstention).toBeDefined();
+    expect(result.text).not.toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toBeUndefined();
+    expect(result.verdicts?.map((v) => v.code)).toEqual(['stale', 'ok', 'incomplete']);
+  });
+
+  it('strict + [ok, stale, low_confidence] → text byte-identical, warnings deduped to {stale, low_confidence}', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_olts', arguments: {} },
+          { name: 'list_onus', arguments: {} },
+          { name: 'get_metrics', arguments: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      (toolName) => {
+        if (toolName === 'list_olts') return envelope(); // ok
+        if (toolName === 'list_onus') return envelope({ observedAt: '2026-08-30T12:00:00.000Z' }); // stale
+        if (toolName === 'get_metrics') return envelope({ confidence: 0.1 }); // low_confidence
+        return envelope();
+      },
+      () => runAgent({ userMessage: 'warnings', connector }),
+    );
+
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toBeDefined();
+    expect(result.warnings).toContain('stale');
+    expect(result.warnings).toContain('low_confidence');
+    expect(result.warnings).toHaveLength(2); // deduped distinct codes
+    expect(result.abstained).toBeUndefined();
+    expect(result.abstention).toBeUndefined();
+    expect(result.verdicts?.map((v) => v.code)).toEqual(['ok', 'stale', 'low_confidence']);
+  });
+
+  it('strict + [] → text byte-identical, warnings undefined (no warn sources)', async () => {
+    createMessage.mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await runAgent({ userMessage: 'hola', connector });
+
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toBeUndefined();
+    expect(result.verdicts).toEqual([]);
+    expect(result.abstained).toBeUndefined();
+    expect(result.abstention).toBeUndefined();
+  });
+
+  it('observe + [stale] → text byte-identical, warnings undefined (observe never warns)', async () => {
+    createMessage
+      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'list_onus', arguments: {} }] })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ observedAt: '2026-08-30T12:00:00.000Z' }),
+      () => runAgent({ userMessage: 'observe', connector, mode: 'observe' }),
+    );
+
+    expect(result.verdicts?.[0]?.code).toBe('stale');
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    // Observe never warns — warn channel is a strict-mode-only observability
+    // hook; the Fase B observe behavior is preserved (no `warnings` emitted).
+    expect(result.warnings).toBeUndefined();
+    expect(result.abstained).toBeUndefined();
+  });
+
+  it('strict + duplicate stale verdicts dedupes warnings to ["stale"] (deterministic, distinct)', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_onus', arguments: {} },
+          { name: 'list_olts', arguments: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ observedAt: '2026-08-30T12:00:00.000Z' }), // both stale
+      () => runAgent({ userMessage: 'dup', connector }),
+    );
+
+    expect(result.verdicts?.map((v) => v.code)).toEqual(['stale', 'stale']);
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toEqual(['stale']); // deduped to one distinct code
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it('strict + [low_confidence, low_confidence] dedupes warnings to ["low_confidence"]', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { name: 'list_onus', arguments: {} },
+          { name: 'list_olts', arguments: {} },
+        ],
+      })
+      .mockResolvedValueOnce({ text: LLM_TEXT_LITERAL, toolCalls: [] });
+
+    const result = await withToolResults(
+      () => envelope({ confidence: 0.1 }), // both low_confidence
+      () => runAgent({ userMessage: 'dup-low', connector }),
+    );
+
+    expect(result.verdicts?.map((v) => v.code)).toEqual(['low_confidence', 'low_confidence']);
+    expect(result.text).toBe(LLM_TEXT_LITERAL);
+    expect(result.warnings).toEqual(['low_confidence']);
+  });
+});
