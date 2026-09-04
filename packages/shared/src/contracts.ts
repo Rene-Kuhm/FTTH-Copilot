@@ -438,3 +438,28 @@ export const verdictLogSchema = z
   .strict();
 
 export type VerdictLog = z.infer<typeof verdictLogSchema>;
+
+// ── ftth.injection-suspicion-export.v1 (AD-11 — nightly export) ───────────────
+//
+// Stable JSON envelope for the `injection_suspicion_total` derived metric.
+// The nightly eval job produces this from `verdict_log` rows where
+// `code IN ('stale', 'low_confidence')` (the `injectionSuspicion`
+// fast-filter bit). The schema is consumed by the NOC dashboard and
+// any external monitoring pipeline that subscribes to the metrics artifact.
+//
+// `.strict()` rejects unknown top-level keys so producers can never
+// silently drift the wire format.
+export const INJECTION_SUSPICION_EXPORT_SCHEMA =
+  'ftth.injection-suspicion-export.v1' as const;
+
+export const injectionSuspicionExportSchema = z
+  .object({
+    schema: z.literal(INJECTION_SUSPICION_EXPORT_SCHEMA),
+    generatedAt: z.string().datetime(),
+    total: z.number().int().nonnegative(),
+    byTenant: z.record(z.string(), z.number().int().nonnegative()),
+    byCode: z.record(z.string(), z.number().int().nonnegative()),
+  })
+  .strict();
+
+export type InjectionSuspicionExport = z.infer<typeof injectionSuspicionExportSchema>;

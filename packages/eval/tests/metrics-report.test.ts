@@ -16,6 +16,11 @@
  * view, and calls `computePrecision` to produce a real number. Without
  * labels, `precision` stays the literal `'TBD'`.
  *
+ * P1.3 — the report now includes `injectionSuspicionTotal` (number,
+ * default 0) and optionally `injectionSuspicionByTenant` (absent when
+ * no verdict-log entries are provided). The field appears in the output
+ * shape and round-trips to the on-disk JSON.
+ *
  * RED proof: before `scripts/metrics-report.ts` exists, the named export
  * `generateMetricsReport` is `undefined` and every assertion below fails.
  * GREEN proof: after the stub ships, the output JSON is well-formed with
@@ -30,6 +35,7 @@ import {
   generateMetricsReport,
   type MetricsReportSummary,
 } from '../scripts/metrics-report';
+import type { VerdictLogEntry } from '../src/metrics';
 
 describe('@ftth-copilot/eval — metrics-report stub (F-6.2)', () => {
   it('exports a generateMetricsReport function', () => {
@@ -50,6 +56,9 @@ describe('@ftth-copilot/eval — metrics-report stub (F-6.2)', () => {
       });
       // Decision #6: precision is TBD until NOC labels exist (F-7).
       expect(summary.precision).toBe('TBD');
+
+      // P1.3: injectionSuspicionTotal defaults to 0 when no entries are provided.
+      expect(summary.injectionSuspicionTotal).toBe(0);
 
       // The on-disk artifact must exist and round-trip via JSON.parse.
       const path = join(dir, 'metrics-summary.json');
@@ -75,6 +84,8 @@ describe('@ftth-copilot/eval — metrics-report stub (F-6.2)', () => {
       expect(summary.abstentionRate).toBeGreaterThanOrEqual(0);
       expect(summary.abstentionRate).toBeLessThanOrEqual(1);
       expect(summary.gateFp).toBeGreaterThanOrEqual(0);
+      // P1.3: non-negative integer.
+      expect(summary.injectionSuspicionTotal).toBeGreaterThanOrEqual(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -162,3 +173,64 @@ describe('@ftth-copilot/eval — metrics-report precision wiring (F-7.2)', () =>
     }
   });
 });
+
+describe('@ftth-copilot/eval — metrics-report injection-suspicion wiring (P1.3)', () => {
+  it('emits injectionSuspicionTotal as 0 when no verdictLogEntries are provided', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const summary = await generateMetricsReport({ outputDir: dir });
+      expect(summary.injectionSuspicionTotal).toBe(0);
+      // injectionSuspicionByTenant should be absent (no entries → no breakdown).
+      expect(summary.injectionSuspicionByTenant).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('computes a real injectionSuspicionTotal from provided verdictLogEntries', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const entries: VerdictLogEntry[] = [
+        { tenantId: 't1', code: 'stale', injectionSuspicion: true },
+        { tenantId: 't1', code: 'stale', injectionSuspicion: true },
+        { tenantId: 't2', code: 'low_confidence', injectionSuspicion: true },
+        { tenantId: 't1', code: 'ok', injectionSuspicion: false },
+      ];
+      const summary = await generateMetricsReport({ outputDir: dir, verdictLogEntries: entries });
+      expect(summary.injectionSuspicionTotal).toBe(3);
+      expect(summary.injectionSuspicionByTenant).toEqual({ t1: 2, t2: 1 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes injectionSuspicionTotal to the on-disk JSON', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const entries: VerdictLogEntry[] = [
+        { tenantId: 't1', code: 'stale', injectionSuspicion: true },
+      ];
+      await generateMetricsReport({ outputDir: dir, verdictLogEntries: entries });
+      const raw = readFileSync(join(dir, 'metrics-summary.json'), 'utf8');
+      const parsed: MetricsReportSummary = JSON.parse(raw);
+      expect(parsed.injectionSuspicionTotal).toBe(1);
+      expect(parsed.injectionSuspicionByTenant).toEqual({ t1: 1 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('omits injectionSuspicionByTenant from JSON when total is 0', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      await generateMetricsReport({ outputDir: dir });
+      const raw = readFileSync(join(dir, 'metrics-summary.json'), 'utf8');
+      const parsed: MetricsReportSummary = JSON.parse(raw);
+      expect(parsed.injectionSuspicionTotal).toBe(0);
+      expect('injectionSuspicionByTenant' in parsed).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+

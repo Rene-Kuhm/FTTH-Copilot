@@ -58,13 +58,18 @@ export {
 // Phase F-4.3 — nightly metrics. Pure functions over EvalRunSummary /
 // EvalCorpus. Precision returns `null` until the NOC tech lead labels
 // `docs/validation/agent-qa-log.md` (decision #6: precision TBD).
+// `computeInjectionSuspicionTotal` counts `injectionSuspicion === true`
+// verdict-log entries per tenant and code (AD-11).
 export {
   computeAbstentionRate,
   computeCoverage,
   computeGateFalsePositives,
+  computeInjectionSuspicionTotal,
   computePrecision,
+  type InjectionSuspicionTotal,
   type PrecisionLabel,
   type PrecisionLabels,
+  type VerdictLogEntry,
 } from './metrics';
 
 // Phase F-5.1 — verdict-log writer (pure TS, no DB). Builds
