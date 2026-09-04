@@ -19,6 +19,7 @@ function makeSeries(overrides: Partial<SeriesByDevice> = {}): SeriesByDevice {
     fecUncorrected: [],
     biasCurrent: [],
     ontTemperature: [],
+    traffic: [],
     ...overrides,
   };
 }

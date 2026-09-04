@@ -11,7 +11,8 @@ export type MetricKind =
   | 'FEC_CORRECTED'
   | 'FEC_UNCORRECTED'
   | 'BIAS_CURRENT_MA'
-  | 'ONT_TEMPERATURE_CELSIUS';
+  | 'ONT_TEMPERATURE_CELSIUS'
+  | 'TRAFFIC_THROUGHPUT_MBPS';
 export type DeviceStatus = 'online' | 'offline' | 'degraded';
 
 /** A single metric sample row, mirroring the MetricSample table (neutral). */
@@ -37,6 +38,7 @@ export interface SeriesByDevice {
   fecUncorrected: Array<{ t: number; v: number }>;
   biasCurrent: Array<{ t: number; v: number }>;
   ontTemperature: Array<{ t: number; v: number }>;
+  traffic: Array<{ t: number; v: number }>;
 }
 
 /** A deduplicated, persistent proactive alert. */
