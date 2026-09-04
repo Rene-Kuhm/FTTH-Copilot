@@ -55,12 +55,24 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 > Según `docs/aiops-roadmap.md`: **el problema no es inteligencia, es datos.** Estos items aportan la materia prima de detección temprana.
 
-### 2.1 Recolectar FEC errors (BIP-8)
+### 2.1 Recolectar FEC errors (BIP-8) ✅ shipped (PR #84 + PR 2 of `p2-1-fec-collection`)
 - **Objetivo:** capturar codewords FEC corregidos/no corregidos por ONT.
 - **Por qué importa:** es **el mejor indicador temprano de fibra degradándose** (antes de que caiga RX).
 - **Cómo:** extender la ingesta de métricas ópticas.
 - **Dependencia crítica:** confirmar que SmartOLT/Mikrowisp exponen los contadores FEC. Si no, sale por SNMP/gNMI (ver 2.3).
-- **Criterio de hecho:** el poller recolecta y persiste FEC por ONT; los detectores pueden operar sobre ello.
+- **Criterio de hecho:** el poller recolecta y persiste FEC por ONT; los detectores pueden operar sobre ello. ✅
+- **Estado (PR 2 cerrado, 2026-09-04):** `runScheduledFecCollection()` en `apps/web/lib/monitoring/scheduler.ts` corre independiente del metrics poller (REQ-1) y del firmware audit; respeta el rate-budget SmartOLT (15 req/h) vía pre-flight guard; persiste los 4 kinds (`FEC_CORRECTED`, `FEC_UNCORRECTED`, `BIAS_CURRENT_MA`, `ONT_TEMPERATURE_CELSIUS`) por ONU; degrada a cero rows en Mikrowisp sin throw; **NO** dispara detectores (la detección corre downstream sobre los rows recién persistidos vía el job existente). 11 tests RED→GREEN en `apps/web/tests/lib/monitoring/fec-scheduler.test.ts`.
+
+#### Variables de entorno (FEC collection loop)
+
+| Variable | Default | Significado |
+|---|---|---|
+| `FEC_COLLECTION_ENABLED` | `false` | Kill switch + opt-in. `false` ⇒ no se registra `setInterval`. |
+| `FEC_COLLECTION_INTERVAL_MS` | `3_600_000` (1 h) | Cadencia del tick. |
+| `FEC_FAN_OUT_PER_CYCLE` | `8` | Tamaño de la slice de `pickFecFanOutSlice` por tick. |
+| `FEC_RATE_LIMIT_PER_HOUR` | `15` | Techo de requests/hora al NMS. Si `sliceSize × (3 600 000 / intervalMs)` lo excede, el tick se skipea con un `console.warn` y `reason: 'rate_limit'`. |
+
+**Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el proceso evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El disposer devuelto por `startFecCollectionLoop()` limpia el `setInterval` activo al deshacer el wiring de instrumentation.
 
 ### 2.2 Métricas ópticas completas por ONT
 - **Objetivo:** cubrir RX/TX (ya hay) + **bias current, temperatura y LOS** por ONT.
@@ -126,7 +138,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 | 🟠 P1.2 | Cablear `detectTrafficAnomaly` | Bajo | SOC |
 | 🟠 P1.3 | Export `injection_suspicion_total` | Bajo | observabilidad |
 | 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría |
-| 🟡 P2.1 | FEC errors (BIP-8) | Medio | telemetría |
+| 🟡 P2.1 | FEC errors (BIP-8) ✅ shipped | Medio | telemetría |
 | 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría |
 | 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta |
 | 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta |
