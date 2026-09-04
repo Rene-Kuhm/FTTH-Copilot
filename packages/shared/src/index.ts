@@ -65,6 +65,9 @@ export type {
   TenantPolicy,
   TopologyEdge,
   TopologyNodeKind,
+  VerdictLog,
+  VerdictCode,
+  VerdictSeverity,
 } from './contracts';
 export {
   EVIDENCE_PROVENANCE_SCHEMA,
@@ -80,6 +83,10 @@ export {
   TOPOLOGY_EDGE_SCHEMA,
   topologyEdgeSchema,
   topologyNodeKindSchema,
+  VERDICT_LOG_SCHEMA,
+  verdictLogSchema,
+  VerdictCodeSchema,
+  VerdictSeveritySchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,
 } from './contracts';
