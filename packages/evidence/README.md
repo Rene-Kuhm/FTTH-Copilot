@@ -346,6 +346,59 @@ takes a third branch when `shouldAbstain(...) === 'warn'`:
 | Backfill | `Message.toolCalls[*].result` envelope bytes stay byte-identical; a recompute job re-runs `classifyEnvelope` per existing entry and writes missing rows. Idempotent on `(messageId)`. |
 | Byte identity | The warn-tier path (F-3) keeps `result.text` byte-identical to the LLM output — the verdict log is a side channel, not a text rewriter. |
 
+### verdict_log + warn flag-and-log (F-5)
+
+Phase F-5 wires the verdict pipeline into the chat route. Three
+properties must hold for the persistence layer to stay observability-only:
+
+1. **Warn channel is additive on `AgentResult`** — the F-3
+   `finalize` branch (`packages/agent-core/src/runtime.ts`) populates
+   `result.warnings?: VerdictCode[]` only when
+   `shouldAbstain(...) === 'warn'`. The channel is strictly additive:
+   `'allow'` and `'abstain'` paths leave `warnings === undefined`; no
+   existing field is renamed or removed. Pre-Fase-F consumers that do
+   not read `warnings` continue to work unchanged. The chat route is
+   the only consumer that reads the field today; future API
+   consumers can surface it via `ChatResponse.warnings` (Fase 2).
+
+2. **The chat route persists `verdict_log` entries** — after
+   `prisma.message.create` returns, the route calls
+   `buildVerdictLogEntries(result.verdicts ?? [], {tenantId, messageId,
+   conversationId})` from `@ftth-copilot/eval` (pure TS, no DB
+   dependency) and persists the result via
+   `prisma.verdictLog.createMany({data: entries})`. The DB write is
+   wrapped in a fail-safe `try`/`catch` that logs and skips on
+   failure — verdict_log is observability-only and NEVER gates the
+   HTTP response. Empty `verdicts` short-circuits the call entirely
+   (no wasted DB round-trip on the clean allow path). The same
+   surface is callable from the F-6 nightly metrics leg without
+   changes — the writer is DB-free by design (see
+   `packages/eval/src/verdict-log-writer.ts`).
+
+3. **`injectionSuspicion` enables the nightly
+   `injection_suspicion_total` derivation without Prometheus
+   infra** — per design.md §Architecture Decisions #11, the column
+   is the **denormalized fast-filter bit** derived from
+   `code IN ('stale', 'low_confidence')` so the nightly metric can
+   run as a single `WHERE tenantId = ? AND injectionSuspicion = true`
+   index scan instead of a Prometheus counter increment at write
+   time. The bit is computed by `isInjectionSuspicionCode(code)` in
+   `@ftth-copilot/eval` and pre-stamped on every row by
+   `buildVerdictLogEntries`; recompute / backfill jobs can re-stamp
+   the bit without duplicating the constant. Operators gain one
+   row per (message, tool-call verdict); metric consumer gains a
+   simple per-tenant count without standing up new infrastructure.
+
+In addition to the verdict_log row(s), a single
+`AgentActionLog` row with `toolName === '__injection_suspicion__'`
+is written when (and only when) `result.warnings` is non-empty.
+The row carries `parameters = {mode, warnCodes: [...]}`, lives as
+the FIRST `AgentActionLog` row in the audit timeline (so the
+NightOperatorPanel surfaces it before the per-tool-call rows), and
+does NOT add a synthetic bubble to `Message.toolCalls` (the
+warn-list surfaces on the API consumer — see the F-3
+`strict-mode-abstention` spec "Backward compatibility" scenario).
+
 ### Out of scope (intentionally deferred)
 
 - `Message.verdicts Json?` consolidation — deferred to Fase 2 per
