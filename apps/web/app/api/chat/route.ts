@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runAgent, type TruthGateMode } from '@ftth-copilot/agent-core';
 import type { Abstention, ConfirmedIncident, TenantPolicy } from '@ftth-copilot/shared';
 import type { RelevantIncidentResult } from '@ftth-copilot/evidence';
+import { buildVerdictLogEntries } from '@ftth-copilot/eval';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
@@ -288,7 +289,45 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ]
     : result.toolCalls;
 
-  await prisma.message.create({
+  /**
+   * Fase F (F-5.2) — injection-suspicion observability row.
+   *
+   * When `finalize` (F-3) populates `result.warnings: VerdictCode[]`,
+   * persist exactly one `AgentActionLog` row with
+   * `toolName === '__injection_suspicion__'` carrying the warn codes.
+   * The row is written BEFORE the per-tool-call loop so it appears
+   * first in audit timelines (a deliberate ordering for the
+   * `NightOperatorPanel` / audit timeline UI).
+   *
+   * Empty `warnings` → zero rows (the chat route does NOT write a
+   * suspicious row when the LLM produced a clean allow path).
+   *
+   * `parameters` carries the active `mode` + the deduped distinct warn
+   * codes; `result` carries the row count for the audit trail's
+   * cardinality filter. `tenantId` / `userId` / `conversationId` follow
+   * the existing `AgentActionLog` schema — see F-1 / design.md
+   * §File Changes for the column contract.
+   */
+  const warnCodes = result.warnings ?? [];
+  if (warnCodes.length > 0) {
+    await prisma.agentActionLog.create({
+      data: {
+        tenantId: user.tenantId,
+        userId: user.id,
+        connectionId: resolved.dataSource.connectionId,
+        conversationId: conversation.id,
+        toolName: '__injection_suspicion__',
+        parameters: {
+          mode: resolveTruthGateModeFromEnv(),
+          warnCodes,
+        },
+        result: { count: warnCodes.length },
+        durationMs: 0,
+      },
+    });
+  }
+
+  const assistantMessage = await prisma.message.create({
     data: {
       conversationId: conversation.id,
       role: 'assistant',
@@ -313,6 +352,58 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         durationMs: 0,
       },
     });
+  }
+
+  /**
+   * Fase F (F-5.2) — verdict_log persistence gate.
+   *
+   * Writes one `verdict_log` row per verdict in `result.verdicts`. The
+   * builder (`buildVerdictLogEntries`) lives in `@ftth-copilot/eval`
+   * (pure TS) so the same surface is callable from the F-6 nightly
+   * metrics leg without a Prisma dependency. The DB write itself is
+   * `prisma.verdictLog.createMany` — wrapped in a fail-safe try/catch
+   * so a DB blip NEVER breaks the chat (verdict_log is an
+   * observability side channel; the LLM text already shipped to the
+   * operator on `prisma.message.create` above).
+   *
+   * Correlation keys follow the F-1 spec ("Correlation keys present"):
+   *   - `tenantId`       — the operator's tenant
+   *   - `messageId`      — the persisted assistant `Message.id` (FK +
+   *                        CASCADE handles cleanup on message deletion)
+   *   - `conversationId` — soft ref to the owning conversation
+   *
+   * Empty `verdicts` → empty entries array → `createMany` is
+   * short-circuited (no wasted DB round-trip on the clean allow path).
+   */
+  try {
+    const verdictLogEntries = buildVerdictLogEntries(result.verdicts ?? [], {
+      tenantId: user.tenantId,
+      messageId: assistantMessage.id,
+      conversationId: conversation.id,
+    });
+    if (verdictLogEntries.length > 0) {
+      // Narrow the optional `messageId` / `injectionSuspicion` to the
+      // non-null Prisma column shape at the write boundary. The buildVerdictLogEntries
+      // builder type-encodes the optional fields for the F-4 nightly
+      // recompute path; here the chat route always supplies both, so
+      // the cast is purely structural (no runtime widening).
+      await prisma.verdictLog.createMany({
+        data: verdictLogEntries.map((e) => ({
+          tenantId: e.tenantId,
+          messageId: e.messageId ?? assistantMessage.id,
+          conversationId: e.conversationId ?? conversation.id,
+          toolName: e.toolName,
+          code: e.code,
+          severity: e.severity,
+          ...(e.observedAt !== undefined ? { observedAt: new Date(e.observedAt) } : {}),
+          injectionSuspicion: e.injectionSuspicion ?? false,
+        })),
+      });
+    }
+  } catch (error) {
+    // Fail-safe: log + skip, never throw. The chat response must
+    // always return 200 once `prisma.message.create` has succeeded.
+    console.error('[ftth-copilot/api/chat] verdict_log write failed', error);
   }
 
   /**

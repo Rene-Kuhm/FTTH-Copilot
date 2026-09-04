@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   prismaConfirmedIncidentFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
   prismaTenantPolicyFindUnique: vi.fn(),
+  // Fase F — verdictLog default: success (the route's fail-safe
+  // try/catch handles a thrown/missing mock by logging + skipping).
+  prismaVerdictLogCreateMany: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   resolveTenantConnector: vi.fn(),
@@ -80,6 +83,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     tenantPolicy: {
       findUnique: mocks.prismaTenantPolicyFindUnique,
+    },
+    verdictLog: {
+      createMany: mocks.prismaVerdictLogCreateMany,
     },
   },
 }));
@@ -160,6 +166,9 @@ function setupHappyPath(overrides: {
   mocks.prismaConfirmedIncidentFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.prismaTenantPolicyFindUnique.mockReset();
+  // Fase F — verdictLog default: success (count: 0 keeps the
+  // createMany no-op predictable; fail-safe catches thrown rejections).
+  mocks.prismaVerdictLogCreateMany.mockReset();
   mocks.retrieveRelevantIncidents.mockReset();
   mocks.buildPendingIncidentCandidate.mockReset();
   mocks.loadTenantPolicy.mockReset();
@@ -227,6 +236,9 @@ function setupHappyPath(overrides: {
       status: 'pending',
     }),
   );
+  // Fase F — verdictLog default: success (count: 0 keeps the
+  // createMany no-op predictable; fail-safe catches thrown rejections).
+  mocks.prismaVerdictLogCreateMany.mockResolvedValue({ count: 0 });
 }
 
 beforeEach(() => {

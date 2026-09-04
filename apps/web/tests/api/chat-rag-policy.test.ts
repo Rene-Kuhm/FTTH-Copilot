@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   prismaConfirmedIncidentFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
   prismaTenantPolicyFindUnique: vi.fn(),
+  // Fase F — verdictLog persistence (F-5.2).
+  prismaVerdictLogCreateMany: vi.fn(),
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   resolveTenantConnector: vi.fn(),
@@ -77,6 +79,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     tenantPolicy: {
       findUnique: mocks.prismaTenantPolicyFindUnique,
+    },
+    verdictLog: {
+      createMany: mocks.prismaVerdictLogCreateMany,
     },
   },
 }));
@@ -152,6 +157,8 @@ beforeEach(() => {
   mocks.prismaConfirmedIncidentFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.prismaTenantPolicyFindUnique.mockReset();
+  // Fase F — verdictLog default: success.
+  mocks.prismaVerdictLogCreateMany.mockReset();
   mocks.retrieveRelevantIncidents.mockReset();
   mocks.buildPendingIncidentCandidate.mockReset();
   mocks.loadTenantPolicy.mockReset();
@@ -185,6 +192,8 @@ beforeEach(() => {
     proposedConfirmedAt: '2026-09-01T12:00:00.000Z',
     status: 'pending',
   }));
+  // Fase F — verdictLog default: success.
+  mocks.prismaVerdictLogCreateMany.mockResolvedValue({ count: 0 });
 });
 
 afterEach(() => {
@@ -320,5 +329,57 @@ describe('POST /api/chat — per-tenant TenantPolicy enforcement (Fase E)', () =
     // resolveTenantPolicy (the runtime consults tenantPolicy first).
     expect(args.mode).toBe('strict');
     expect(args.tenantPolicy.truthGateMode).toBe('observe');
+  });
+});
+
+/**
+ * Fase F — verdict_log + AgentActionLog.__injection_suspicion__ persistence
+ * (F-5.2 — chat-route writes). Cross-coverage with the Fase E policy
+ * suite: the warn + verdict_log writes MUST fire regardless of whether
+ * the tenant policy is present (F-5.2 is policy-agnostic).
+ */
+describe('POST /api/chat — Fase F warn persistence + verdict_log (F-5.2 policy-aware cross-coverage)', () => {
+  it('fires the __injection_suspicion__ + verdict_log writes even when a tenant policy is loaded', async () => {
+    // Tenant policy with a truthGateMode override (per-tenant observe)
+    // coexists with the warn path: the AgentResult.warnings field is
+    // populated by the F-3 finalize branch regardless of the upstream
+    // policy because warn-tier verdicts flow upstream regardless of
+    // `mode`. The chat route MUST persist the warn observability on
+    // every strict-mode run that returns a non-empty warnings array.
+    process.env['TRUTH_GATE_MODE'] = 'strict';
+    const policy = baseTenantPolicy({ retrievalLimit: 7, truthGateMode: 'observe' as const });
+    mocks.loadTenantPolicy.mockResolvedValue(policy);
+    mocks.runAgent.mockResolvedValueOnce({
+      text: 'Reporte LLM.',
+      toolCalls: [{ name: 'list_onus', arguments: {}, result: '[]' }],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    });
+
+    const res = await callRoute({ message: 'policy+warn' });
+
+    expect(res.status).toBe(200);
+    const suspicionRows = mocks.prismaAgentActionLogCreate.mock.calls.filter(
+      (c) =>
+        (c[0] as { data: { toolName: string } }).data.toolName ===
+        '__injection_suspicion__',
+    );
+    expect(suspicionRows).toHaveLength(1);
+    expect(
+      (suspicionRows[0]![0] as { data: { parameters: unknown } }).data.parameters,
+    ).toEqual({ mode: 'strict', warnCodes: ['stale'] });
+
+    expect(mocks.prismaVerdictLogCreateMany).toHaveBeenCalledTimes(1);
+    const entries = (mocks.prismaVerdictLogCreateMany.mock.calls[0]?.[0] as {
+      data: Array<Record<string, unknown>>;
+    }).data;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      tenantId: 'tenant-1',
+      code: 'stale',
+      injectionSuspicion: true,
+    });
   });
 });
