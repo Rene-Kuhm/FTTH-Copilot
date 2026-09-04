@@ -19,6 +19,10 @@ import {
   TOPOLOGY_EDGE_SCHEMA,
   topologyEdgeSchema,
   topologyNodeKindSchema,
+  VERDICT_LOG_SCHEMA,
+  verdictLogSchema,
+  VerdictCodeSchema,
+  VerdictSeveritySchema,
   type Abstention,
   type ConfirmedIncident,
   type PendingIncidentCandidate,
@@ -26,6 +30,7 @@ import {
   type TenantPolicy,
   type TopologyEdge,
   type TopologyNodeKind,
+  type VerdictLog,
 } from '../src/contracts';
 
 describe('telemetry.v1', () => {
@@ -789,5 +794,137 @@ describe('ftth.topology-edge.v1', () => {
     expect(roundTripped.parentId).toBe('OLT-001');
     expect(roundTripped.validTo).toBeNull();
     expect(roundTripped.parentKind).toBe('OLT');
+  });
+});
+
+// ── Fase F — ftth.verdict-log.v1 ─────────────────────────────────────────────
+//
+// Wire contract for the v1 `verdict_log` Prisma table. The runtime persists
+// one row per (message, tool-call verdict); the chat route and the nightly
+// metrics builder both consume the row through this schema. `.strict()`
+// rejects unknown top-level keys so the wire format can never drift silently
+// across the F-3 finalize/agent-core boundary and the F-5 chat-route writer.
+
+describe('ftth.verdict-log.v1', () => {
+  const valid: VerdictLog = {
+    schema: VERDICT_LOG_SCHEMA,
+    id: 'vl-1',
+    tenantId: 't1',
+    messageId: 'msg-1',
+    conversationId: 'conv-1',
+    toolName: 'list_olts',
+    code: 'ok',
+    severity: 'ok',
+    observedAt: '2026-09-03T20:00:00.000Z',
+  };
+
+  it('exports the literal version marker ftth.verdict-log.v1', () => {
+    expect(VERDICT_LOG_SCHEMA).toBe('ftth.verdict-log.v1');
+  });
+
+  it('accepts a valid base envelope (required fields only)', () => {
+    expect(verdictLogSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts an envelope with the optional injectionSuspicion flag set', () => {
+    const enriched: VerdictLog = { ...valid, injectionSuspicion: true };
+    const parsed = verdictLogSchema.safeParse(enriched);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.injectionSuspicion).toBe(true);
+  });
+
+  it('omits messageId + conversationId + injectionSuspicion when absent', () => {
+    const minimal = {
+      schema: VERDICT_LOG_SCHEMA,
+      id: 'vl-2',
+      tenantId: 't1',
+      toolName: 'list_olts',
+      code: 'ok' as const,
+      severity: 'ok' as const,
+      observedAt: '2026-09-03T20:00:00.000Z',
+    };
+    const parsed = verdictLogSchema.safeParse(minimal);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.messageId).toBeUndefined();
+      expect(parsed.data.conversationId).toBeUndefined();
+      expect(parsed.data.injectionSuspicion).toBeUndefined();
+    }
+  });
+
+  it('rejects a wrong schema literal', () => {
+    expect(
+      verdictLogSchema.safeParse({ ...valid, schema: 'ftth.verdict-log.v2' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an empty tenantId, id, or toolName', () => {
+    expect(verdictLogSchema.safeParse({ ...valid, tenantId: '' }).success).toBe(false);
+    expect(verdictLogSchema.safeParse({ ...valid, id: '' }).success).toBe(false);
+    expect(verdictLogSchema.safeParse({ ...valid, toolName: '' }).success).toBe(false);
+  });
+
+  it('rejects an empty messageId or conversationId when present', () => {
+    expect(verdictLogSchema.safeParse({ ...valid, messageId: '' }).success).toBe(false);
+    expect(verdictLogSchema.safeParse({ ...valid, conversationId: '' }).success).toBe(false);
+  });
+
+  it('rejects unknown code values outside the VerdictCode enum', () => {
+    expect(
+      verdictLogSchema.safeParse({ ...valid, code: 'unknown' as never }).success,
+    ).toBe(false);
+    expect(
+      verdictLogSchema.safeParse({ ...valid, code: 'injection' as never }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown severity values outside the VerdictSeverity enum', () => {
+    expect(
+      verdictLogSchema.safeParse({ ...valid, severity: 'unknown' }).success,
+    ).toBe(false);
+    expect(
+      verdictLogSchema.safeParse({ ...valid, severity: 'fatal' as never }).success,
+    ).toBe(false);
+  });
+
+  it('accepts every declared VerdictCode + VerdictSeverity value', () => {
+    const codes: ReadonlyArray<VerdictLog['code']> = ['ok', 'low_confidence', 'stale', 'incomplete'];
+    const severities: ReadonlyArray<VerdictLog['severity']> = ['ok', 'info', 'warning', 'critical'];
+    for (const code of codes) {
+      for (const severity of severities) {
+        expect(
+          verdictLogSchema.safeParse({ ...valid, code, severity }).success,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('VerdictCodeSchema + VerdictSeveritySchema each reject every non-declared value', () => {
+    expect(VerdictCodeSchema.safeParse('ok').success).toBe(true);
+    expect(VerdictCodeSchema.safeParse('nope').success).toBe(false);
+    expect(VerdictSeveritySchema.safeParse('ok').success).toBe(true);
+    expect(VerdictSeveritySchema.safeParse('fatal').success).toBe(false);
+  });
+
+  it('rejects an invalid observedAt datetime', () => {
+    expect(
+      verdictLogSchema.safeParse({ ...valid, observedAt: 'not-a-date' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown top-level keys via strict mode', () => {
+    expect(
+      verdictLogSchema.safeParse({ ...valid, extraField: 'nope' }).success,
+    ).toBe(false);
+  });
+
+  it('round-trips through JSON.parse(JSON.stringify(...)) preserving all fields', () => {
+    const enriched: VerdictLog = { ...valid, injectionSuspicion: true };
+    const roundTripped = JSON.parse(JSON.stringify(enriched)) as VerdictLog;
+    expect(verdictLogSchema.safeParse(roundTripped).success).toBe(true);
+    expect(roundTripped.tenantId).toBe('t1');
+    expect(roundTripped.toolName).toBe('list_olts');
+    expect(roundTripped.code).toBe('ok');
+    expect(roundTripped.injectionSuspicion).toBe(true);
   });
 });

@@ -284,3 +284,64 @@ To roll back Fase D entirely:
 
 Phases A/B/C are unaffected; the retrieval augmentation is pure
 addition on top of the existing data path.
+
+## Fase F — Permanent Evaluation + Injection Defense
+
+The verdict pipeline gets persistence. Every `(message, tool-call
+verdict)` produced by `runAgent` is written to a new `verdict_log`
+Prisma table — one row per verdict — so the Fase F keyless eval gate
+(PR CI) and the nightly MiniMax-M3 metrics leg can both operate
+against the same persistent surface. The `Message.toolCalls[*].result`
+envelope stays byte-identical: Fase F persists to a separate table so
+Fase 2 may consolidate into `Message.verdicts Json?` without touching
+every read path.
+
+### Quick path
+
+1. Read `verdictLogSchema` (`ftth.verdict-log.v1`) in
+   `@ftth-copilot/shared` — it is the wire contract.
+2. Persist one row per verdict from the chat route via
+   `prisma.verdictLog.create` (writes live in `F-5`).
+3. Read rows nightly for the `coverage / abstention_rate /
+   gate_FP / injection_suspicion_total` metrics (`F-4` + `F-8`).
+4. Recompute backfill via `Message.toolCalls[*].result` envelopes
+   uses the same `classifyEnvelope` / `classifyUnwrapped` functions
+   the runtime already calls — no new classification path.
+
+### Details
+
+| Topic | Decision |
+|-------|----------|
+| Storage | New `verdict_log` Prisma table + `VerdictCode` + `VerdictSeverity` enums. Migration mirrors the Fase E `tenant_policies` pattern (`packages/db/prisma/migrations/20260904002325_verdict_log/migration.sql`). |
+| Indexes | `@@index([tenantId, observedAt])`, `@@index([tenantId, code, observedAt])`, `@@index([messageId])`. `injectionSuspicion` is the fast-filter bit for the nightly `__injection_suspicion__` derivation (codes `stale` + `low_confidence`). |
+| Wire contract | `verdictLogSchema` (`ftth.verdict-log.v1`) in `@ftth-copilot/shared`. `.strict()` so the F-3 finalize ↔ F-5 chat-route boundary cannot silently drift the format. |
+| Write path | Chat route writes one row per verdict after `Message.create`. Wrapped in fail-safe try/catch (log + skip, never throw) so chat never breaks on persistence failure. |
+| Backfill | `Message.toolCalls[*].result` envelope bytes stay byte-identical; a recompute job re-runs `classifyEnvelope` per existing entry and writes missing rows. Idempotent on `(messageId)`. |
+| Byte identity | The warn-tier path (F-3) keeps `result.text` byte-identical to the LLM output — the verdict log is a side channel, not a text rewriter. |
+
+### Out of scope (intentionally deferred)
+
+- `Message.verdicts Json?` consolidation — deferred to Fase 2 per
+  design.md §Architecture Decisions #6.
+- Playwright as gate proof — specs route-mock the agent.
+- pgvector, multi-provider rotation — Fase F-2+.
+- Eval runner + corpus + nightly job — `packages/eval/` ships in F-2
+  + F-4. The PR CI `eval` job wires in F-6.
+
+### Rollback
+
+Additive — drop the `verdict_log` table and the two enums via a down
+migration. The runtime stays at Fase C behavior: no `warn` consumption,
+no persistence, no metrics. Existing `Message.toolCalls[*].result`
+envelopes are untouched.
+
+### Reference
+
+- `openspec/changes/fase-f-eval-injection/proposal.md` — intent +
+  scope + decision table.
+- `openspec/changes/fase-f-eval-injection/design.md` — architecture
+  decisions + data flow + threat matrix + interfaces.
+- `openspec/changes/fase-f-eval-injection/specs/confirmed-incident-memory/spec.md`
+  — `verdict_log` Prisma model + zod contract delta requirements.
+- `packages/shared/src/contracts.ts` — `verdictLogSchema`,
+  `VerdictCodeSchema`, `VerdictSeveritySchema` source.

@@ -28,6 +28,30 @@ export const TENANT_POLICY_SCHEMA = 'ftth.tenant-policy.v1' as const;
 // Fase E — temporal topology (single-edge model). 5 node kinds; the BFS
 // helpers + Prisma reads filter `validTo: null` to derive the live graph.
 export const TOPOLOGY_EDGE_SCHEMA = 'ftth.topology-edge.v1' as const;
+// Fase F — verdict-log persistence surface for `AgentResult.verdicts`. One
+// row per (message, tool-call verdict) emitted by the chat route after a
+// non-empty verdicts run. Wire-side mirror of the `verdict_log` Prisma
+// table; consumers (F-3 finalize + F-5 chat-route writer + nightly
+// metrics) read/write through this schema so the v1 storage shape never
+// drifts from the column shape.
+export const VERDICT_LOG_SCHEMA = 'ftth.verdict-log.v1' as const;
+
+/**
+ * VerdictCode — mirrored from the `VerdictCode` union in
+ * `@ftth-copilot/evidence`. The wire contract uses the same values so a
+ * producer can emit a row without mapping.
+ */
+export const VerdictCodeSchema = z.enum(['ok', 'low_confidence', 'stale', 'incomplete']);
+export type VerdictCode = z.infer<typeof VerdictCodeSchema>;
+
+/**
+ * VerdictSeverity — mirrored from the `VerdictSeverity` union in
+ * `@ftth-copilot/evidence`. Independent dimension from `code`: code is
+ * the "what happened" classification; severity is the "how loud should we
+ * be" classification.
+ */
+export const VerdictSeveritySchema = z.enum(['ok', 'info', 'warning', 'critical']);
+export type VerdictSeverity = z.infer<typeof VerdictSeveritySchema>;
 
 /** Node kinds allowed on either side of a `TopologyEdge`. */
 export const topologyNodeKindSchema = z.enum(['OLT', 'PON_PORT', 'SPLITTER', 'CTO', 'ONU']);
@@ -354,3 +378,50 @@ export const topologyEdgeSchema = z
   );
 
 export type TopologyEdge = z.infer<typeof topologyEdgeSchema>;
+
+// ── ftth.verdict-log.v1 (Fase F — verdict-log persistence surface) ────────────
+//
+// Wire contract for the v1 `verdict_log` Prisma table. The chat route (F-5)
+// writes one row per (message, tool-call verdict) emitted by `runAgent`;
+// the nightly metrics builder reads through this schema to derive
+// coverage / abstention / gate-FP per tenant.
+//
+// Field bounds:
+//   - schema         : literal `'ftth.verdict-log.v1'`
+//   - id             : non-empty cuid/uuid (Prisma-side default)
+//   - tenantId       : non-empty; FK to `tenants.id` in the DB
+//   - messageId      : optional non-empty; FK to `messages.id` when present
+//                      (absent on recompute backfill where the originating
+//                      message has been deleted out from under the writer)
+//   - conversationId : optional non-empty soft ref; no FK (conversations stay
+//                      deletable; correlation is best-effort)
+//   - toolName       : non-empty; the tool that produced the verdict
+//   - code           : VerdictCode (`ok | low_confidence | stale | incomplete`)
+//   - severity       : VerdictSeverity (`ok | info | warning | critical`)
+//   - observedAt     : ISO datetime; when the runtime recorded the verdict
+//   - injectionSuspicion : optional boolean; fast-filter bit derived from
+//                      `code IN ('stale', 'low_confidence')` so the nightly
+//                      `injection_suspicion_total` metric can run as a
+//                      simple index scan (see design.md §Risks).
+//
+// `.strict()` rejects unknown top-level keys so the wire format can never
+// drift across the agent-core ↔ chat-route ↔ metrics boundary. The runtime
+// MUST keep the `Message.toolCalls[*].result` envelope byte-identical —
+// Fase F persists to a separate table so Fase 2 may consolidate into
+// `Message.verdicts Json?` without touching every read path.
+export const verdictLogSchema = z
+  .object({
+    schema: z.literal(VERDICT_LOG_SCHEMA),
+    id: z.string().min(1),
+    tenantId: z.string().min(1),
+    messageId: z.string().min(1).optional(),
+    conversationId: z.string().min(1).optional(),
+    toolName: z.string().min(1),
+    code: VerdictCodeSchema,
+    severity: VerdictSeveritySchema,
+    observedAt: z.string().datetime(),
+    injectionSuspicion: z.boolean().optional(),
+  })
+  .strict();
+
+export type VerdictLog = z.infer<typeof verdictLogSchema>;
