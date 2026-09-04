@@ -10,3 +10,9 @@ export {
   type UptimeWindow,
 } from './sla';
 export { buildNocDegradationScenario, type ScenarioOptions } from './scenario';
+export {
+  pickFecFanOutSlice,
+  fitsRateBudget,
+  assembleOnuDetailPoints,
+  mapAllSettled,
+} from './scheduler-helpers';
