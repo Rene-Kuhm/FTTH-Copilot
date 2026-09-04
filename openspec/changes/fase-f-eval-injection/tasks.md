@@ -58,7 +58,7 @@ Chain strategy: stacked-to-main
 
 ## Phase F-2 — eval package skeleton + corpus fixtures
 
-- [ ] F-2.1 Scaffold `packages/eval/{package.json, tsconfig.json, vitest.config.ts}`
+- [x] F-2.1 Scaffold `packages/eval/{package.json, tsconfig.json, vitest.config.ts}`
   - Description: vitest workspace member; deps `@ftth-copilot/agent-core` + `@ftth-copilot/evidence`; vitest config with Node 22 JSON imports enabled (`resolveJsonModule`, `with {type:'json'}` test fixtures).
   - Files: `packages/eval/{package.json, tsconfig.json, vitest.config.ts}` (NEW)
   - Tests: `pnpm --filter @ftth-copilot/eval test --passWithNoTests` exits 0
