@@ -58,30 +58,30 @@ Chain strategy: stacked-to-main
 
 ## Phase F-2 — eval package skeleton + corpus fixtures
 
-- [ ] F-2.1 Scaffold `packages/eval/{package.json, tsconfig.json, vitest.config.ts}`
-  - Description: vitest workspace member; deps `@ftth-copilot/agent-core` + `@ftth-copilot/evidence`; vitest config with Node 22 JSON imports enabled (`resolveJsonModule`, `with {type:'json'}` test fixtures).
-  - Files: `packages/eval/{package.json, tsconfig.json, vitest.config.ts}` (NEW)
-  - Tests: `pnpm --filter @ftth-copilot/eval test --passWithNoTests` exits 0
+- [x] F-2.1 Scaffold `packages/eval/{package.json, tsconfig.json, vitest.config.ts}` + README
+  - Description: vitest workspace member; deps `@ftth-copilot/agent-core` + `@ftth-copilot/evidence`; vitest config with Node 22 JSON imports enabled (`resolveJsonModule`, `with {type:'json'}` test fixtures); README documents two-leg gate (keyless PR + keyed nightly).
+  - Files: `packages/eval/{package.json, tsconfig.json, vitest.config.ts, README.md, src/index.ts}` (NEW)
+  - Tests: `pnpm --filter @ftth-copilot/eval test` — `tests/skeleton.test.ts` proves barrel wiring
   - Dependencies: none
-  - Commit: `chore(eval): scaffold packages/eval vitest workspace`
-- [ ] F-2.2 Add `packages/eval/README.md` documenting two-leg gate
-  - Description: brief purpose, run command, keyless PR leg, nightly leg, threshold definition.
-  - Files: `packages/eval/README.md` (NEW)
-  - Tests: N/A
+  - Commit: `chore(eval): scaffold @ftth-copilot/eval package with vitest+tsconfig+README`
+- [x] F-2.2 `ftth.eval-corpus.v1` zod schema + golden tests
+  - Description: `evalCaseSchema` (`.strict()`, 7 surfaces, 3 gates, optional 7 injectionKinds); `evalCorpusSchema` (literal schema + version + `cases.min(1)`); types `EvalCase`, `EvalCorpus`, `EvalSurface`, `InjectionKind`, `ExpectedGate`, `ToolMock` re-exported from the barrel.
+  - Files: `packages/eval/src/corpus-schema.ts` (NEW), `packages/eval/src/index.ts` (MODIFIED), `packages/eval/tests/corpus-schema.test.ts` (NEW)
+  - Tests: 19 schema cases (every enum value, missing field, strict-mode top-level key, min(1), round-trip)
   - Dependencies: F-2.1
-  - Commit: `docs(eval): document Fase F eval package`
-- [ ] F-2.3 Author pink corpus JSON (≥1 per mapped surface, 7 surfaces minimum)
-  - Description: benign traffic covering all 7 mapped surfaces (user_message, tool_result, customer_name_lookup, system_prompt_injection, retrieved_incident, multi_turn_history, untrusted_attachment); `kind: 'pink'`, `expected: 'allow'`.
+  - Commit: `feat(eval): add corpus schema (ftth.eval-corpus.v1) + golden tests`
+- [x] F-2.3 Author pink corpus JSON (≥1 per mapped surface, 7 surfaces minimum)
+  - Description: benign traffic covering all 7 mapped surfaces; `expectedGate: 'allow'`. All device ids synthetic (`OLT-001-test`, `ONU-0001-test`).
   - Files: `packages/eval/corpus/pink.json` (NEW)
-  - Tests: F-4.1 loader asserts 7 surfaces covered, ≥1 entry each
-  - Dependencies: F-2.1
+  - Tests: `corpus-fixtures.test.ts` asserts 7+ cases, every mapped surface present, schema parses, no real-data markers.
+  - Dependencies: F-2.2
   - Commit: `feat(eval): add pink corpus covering 7 surfaces`
-- [ ] F-2.4 Author red corpus JSON (≥1 red per surface)
-  - Description: red entries declaring `expected: refuse | abstain | warn-flag`; covers injection-defense scenarios; ≥1 per surface.
+- [x] F-2.4 Author red corpus JSON (≥1 per injectionKind)
+  - Description: red entries declaring `injectionKind` + `expectedGate` ∈ {warn, abstain}; covers all 7 injectionKinds. All device ids synthetic.
   - Files: `packages/eval/corpus/red.json` (NEW)
-  - Tests: F-4.1 loader asserts ≥1 red per surface, `expected` enum compliance
-  - Dependencies: F-2.1
-  - Commit: `feat(eval): add red corpus covering 7 surfaces`
+  - Tests: `corpus-fixtures.test.ts` asserts 7+ cases, 7+ distinct injectionKinds, every red case declares injectionKind + warn|abstain gate, schema parses.
+  - Dependencies: F-2.2
+  - Commit: `feat(eval): add pink + red attack corpus fixtures (>=7 cases each)`
 
 ## Phase F-3 — finalize consume-warn (runtime core)
 
