@@ -85,19 +85,19 @@ Chain strategy: stacked-to-main
 
 ## Phase F-3 — finalize consume-warn (runtime core)
 
-- [ ] F-3.1 RED: warn-tier byte-identity tests in `runtime.test.ts`
+- [x] F-3.1 RED: warn-tier byte-identity tests in `runtime.test.ts`
   - Description: GIVEN strict mode + verdicts `[stale]`, WHEN `finalize` runs, THEN `result.text === LLM_TEXT_LITERAL` via literal `toBe()` (NOT JSON round-trip), `result.warnings === ['stale']`, `result.abstained === undefined`, `result.abstention === undefined`, `buildAbstention` not called (vi.spyOn). Repeat for `[low_confidence]`.
   - Files: `packages/agent-core/tests/runtime.test.ts`
   - Tests: 3 new `it()` cases (warn preserves text; warn populates warnings; warn does not call `buildAbstention`)
   - Dependencies: F-3.2 (compile-only) — write first
   - Commit: `test(agent-core): add warn-tier byte-identity tests`
-- [ ] F-3.2 GREEN: add `'warn'` branch to `finalize` in `runtime.ts`
+- [x] F-3.2 GREEN: add `'warn'` branch to `finalize` in `runtime.ts`
   - Description: when `shouldAbstain(...) === 'warn'`, return `{text, toolCalls, verdicts, warnings: <warn codes>}`; `'abstain'` and `'allow'` branches unchanged; warn codes are deduped distinct `VerdictCode` from `verdicts`.
   - Files: `packages/agent-core/src/runtime.ts`
   - Tests: F-3.1 turns green
   - Dependencies: F-3.1
   - Commit: `feat(agent-core): consume warn tier in finalize`
-- [ ] F-3.3 Re-export `VerdictCode` from `@ftth-copilot/agent-core` index
+- [x] F-3.3 Re-export `VerdictCode` from `@ftth-copilot/agent-core` index
   - Description: ensure `VerdictCode` is exported from `packages/agent-core/src/index.ts` (it currently is — verify and pin via test).
   - Files: `packages/agent-core/src/index.ts`
   - Tests: existing `index-exports.test.ts` golden stays green
