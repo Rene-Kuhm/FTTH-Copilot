@@ -82,3 +82,19 @@ export {
   type VerdictLogEntryInput,
 } from './verdict-log-writer';
 
+// Phase F-7.1 — labels CSV schema + parser. The NOC tech lead fills in
+// `docs/validation/labels.csv` row-by-row (one row per QA question /
+// corpus case). The schema is strict so the wire format can never drift
+// across the CSV ↔ parser ↔ metrics-report boundary. `parseLabelsCsv`
+// is pure (string → rows); `loadLabelsFromFile` is the async I/O wrapper
+// the nightly leg consumes. `LabelsParseError` carries the offending
+// `rowIndex` (0 = header, 1..N = data rows) so PR logs can grep on it.
+export {
+  LABELS_CSV_HEADER,
+  LabelsParseError,
+  labelsCsvSchema,
+  loadLabelsFromFile,
+  parseLabelsCsv,
+  type LabelRow,
+} from './labels-schema';
+

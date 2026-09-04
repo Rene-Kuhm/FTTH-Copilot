@@ -10,6 +10,12 @@
  * nightly job summary consumes; future v2 work will swap the placeholder
  * values for real computations over `verdict_log` + `ConfirmedIncident`.
  *
+ * Phase F-7.2 — when a labels CSV is provided via the `labelsPath` option
+ * (or `--labels` CLI flag / `DOCS_VALIDATION_LABELS_PATH` env var), the
+ * stub reads it via `loadLabelsFromFile`, derives a `PrecisionLabels`
+ * view, and calls `computePrecision` to produce a real number. Without
+ * labels, `precision` stays the literal `'TBD'`.
+ *
  * RED proof: before `scripts/metrics-report.ts` exists, the named export
  * `generateMetricsReport` is `undefined` and every assertion below fails.
  * GREEN proof: after the stub ships, the output JSON is well-formed with
@@ -17,7 +23,7 @@
  * file lands at the expected on-disk path.
  */
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -80,6 +86,77 @@ describe('@ftth-copilot/eval — metrics-report stub (F-6.2)', () => {
       const summary = await generateMetricsReport({ outputDir: dir });
       expect(summary.schema).toBe('ftth.eval-metrics.v1');
       expect(summary.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('@ftth-copilot/eval — metrics-report precision wiring (F-7.2)', () => {
+  const HEADER =
+    'case_id,factual_claim_supported,ground_truth_severity,labeled_by,labeled_at';
+
+  it('emits precision as a number when a labels CSV is provided (labelsPath)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const labelsPath = join(dir, 'labels.csv');
+      // Fixture: 2 supported + 1 unsupported → precision = 2/3.
+      writeFileSync(
+        labelsPath,
+        [
+          HEADER,
+          'Q1,true,minor,jperez,2026-08-20T10:00:00.000Z',
+          'Q2,true,minor,jperez,2026-08-20T10:05:00.000Z',
+          'Q3,false,major,jperez,2026-08-20T10:10:00.000Z',
+        ].join('\n'),
+      );
+      const summary = await generateMetricsReport({ outputDir: dir, labelsPath });
+      expect(typeof summary.precision).toBe('number');
+      expect(summary.precision).toBeCloseTo(2 / 3, 5);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits precision as "TBD" when labelsPath is not provided', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const summary = await generateMetricsReport({ outputDir: dir });
+      expect(summary.precision).toBe('TBD');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits precision as "TBD" when labelsPath points to a header-only CSV', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const labelsPath = join(dir, 'labels.csv');
+      writeFileSync(labelsPath, `${HEADER}\n`);
+      const summary = await generateMetricsReport({ outputDir: dir, labelsPath });
+      expect(summary.precision).toBe('TBD');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes precision as a number in the on-disk JSON when labels exist', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
+    try {
+      const labelsPath = join(dir, 'labels.csv');
+      writeFileSync(
+        labelsPath,
+        [
+          HEADER,
+          'Q1,true,minor,jperez,2026-08-20T10:00:00.000Z',
+          'Q2,false,major,jperez,2026-08-20T10:05:00.000Z',
+        ].join('\n'),
+      );
+      await generateMetricsReport({ outputDir: dir, labelsPath });
+      const raw = readFileSync(join(dir, 'metrics-summary.json'), 'utf8');
+      const parsed: MetricsReportSummary = JSON.parse(raw);
+      expect(typeof parsed.precision).toBe('number');
+      expect(parsed.precision).toBeCloseTo(0.5, 5);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
