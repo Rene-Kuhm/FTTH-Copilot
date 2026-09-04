@@ -133,19 +133,19 @@ Chain strategy: stacked-to-main
 
 ## Phase F-5 — verdict_log writer + chat-route integration
 
-- [ ] F-5.1 RED: verdict-log-writer test (per-verdict row, fail-safe skip); GREEN: implement
+- [x] F-5.1 RED: verdict-log-writer test (per-verdict row, fail-safe skip); GREEN: implement
   - Description: GIVEN red-case verdicts, WHEN writer runs, THEN one `VerdictLogEntry` row per verdict emitted; on Prisma error, log + skip (never throw). GREEN: `verdict-log-writer.ts` builds entries from verdict set.
   - Files: `packages/eval/src/verdict-log-writer.ts` (NEW), `packages/eval/tests/verdict-log-writer.test.ts` (NEW)
   - Tests: 2 cases (per-verdict row; fail-safe on error)
   - Dependencies: F-1.3, F-4.3
   - Commit: `feat(eval): add verdict-log writer`
-- [ ] F-5.2 Extend `apps/web/app/api/chat/route.ts` with verdict_log + warn AgentActionLog writes
+- [x] F-5.2 Extend `apps/web/app/api/chat/route.ts` with verdict_log + warn AgentActionLog writes
   - Description: after `Message.create`, write `AgentActionLog { toolName: '__injection_suspicion__' }` when `result.warnings` non-empty + one `verdict_log` row per verdict. Wrap in fail-safe try/catch (log + skip) so chat never breaks. Add `warnings?: VerdictCode[]` to `AgentResult`/`ChatResponse` types in `packages/shared/src/index.ts`.
   - Files: `apps/web/app/api/chat/route.ts`, `packages/shared/src/index.ts`
   - Tests: F-5.3 chat-abstention test asserts persistence + byte-identity
   - Dependencies: F-3.2, F-1.4
   - Commit: `feat(web): persist verdict_log rows on chat completion`
-- [ ] F-5.3 RED: `__injection_suspicion__` row + `verdict_log` assertions; GREEN: extend mock chain
+- [x] F-5.3 RED: `__injection_suspicion__` row + `verdict_log` assertions; GREEN: extend mock chain
   - Description: extend `apps/web/tests/api/chat-abstention.test.ts` mocks for `prisma.verdictLog.create`; assert exactly one `AgentActionLog` row with `toolName === '__injection_suspicion__'` + N `verdict_log` rows; `Message.content` byte-identical to LLM text (no wrapper).
   - Files: `apps/web/tests/api/chat-abstention.test.ts`
   - Tests: 2 new cases (warn → 1 suspicion row + N verdict rows; byte-identity of Message.content)
