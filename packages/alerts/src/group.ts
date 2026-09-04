@@ -25,6 +25,7 @@ export function groupRows(rows: MetricRow[]): SeriesByDevice[] {
         fecUncorrected: [],
         biasCurrent: [],
         ontTemperature: [],
+        traffic: [],
       };
       map.set(key, series);
     }
@@ -59,6 +60,9 @@ export function groupRows(rows: MetricRow[]): SeriesByDevice[] {
         break;
       case 'ONT_TEMPERATURE_CELSIUS':
         if (row.value !== null) series.ontTemperature.push({ t, v: row.value });
+        break;
+      case 'TRAFFIC_THROUGHPUT_MBPS':
+        if (row.value !== null) series.traffic.push({ t, v: row.value });
         break;
     }
   }

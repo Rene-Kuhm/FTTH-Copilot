@@ -20,6 +20,7 @@ function seriesFromPoints(points: ReturnType<typeof buildNocDegradationScenario>
     fecUncorrected: points.filter((p) => p.kind === 'FEC_UNCORRECTED').map((p) => ({ t: t(p.sampledAt), v: p.value! })),
     biasCurrent: points.filter((p) => p.kind === 'BIAS_CURRENT_MA').map((p) => ({ t: t(p.sampledAt), v: p.value! })),
     ontTemperature: [],
+    traffic: [],
   }];
 }
 

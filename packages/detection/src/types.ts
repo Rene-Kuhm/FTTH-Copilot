@@ -36,7 +36,8 @@ export type FindingKind =
   | 'frequent_reboots'
   | 'metric_anomaly'
   | 'fec_degradation'
-  | 'optical_degradation';
+  | 'optical_degradation'
+  | 'traffic_anomaly';
 
 export interface Finding {
   /** Stable id (per kind + device) used for dedup/cooldown. */

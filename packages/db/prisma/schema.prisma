@@ -56,6 +56,7 @@ enum MetricKind {
   FEC_UNCORRECTED
   BIAS_CURRENT_MA
   ONT_TEMPERATURE_CELSIUS
+  TRAFFIC_THROUGHPUT_MBPS
 }
 
 // Persistent, deduplicated proactive alerts produced by the detection engine.
@@ -67,6 +68,7 @@ enum AlertKind {
   metric_anomaly
   fec_degradation
   optical_degradation
+  traffic_anomaly
 }
 
 enum AlertSeverity {
