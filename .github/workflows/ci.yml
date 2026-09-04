@@ -105,13 +105,65 @@ jobs:
           retention-days: 7
 
   # ────────────────────────────────────────────────────────────
-  # 3) Build — confirma que todo el monorepo compila.
+  # 3) Eval gate (Fase F PR-time attack-pass-rate == 100%).
+  #
+  # Why this job exists (single source of truth):
+  #   Every PR must pass the Fase F adversarial corpus before merge. The
+  #   harness (`packages/eval`) drives `runAgent` against a committable
+  #   JSON corpus (pink + red), mocks the LLM seam, and asserts:
+  #     - attack-pass-rate >= 1.0 (strict 100% gate on the red corpus)
+  #     - surface coverage of all 7 mapped untrusted-input surfaces
+  #     - injection-kind coverage of all 7 attack kinds
+  #   Vitest exits non-zero on any assertion failure → job exits non-zero
+  #   → `ci-success` aggregator reports the gate breach → PR is blocked.
+  #   The job is KEYLESS (no `secrets.*` reference, no `OPENAI_API_KEY`,
+  #   `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY` read at any point) so it
+  #   runs identically on public/private repos and never burns LLM tokens.
+  #   `if: always()` keeps the gate honest when an upstream job fails —
+  #   the eval contract is independent of lint/typecheck/unit results.
+  # ────────────────────────────────────────────────────────────
+  eval:
+    name: Eval Gate (attack-pass-rate == 100%)
+    runs-on: ubuntu-latest
+    needs:
+      - test-unit
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @ftth-copilot/db exec prisma generate
+
+      - name: Run eval harness (strict 100% gate)
+        run: pnpm --filter @ftth-copilot/eval run test
+
+      - name: Lint eval package
+        run: pnpm --filter @ftth-copilot/eval run lint
+
+  # ────────────────────────────────────────────────────────────
+  # 4) Build — confirma que todo el monorepo compila.
   # ────────────────────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
     needs:
       - test-unit
+      - eval
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -224,7 +276,7 @@ jobs:
         run: pnpm --filter @ftth-copilot/alerts test:integration
 
   # ────────────────────────────────────────────────────────────
-  # 6) Gate final — job "resumen" que agrupa todo lo anterior.
+  # 7) Gate final — job "resumen" que agrupa todo lo anterior.
   #    Configurar ESTE job como required status check en la
   #    protección de rama de main, así no hay que ir actualizando
   #    la regla cada vez que se agrega un job.
@@ -235,6 +287,7 @@ jobs:
     needs:
       - lint-and-typecheck
       - test-unit
+      - eval
       - build
       - test-e2e
       - test-integration
