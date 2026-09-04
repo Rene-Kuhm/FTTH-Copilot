@@ -7,8 +7,7 @@
  *   `attack-pass-rate == 100%` (F-6.1); the nightly gate is observational
  *   only — it reports coverage, abstention rate, gate false-positives,
  *   and (per Fase F decision #6) `precision: "TBD"` until the NOC tech
- *   lead labels `docs/validation/agent-qa-log.md` as ground truth
- *   (F-7 work).
+ *   lead labels the QA log as ground truth (F-7 work).
  *
  * v1 contract (this script):
  *   - Always exits 0 — the nightly workflow MUST never fail on metrics
@@ -18,24 +17,36 @@
  *   - Emits placeholder values (1.0, 1.0, 0.0, 0) for the four computable
  *     metrics. v2 will swap the placeholders for real queries against
  *     `verdict_log` + `ConfirmedIncident` + `AgentActionLog` via Prisma.
- *   - `precision: "TBD"` is the literal string per decision #6.
+ *   - `precision` is the literal string `"TBD"` when no labels CSV is
+ *     supplied; when one IS supplied (via `labelsPath` option,
+ *     `DOCS_VALIDATION_LABELS_PATH` env var, or the `--labels` CLI
+ *     flag), the script reads it, derives a `PrecisionLabels` view, and
+ *     feeds it into `computePrecision` for a real number.
  *
- * v2 (out of scope for F-6): compute real values, accept the NOC labels
- * CSV as input, keep the schema literal `ftth.eval-metrics.v1` so the
+ * v2 (out of scope for F-6 / F-7): compute real values for the other
+ * three metrics, keep the schema literal `ftth.eval-metrics.v1` so the
  * nightly workflow summary stays stable across the v1 → v2 swap.
  *
  * Usage:
  *   pnpm --filter @ftth-copilot/eval run metrics-report
+ *   pnpm --filter @ftth-copilot/eval run metrics-report -- --labels docs/validation/labels.csv
  *
  * The script is importable as a module so the unit test
  * (`tests/metrics-report.test.ts`) can call `generateMetricsReport`
- * directly with an `outputDir` override. When invoked as `tsx`, the
- * `main()` helper writes to `packages/eval/reports/`.
+ * directly with an `outputDir` override (and an optional `labelsPath`).
+ * When invoked as `tsx`, the `main()` helper writes to
+ * `packages/eval/reports/`.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  computePrecision,
+  type PrecisionLabel,
+} from '../src/metrics';
+import type { EvalRunSummary, EvalRunResult } from '../src/runner';
+import { loadLabelsFromFile, type LabelRow } from '../src/labels-schema';
 
 /**
  * Wire-contract literal for the metrics summary. Future versions (v2
@@ -46,7 +57,8 @@ export const METRICS_REPORT_SCHEMA = 'ftth.eval-metrics.v1' as const;
 
 /**
  * Shape of the nightly metrics summary. Every key is required; v1 emits
- * placeholder values + the `precision: "TBD"` string per decision #6.
+ * placeholder values + the `precision: "TBD"` string per decision #6
+ * (unless a labels CSV is provided).
  *
  * Field semantics:
  *   - attackPassRate : fraction of cases where `gateDecision === expectedGate`
@@ -58,7 +70,10 @@ export const METRICS_REPORT_SCHEMA = 'ftth.eval-metrics.v1' as const;
  *   - gateFp         : count of abstain decisions that disagreed with the
  *                      ground-truth labels (placeholder = 0; the real
  *                      computation requires the F-7 NOC labels CSV)
- *   - precision      : literal string `"TBD"` until F-7 labels exist
+ *   - precision      : literal string `"TBD"` when labels are missing or
+ *                      empty; otherwise a `number` in [0, 1] computed by
+ *                      `computePrecision` over the labels + a synthetic
+ *                      run summary.
  *   - schema         : wire-contract literal `ftth.eval-metrics.v1`
  *   - generatedAt    : ISO-8601 UTC timestamp at generation time
  *   - source         : provenance tag — always `"eval-nightly@v1-stub"`
@@ -76,10 +91,110 @@ export interface MetricsReportSummary {
 }
 
 /**
- * Build the v1 stub summary. Pure function — no I/O — so the unit test
- * can assert the shape without spawning a subprocess.
+ * Options accepted by `generateMetricsReport`. `labelsPath` is the F-7.2
+ * wiring point: when provided, the script reads the labels CSV, derives
+ * a `PrecisionLabels` view, and computes a real `precision` value via
+ * `computePrecision`. When omitted (or empty), `precision` stays `'TBD'`.
  */
-export function buildMetricsReportSummary(now: Date = new Date()): MetricsReportSummary {
+export interface GenerateMetricsReportOpts {
+  outputDir: string;
+  now?: Date;
+  /** When provided, read this labels CSV and compute a real precision. */
+  labelsPath?: string;
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Project a `LabelRow` onto the `PrecisionLabel` view that
+ * `computePrecision` consumes. Kept as a free function so the test
+ * suite can assert the projection in isolation if needed; the function
+ * is private (not exported) because the only legitimate caller is
+ * `buildSummaryWithLabels`.
+ */
+function toPrecisionLabel(row: LabelRow): PrecisionLabel {
+  return {
+    caseId: row.caseId,
+    factualClaimSupported: row.factualClaimSupported,
+  };
+}
+
+/**
+ * Build a synthetic `EvalRunSummary` from the label rows so
+ * `computePrecision` has something to count over. The v1 stub does not
+ * run the corpus (that's the nightly leg's job — see F-6.3); it derives
+ * the precision numerator/denominator directly from the labels:
+ *
+ *   - Each label becomes one `EvalRunResult` with `gateDecision: 'allow'`
+ *     (i.e. "claim made") and a non-empty `agentResult.text` so
+ *     `computePrecision` counts it as a claimer.
+ *   - `computePrecision` then counts the cases where
+ *     `factualClaimSupported === true` and divides by `casesRun`.
+ *
+ * v2 will swap the synthetic summary for a real `EvalRunSummary` produced
+ * by `runCorpus` over the pink + red fixtures + a `ConfirmedIncident`
+ * corpus; the `PrecisionLabel` projection above stays unchanged.
+ */
+function buildSyntheticSummary(labels: ReadonlyArray<LabelRow>): EvalRunSummary {
+  const results: EvalRunResult[] = labels.map((label) => ({
+    case: {
+      id: label.caseId,
+      surface: 'user-message',
+      userMessage: 'stub',
+      expectedGate: 'allow',
+    },
+    agentResult: {
+      text: 'stub',
+      toolCalls: [],
+      verdicts: [],
+    },
+    gateDecision: 'allow',
+    pass: true,
+  }));
+  return { casesRun: results.length, results };
+}
+
+/**
+ * Resolve the labels CSV path from `opts.labelsPath` + the
+ * `DOCS_VALIDATION_LABELS_PATH` environment variable. `opts.labelsPath`
+ * wins when set (explicit caller intent), then the env var (CI wiring),
+ * then undefined (no labels available → precision stays `'TBD'`).
+ */
+function resolveLabelsPath(opts: GenerateMetricsReportOpts): string | undefined {
+  if (opts.labelsPath !== undefined && opts.labelsPath !== '') {
+    return opts.labelsPath;
+  }
+  const fromEnv = process.env['DOCS_VALIDATION_LABELS_PATH'];
+  if (typeof fromEnv === 'string' && fromEnv !== '') return fromEnv;
+  return undefined;
+}
+
+/**
+ * Build the v1 stub summary. Pure-ish function — no I/O — so the unit
+ * test can assert the shape without spawning a subprocess. `labelsPath`
+ * is resolved via `resolveLabelsPath` (env var / opts / undefined);
+ * when present AND the labels CSV has ≥1 row, `precision` is computed
+ * via `computePrecision`; otherwise it stays `'TBD'`.
+ */
+export async function buildMetricsReportSummary(
+  now: Date = new Date(),
+  labelsPath?: string,
+): Promise<MetricsReportSummary> {
+  let precision: 'TBD' | number = 'TBD';
+
+  const resolvedPath = labelsPath ?? resolveLabelsPath({ outputDir: '', labelsPath });
+  if (resolvedPath !== undefined) {
+    const labels = await loadLabelsFromFile(resolvedPath);
+    if (labels.length > 0) {
+      const precisionLabels = labels.map(toPrecisionLabel);
+      const syntheticSummary = buildSyntheticSummary(labels);
+      const computed = computePrecision(syntheticSummary, precisionLabels);
+      if (typeof computed === 'number') {
+        precision = computed;
+      }
+    }
+  }
+
   return {
     // v1 placeholders: every metric sits in the documented range so v2
     // can replace any field with a real number without breaking the
@@ -88,7 +203,7 @@ export function buildMetricsReportSummary(now: Date = new Date()): MetricsReport
     coverage: 1.0,
     abstentionRate: 0.0,
     gateFp: 0,
-    precision: 'TBD',
+    precision,
     schema: METRICS_REPORT_SCHEMA,
     generatedAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     source: 'eval-nightly@v1-stub',
@@ -100,12 +215,15 @@ export function buildMetricsReportSummary(now: Date = new Date()): MetricsReport
  *
  * Returns the in-memory summary so callers (tests, the nightly workflow)
  * can both inspect the value and rely on the side-effect file.
+ *
+ * `labelsPath` (or the `DOCS_VALIDATION_LABELS_PATH` env var) wires in
+ * F-7 NOC labels; when set AND the CSV has ≥1 row, `precision` is a
+ * real `number` (via `computePrecision`); otherwise it stays `'TBD'`.
  */
-export async function generateMetricsReport(opts: {
-  outputDir: string;
-  now?: Date;
-}): Promise<MetricsReportSummary> {
-  const summary = buildMetricsReportSummary(opts.now ?? new Date());
+export async function generateMetricsReport(
+  opts: GenerateMetricsReportOpts,
+): Promise<MetricsReportSummary> {
+  const summary = await buildMetricsReportSummary(opts.now ?? new Date(), opts.labelsPath);
   const outputDir = resolve(opts.outputDir);
   mkdirSync(outputDir, { recursive: true });
   const filePath = join(outputDir, 'metrics-summary.json');
@@ -116,18 +234,40 @@ export async function generateMetricsReport(opts: {
   return summary;
 }
 
+// ── CLI entry point ──────────────────────────────────────────────────────────
+
 /**
  * CLI entry point. Resolves the project root from `import.meta.url` and
  * writes to `packages/eval/reports/metrics-summary.json` relative to the
  * script location. Exits 0 even on unexpected error so the nightly job
  * never fails the gate (per Fase F decision: nightly is observational).
+ *
+ * Flags:
+ *   --labels <path>   Path to the labels CSV. Equivalent to setting
+ *                     `DOCS_VALIDATION_LABELS_PATH`. Takes precedence
+ *                     over the env var.
  */
 async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
   // `here` is `packages/eval/scripts/`; reports live at `packages/eval/reports/`.
   const outputDir = resolve(here, '..', 'reports');
+
+  // Parse CLI flags. Minimal hand-rolled parser — the CLI surface is
+  // intentionally tiny (just `--labels <path>`) so we don't pull in a
+  // dependency. Unknown flags are silently ignored to stay forward-
+  // compatible.
+  const argv = process.argv.slice(2);
+  let cliLabelsPath: string | undefined;
+  const labelsArgIdx = argv.indexOf('--labels');
+  if (labelsArgIdx >= 0 && labelsArgIdx + 1 < argv.length) {
+    cliLabelsPath = argv[labelsArgIdx + 1];
+  }
+
   try {
-    const summary = await generateMetricsReport({ outputDir });
+    const summary = await generateMetricsReport({
+      outputDir,
+      labelsPath: cliLabelsPath,
+    });
     // eslint-disable-next-line no-console
     console.log(`metrics-report: wrote ${join(outputDir, 'metrics-summary.json')}`);
     // eslint-disable-next-line no-console
@@ -148,7 +288,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.error(err);
     try {
-      const fallback = buildMetricsReportSummary();
+      const fallback = await buildMetricsReportSummary();
       mkdirSync(outputDir, { recursive: true });
       writeFileSync(
         join(outputDir, 'metrics-summary.json'),

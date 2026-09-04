@@ -175,24 +175,20 @@ Chain strategy: stacked-to-main
 
 ## Phase F-7 — labels CSV + corpus seed
 
-- [ ] F-7.1 Add `docs/validation/agent-qa-log.labels.csv`
-  - Description: NEW. Per-Q columns `id, expected_gate, label, notes`; NOC tech lead edits CSV; prose untouched.
-  - Files: `docs/validation/agent-qa-log.labels.csv` (NEW)
-  - Tests: N/A (manual)
+- [x] F-7.1 Add labels CSV schema + parser (ground truth for precision)
+  - Description: NEW `packages/eval/src/labels-schema.ts` with `labelsCsvSchema` (zod strict, per-row), `LabelsParseError` (typed error carrying `rowIndex` + zod issue), `parseLabelsCsv` (line-parse → `LabelRow[]`), `loadLabelsFromFile` (async I/O). NEW `docs/validation/labels.csv` with header row only + 0 data rows (NOC tech lead will fill in via a follow-up commit AFTER the schema lands). Re-export `LABELS_CSV_HEADER`, `LabelsParseError`, `labelsCsvSchema`, `loadLabelsFromFile`, `parseLabelsCsv`, `LabelRow` from `packages/eval/src/index.ts`.
+  - Files: `packages/eval/src/labels-schema.ts` (NEW), `packages/eval/tests/labels-schema.test.ts` (NEW), `packages/eval/src/index.ts` (MODIFIED), `docs/validation/labels.csv` (NEW)
+  - Tests: 15 cases — schema acceptance, header-only parsing (0 rows), two-row parsing, invalid caseId/severity/datetime, missing column, trailing blank lines, file-read happy path, malformed-file rejection, missing-file rejection, typed-error surface
   - Dependencies: none
-  - Commit: `docs(validation): seed precision labels CSV`
-- [ ] F-7.2 Update `docs/validation/agent-qa-log.md` to reference labels CSV
-  - Description: add a 1-paragraph note linking to `agent-qa-log.labels.csv`; precision `TBD` until NOC labels exist.
-  - Files: `docs/validation/agent-qa-log.md`
-  - Tests: N/A
+  - Commit: `feat(eval): add labels CSV schema + parser (ground truth for precision)`
+- [x] F-7.2 Wire labels into metrics-report (precision real when labels exist, TBD otherwise)
+  - Description: `packages/eval/scripts/metrics-report.ts` reads labels via `loadLabelsFromFile` when `labelsPath` (option) OR `DOCS_VALIDATION_LABELS_PATH` (env var) OR `--labels <path>` (CLI flag) is set; feeds them into `computePrecision` over a synthetic `EvalRunSummary` (one row per label with `gateDecision: 'allow'`); `precision` becomes `number` (e.g. `#supported / #total`) when labels exist, stays `'TBD'` otherwise. The `MetricsReportSummary.precision` field widens to `'TBD' | number`. `packages/evidence/README.md` is unchanged (F-5 already noted Fase F verdict_log + warn persistence).
+  - Files: `packages/eval/scripts/metrics-report.ts` (MODIFIED), `packages/eval/tests/metrics-report.test.ts` (MODIFIED)
+  - Tests: 4 new cases — precision is number when labels provided; precision is `'TBD'` when `labelsPath` omitted; precision is `'TBD'` for header-only CSV; on-disk JSON reflects number. All 4 prior F-6.2 tests stay green.
   - Dependencies: F-7.1
-  - Commit: `docs(validation): link labels CSV from QA log`
-- [ ] F-7.3 Assert `precision === 'TBD'` in metrics tests
-  - Description: RED test in `packages/eval/tests/metrics.test.ts`: when no labels CSV, `precision` reports `"TBD"`. GREEN: metrics.ts TBD branch.
-  - Files: `packages/eval/tests/metrics.test.ts`
-  - Tests: 1 case asserting TBD marker
-  - Dependencies: F-7.1
-  - Commit: `test(eval): assert precision TBD marker`
+  - Commit: `feat(eval): wire labels CSV into metrics-report (precision real when labels exist, TBD otherwise)`
+- [ ] F-7.3 (deferred — out of F-7 scope this PR)
+  - Description: Original spec asked for `packages/eval/tests/metrics.test.ts` to assert `precision === 'TBD'`. F-7.2's "precision is 'TBD' when labelsPath omitted" test in `metrics-report.test.ts` covers the same intent via the wired consumer; F-7.3 stays open for a follow-up PR that also asserts the TBD branch in `metrics.test.ts` directly (deferred to F-8 or later).
 
 ## Phase F-8 — workspace regression sweep + verify
 
