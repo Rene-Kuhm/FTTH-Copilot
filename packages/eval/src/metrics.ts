@@ -98,6 +98,65 @@ export function computeAbstentionRate(summary: EvalRunSummary): number {
 }
 
 /**
+ * Minimal shape consumed by `computeInjectionSuspicionTotal`. Matches
+ * the fields emitted by `buildVerdictLogEntries` (F-5.1) and the
+ * `verdict_log` Prisma model. Kept as a structural type (not a concrete
+ * import) so the function stays DB-free and testable in isolation.
+ */
+export interface VerdictLogEntry {
+  tenantId: string;
+  code: string;
+  injectionSuspicion?: boolean;
+}
+
+/**
+ * Result of `computeInjectionSuspicionTotal`: a total count plus
+ * per-tenant and per-code breakdowns. Every value is a non-negative
+ * integer — the function counts rows, not fractions.
+ */
+export interface InjectionSuspicionTotal {
+  total: number;
+  byTenant: Record<string, number>;
+  byCode: Record<string, number>;
+}
+
+/**
+ * Counts `injectionSuspicion === true` entries and aggregates them
+ * by tenant and by verdict code.
+ *
+ * Pure function — no DB, no I/O. Operates on the same structural shape
+ * that `buildVerdictLogEntries` emits and that the `verdict_log` Prisma
+ * model stores. The nightly metrics leg calls this over a batch of
+ * `VerdictLogEntryInput` rows (or their DB-round-tripped equivalents)
+ * to derive the `injection_suspicion_total` metric (AD-11).
+ *
+ * Entries without an `injectionSuspicion` field or with
+ * `injectionSuspicion === false` are excluded from the count.
+ *
+ * Determinism: the function iterates insertion-order (Array.forEach),
+ * so identical inputs always produce identical output. The `byTenant`
+ * and `byCode` records use insertion-order key insertion (Map
+ * semantics via plain object accumulation) — callers should NOT
+ * depend on key order.
+ */
+export function computeInjectionSuspicionTotal(
+  entries: ReadonlyArray<VerdictLogEntry>,
+): InjectionSuspicionTotal {
+  let total = 0;
+  const byTenant: Record<string, number> = {};
+  const byCode: Record<string, number> = {};
+
+  for (const entry of entries) {
+    if (entry.injectionSuspicion !== true) continue;
+    total++;
+    byTenant[entry.tenantId] = (byTenant[entry.tenantId] ?? 0) + 1;
+    byCode[entry.code] = (byCode[entry.code] ?? 0) + 1;
+  }
+
+  return { total, byTenant, byCode };
+}
+
+/**
  * Counts cases where `gateDecision === 'abstain'` but `caseId` is NOT in
  * `expectedSupportsAbstain` (i.e. the gate abstained when the label
  * expected it to answer).

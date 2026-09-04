@@ -42,8 +42,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  computeInjectionSuspicionTotal,
   computePrecision,
   type PrecisionLabel,
+  type VerdictLogEntry,
 } from '../src/metrics';
 import type { EvalRunSummary, EvalRunResult } from '../src/runner';
 import { loadLabelsFromFile, type LabelRow } from '../src/labels-schema';
@@ -74,6 +76,12 @@ export const METRICS_REPORT_SCHEMA = 'ftth.eval-metrics.v1' as const;
  *                      empty; otherwise a `number` in [0, 1] computed by
  *                      `computePrecision` over the labels + a synthetic
  *                      run summary.
+ *   - injectionSuspicionTotal : count of verdict_log rows where
+ *                      `injectionSuspicion === true` (default 0 when
+ *                      no DB-connected run is available).
+ *   - injectionSuspicionByTenant : per-tenant breakdown of
+ *                      `injectionSuspicionTotal` (optional; absent when
+ *                      no DB-connected run produces real numbers).
  *   - schema         : wire-contract literal `ftth.eval-metrics.v1`
  *   - generatedAt    : ISO-8601 UTC timestamp at generation time
  *   - source         : provenance tag — always `"eval-nightly@v1-stub"`
@@ -85,6 +93,8 @@ export interface MetricsReportSummary {
   abstentionRate: number;
   gateFp: number;
   precision: 'TBD' | number;
+  injectionSuspicionTotal: number;
+  injectionSuspicionByTenant?: Record<string, number>;
   schema: typeof METRICS_REPORT_SCHEMA;
   generatedAt: string;
   source: string;
@@ -101,6 +111,14 @@ export interface GenerateMetricsReportOpts {
   now?: Date;
   /** When provided, read this labels CSV and compute a real precision. */
   labelsPath?: string;
+  /**
+   * Optional verdict log entries for the injection-suspicion metric.
+   * When provided, `computeInjectionSuspicionTotal` derives the real
+   * total and per-tenant breakdown. When absent (or empty), the metric
+   * defaults to 0 — the nightly CI workflow may not have a DB-connected
+   * run available.
+   */
+  verdictLogEntries?: ReadonlyArray<VerdictLogEntry>;
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -179,6 +197,7 @@ function resolveLabelsPath(opts: GenerateMetricsReportOpts): string | undefined 
 export async function buildMetricsReportSummary(
   now: Date = new Date(),
   labelsPath?: string,
+  verdictLogEntries?: ReadonlyArray<VerdictLogEntry>,
 ): Promise<MetricsReportSummary> {
   let precision: 'TBD' | number = 'TBD';
 
@@ -195,6 +214,11 @@ export async function buildMetricsReportSummary(
     }
   }
 
+  const injectionSuspicion =
+    verdictLogEntries !== undefined && verdictLogEntries.length > 0
+      ? computeInjectionSuspicionTotal(verdictLogEntries)
+      : { total: 0, byTenant: {}, byCode: {} };
+
   return {
     // v1 placeholders: every metric sits in the documented range so v2
     // can replace any field with a real number without breaking the
@@ -204,6 +228,11 @@ export async function buildMetricsReportSummary(
     abstentionRate: 0.0,
     gateFp: 0,
     precision,
+    injectionSuspicionTotal: injectionSuspicion.total,
+    injectionSuspicionByTenant:
+      Object.keys(injectionSuspicion.byTenant).length > 0
+        ? injectionSuspicion.byTenant
+        : undefined,
     schema: METRICS_REPORT_SCHEMA,
     generatedAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     source: 'eval-nightly@v1-stub',
@@ -223,7 +252,11 @@ export async function buildMetricsReportSummary(
 export async function generateMetricsReport(
   opts: GenerateMetricsReportOpts,
 ): Promise<MetricsReportSummary> {
-  const summary = await buildMetricsReportSummary(opts.now ?? new Date(), opts.labelsPath);
+  const summary = await buildMetricsReportSummary(
+    opts.now ?? new Date(),
+    opts.labelsPath,
+    opts.verdictLogEntries,
+  );
   const outputDir = resolve(opts.outputDir);
   mkdirSync(outputDir, { recursive: true });
   const filePath = join(outputDir, 'metrics-summary.json');
@@ -280,6 +313,8 @@ async function main(): Promise<void> {
     console.log(`gate-fp: ${summary.gateFp}`);
     // eslint-disable-next-line no-console
     console.log(`precision: ${summary.precision}`);
+    // eslint-disable-next-line no-console
+    console.log(`injection-suspicion-total: ${summary.injectionSuspicionTotal}`);
     process.exit(0);
   } catch (err) {
     // Never fail the nightly job on metrics-shape errors.
