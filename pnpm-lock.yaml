@@ -324,6 +324,9 @@ importers:
       '@ftth-copilot/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../db
       '@ftth-copilot/evidence':
         specifier: workspace:*
         version: link:../evidence

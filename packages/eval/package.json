@@ -15,10 +15,12 @@
     "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "metrics-report": "tsx scripts/metrics-report.ts",
+    "backfill-verdict-log": "tsx scripts/backfill-verdict-log.ts",
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
     "@ftth-copilot/agent-core": "workspace:*",
+    "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/evidence": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
     "zod": "^3.23.8"
