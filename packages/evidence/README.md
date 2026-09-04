@@ -308,6 +308,33 @@ every read path.
    uses the same `classifyEnvelope` / `classifyUnwrapped` functions
    the runtime already calls — no new classification path.
 
+### `finalize` warn flag-and-log (F-3)
+
+The `finalize` helper in `packages/agent-core/src/runtime.ts` now
+takes a third branch when `shouldAbstain(...) === 'warn'`:
+
+- `result.text` stays **byte-identical** to the LLM string — no
+  `formatAbstentionText`, no `String(text)`, no JSON clone. A
+  JSON round-trip would normalize the deliberate whitespace; the
+  golden tests in `runtime.test.ts` use `expect(result.text).toBe(...)`
+  to fail any future formatter regression.
+- `result.warnings: VerdictCode[]` is populated with the **deduped
+  distinct** `VerdictCode` drawn from the warn sources
+  (`'stale'` + `'low_confidence'`). Insertion-order dedupe
+  (via `new Set(...)`) preserves determinism so a run with
+  `[stale, low_confidence]` reports the same array as
+  `[low_confidence, stale]`.
+- `result.abstained` stays `undefined`; `result.abstention` stays
+  `undefined`. The warn channel never co-fires with the Fase C
+  abstention envelope — when an `'incomplete'` verdict is also
+  present, the abstain branch wins and `warnings` stays absent.
+- Observe mode keeps the existing Fase B behavior — no `warnings`
+  field is added on the observe path.
+- The `AgentActionLog` row with `toolName: '__injection_suspicion__'`
+  is **not** emitted from `finalize`; the chat route (F-5) reads
+  `result.warnings` after the agent returns and writes the row
+  inside a fail-safe try/catch. Persistence lives in F-5.
+
 ### Details
 
 | Topic | Decision |
