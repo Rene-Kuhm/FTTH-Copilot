@@ -31,25 +31,25 @@ Chain strategy: stacked-to-main
 
 ## Phase F-1 — Schema + contracts (verdict_log) + shared zod
 
-- [ ] F-1.1 RED: add `verdict_log` Prisma model to schema with golden test
+- [x] F-1.1 RED: add `verdict_log` Prisma model to schema with golden test
   - Description: GIVEN the new model is absent, WHEN `prisma generate` runs, THEN the test asserts `verdict_log` exists with `@@index([tenantId, observedAt])` per AD-6. GREEN: add model to `packages/db/prisma/schema.prisma`.
   - Files: `packages/db/prisma/schema.prisma`, `packages/db/tests/schema.test.ts` (NEW)
   - Tests: new `describe('verdict_log model')` asserting field set + index
   - Dependencies: none
   - Commit: `feat(db): add verdict_log model for Fase F eval/injection`
-- [ ] F-1.2 Add additive migration SQL mirroring Fase E pattern
+- [x] F-1.2 Add additive migration SQL mirroring Fase E pattern
   - Description: NEW `packages/db/prisma/migrations/<ts>_verdict_log/migration.sql`; `CREATE TABLE verdict_log` + `CREATE INDEX`; no destructive change.
   - Files: `packages/db/prisma/migrations/<ts>_verdict_log/migration.sql` (NEW)
   - Tests: `prisma migrate deploy` runs in CI integration job
   - Dependencies: F-1.1
   - Commit: `chore(db): add additive verdict_log migration`
-- [ ] F-1.3 RED: `verdictLogEntrySchema` zod + `VERDICT_LOG_SCHEMA` literal
+- [x] F-1.3 RED: `verdictLogEntrySchema` zod + `VERDICT_LOG_SCHEMA` literal
   - Description: GIVEN an entry with `tenantId: ''` or `severity: 'unknown'`, WHEN `verdictLogEntrySchema.safeParse` runs, THEN `.success === false`. GREEN: add schema mirroring Prisma columns with `.strict()` and `VERDICT_LOG_SCHEMA = 'ftth.verdict-log.v1'`.
   - Files: `packages/shared/src/contracts.ts`, `packages/shared/tests/contracts.test.ts`
   - Tests: new `describe('ftth.verdict-log.v1')` block (~30 lines) covering empty tenantId + invalid severity rejection
   - Dependencies: none (parallelizable with F-1.1)
   - Commit: `feat(shared): add verdict-log v1 zod contract`
-- [ ] F-1.4 Re-export `VerdictLogEntry` from `@ftth-copilot/shared` index
+- [x] F-1.4 Re-export `VerdictLogEntry` from `@ftth-copilot/shared` index
   - Description: add `verdictLogEntrySchema`, `VERDICT_LOG_SCHEMA`, type `VerdictLogEntry` to `packages/shared/src/index.ts`; keep existing `index-exports.test.ts` golden passing.
   - Files: `packages/shared/src/index.ts`
   - Tests: existing `index-exports.test.ts` golden stays green; add new entry
