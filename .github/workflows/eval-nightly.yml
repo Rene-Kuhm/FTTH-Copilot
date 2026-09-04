@@ -1,0 +1,119 @@
+name: Eval Nightly
+
+# ──────────────────────────────────────────────────────────────────────
+# Fase F-6 nightly leg — deterministic, metrics-only.
+#
+# Why this workflow exists:
+#   The PR gate (`.github/workflows/ci.yml` → `eval` job) is binary on
+#   `attack-pass-rate == 100%` on the red corpus. The nightly leg is the
+#   observational counterpart: it runs the same harness, builds the
+#   metrics-summary.json artifact, and NEVER fails the job. The artifact
+#   is uploaded unconditionally so the trend over time is visible even on
+#   partial runs.
+#
+#   v1 contract (this workflow):
+#     - KEYLESS: no `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or
+#       `MINIMAX_API_KEY` is referenced. The metrics-report stub uses
+#       in-process placeholder values; the LLM seam is mocked by the
+#       eval package (per `packages/eval/tests/runner.test.ts`).
+#     - v2 contract (future): swap the stub for the real `createLlmClient`
+#       + `secrets.MINIMAX_API_KEY`; the `metrics-report.ts` shape
+#       (`ftth.eval-metrics.v1`) stays stable so the
+#       job-summary / artifact consumers do not change.
+#   This is the single source of truth for "why does the nightly leg
+#   exist?" — keep this header in sync with the eval-harness / eval-metrics
+#   delta specs at `openspec/changes/fase-f-eval-injection/specs/`.
+# ──────────────────────────────────────────────────────────────────────
+
+on:
+  # Run at 03:00 UTC every day. Off-peak hours minimize impact on the
+  # PR CI windows (00:00–06:00 UTC sees ~40% of PR pushes in this repo).
+  schedule:
+    - cron: "0 3 * * *"
+  # Manual trigger for ad-hoc nightly runs without waiting for the cron.
+  workflow_dispatch:
+
+# Cancel an in-progress nightly when a new run kicks off (manual trigger
+# or a delayed cron firing twice). Keeps the artifact timeline 1:1 with
+# the trigger timeline.
+concurrency:
+  group: eval-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: nightly only reads the repo. No write, no PR
+# comments, no secrets (v1 is in-process stub; v2 will need a `secrets.`
+# reference for MINIMAX_API_KEY and `contents: read` is still enough).
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.22.0"
+
+jobs:
+  eval-nightly:
+    name: Eval Nightly (metrics-only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @ftth-copilot/db exec prisma generate
+
+      - name: Run eval harness (deterministic PR gate, keyless)
+        run: pnpm --filter @ftth-copilot/eval run test
+
+      - name: Lint eval package
+        run: pnpm --filter @ftth-copilot/eval run lint
+
+      - name: Generate nightly metrics summary
+        id: metrics
+        run: pnpm --filter @ftth-copilot/eval run metrics-report
+
+      - name: Echo metrics to job summary
+        # Mirrors the keys the eval-metrics spec promises to operators.
+        # The actual JSON artifact is uploaded by the next step so the
+        # trend over time is preserved across workflow runs.
+        run: |
+          {
+            echo "## Eval nightly metrics"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| attack-pass-rate | $(jq -r '.attackPassRate' packages/eval/reports/metrics-summary.json) |"
+            echo "| coverage | $(jq -r '.coverage' packages/eval/reports/metrics-summary.json) |"
+            echo "| abstention-rate | $(jq -r '.abstentionRate' packages/eval/reports/metrics-summary.json) |"
+            echo "| gate-fp | $(jq -r '.gateFp' packages/eval/reports/metrics-summary.json) |"
+            echo "| precision | $(jq -r '.precision' packages/eval/reports/metrics-summary.json) |"
+            echo "| schema | $(jq -r '.schema' packages/eval/reports/metrics-summary.json) |"
+            echo "| generated-at | $(jq -r '.generatedAt' packages/eval/reports/metrics-summary.json) |"
+            echo ""
+            echo "_v1 uses deterministic stub; v2 will swap to real MiniMax-M3 (requires the provider API key)._"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload metrics-summary.json artifact
+        # Always upload — even on partial failure — so the trend over
+        # time is preserved. Retention is 90 days to support the
+        # weekly/monthly rollup the eval-metrics spec describes.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-nightly-metrics-summary
+          path: packages/eval/reports/metrics-summary.json
+          retention-days: 90
+          if-no-files-found: warn

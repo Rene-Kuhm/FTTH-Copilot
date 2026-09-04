@@ -154,24 +154,24 @@ Chain strategy: stacked-to-main
 
 ## Phase F-6 — CI workflow + nightly
 
-- [ ] F-6.1 Add `eval` job to `.github/workflows/ci.yml` after `test-unit`
+- [x] F-6.1 Add `eval` job to `.github/workflows/ci.yml` after `test-unit`
   - Description: `needs: [lint-and-typecheck, test-unit]`, `if: always()`, no `secrets.*` in `env`, runs `pnpm --filter @ftth-copilot/eval test`; non-zero on `attack-pass-rate < 1.0` or surface coverage gap.
   - Files: `.github/workflows/ci.yml`
   - Tests: workflow yaml lint via `actionlint` (manual in PR)
   - Dependencies: F-4.4
-  - Commit: `ci(eval): add keyless attack-pass-rate gate`
-- [ ] F-6.2 Append `eval` to `ci-success` aggregator
+  - Commit: `ci(workflow): add eval job as Fase F PR gate (attack-pass-rate == 100%)` (also covers the F-6.2 aggregator update in the same work unit)
+- [x] F-6.2 Append `eval` to `ci-success` aggregator
   - Description: add `eval` to the `needs:` list of `ci-success`; keep existing jobs unchanged.
   - Files: `.github/workflows/ci.yml`
   - Tests: existing ci-success aggregator check stays consistent
   - Dependencies: F-6.1
-  - Commit: `ci: add eval job to ci-success aggregator`
-- [ ] F-6.3 Create `.github/workflows/eval-nightly.yml`
-  - Description: NEW file. `schedule:` cron + `workflow_dispatch`; uses `MINIMAX_API_KEY` secret; runs `packages/eval` nightly against full corpus + `ConfirmedIncident` corpus; NEVER fails job (observational only).
-  - Files: `.github/workflows/eval-nightly.yml` (NEW)
-  - Tests: workflow yaml lint; secret presence verified in repository settings
+  - Commit: folded into the F-6.1 work unit (one ci.yml change, one aggregator update, one commit — matches the orchestrator's stacked-PR scope)
+- [x] F-6.3 Create `.github/workflows/eval-nightly.yml`
+  - Description: NEW file. `schedule:` cron + `workflow_dispatch`; v1 in-process stub (no LLM keys); runs `packages/eval` nightly against full corpus + emits `metrics-summary.json`; NEVER fails job (observational only). v2 will swap the stub for `secrets.MINIMAX_API_KEY`.
+  - Files: `.github/workflows/eval-nightly.yml` (NEW), `packages/eval/scripts/metrics-report.ts` (NEW), `packages/eval/tests/metrics-report.test.ts` (NEW)
+  - Tests: RED→GREEN vitest suite (`tests/metrics-report.test.ts`) covers the documented JSON shape + `precision: "TBD"` marker; YAML structure validated with PyYAML
   - Dependencies: F-4.4
-  - Commit: `ci(eval): add nightly MiniMax-M3 metrics workflow`
+  - Commit: `ci(workflow): add eval-nightly.yml — deterministic metrics-only nightly (v1 stub, no LLM keys)`
 
 ## Phase F-7 — labels CSV + corpus seed
 
