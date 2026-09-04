@@ -54,3 +54,16 @@ export {
   injectionKindsCoverage,
   surfaceCoverage,
 } from './assertions';
+
+// Phase F-4.3 — nightly metrics. Pure functions over EvalRunSummary /
+// EvalCorpus. Precision returns `null` until the NOC tech lead labels
+// `docs/validation/agent-qa-log.md` (decision #6: precision TBD).
+export {
+  computeAbstentionRate,
+  computeCoverage,
+  computeGateFalsePositives,
+  computePrecision,
+  type PrecisionLabel,
+  type PrecisionLabels,
+} from './metrics';
+
