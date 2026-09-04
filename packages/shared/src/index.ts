@@ -1,7 +1,7 @@
 /**
  * Tipos compartidos entre el agente y el frontend.
  */
-import type { Verdict } from '@ftth-copilot/evidence';
+import type { Verdict, VerdictCode } from '@ftth-copilot/evidence';
 import type { Abstention } from './contracts';
 
 export interface ToolCallRecord {
@@ -33,6 +33,32 @@ export interface AgentResult {
    * agent answered normally, so existing consumers stay untouched.
    */
   abstained?: boolean;
+  /**
+   * Fase F (F-3) — additive warn channel. Populated by the F-3
+   * `finalize` branch in `@ftth-copilot/agent-core` only when
+   * `shouldAbstain(...) === 'warn'` (i.e. at least one verdict carries
+   * `'stale'` or `'low_confidence'` and none carries `'incomplete'`).
+   *
+   * Wire shape: deduped distinct `VerdictCode[]` from the warn verdicts
+   * (typically `['stale']`, `['low_confidence']`, or
+   * `['stale', 'low_confidence']`). Runtime-validated through
+   * `verdictCodesSchema` in `@ftth-copilot/shared`.
+   *
+   * Invariants:
+   * - `result.text` is byte-identical to the LLM output on this path;
+   *   the warn channel NEVER rewrites the LLM string (see F-3 design
+   *   §Architecture Decisions #3 and the
+   *   `injection-defense.spec.md` "Warn preserves LLM text" scenario).
+   * - `result.abstention` stays `undefined` and `result.abstained`
+   *   stays `undefined` — the warn channel is observability-only and
+   *   never co-fires with the Fase C abstention envelope.
+   * - On the `'abstain'` path, `warnings` stays `undefined` (the
+   *   abstain path supersedes the warn channel).
+   * - On the `'allow'` path, `warnings` stays `undefined`.
+   * - Omission is valid for every pre-Fase-F consumer; the field is
+   *   strictly additive.
+   */
+  warnings?: VerdictCode[];
 }
 
 export interface ChatRequest {
@@ -86,6 +112,7 @@ export {
   VERDICT_LOG_SCHEMA,
   verdictLogSchema,
   VerdictCodeSchema,
+  verdictCodesSchema,
   VerdictSeveritySchema,
   DEFAULT_TTL_MS,
   DEMO_TTL_MS,

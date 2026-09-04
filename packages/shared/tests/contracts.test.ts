@@ -171,6 +171,12 @@ describe('evidence.provenance.v1', () => {
 
 import type { AgentResult, ChatResponse } from '../src/index';
 import type { Verdict } from '@ftth-copilot/evidence';
+import {
+  verdictCodesSchema,
+  type VerdictCode as SharedVerdictCode,
+} from '../src/contracts';
+// `SharedVerdictCode` is the local zod-derived alias for the wire contract;
+// kept identical to `@ftth-copilot/evidence`'s `VerdictCode` by design.
 
 describe('AgentResult backward compatibility (Fase B)', () => {
   it('still type-checks with no verdicts field (existing consumers)', () => {
@@ -926,5 +932,135 @@ describe('ftth.verdict-log.v1', () => {
     expect(roundTripped.toolName).toBe('list_olts');
     expect(roundTripped.code).toBe('ok');
     expect(roundTripped.injectionSuspicion).toBe(true);
+  });
+});
+
+// ── Fase F — AgentResult.warnings additive VerdictCode[] channel ──────────────
+//
+// The warnings channel is the F-3 contract for the `'warn'` finalize branch:
+// `result.warnings: VerdictCode[]` carries the deduped distinct `VerdictCode`s
+// that produced the warn decision (`'stale'` + `'low_confidence'` only).
+// `.warnings` MUST stay optional + additive: pre-Fase-F consumers reading
+// only the existing fields stay byte-identical. The runtime guard is
+// `verdictCodesSchema` — it rejects every value outside the enum so the wire
+// channel can never silently drift to an `unknown-code` value.
+
+describe('verdictCodesSchema — zod runtime guard for the warnings array', () => {
+  it('exports an array-of-VerdictCode zod schema (runtime check surface)', () => {
+    expect(typeof verdictCodesSchema.safeParse).toBe('function');
+  });
+
+  it('accepts every declared VerdictCode value as a single-element array', () => {
+    const codes: ReadonlyArray<SharedVerdictCode> = [
+      'ok',
+      'low_confidence',
+      'stale',
+      'incomplete',
+    ];
+    for (const code of codes) {
+      expect(verdictCodesSchema.safeParse([code]).success).toBe(true);
+    }
+  });
+
+  it('accepts a multi-element array mixing every declared value', () => {
+    const codes: ReadonlyArray<SharedVerdictCode> = [
+      'ok',
+      'low_confidence',
+      'stale',
+      'incomplete',
+    ];
+    expect(verdictCodesSchema.safeParse([...codes]).success).toBe(true);
+  });
+
+  it('accepts an empty array (no warn sources fired)', () => {
+    expect(verdictCodesSchema.safeParse([]).success).toBe(true);
+  });
+
+  it('rejects an unknown code value at any position (zod enum check)', () => {
+    expect(verdictCodesSchema.safeParse(['unknown-code']).success).toBe(false);
+    expect(verdictCodesSchema.safeParse(['injection']).success).toBe(false);
+    expect(verdictCodesSchema.safeParse(['ok', 'unknown-code']).success).toBe(false);
+    expect(verdictCodesSchema.safeParse(['unknown-code', 'ok']).success).toBe(false);
+  });
+});
+
+describe('AgentResult.warnings — Fase F additive VerdictCode[] channel', () => {
+  it('AgentResult without warnings stays valid for legacy Fase B/C consumers', () => {
+    const legacy: AgentResult = {
+      text: 'Hay 12 ONUs online.',
+      toolCalls: [{ name: 'list_onus', arguments: {} }],
+    };
+    expect(legacy.warnings).toBeUndefined();
+    expect(legacy.text).toBe('Hay 12 ONUs online.');
+    expect(legacy.abstention).toBeUndefined();
+    expect(legacy.abstained).toBeUndefined();
+  });
+
+  it('AgentResult with warnings: ["stale"] validates via verdictCodesSchema', () => {
+    const result: AgentResult = {
+      text: 'Hay 12 ONUs online.',
+      toolCalls: [],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+      ],
+      warnings: ['stale'],
+    };
+    expect(result.warnings).toEqual(['stale']);
+    expect(verdictCodesSchema.safeParse(result.warnings).success).toBe(true);
+  });
+
+  it('AgentResult with warnings: ["stale", "low_confidence"] round-trips through JSON', () => {
+    const result: AgentResult = {
+      text: 'Diagnóstico con dos warnings.',
+      toolCalls: [],
+      verdicts: [
+        { toolName: 'list_onus', code: 'stale', reason: 'expired-ttl', severity: 'warning' },
+        { toolName: 'get_metrics', code: 'low_confidence', reason: 'low-confidence-value', severity: 'warning' },
+      ],
+      warnings: ['stale', 'low_confidence'],
+    };
+    const roundTripped = JSON.parse(JSON.stringify(result)) as AgentResult;
+    expect(roundTripped.warnings).toEqual(['stale', 'low_confidence']);
+    expect(verdictCodesSchema.safeParse(roundTripped.warnings).success).toBe(true);
+    expect(roundTripped.text).toBe('Diagnóstico con dos warnings.');
+    // Existing fields stay byte-identical across the round-trip.
+    expect(roundTripped.text).toBe(result.text);
+    expect(roundTripped.verdicts).toHaveLength(2);
+  });
+
+  it('AgentResult with warnings: ["unknown-code"] fails verdictCodesSchema (zod enum check)', () => {
+    // Construct a wire-level payload whose `warnings` value intentionally
+    // violates the VerdictCode enum; the runtime zod guard rejects it
+    // even though the TS type would refuse to compile such an AgentResult.
+    const unsafeWarnings = ['unknown-code'] as unknown as AgentResult['warnings'];
+    expect(verdictCodesSchema.safeParse(unsafeWarnings).success).toBe(false);
+  });
+
+  it('warnings + abstention are independent channels (one does not imply the other)', () => {
+    const warnOnly: AgentResult = {
+      text: 'Texto del LLM preservado byte-identical.',
+      toolCalls: [],
+      warnings: ['stale'],
+    };
+    expect(warnOnly.abstained).toBeUndefined();
+    expect(warnOnly.abstention).toBeUndefined();
+    expect(warnOnly.warnings).toEqual(['stale']);
+
+    const abstention: AgentResult = {
+      text: 'No puedo responder con la evidencia disponible.',
+      toolCalls: [],
+      abstention: {
+        schema: ABSTENTION_SCHEMA,
+        reason: 'incomplete',
+        severity: 'critical',
+        missing: ['get_onu_detail'],
+        available: [],
+        nextStep: 'Re-colectá.',
+        toolsAffected: ['get_onu_detail'],
+      },
+      abstained: true,
+    };
+    expect(abstention.warnings).toBeUndefined();
+    expect(abstention.abstained).toBe(true);
   });
 });

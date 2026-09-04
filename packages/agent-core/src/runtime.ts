@@ -290,7 +290,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   ];
 
   /**
-   * Fase C (strict mode): aplica la política de abstención al resultado final.
+   * Fase C (strict mode): aplica la política de abstención al the final result.
    * Se invoca en AMBOS return paths (corte sin tool calls y corte por límite de
    * iteraciones) para que ninguna salida del loop escape al gate.
    *
@@ -305,32 +305,65 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    * the override triggers on a non-incomplete code (e.g. `['stale']`), we
    * locate the trigger verdict and pass its code into `buildAbstention` so
    * the envelope `reason` reflects the actual trigger.
+   *
+   * Fase F (F-3) — when `shouldAbstain` returns `'warn'` we take a third
+   * branch: `result.text` stays byte-identical to the LLM string (NO clone,
+   * NO formatter), `result.warnings: VerdictCode[]` is populated from the
+   * warn sources (`'stale'` + `'low_confidence'`), and `abstention` /
+   * `abstained` stay undefined. The warn channel is observability-only:
+   * it never rewrites the LLM text. `'abstain'` still supersedes `'warn'`
+   * — when both apply, the abstain branch fires and `warnings` stays
+   * absent (no dual-fire). `'allow'` stays byte-identical to Fase C
+   * (no `warnings` field added).
    */
   const finalize = (text: string): AgentResult => {
     const policyArg =
       resolvedTenantPolicy.abstainOnCodes !== undefined
         ? { abstainOnCodes: resolvedTenantPolicy.abstainOnCodes }
         : undefined;
-    if (shouldAbstain(verdicts, mode, policyArg) !== 'abstain') {
-      return { text, toolCalls, verdicts };
+    const decision = shouldAbstain(verdicts, mode, policyArg);
+    if (decision === 'abstain') {
+      // Determine the trigger code: when the tenant policy is the override,
+      // use the first code that fires; otherwise (Fase C path) it's always
+      // `incomplete`. `shouldAbstain` already returned 'abstain', so at
+      // least one matching verdict exists.
+      let triggerCode: VerdictCode = 'incomplete';
+      if (policyArg) {
+        const trigger = verdicts.find((v) => policyArg.abstainOnCodes.includes(v.code));
+        if (trigger) triggerCode = trigger.code;
+      }
+      const abstention = buildAbstention(verdicts, undefined, triggerCode);
+      return {
+        text: formatAbstentionText(abstention),
+        toolCalls,
+        verdicts,
+        abstention,
+        abstained: true,
+      };
     }
-    // Determine the trigger code: when the tenant policy is the override,
-    // use the first code that fires; otherwise (Fase C path) it's always
-    // `incomplete`. `shouldAbstain` already returned 'abstain', so at
-    // least one matching verdict exists.
-    let triggerCode: VerdictCode = 'incomplete';
-    if (policyArg) {
-      const trigger = verdicts.find((v) => policyArg.abstainOnCodes.includes(v.code));
-      if (trigger) triggerCode = trigger.code;
+    if (decision === 'warn') {
+      // F-3 — populate the additive warn channel. The channel is the
+      // deduped distinct `VerdictCode[]` drawn from the warn sources
+      // (`'stale'` + `'low_confidence'` only — never `'incomplete'`,
+      // never `'ok'`). Insertion-order dedupe preserves determinism so
+      // a run with `[stale, low_confidence]` reports the same array as
+      // a run with `[low_confidence, stale]`. The LLM text is forwarded
+      // byte-identically: no `formatAbstentionText`, no `String(x)`,
+      // no JSON clone. The chat route (F-5) will read `result.warnings`
+      // to write the `__injection_suspicion__` `AgentActionLog` row.
+      const warnCodes = verdicts
+        .filter((v) => v.code === 'stale' || v.code === 'low_confidence')
+        .map((v) => v.code);
+      const distinctWarnCodes = Array.from(new Set(warnCodes));
+      return {
+        text,
+        toolCalls,
+        verdicts,
+        warnings: distinctWarnCodes,
+      };
     }
-    const abstention = buildAbstention(verdicts, undefined, triggerCode);
-    return {
-      text: formatAbstentionText(abstention),
-      toolCalls,
-      verdicts,
-      abstention,
-      abstained: true,
-    };
+    // decision === 'allow' → Fase C byte-identical (no warnings field).
+    return { text, toolCalls, verdicts };
   };
 
   const sourcePrompt = opts.dataSource?.mode === 'demo'

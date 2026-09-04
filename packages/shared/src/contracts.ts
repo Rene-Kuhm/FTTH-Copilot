@@ -45,6 +45,19 @@ export const VerdictCodeSchema = z.enum(['ok', 'low_confidence', 'stale', 'incom
 export type VerdictCode = z.infer<typeof VerdictCodeSchema>;
 
 /**
+ * Fase F — runtime guard for the `AgentResult.warnings: VerdictCode[]`
+ * channel. The F-3 finalize branch populates `result.warnings` with the
+ * deduped distinct `VerdictCode`s that produced the `'warn'` decision
+ * (`'stale'` + `'low_confidence'`); this zod array is the single source
+ * of truth for the wire shape so producers / consumers / metrics can
+ * round-trip the value through `safeParse` without re-locking the enum.
+ * Kept as an array (not `.nonempty()`) because the F-3 spec leaves the
+ * field absent on `allow` / `abstain` paths; the empty-array case is
+ * still a legal value when the runtime explicitly emits it.
+ */
+export const verdictCodesSchema = z.array(VerdictCodeSchema);
+
+/**
  * VerdictSeverity — mirrored from the `VerdictSeverity` union in
  * `@ftth-copilot/evidence`. Independent dimension from `code`: code is
  * the "what happened" classification; severity is the "how loud should we
