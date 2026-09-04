@@ -251,13 +251,11 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     await expect(runScheduledFecCollection()).resolves.toBeUndefined();
 
     expect(connector.getOnuDetail).toHaveBeenCalledTimes(8);
-    // createMany is still invoked once — the persistSamples contract always
-    // touches it, but with an empty array (REq-4 / AD-4).
-    expect(mocks.prismaMetricSampleCreateMany).toHaveBeenCalledTimes(1);
-    const persistArgs = mocks.prismaMetricSampleCreateMany.mock.calls[0]?.[0] as {
-      data: unknown[];
-    };
-    expect(persistArgs.data).toEqual([]);
+    // `persistSamples` short-circuits on an empty batch (no DB touch); the
+    // contract is "zero rows persisted, no throw" — REQ-4 / AD-4. We assert
+    // the negative: createMany was NOT called, and the log reports the
+    // graceful skip.
+    expect(mocks.prismaMetricSampleCreateMany).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       '[fec-collection] tick',
       expect.objectContaining({
