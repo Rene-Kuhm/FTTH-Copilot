@@ -18,6 +18,7 @@ export {
   detectOpticalDegradation,
   type OpticalDegradationOptions,
 } from './optical';
+export { detectLosEvents, type LosOptions } from './los';
 export {
   detectTrafficAnomaly,
   type TrafficDetectorOptions,

@@ -19,6 +19,7 @@ function makeSeries(overrides: Partial<SeriesByDevice> = {}): SeriesByDevice {
     fecUncorrected: [],
     biasCurrent: [],
     ontTemperature: [],
+    losSecondsTotal: [],
     traffic: [],
     ...overrides,
   };
@@ -68,5 +69,33 @@ describe('runDetectors', () => {
     });
     const findings = runDetectors([series], { now: NOW });
     expect(findings.some((f) => f.kind === 'fec_degradation')).toBe(true);
+  });
+
+  it('detects LOS events from a rising losSecondsTotal counter', () => {
+    // Counter accrued 12 s of LOS across the 24h window — warning threshold.
+    // Bias and ONT temperature are healthy so the only optical_degradation
+    // finding comes from the LOS detector.
+    const losSecondsTotal = [0, 4, 8, 12].map((v, i) => ({ t: NOW - (3 - i) * HOUR, v }));
+    const series = makeSeries({
+      losSecondsTotal,
+      biasCurrent: [12, 13, 14].map((v, i) => ({ t: NOW - (2 - i) * DAY, v })),
+      ontTemperature: [40, 41, 42].map((v, i) => ({ t: NOW - (2 - i) * DAY, v })),
+    });
+    const findings = runDetectors([series], { now: NOW });
+    const losFinding = findings.find(
+      (f) => f.kind === 'optical_degradation' && f.title.includes('LOS'),
+    );
+    expect(losFinding).toBeDefined();
+    expect(losFinding?.severity).toBe('warning');
+  });
+
+  it('returns no LOS finding when the losSecondsTotal series is empty', () => {
+    // No losSecondsTotal samples — Mikrowisp / pre-deploy / unprovisioned.
+    const series = makeSeries({
+      biasCurrent: [12, 13, 14].map((v, i) => ({ t: NOW - (2 - i) * DAY, v })),
+      ontTemperature: [40, 41, 42].map((v, i) => ({ t: NOW - (2 - i) * DAY, v })),
+    });
+    const findings = runDetectors([series], { now: NOW });
+    expect(findings.some((f) => f.title.includes('LOS'))).toBe(false);
   });
 });

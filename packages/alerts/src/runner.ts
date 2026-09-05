@@ -6,6 +6,7 @@ import {
   detectBaselineAnomaly,
   detectFecDegradation,
   detectOpticalDegradation,
+  detectLosEvents,
   detectTrafficAnomaly,
   type Finding,
 } from '@ftth-copilot/detection';
@@ -34,6 +35,7 @@ export function runDetectors(series: SeriesByDevice[], opts: RunnerOptions = {})
     findings.push(detectBaselineAnomaly(s.deviceKind, s.deviceId, s.temperature, { now }));
     findings.push(detectFecDegradation(s.deviceKind, s.deviceId, s.fecCorrected, s.fecUncorrected, { now }));
     findings.push(detectOpticalDegradation(s.deviceKind, s.deviceId, s.biasCurrent, s.ontTemperature, { now }));
+    findings.push(detectLosEvents(s.deviceKind, s.deviceId, s.losSecondsTotal, { now }));
     findings.push(detectTrafficAnomaly(s.deviceKind, s.deviceId, s.traffic, { now }));
   }
 
