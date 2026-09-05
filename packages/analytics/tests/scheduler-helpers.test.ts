@@ -177,6 +177,71 @@ describe('assembleOnuDetailPoints', () => {
     ]);
   });
 
+  it('emits a LOS_SECONDS_TOTAL point when losSecondsTotal is finite (SmartOLT-shaped)', () => {
+    // P2.2 / AD-1 — fifth FEC/optical kind; SmartOLT ships a monotonic
+    // counter; absence means "NMS does not expose LOS" (Mikrowisp) and
+    // MUST contribute no point.
+    const detail: OnuDetail = {
+      ...makeOnu('ONU-LOS-1'),
+      losSecondsTotal: 240,
+    };
+    const points = assembleOnuDetailPoints(META, detail, ISO);
+
+    expect(points).toEqual([
+      {
+        ...META,
+        deviceKind: 'ONU',
+        deviceId: 'ONU-LOS-1',
+        kind: 'LOS_SECONDS_TOTAL',
+        value: 240,
+        sampledAt: ISO,
+      },
+    ]);
+  });
+
+  it('omits LOS_SECONDS_TOTAL when losSecondsTotal is undefined (Mikrowisp graceful no-op)', () => {
+    const detail: OnuDetail = { ...makeOnu('ONU-MK-LOS', 'offline') };
+    const points = assembleOnuDetailPoints(META, detail, ISO);
+    const losPoints = points.filter((p) => p.kind === 'LOS_SECONDS_TOTAL');
+    expect(losPoints).toEqual([]);
+  });
+
+  it('omits LOS_SECONDS_TOTAL when losSecondsTotal is NaN / non-finite', () => {
+    const detail: OnuDetail = {
+      ...makeOnu('ONU-LOS-2'),
+      losSecondsTotal: Number.NaN,
+    };
+    const points = assembleOnuDetailPoints(META, detail, ISO);
+    const losPoints = points.filter((p) => p.kind === 'LOS_SECONDS_TOTAL');
+    expect(losPoints).toEqual([]);
+  });
+
+  it('emits five optical-kind points (FEC×2 + bias + ontTemp + LOS) when all five finite fields are populated', () => {
+    // P2.2 / design.md AD-1 — SmartOLT detail with every optical-kind field
+    // populated MUST emit one point per kind. This is the happy-path count
+    // the integration tests rely on (8 ONUs × 5 kinds = 40 rows / tick).
+    const detail: OnuDetail = {
+      ...makeOnu('ONU-FULL-1'),
+      fecCorrected: 12,
+      fecUncorrected: 0,
+      biasCurrentMa: 14.8,
+      ontTemperatureCelsius: 49,
+      losSecondsTotal: 30,
+    };
+    const points = assembleOnuDetailPoints(META, detail, ISO);
+    expect(points).toHaveLength(5);
+    const kinds = new Set(points.map((p) => p.kind));
+    expect(kinds).toEqual(
+      new Set([
+        'FEC_CORRECTED',
+        'FEC_UNCORRECTED',
+        'BIAS_CURRENT_MA',
+        'ONT_TEMPERATURE_CELSIUS',
+        'LOS_SECONDS_TOTAL',
+      ]),
+    );
+  });
+
   it('does not emit STATUS, RX/TX power, or uptime (those are collected via the bulk listOnus path)', () => {
     const detail: OnuDetail = {
       ...makeOnu('ONU-4'),

@@ -12,6 +12,7 @@ export type MetricKind =
   | 'FEC_UNCORRECTED'
   | 'BIAS_CURRENT_MA'
   | 'ONT_TEMPERATURE_CELSIUS'
+  | 'LOS_SECONDS_TOTAL'
   | 'TRAFFIC_THROUGHPUT_MBPS';
 export type DeviceStatus = 'online' | 'offline' | 'degraded';
 
@@ -38,6 +39,10 @@ export interface SeriesByDevice {
   fecUncorrected: Array<{ t: number; v: number }>;
   biasCurrent: Array<{ t: number; v: number }>;
   ontTemperature: Array<{ t: number; v: number }>;
+  // P2.2 / REQ "Alert wiring" — per-ONU LOS monotonic counter. Populated
+  // by `groupRows` whenever `MetricSample.kind === 'LOS_SECONDS_TOTAL'`.
+  // Consumed downstream by `detectLosEvents` (PR #2 detector slice).
+  losSecondsTotal: Array<{ t: number; v: number }>;
   traffic: Array<{ t: number; v: number }>;
 }
 

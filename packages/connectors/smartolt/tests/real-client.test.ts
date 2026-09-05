@@ -47,6 +47,21 @@ const SAMPLE_ONUS_RESPONSE = {
   ],
 };
 
+// OpenSpec p2-2-optical-metrics / REQ "OnuSummary field" + REQ "SmartOLT
+// defensive mapping" — the connector MUST resolve `losSecondsTotal` from any
+// of six candidate field names the SmartOLT NMS has shipped across versions:
+// `los_seconds_total`, `los_seconds`, `losCount`, `los_count`,
+// `loss_of_signal_seconds`, `signal_loss_seconds`. Unresolved MUST yield
+// `undefined` (Mikrowisp graceful no-op).
+const SAMPLE_ONUS_WITH_LOS_CANDIDATES: Record<string, { payload: Record<string, unknown>; expected: number }> = {
+  los_seconds_total: { payload: { los_seconds_total: 120 }, expected: 120 },
+  los_seconds: { payload: { los_seconds: 45 }, expected: 45 },
+  losCount: { payload: { losCount: 7 }, expected: 7 },
+  los_count: { payload: { los_count: 90 }, expected: 90 },
+  loss_of_signal_seconds: { payload: { loss_of_signal_seconds: 240 }, expected: 240 },
+  signal_loss_seconds: { payload: { signal_loss_seconds: 12 }, expected: 12 },
+};
+
 function makeMockFetch(responses: Array<{ match: RegExp; status?: number; body: unknown }>): typeof fetch {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
@@ -176,6 +191,69 @@ describe('SmartOltClient (real mode)', () => {
   it('throws when apiBaseUrl or apiKey missing in real mode', async () => {
     const client = new SmartOltClient({ useMock: false });
     await expect(client.listOlts()).rejects.toThrow(/apiBaseUrl.*apiKey/);
+  });
+
+  // P2.2 — OnuSummary.losSecondsTotal resolved from each SmartOLT LOS
+  // candidate key (per design.md AD-3 / `los-collection` spec REQ "SmartOLT
+  // defensive mapping"). Each case wires ONE candidate field on the mock
+  // payload and asserts the losSecondsTotal numeric comes through unchanged.
+  // RED before the mapOnuSummary candidate-list extension lands.
+  for (const [candidate, { payload, expected }] of Object.entries(
+    SAMPLE_ONUS_WITH_LOS_CANDIDATES,
+  )) {
+    it(`maps losSecondsTotal from the "${candidate}" SmartOLT candidate`, async () => {
+      const body = {
+        status: true,
+        onus: [
+          {
+            unique_external_id: 'ONU-LOS-1',
+            sn: 'HWTC9999',
+            olt_id: '1',
+            olt_name: 'Huawei',
+            board: '1',
+            port: '1',
+            onu: '0',
+            onu_type_name: 'Huawei-HG8145V5',
+            name: 'LOS test',
+            status: 'Online',
+            signal: '-19.5',
+            ...payload,
+          },
+        ],
+      };
+      const fetchImpl = makeMockFetch([{ match: /get_all_onus_details/, body }]);
+      const client = new SmartOltClient({ useMock: false, apiKey, apiBaseUrl, fetchImpl });
+      const onus = await client.listOnus();
+      expect(onus).toHaveLength(1);
+      expect(onus[0]?.losSecondsTotal).toBe(expected);
+    });
+  }
+
+  it('leaves losSecondsTotal undefined when no LOS candidate is present (Mikrowisp-shaped payload)', async () => {
+    const body = {
+      status: true,
+      onus: [
+        {
+          unique_external_id: 'ONU-LOS-2',
+          sn: 'HWTC8888',
+          olt_id: '1',
+          olt_name: 'Huawei',
+          board: '1',
+          port: '1',
+          onu: '0',
+          onu_type_name: 'Huawei-HG8145V5',
+          name: 'No LOS',
+          status: 'Online',
+          signal: '-19.5',
+          // Note: no LOS candidate field at all.
+        },
+      ],
+    };
+    const fetchImpl = makeMockFetch([{ match: /get_all_onus_details/, body }]);
+    const client = new SmartOltClient({ useMock: false, apiKey, apiBaseUrl, fetchImpl });
+    const onus = await client.listOnus();
+    expect(onus).toHaveLength(1);
+    expect(onus[0]?.losSecondsTotal).toBeUndefined();
   });
 
   it('getNetworkOverview aggregates real data', async () => {

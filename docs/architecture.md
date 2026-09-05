@@ -150,6 +150,9 @@ Cada detector toma una serie temporal y devuelve `findings`. Son deterministas y
 | `detectFlapping` | conexión intermitente | alternancia rápido online/offline |
 | `detectRebootStorm` | reinicios repetidos | N reinicios en ventana |
 | `detectBaselineAnomaly` | desviación vs línea base | mediana + MAD robusta |
+| `detectFecDegradation` | FEC corregidos/incorregidos creciendo sobre baseline | ratio FEC corregido vs ventana |
+| `detectOpticalDegradation` | bias / ONT temp fuera de banda normal | umbrales por OLT/vendor |
+| `detectLosEvents` (**P2.2**, PR #2 detector-slice) | contador `LOS_SECONDS_TOTAL` creciendo 24 h | Δ ≥ 1 s → warning; Δ ≥ 30 s → critical; `minSamples: 3` |
 
 Todos apoyan en `@ftth-copilot/detection` estadística (`median`, `mad`, `fitTrend`, `predictThresholdCrossing`).
 
@@ -261,7 +264,7 @@ Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cable
 
 Como parte de la Fase 1 del roadmap cognitivo (`docs/aiops-roadmap.md`), ya quedó cableado en runtime:
 
-- **FEC errors** (`FEC_CORRECTED`, `FEC_UNCORRECTED`) y **óptica por ONT** (`BIAS_CURRENT_MA`, `ONT_TEMPERATURE_CELSIUS`) llegan al `MetricSample` cuando el conector SmartOLT corre con fan-out a `getOnuDetail` por ONU. Los detectores `detectFecDegradation` y `detectOpticalDegradation` ya no son "demo".
+- **FEC errors** (`FEC_CORRECTED`, `FEC_UNCORRECTED`), **óptica por ONT** (`BIAS_CURRENT_MA`, `ONT_TEMPERATURE_CELSIUS`) y **pérdida de señal por ONT** (`LOS_SECONDS_TOTAL` — contador monotónico de segundos sin señal óptica desde el último boot, **P2.2**) llegan al `MetricSample` cuando el conector SmartOLT corre con fan-out a `getOnuDetail` por ONU. Los 5 kinds viajan juntos en la misma respuesta del endpoint; el scheduler FEC emite 5 puntos por ONU (`assembleOnuDetailPoints`) y reutiliza el mismo fan-out. Los detectores `detectFecDegradation`, `detectOpticalDegradation` y (P2.2 / PR #2) `detectLosEvents` ya no son "demo".
 - **Firmware audit** (`detectVulnerableFirmware`) corre como loop independiente (`FIRMWARE_AUDIT_ENABLED=true`), con su propio cadence (default 24 h) y allowlist configurable (`FIRMWARE_AUDIT_VULNERABLE_LIST`).
 
 ## 12. Estrategia de testing

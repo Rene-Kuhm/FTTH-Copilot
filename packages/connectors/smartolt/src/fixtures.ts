@@ -641,6 +641,10 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "fecUncorrected": 17,
     "biasCurrentMa": 38.5,
     "ontTemperatureCelsius": 71,
+    // P2.2 — high LOS counter: the link lost optical signal for 18 hours
+    // inside the 24-hour window before the offline event (pre-failure
+    // signal loss typical of a fiber cut in progress).
+    "losSecondsTotal": 64800,
     "signalHistory": [
       {
         "timestamp": "2026-08-19T01:30:00+00:00",
@@ -708,6 +712,11 @@ export const FIXTURE_ONU_DETAILS: Record<string, OnuDetail> = {
     "fecUncorrected": 2,
     "biasCurrentMa": 32.8,
     "ontTemperatureCelsius": 66,
+    // P2.2 — small but non-zero LOS counter: link flapped briefly during
+    // fiber degradation (90 seconds of LOS across the 14-day uptime window),
+    // enough to exercise the detector's Δ-bound calculation without
+    // crossing into "this is a fiber cut yet".
+    "losSecondsTotal": 90,
   },
   "ONU-OLT-Norte-01-1/9/9": {
     "id": "ONU-OLT-Norte-01-1/9/9",

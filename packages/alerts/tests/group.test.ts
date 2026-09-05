@@ -72,4 +72,30 @@ describe('groupRows', () => {
     expect(grouped[0]!.biasCurrent).toEqual([{ t: T.getTime(), v: 14.2 }]);
     expect(grouped[0]!.ontTemperature).toEqual([{ t: T.getTime(), v: 58 }]);
   });
+
+  // P2.2 / REQ "Alert wiring" — `group.ts` MUST route `LOS_SECONDS_TOTAL`
+  // rows to `series.losSecondsTotal` so `detectLosEvents` (PR #2) and
+  // `runDetectors` consume them by name. Until the detector-slice lands,
+  // grouping alone is the wiring point — no other change to `groupRows`.
+  it('partitions LOS_SECONDS_TOTAL rows into series.losSecondsTotal (P2.2 wiring)', () => {
+    const rows = [
+      row({ kind: 'LOS_SECONDS_TOTAL', value: 60 }),
+      row({ kind: 'LOS_SECONDS_TOTAL', value: 90, sampledAt: new Date(T.getTime() + 60_000) }),
+    ];
+    const grouped = groupRows(rows);
+    expect(grouped[0]!.losSecondsTotal).toEqual([
+      { t: T.getTime(), v: 60 },
+      { t: T.getTime() + 60_000, v: 90 },
+    ]);
+  });
+
+  it('initialises series.losSecondsTotal as an empty array even when no LOS rows exist', () => {
+    const grouped = groupRows([row({ kind: 'RX_POWER_DBM', value: -25 })]);
+    expect(grouped[0]!.losSecondsTotal).toEqual([]);
+  });
+
+  it('skips null LOS_SECONDS_TOTAL values rather than emitting null runs', () => {
+    const grouped = groupRows([row({ kind: 'LOS_SECONDS_TOTAL', value: null })]);
+    expect(grouped[0]!.losSecondsTotal).toEqual([]);
+  });
 });

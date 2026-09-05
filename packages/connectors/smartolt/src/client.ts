@@ -250,6 +250,19 @@ export class SmartOltClient implements INmsConnector {
         'ontTemperature',
         'ont_temperature_celsius',
       ]),
+      // P2.2 / AD-3 — defensive 6-key pickNumber coverage so we stay
+      // compatible with every SmartOLT API shape we have observed. Unresolved
+      // (Mikrowisp / older firmware) leaves the field undefined → `pointIfFinite`
+      // skips it on emission → empty series → null detector (REQ "Mikrowisp
+      // graceful no-op").
+      losSecondsTotal: pickNumber(o, [
+        'los_seconds_total',
+        'los_seconds',
+        'losCount',
+        'los_count',
+        'loss_of_signal_seconds',
+        'signal_loss_seconds',
+      ]),
     };
   }
 
