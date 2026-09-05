@@ -2,9 +2,9 @@
 
 > **Qué es este documento:** el plan priorizado de TODO lo que falta integrar/implementar en FTTH-Copilot, ordenado por valor y por dependencias. Pensado para retomarlo día a día (cada item es accionable).
 >
-> **Estado (al 2026-09-04):** las fases A–F del roadmap *evidence-first* están **completas**. Este documento empieza donde terminó: los gaps y la evolución hacia el NOC cognitivo (AIOps).
+> **Estado (al 2026-09-04, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1), la telemetría óptica completa (P2.2) y los siguientes pasos de ingesta (P2.3+).
 >
-> **Fuente real de este roadmap:** `docs/aiops-roadmap.md`, `docs/evidence-first-roadmap.md`, deuda documentada de Fase F (`packages/eval`, `packages/security`, `packages/connectors`) y el estado verificado del repo (main `ee109d3`).
+> **Fuente real de este roadmap:** `docs/aiops-roadmap.md`, `docs/evidence-first-roadmap.md`, deuda documentada de Fase F (`packages/eval`, `packages/security`, `packages/connectors`) y el estado verificado del repo (main `f2929a3`).
 
 ---
 
@@ -21,33 +21,35 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 ## 🟠 P1 — Cerrar la deuda inmediata de Fase F (evaluación + SOC)
 
-> Fácil de arrancar mañana. Son los deferrals que dejamos documentados.
+> Estado al 2026-09-04: **P1.2, P1.3 y P1.4 ya están SHIPPED**. Solo queda P1.1 (depende de humano).
 
-### 1.1 Precision real de la evaluación (corpus etiquetado)
+### 1.1 Precision real de la evaluación (corpus etiquetado) — 🔵 PENDIENTE
 - **Objetivo:** que `precision` deje de ser `'TBD'` y sea un número real en el reporte nightly.
 - **Cómo:** el tech lead NOC etiqueta `docs/validation/labels.csv` (esquema ya listo: `case_id, factual_claim_supported, ground_truth_severity, labeled_by, labeled_at`).
 - **Por qué importa:** sin ground truth, la métrica de precisión es cosmética; con ella, medimos si el agente "acierta" de verdad.
 - **Criterio de hecho:** un run nightly emite `precision: <número>` (no `'TBD'`).
 - **Dependencia:** humana (el etiquetador NOC).
 
-### 1.2 Cablear `detectTrafficAnomaly` (SOC) a runtime
+### 1.2 Cablear `detectTrafficAnomaly` (SOC) a runtime — ✅ shipped (PR #80)
 - **Objetivo:** activar el detector de anomalía de tráfico (throughput sostenido > umbral → posible CPE comprometido).
 - **Cómo:** hoy está **implementado y testeado** (`packages/security/src/traffic.ts`) pero no conectado a datos reales en runtime.
 - **Por qué importa:** es el detector SOC pendiente de cablear; cerrar el círculo de la detección.
 - **Criterio de hecho:** el flujo SOC emite hallazgos `traffic_anomaly` cuando hay datos de tráfico.
-- **Dependencia:** fuente de datos de tráfico por dispositivo.
+- **Estado:** merged a main en `c08bca7` (PR #80, 2026-09-04), 14/14 CI verde.
 
-### 1.3 Export dedicado de métricas (`injection_suspicion_total`)
+### 1.3 Export dedicado de métricas (`injection_suspicion_total`) — ✅ shipped (PR #81)
 - **Objetivo:** exponer el contador de sospechas de inyección como export/YAML accionable.
 - **Cómo:** hoy se deriva en el job nightly desde `verdict_log` (diseño AD-11); falta un export dedicado.
 - **Por qué importa:** dar visibilidad operativa al equipo de seguridad sobre intentos de inyección.
 - **Criterio de hecho:** endpoint o artefacto exportado con el total por dimensión (tenant, severidad).
+- **Estado:** merged a main en `795d433` (PR #81, 2026-09-04).
 
-### 1.4 Backfill recompute job para `verdict_log`
+### 1.4 Backfill recompute job para `verdict_log` — ✅ shipped (PR #82)
 - **Objetivo:** reprocesar veredictos antiguos cuando cambie la lógica de clasificación.
 - **Cómo:** job que re-corre la clasificación sobre `verdict_log` histórico (la spec lo marca como **MAY**).
 - **Por qué importa:** consistencia de auditoría retroactiva.
 - **Criterio de hecho:** job ejecutable que actualiza veredictos sin romper la integridad.
+- **Estado:** merged a main en `c63bb36` (PR #82, 2026-09-04).
 
 ---
 
@@ -55,7 +57,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 > Según `docs/aiops-roadmap.md`: **el problema no es inteligencia, es datos.** Estos items aportan la materia prima de detección temprana.
 
-### 2.1 Recolectar FEC errors (BIP-8) ✅ shipped (PR #84 + PR 2 of `p2-1-fec-collection`)
+### 2.1 Recolectar FEC errors (BIP-8) — ✅ shipped (chained: PR #84 + PR #85 + tracker #83, archive #86)
 - **Objetivo:** capturar codewords FEC corregidos/no corregidos por ONT.
 - **Por qué importa:** es **el mejor indicador temprano de fibra degradándose** (antes de que caiga RX).
 - **Cómo:** extender la ingesta de métricas ópticas.
@@ -74,18 +76,19 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 **Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el proceso evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El disposer devuelto por `startFecCollectionLoop()` limpia el `setInterval` activo al deshacer el wiring de instrumentation.
 
-### 2.2 Métricas ópticas completas por ONT
+### 2.2 Métricas ópticas completas por ONT — 🔵 PENDIENTE (próximo)
 - **Objetivo:** cubrir RX/TX (ya hay) + **bias current, temperatura y LOS** por ONT.
 - **Por qué importa:** diagnostica la salud física de la fibra y del transceptor antes de una falla.
 - **Criterio de hecho:** las métricas ópticas completas se recolectan y alimentan detectores + copiloto.
+- **Pista a confirmar (previo al `propose`):** SmartOLT y Mikrowisp ya devuelven `BIAS_CURRENT_MA` y `ONT_TEMPERATURE_CELSIUS` en el mismo endpoint que FEC (se persisten hoy como side-effect del scheduler FEC). Falta `LOS` (Loss of Signal) y la cobertura explícita en el flujo de métricas ópticas regular.
 
-### 2.3 Colector SNMP traps
+### 2.3 Colector SNMP traps — 🔵 PENDIENTE
 - **Objetivo:** recibir traps SNMP de OLTs/ONTs (eventos que el polling HTTP no ve).
 - **Por qué importa:** los traps capturan eventos push en tiempo real.
 - **Escala:** si hay picos de traps que Node no absorbe → separar a collector (ver 3.1).
 - **Criterio de hecho:** receptor SNMP ingesta traps y los normaliza a `telemetry.v1`.
 
-### 2.4 Streaming gNMI/NETCONF (futuro)
+### 2.4 Streaming gNMI/NETCONF (futuro) — 🔵 PENDIENTE
 - **Objetivo:** telemetría push estructurada desde el NMS.
 - **Por qué importa:** telemetría en streaming en lugar de polling.
 - **Dependencia:** soporte del NMS; es el siguiente paso tras SNMP.
@@ -95,7 +98,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 ## 🟡 P2 — Integración de conectores
 
-### 2.5 NetSense
+### 2.5 NetSense — 🔵 PENDIENTE (bloqueado: NMS real no disponible)
 - **Objetivo:** implementar el adaptador NetSense.
 - **Cómo:** el `provider` ya está en el schema (`SMARTOLT | MIKROWISP | NETSENSE`); falta el adaptador que hoy se rechaza explícitamente y **nunca** usa mocks.
 - **Por qué importa:** cerrar el tercer NMS del modelo.
@@ -132,28 +135,28 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 ## Resumen ejecutivo del roadmap
 
-| Prioridad | Item | Esfuerzo | Tipo |
-|-----------|------|----------|------|
-| 🟠 P1.1 | Precision real (corpus etiquetado) | humano | evaluación |
-| 🟠 P1.2 | Cablear `detectTrafficAnomaly` | Bajo | SOC |
-| 🟠 P1.3 | Export `injection_suspicion_total` | Bajo | observabilidad |
-| 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría |
-| 🟡 P2.1 | FEC errors (BIP-8) ✅ shipped | Medio | telemetría |
-| 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría |
-| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta |
-| 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta |
-| 🟡 P2.5 | NetSense | Medio | conector |
-| 🔵 P3.x | Collector Go / Polars / Python / Bus | — | SOLO con gates |
+| Prioridad | Item | Esfuerzo | Tipo | Estado |
+|-----------|------|----------|------|--------|
+| 🟠 P1.1 | Precision real (corpus etiquetado) | humano | evaluación | 🔵 pendiente (NOC) |
+| 🟠 P1.2 | Cablear `detectTrafficAnomaly` | Bajo | SOC | ✅ shipped (#80) |
+| 🟠 P1.3 | Export `injection_suspicion_total` | Bajo | observabilidad | ✅ shipped (#81) |
+| 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría | ✅ shipped (#82) |
+| 🟡 P2.1 | FEC errors (BIP-8) | Medio | telemetría | ✅ shipped (#83/#86) |
+| 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría | 🔵 próximo |
+| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | 🔵 pendiente |
+| 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta | 🔵 pendiente |
+| 🟡 P2.5 | NetSense | Medio | conector | 🔵 bloqueado (NMS) |
+| 🔵 P3.x | Collector Go / Polars / Python / Bus | — | gated | 🔵 SOLO con gates |
 
 ---
 
-## Recomendación de arranque (mañana)
+## Recomendación de arranque (próxima sesión)
 
-1. **P1.2 (`detectTrafficAnomaly`)** — es el más rápido y cierra un detector ya hecho (esfuerzo bajo, alto impacto de "cerrar el círculo").
-2. **P1.3 (export `injection_suspicion_total`)** — también bajo, da visibilidad inmediata.
-3. **P1.1 (corpus etiquetado)** — arrancar en paralelo, pero depende del tech lead NOC.
-4. Luego decidir entre **P2.1 (FEC)** y **P2.5 (NetSense)** según qué NMS real esté disponible.
+1. **P2.2 — Métricas ópticas completas por ONT (bias / temperatura / LOS)** — extensión natural del FEC recién shipped; comparte el mismo endpoint del NMS; bajo riesgo y alto valor diagnóstico (salud física del transceptor).
+2. **P1.1 — Precision real (corpus etiquetado)** — arrancar en paralelo, depende del tech lead NOC etiquetando `docs/validation/labels.csv`.
+3. **P2.3 — Colector SNMP traps** — siguiente paso de ingesta cuando tengamos telemetría óptica completa consolidada.
+4. **P2.5 — NetSense** — solo cuando haya NMS real disponible.
 
 ---
 
-*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-04 · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md` (copia local de trabajo: `/home/tecnodespegue/Documentos/roadmap-integraciones-ftth-copilot.md`)*
+*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-04 (actualizado tras P1.2–1.4 y P2.1 shipped) · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md` (copia local de trabajo: `/home/tecnodespegue/Documentos/roadmap-integraciones-ftth-copilot.md`)*
