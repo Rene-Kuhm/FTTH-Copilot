@@ -1,0 +1,16 @@
+-- P2.2 — add LOS (loss-of-signal) monotonic counter to MetricKind so the
+-- per-ONU scheduler can distinguish "ONU lost optical signal (fiber cut)"
+-- from "ONU went offline (link/power down)". Reuses the FEC collection
+-- fan-out (`runScheduledFecCollection`) and the existing `assembleOnuDetailPoints`
+-- emission path; detector wiring + alert handling ship in a follow-up PR
+-- (see `openspec/changes/p2-2-optical-metrics/`).
+--
+-- Postgres 12+ allows `ALTER TYPE ... ADD VALUE` outside a transaction,
+-- which Prisma's migrate engine does NOT do by default. We add `IF NOT
+-- EXISTS` defensively in case a manually-deployed environment already
+-- carries the value (mirrors the precedent set by
+-- `20260830120000_add_fec_optical_metric_kinds` for FEC/kinds).
+--
+-- Additive — no destructive change. PG disallows `DROP VALUE`, so this
+-- migration is forward-only by design (per REQ-9 / design.md §Migration).
+ALTER TYPE "MetricKind" ADD VALUE IF NOT EXISTS 'LOS_SECONDS_TOTAL';

@@ -29,6 +29,15 @@ export interface OnuSummary {
   fecUncorrected?: number;
   biasCurrentMa?: number;
   ontTemperatureCelsius?: number;
+  /**
+   * Per-ONU LOS (loss-of-signal) monotonic counter — total seconds without
+   * optical signal since the ONU last booted. Absence means "the NMS does
+   * not expose LOS for this ONU" (e.g. Mikrowisp). When present, this is a
+   * monotonically non-decreasing counter; `detectLosEvents` (PR #2 / detector
+   * slice) consumes its delta over a 24 h window to flag fiber-cuts vs.
+   * link/power-down.
+   */
+  losSecondsTotal?: number;
 }
 
 export interface OnuDetail extends OnuSummary {

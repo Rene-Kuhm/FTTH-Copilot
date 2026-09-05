@@ -97,6 +97,12 @@ function makeSmartOltDetail(id: string): OnuDetail {
     fecUncorrected: 3,
     biasCurrentMa: 18,
     ontTemperatureCelsius: 42,
+    // P2.2 — fifth optical-health kind (`LOS_SECONDS_TOTAL`). SmartOLT
+    // details expose LOS as a monotonic seconds-since-boot counter; the
+    // fixture follows the same "online, no degradation yet" baseline used
+    // by the FEC fields. The 5-field fixture forces the happy-path
+    // assertion to land at 8 ONUs × 5 kinds = 40 rows.
+    losSecondsTotal: 30,
   };
 }
 
@@ -195,7 +201,7 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     setEnv({ FEC_COLLECTION_ENABLED: 'true' });
   });
 
-  it('emits a tick log {tenantId, connectionId, requested:8, persisted:32, skipped:0, durationMs:>=0} for a SmartOLT-shaped 16-ONU slice', async () => {
+  it('emits a tick log {tenantId, connectionId, requested:8, persisted:40, skipped:0, durationMs:>=0} for a SmartOLT-shaped 16-ONU slice (P2.2: 8 ONUs × 5 optical kinds)', async () => {
     const onus = Array.from({ length: 16 }, (_, i) => makeOnu(`ONU-${String(i + 1).padStart(2, '0')}`));
     const connector = makeFixtureConnector({
       listOnus: vi.fn(async () => onus),
@@ -208,17 +214,24 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     const { runScheduledFecCollection } = await import('@/lib/monitoring/scheduler');
     await runScheduledFecCollection();
 
-    // 8 ONUs in the slice × 4 FEC/optical kinds = 32 rows.
+    // P2.2 / design.md AD-1 — LOS is a fifth `MetricKind` traveling on the
+    // same `getOnuDetail` payload. 8 ONUs in the slice × 5 kinds = 40 rows.
     expect(mocks.prismaMetricSampleCreateMany).toHaveBeenCalledTimes(1);
     const persistArgs = mocks.prismaMetricSampleCreateMany.mock.calls[0]?.[0] as {
       data: Array<{ deviceId: string; kind: string; value: number; sampledAt: string }>;
     };
-    expect(persistArgs.data).toHaveLength(32);
+    expect(persistArgs.data).toHaveLength(40);
     const deviceIds = new Set(persistArgs.data.map((r) => r.deviceId));
     expect(deviceIds.size).toBe(8);
     const kinds = new Set(persistArgs.data.map((r) => r.kind));
     expect(kinds).toEqual(
-      new Set(['FEC_CORRECTED', 'FEC_UNCORRECTED', 'BIAS_CURRENT_MA', 'ONT_TEMPERATURE_CELSIUS']),
+      new Set([
+        'FEC_CORRECTED',
+        'FEC_UNCORRECTED',
+        'BIAS_CURRENT_MA',
+        'ONT_TEMPERATURE_CELSIUS',
+        'LOS_SECONDS_TOTAL',
+      ]),
     );
 
     expect(connector.getOnuDetail).toHaveBeenCalledTimes(8);
@@ -229,7 +242,7 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
         tenantId: 'tenant-1',
         connectionId: 'conn-1',
         requested: 8,
-        persisted: 32,
+        persisted: 40,
         skipped: 0,
         durationMs: expect.any(Number),
       }),
@@ -357,7 +370,7 @@ describe('runScheduledFecCollection — per-ONU failure isolation (REQ-5)', () =
     const persistedDevices = new Set(persistArgs.data.map((r) => r.deviceId));
     expect(persistedDevices).not.toContain(REJECTING_ID);
     expect(persistedDevices.size).toBe(7);
-    expect(persistArgs.data).toHaveLength(28); // 7 × 4 FEC/optical kinds
+    expect(persistArgs.data).toHaveLength(35); // 7 × 5 FEC/optical/LOS kinds (P2.2: 5th kind is LOS)
   });
 
   it('buildConnectorFromConnection throwing on a connection → that connection is skipped without aborting the rest', async () => {

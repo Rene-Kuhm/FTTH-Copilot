@@ -15,7 +15,9 @@ export type MetricKind =
   | 'FEC_CORRECTED'
   | 'FEC_UNCORRECTED'
   | 'BIAS_CURRENT_MA'
-  | 'ONT_TEMPERATURE_CELSIUS';
+  | 'ONT_TEMPERATURE_CELSIUS'
+  | 'LOS_SECONDS_TOTAL'
+  | 'TRAFFIC_THROUGHPUT_MBPS';
 
 export type DeviceStatus = 'online' | 'offline' | 'degraded';
 

@@ -84,16 +84,19 @@ export function fitsRateBudget(perCycle: number, intervalMs: number, limitPerHou
 
 /**
  * Assembles `MetricPoint`s for a single `OnuDetail`, mirroring the per-field
- * shape that `collect.ts:136-161` emits for the SAME four FEC/optical kinds.
+ * shape that `collect.ts:136-161` emits for the SAME FEC/optical kinds.
  *
  * The helper is intentionally narrower than `collectSamples` — it only emits
- * `FEC_CORRECTED`, `FEC_UNCORRECTED`, `BIAS_CURRENT_MA`, and
- * `ONT_TEMPERATURE_CELSIUS`. `STATUS`, `RX_POWER_DBM`, `TX_POWER_DBM`, and
- * `UPTIME_SECONDS` are owned by the bulk path and re-emitting them here would
- * duplicate rows the 15-min poller already wrote.
+ * the five FEC/optical/LOS kinds owned by the FEC scheduler fan-out:
+ * `FEC_CORRECTED`, `FEC_UNCORRECTED`, `BIAS_CURRENT_MA`,
+ * `ONT_TEMPERATURE_CELSIUS`, and `LOS_SECONDS_TOTAL` (p2-2-optical-metrics /
+ * AD-1: single `MetricKind` for the per-ONU LOS monotonic counter).
+ * `STATUS`, `RX_POWER_DBM`, `TX_POWER_DBM`, and `UPTIME_SECONDS` are owned
+ * by the bulk path and re-emitting them here would duplicate rows the 15-min
+ * poller already wrote.
  *
  * Per-field guard: a field that is `undefined`, `NaN`, or non-finite contributes
- * no point. A Mikrowisp detail that lacks every FEC/optical field therefore
+ * no point. A Mikrowisp detail that lacks every FEC/optical/LOS field therefore
  * produces an empty array (REQ-4 / AD-4 graceful no-op).
  *
  * Pure: no I/O, no `Date.now()`. The caller passes `sampledAt` so the timestamp
@@ -117,6 +120,11 @@ export function assembleOnuDetailPoints(
   maybePush('FEC_UNCORRECTED', detail.fecUncorrected);
   maybePush('BIAS_CURRENT_MA', detail.biasCurrentMa);
   maybePush('ONT_TEMPERATURE_CELSIUS', detail.ontTemperatureCelsius);
+  // P2.2 / AD-2 — LOS travels on the same `getOnuDetail` endpoint as the
+  // other optical-health fields, so the fan-out path emits the fifth kind
+  // for free. Missing / non-finite (Mikrowisp) → `pointIfFinite` skips → no
+  // row produced → empty series → `detectLosEvents` returns `null`.
+  maybePush('LOS_SECONDS_TOTAL', detail.losSecondsTotal);
 
   return points;
 }
