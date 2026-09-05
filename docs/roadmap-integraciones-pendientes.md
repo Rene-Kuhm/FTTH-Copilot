@@ -2,7 +2,7 @@
 
 > **Qué es este documento:** el plan priorizado de TODO lo que falta integrar/implementar en FTTH-Copilot, ordenado por valor y por dependencias. Pensado para retomarlo día a día (cada item es accionable).
 >
-> **Estado (al 2026-09-04, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1), la telemetría óptica completa (P2.2) y los siguientes pasos de ingesta (P2.3+).
+> **Estado (al 2026-09-05, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 + P2.2 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1) y los siguientes pasos de ingesta (P2.3+).
 >
 > **Fuente real de este roadmap:** `docs/aiops-roadmap.md`, `docs/evidence-first-roadmap.md`, deuda documentada de Fase F (`packages/eval`, `packages/security`, `packages/connectors`) y el estado verificado del repo (main `f2929a3`).
 
@@ -76,11 +76,13 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 **Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el proceso evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El disposer devuelto por `startFecCollectionLoop()` limpia el `setInterval` activo al deshacer el wiring de instrumentation.
 
-### 2.2 Métricas ópticas completas por ONT — 🔵 PENDIENTE (próximo)
+### 2.2 Métricas ópticas completas por ONT — ✅ shipped (chained: PR #88 + PR #89, archive)
 - **Objetivo:** cubrir RX/TX (ya hay) + **bias current, temperatura y LOS** por ONT.
 - **Por qué importa:** diagnostica la salud física de la fibra y del transceptor antes de una falla.
-- **Criterio de hecho:** las métricas ópticas completas se recolectan y alimentan detectores + copiloto.
-- **Pista a confirmar (previo al `propose`):** SmartOLT y Mikrowisp ya devuelven `BIAS_CURRENT_MA` y `ONT_TEMPERATURE_CELSIUS` en el mismo endpoint que FEC (se persisten hoy como side-effect del scheduler FEC). Falta `LOS` (Loss of Signal) y la cobertura explícita en el flujo de métricas ópticas regular.
+- **Cómo:** extender `MetricKind` con `LOS_SECONDS_TOTAL` (Prisma migration), `OnuSummary.losSecondsTotal`, `pickNumber` con 6 candidate keys en SmartOLT, `assembleOnuDetailPoints` 1-line extension, `detectLosEvents` espejo de `detectFecDegradation`, `group.ts` + `SeriesByDevice.losSecondsTotal`, reconciliación de `TRAFFIC_THROUGHPUT_MBPS` en analytics+alerts.
+- **Dependencia crítica:** P2.1 FEC scheduler (comparten endpoint del NMS y patrón de fan-out).
+- **Criterio de hecho:** las métricas ópticas completas se recolectan y alimentan detectores + copiloto. ✅
+- **Estado (PRs cerrados, 2026-09-04 / 2026-09-05):** delivery `stacked-to-main` con PR #88 (`feat(optical): add LOS_SECONDS_TOTAL MetricKind + losSecondsTotal wiring`, merge `2d9f3ca`, helpers-slice ~150 LOC) y PR #89 (`feat(detection): add detectLosEvents + alert wiring`, merge `ae92dc6`, detector-slice ~150 LOC); CI 14/14 verde en ambos. Persiste 5 optical kinds por ONU cada tick del FEC scheduler (8 × 5 = 40 rows, REQ-5 escenario `persisted:40`). Detector `detectLosEvents` 24h-window, `minSamples:3`, warning Δ≥1s, critical Δ≥30s (REQ-6); wired en `runDetectors` con `optical_degradation` AlertKind (REQ-7). Mikrowisp graceful-degrade: undefined ⇒ sin filas, sin errores, sin findings (REQ-3, REQ-4). Veredicto verify PASS con 9/9 requirements, 13/13 scenarios; archive `openspec/changes/archive/2026-09-05-p2-2-optical-metrics/`.
 
 ### 2.3 Colector SNMP traps — 🔵 PENDIENTE
 - **Objetivo:** recibir traps SNMP de OLTs/ONTs (eventos que el polling HTTP no ve).
@@ -142,7 +144,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 | 🟠 P1.3 | Export `injection_suspicion_total` | Bajo | observabilidad | ✅ shipped (#81) |
 | 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría | ✅ shipped (#82) |
 | 🟡 P2.1 | FEC errors (BIP-8) | Medio | telemetría | ✅ shipped (#83/#86) |
-| 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría | 🔵 próximo |
+| 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría | ✅ shipped (#88/#89) |
 | 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | 🔵 pendiente |
 | 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta | 🔵 pendiente |
 | 🟡 P2.5 | NetSense | Medio | conector | 🔵 bloqueado (NMS) |
@@ -152,10 +154,9 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 ## Recomendación de arranque (próxima sesión)
 
-1. **P2.2 — Métricas ópticas completas por ONT (bias / temperatura / LOS)** — extensión natural del FEC recién shipped; comparte el mismo endpoint del NMS; bajo riesgo y alto valor diagnóstico (salud física del transceptor).
-2. **P1.1 — Precision real (corpus etiquetado)** — arrancar en paralelo, depende del tech lead NOC etiquetando `docs/validation/labels.csv`.
-3. **P2.3 — Colector SNMP traps** — siguiente paso de ingesta cuando tengamos telemetría óptica completa consolidada.
-4. **P2.5 — NetSense** — solo cuando haya NMS real disponible.
+1. **P1.1 — Precision real (corpus etiquetado)** — arrancar en paralelo, depende del tech lead NOC etiquetando `docs/validation/labels.csv`.
+2. **P2.3 — Colector SNMP traps** — siguiente paso de ingesta cuando tengamos telemetría óptica completa consolidada.
+3. **P2.5 — NetSense** — solo cuando haya NMS real disponible.
 
 ---
 
