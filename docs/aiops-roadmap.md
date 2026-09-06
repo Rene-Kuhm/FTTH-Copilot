@@ -30,9 +30,9 @@ Tres invariantes que atraviesan todo el plan:
 
 **Gaps de datos (lo que de verdad falta):**
 
-- **FEC errors** (BIP-8: codewords corregidos / no corregidos) — el mejor indicador temprano de fibra degradándose, hoy **no se recolecta**.
+- **FEC errors** (BIP-8: codewords corregidos / no corregidos) — el mejor indicador temprano de fibra degradándose.
 - **SNMP traps** — hoy no hay collector SNMP.
-- **Métricas ópticas por ONT** (RX/TX power, bias current, temperatura, LOS) — parcial (RX/TX sí, el resto no).
+- **Métricas ópticas por ONT** (RX/TX power, bias current, temperatura, LOS) — todas se recolectan cuando el conector SmartOLT expone fan-out por ONU.
 
 ## 3. Arquitectura objetivo
 

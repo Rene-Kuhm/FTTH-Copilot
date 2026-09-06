@@ -41,7 +41,7 @@ export interface SeriesByDevice {
   ontTemperature: Array<{ t: number; v: number }>;
   // P2.2 / REQ "Alert wiring" — per-ONU LOS monotonic counter. Populated
   // by `groupRows` whenever `MetricSample.kind === 'LOS_SECONDS_TOTAL'`.
-  // Consumed downstream by `detectLosEvents` (PR #2 detector slice).
+  // Consumed downstream by `detectLosEvents` (PR #89 detector slice).
   losSecondsTotal: Array<{ t: number; v: number }>;
   traffic: Array<{ t: number; v: number }>;
 }
