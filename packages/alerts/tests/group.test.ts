@@ -74,7 +74,7 @@ describe('groupRows', () => {
   });
 
   // P2.2 / REQ "Alert wiring" — `group.ts` MUST route `LOS_SECONDS_TOTAL`
-  // rows to `series.losSecondsTotal` so `detectLosEvents` (PR #2) and
+  // rows to `series.losSecondsTotal` so `detectLosEvents` (PR #89) and
   // `runDetectors` consume them by name. Until the detector-slice lands,
   // grouping alone is the wiring point — no other change to `groupRows`.
   it('partitions LOS_SECONDS_TOTAL rows into series.losSecondsTotal (P2.2 wiring)', () => {
