@@ -18,21 +18,20 @@ Tres invariantes que atraviesan todo el plan:
 2. **Contratos como frontera** — cada etapa habla JSON versionado (`*.v1`); cualquier etapa se puede reemplazar de lenguaje sin tocar las otras.
 3. **Pre-alerta, no alarma** — la señal es "esto se va a degradar en 72h", no "esto se cayó".
 
-**Dato clave honesto:** la parte cognitiva difícil ya existe en el repo, en TypeScript. `detectSignalDrift` + `predictThresholdCrossing` ya producen *"RX derivando hacia −27 dBm con ETA"*. Lo que falta no es inteligencia, es **telemetría más rica** (FEC errors, SNMP traps) y, cuando el volumen lo justifique, **aislar etapas en servicios especializados**.
+**Dato clave honesto:** la parte cognitiva difícil ya existe en el repo, en TypeScript. `detectSignalDrift` + `predictThresholdCrossing` ya producen *"RX derivando hacia −27 dBm con ETA"*. Lo que falta no es inteligencia, es **telemetría más rica** (SNMP traps, ingesta de throughput por ONU) y, cuando el volumen lo justifique, **aislar etapas en servicios especializados**.
 
 ## 2. Estado actual vs. objetivo
 
 | Etapa | Hoy (todo TypeScript) | Objetivo |
 |-------|----------------------|----------|
 | **Ingesta** | Polling HTTP (SmartOLT/Mikrowisp) + receptor syslog UDP en Node | + SNMP traps, + streaming (gNMI/NETCONF); collector especializado si el volumen lo pide |
-| **Filtrado/Correlación** | Detectores TS puros por dispositivo (deriva, flapping, reboots, mediana+MAD) | + FEC/óptica por ONT, + correlación cross-device; Polars solo a escala |
+| **Filtrado/Correlación** | Detectores TS puros por dispositivo (deriva, flapping, reboots, mediana+MAD, FEC/óptica por ONT) | + correlación cross-device; Polars solo a escala |
 | **Cognitiva** | `agent-core` en TS (tool `get_predicted_issues`) | Mismo rol; Python opcional, detrás del mismo contrato |
 
 **Gaps de datos (lo que de verdad falta):**
 
-- **FEC errors** (BIP-8: codewords corregidos / no corregidos) — el mejor indicador temprano de fibra degradándose.
-- **SNMP traps** — hoy no hay collector SNMP.
-- **Métricas ópticas por ONT** (RX/TX power, bias current, temperatura, LOS) — todas se recolectan cuando el conector SmartOLT expone fan-out por ONU.
+- **SNMP traps** — no hay collector SNMP en el repo. Sigue el pendiente P2.3 del roadmap de integraciones.
+- **Ingesta de `TRAFFIC_THROUGHPUT_MBPS` por ONU** — el `MetricKind` existe y `detectTrafficAnomaly` está wired en el pipeline de alertas (PR #80), pero la métrica no llega a persistirse: ni `packages/connectors/core`, ni `packages/connectors/smartolt`, ni `packages/connectors/mikrowisp` la emiten, y `packages/analytics/src/collect.ts` tampoco la genera. Resultado: la serie `series.traffic` queda siempre vacía en runtime y el detector no emite findings.
 
 ## 3. Arquitectura objetivo
 
@@ -168,5 +167,5 @@ Cada fase es **testeable, con CI verde y reversible** de forma independiente. Ni
 ## 9. Decisiones honestas y riesgos
 
 1. **El polyglot prematuro es el riesgo #1.** Tres servicios nuevos = tres despliegues, tres pipelines, observabilidad y on-call. No se justifica a la escala actual.
-2. **FEC depende del NMS/OMCI.** Hay que confirmar que SmartOLT/Mikrowisp exponen los contadores FEC; si no, la telemetría sale del OLT vía SNMP/gNMI (otro motivo para el collector Go en Fase 2).
-3. **El valor está en los datos, no en el lenguaje.** La Fase 1 (FEC + detectores) entrega el "NOC cognitivo" real mucho antes que cualquier cambio de stack.
+2. **Ingesta de FEC ya entregada por SmartOLT fan-out; Mikrowisp degrada a cero filas.** SmartOLT expone FEC mediante `getOnuDetail` (tracker P2.1 = PR #83, implementación = PRs #84+#85, archive = PR #86); Mikrowisp no expone los contadores, así que el scheduler persiste cero rows sin throw. Cierre pendiente sólo del SNMP/gNMI (Fase 2) si se quiere telemetría más rica desde Mikrowisp.
+3. **El valor está en los datos, no en el lenguaje.** La Fase 1 (FEC + detectores) **entregó** el "NOC cognitivo" real mucho antes que cualquier cambio de stack.

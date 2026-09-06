@@ -404,7 +404,7 @@ warn-list surfaces on the API consumer — see the F-3
 - `Message.verdicts Json?` consolidation — deferred to Fase 2 per
   design.md §Architecture Decisions #6.
 - Playwright as gate proof — specs route-mock the agent.
-- pgvector — pendiente real, depende de Fase 2 densa (P2.4).
+- pgvector — pendiente general de almacenamiento denso, sin PR ni número en el roadmap P-series aún.
 - multi-provider rotation — ✅ shipped (PR #56, `packages/agent-core/src/llm.ts`).
 - Eval runner + corpus + nightly job — `packages/eval/` ships in F-2
   + F-4. The PR CI `eval` job wires in F-6.
