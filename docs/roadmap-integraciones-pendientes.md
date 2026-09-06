@@ -2,7 +2,7 @@
 
 > **Qué es este documento:** el plan priorizado de TODO lo que falta integrar/implementar en FTTH-Copilot, ordenado por valor y por dependencias. Pensado para retomarlo día a día (cada item es accionable).
 >
-> **Estado (al 2026-09-05, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 + P2.2 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1) y los siguientes pasos de ingesta (P2.3+). Baseline verificada en a010593, hasta PR #92.
+> **Estado (al 2026-09-06, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 + P2.2 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1) y los siguientes pasos de ingesta (P2.3+). Baseline verificada en a010593, hasta PR #92.
 >
 > **Fuente real de este roadmap:** `docs/aiops-roadmap.md`, `docs/evidence-first-roadmap.md`, deuda documentada de Fase F (`packages/eval`, `packages/security`, `packages/connectors`) y el estado verificado del repo (baseline verificada en a010593, hasta PR #92).
 
@@ -160,4 +160,4 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 ---
 
-*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-04 (actualizado tras P1.2–1.4 y P2.1 shipped) · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md` (copia local de trabajo: `/home/tecnodespegue/Documentos/roadmap-integraciones-ftth-copilot.md`)*
+*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-06 (actualizado tras PR #93 docs(reconciliation)) · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md`*
