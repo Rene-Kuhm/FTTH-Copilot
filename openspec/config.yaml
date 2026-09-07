@@ -10,68 +10,68 @@ projects:
   - path: packages/agent-core
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/alerts
     test: vitest run --passWithNoTests
     test:integration: vitest run --config vitest.integration.config.ts
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/analytics
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/connectors/core
     test: vitest run
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage
   - path: packages/connectors/smartolt
     test: vitest run
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage
   - path: packages/connectors/mikrowisp
     test: vitest run
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage
   - path: packages/db
     test: vitest run
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/detection
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/evidence
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/monitoring
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/security
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/shared
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/soc
     test: vitest run --passWithNoTests
     typecheck: tsc --noEmit
-    lint: "echo \"no lint configured\""
+    lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: apps/web
     test: "—"
