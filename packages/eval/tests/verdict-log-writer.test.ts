@@ -30,6 +30,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildVerdictLogEntries,
+  isInjectionSuspicionCode,
   serializeVerdictLogEntries,
   type VerdictLogEntryInput,
 } from '../src/verdict-log-writer';
@@ -216,5 +217,35 @@ describe('@ftth-copilot/eval — verdict-log-writer (F-5.1)', () => {
       const roundTrip = JSON.parse(json) as Array<{ injectionSuspicion: boolean }>;
       expect(roundTrip[0].injectionSuspicion).toBe(true);
     });
+  });
+});
+
+describe('isInjectionSuspicionCode (verdict code predicate)', () => {
+  it.each([
+    { code: 'stale' as const, expected: true },
+    { code: 'low_confidence' as const, expected: true },
+  ])('returns true for the canonical injection-suspicion code $code', ({ code, expected }: { code: 'stale' | 'low_confidence'; expected: boolean }) => {
+    expect(isInjectionSuspicionCode(code)).toBe(expected);
+  });
+
+  it.each([
+    { code: 'ok' as const },
+    { code: 'incomplete' as const },
+  ])('returns false for the non-injection-suspicion code $code', ({ code }: { code: 'ok' | 'incomplete' }) => {
+    // Pin current behavior: `incomplete` is the F-3 abstain trigger
+    // (evidence gap), NOT an injection marker. If a future refactor
+    // adds `incomplete` to INJECTION_SUSPICION_CODES, this test
+    // fails loudly and the maintainer makes an explicit decision.
+    expect(isInjectionSuspicionCode(code)).toBe(false);
+  });
+
+  it('treats `stale` and `low_confidence` symmetrically (both true)', () => {
+    expect(isInjectionSuspicionCode('stale')).toBe(true);
+    expect(isInjectionSuspicionCode('low_confidence')).toBe(true);
+  });
+
+  it('returns a boolean (not a Set.has truthy leak)', () => {
+    const result = isInjectionSuspicionCode('stale');
+    expect(typeof result).toBe('boolean');
   });
 });
