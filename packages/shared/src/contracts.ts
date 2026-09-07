@@ -463,3 +463,122 @@ export const injectionSuspicionExportSchema = z
   .strict();
 
 export type InjectionSuspicionExport = z.infer<typeof injectionSuspicionExportSchema>;
+
+
+// ── Cognitive investigation identifiers (Fase 0.3) ───────────────────────
+//
+// The roadmap-research-investigation-cognitiva introduces a new
+// capability for NOC: an operator-facing "Investigar incidente" flow
+// that gathers telemetry, topology, and confirmed-incident history,
+// presents traceable hypotheses, proposes read-only checks, and lets
+// the technician record the actual outcome. The full feature is
+// delivered in phases 1-7. This file pins the *identifiers* that the
+// feature will use, so subsequent phases do not invent duplicate or
+// colliding strings.
+//
+// Schema versions are explicit so the rollout can detect a producer
+// that has drifted. The shape fields below are *minimal* — they only
+// describe identifiers and their lifecycle. Phase 3 will extend the
+// InvestigationVersion contract with hypothesis, contradiction, and
+// missing-evidence fields. Phase 1 will extend the Feedback contract
+// with adjudication, label, optional real cause, and concurrency
+// control.
+//
+// MUST:
+//   - schema strings follow the existing ftth.<name>.v<rev> pattern
+//   - cuid() / opaque strings only; never expose Prisma row numbers
+//   - feedback is a *separate* object from the version it adjudicates;
+//     technicians may evaluate an old version of the diagnosis even
+//     after the run has produced a newer one
+//   - all timestamps are RFC 3339 UTC (z.string().datetime())
+
+export const INVESTIGATION_RUN_SCHEMA = 'ftth.investigation-run.v1' as const;
+export const INVESTIGATION_VERSION_SCHEMA = 'ftth.investigation-version.v1' as const;
+export const INVESTIGATION_FEEDBACK_SCHEMA = 'ftth.investigation-feedback.v1' as const;
+
+// Run-level identifier: one "Investigar incidente" request from the
+// operator. A run may produce one or more versions as evidence or the
+// LLM response is re-collected; the run is the unit of "investigate
+// again" / "show me the latest" in the UI.
+export const investigationRunIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/, 'run id must be opaque ascii (no slashes, no spaces)');
+
+// Version-level identifier: one immutable snapshot of the diagnostic
+// result. A run creates a new version on every material update; the
+// technician may evaluate a specific version, not the run as a whole.
+export const investigationVersionIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/, 'version id must be opaque ascii (no slashes, no spaces)');
+
+// Feedback-level identifier: one adjudication of one version by one
+// technician. Two identical submissions from the same technician for
+// the same version are deduplicated (phase 1.2 will enforce
+// idempotency); distinct technicians produce distinct feedbacks.
+export const investigationFeedbackIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/, 'feedback id must be opaque ascii (no slashes, no spaces)');
+
+// Run envelope (minimal): tenant, connection, incident, version
+// produced. The "current" version pointer is *not* here on purpose:
+// the dashboard asks for the latest version of a run explicitly so
+// there is no race between read and produce. Phase 1 will add the
+// status field (pending, ready, failed, expired).
+export const investigationRunSchema = z
+  .object({
+    schema: z.literal(INVESTIGATION_RUN_SCHEMA),
+    runId: investigationRunIdSchema,
+    tenantId: z.string().min(1),
+    connectionId: z.string().min(1).nullable(),
+    incidentId: z.string().min(1).nullable(),
+    requestedBy: z.string().min(1), // userId of the requesting technician
+    requestedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type InvestigationRun = z.infer<typeof investigationRunSchema>;
+
+// Version envelope (minimal): which run, which version index, the
+// ruleset/prompt/model version that produced it, and the timestamp of
+// the snapshot. Phase 3 will add: windowStart, windowEnd,
+// evidenceRefs, hypotheses, contradictions, missing, suggestedChecks,
+// sufficiency state. None of those fields is invented here.
+export const investigationVersionSchema = z
+  .object({
+    schema: z.literal(INVESTIGATION_VERSION_SCHEMA),
+    versionId: investigationVersionIdSchema,
+    runId: investigationRunIdSchema,
+    versionIndex: z.number().int().nonnegative(),
+    rulesetVersion: z.string().min(1),
+    promptVersion: z.string().min(1),
+    modelVersion: z.string().min(1),
+    snapshotAt: z.string().datetime(),
+  })
+  .strict();
+
+export type InvestigationVersion = z.infer<typeof investigationVersionSchema>;
+
+// Feedback envelope (minimal): which version was adjudicated, by whom,
+// when, and which label was chosen. The label set is fixed in phase 1;
+// here we declare the field as a free string so phase 0 ships without
+// coupling to phase 1. Phase 1 narrows the enum.
+export const investigationFeedbackSchema = z
+  .object({
+    schema: z.literal(INVESTIGATION_FEEDBACK_SCHEMA),
+    feedbackId: investigationFeedbackIdSchema,
+    versionId: investigationVersionIdSchema,
+    runId: investigationRunIdSchema,
+    tenantId: z.string().min(1),
+    authorUserId: z.string().min(1),
+    submittedAt: z.string().datetime(),
+    label: z.string().min(1),
+  })
+  .strict();
+
+export type InvestigationFeedback = z.infer<typeof investigationFeedbackSchema>;
