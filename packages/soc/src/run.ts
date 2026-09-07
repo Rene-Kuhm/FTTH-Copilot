@@ -10,6 +10,7 @@ import {
   type DeviceFirmware,
 } from '@ftth-copilot/security';
 import { sendWebhook, sendTelegram } from '@ftth-copilot/alerts';
+import { notifyOnce } from './notification-deduper';
 
 export interface RunSecurityDetectionOptions {
   tenantId: string;
@@ -75,6 +76,15 @@ export const DEFAULT_VULNERABLE_FIRMWARE: readonly string[] = [
 
 const SEVERITY_ICON = { warning: '🟡', critical: '🔴' } as const;
 
+// In-memory notification dedupe cache. See `./notification-deduper` for
+// the contract and the documented limitations (no cross-restart state,
+// no cross-instance coordination). This is module-scoped so a single
+// process running repeated detection passes does not re-notify for the
+// same fingerprint within the cooldown window.
+export const NOTIFY_CACHE = new Map<string, { ts: number }>();
+
+const DEFAULT_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
+
 export function buildSecurityPayload(findings: SecurityFinding[]): unknown {
   return {
     type: 'ftth-copilot.security',
@@ -135,20 +145,56 @@ export async function runSecurityDetection(
   let error: string | undefined;
 
   if (findings.length > 0) {
+    // Dedup: each notification gets a fingerprint keyed by
+    // (tenant, connection, channel, kind, sourceIp, severity, title).
+    // The same fingerprint within the cooldown window is skipped, so a
+    // single config-change event that re-detects every minute for 15
+    // minutes produces one notification per cooldown instead of
+    // fifteen. The 'channel' field splits webhook vs Telegram into
+    // independent cooldown slots — a Telegram retry after a webhook
+    // success is still allowed, and vice versa.
+    const cooldownMs = DEFAULT_NOTIFY_COOLDOWN_MS;
+    const fingerprintBase = {
+      tenantId: opts.tenantId,
+      connectionId: opts.connectionId,
+      kind: 'security.batch',
+      sourceIp: null as string | null,
+      severity: 'mixed',
+      title: buildSecurityText(findings).slice(0, 200),
+    };
+
     if (opts.webhookUrl) {
-      const res = await sendWebhook(opts.webhookUrl, buildSecurityPayload(findings), opts.fetchImpl);
-      if (res.ok) notified += 1;
-      else error = res.error ?? `webhook ${res.status}`;
+      const r = await notifyOnce(
+        NOTIFY_CACHE,
+        { ...fingerprintBase, channel: 'webhook' },
+        cooldownMs,
+        async () => {
+          const w = await sendWebhook(opts.webhookUrl!, buildSecurityPayload(findings), opts.fetchImpl);
+          if (w.ok) return { ok: true };
+          return { ok: false, error: w.error ?? `webhook ${w.status}` };
+        },
+      );
+      if (r.sent) notified += 1;
+      else if (r.error !== undefined) error = r.error;
     }
     if (opts.telegram) {
-      const res = await sendTelegram(
-        opts.telegram.botToken,
-        opts.telegram.chatId,
-        buildSecurityText(findings),
-        opts.fetchImpl,
+      const r = await notifyOnce(
+        NOTIFY_CACHE,
+        { ...fingerprintBase, channel: 'telegram' },
+        cooldownMs,
+        async () => {
+          const t = await sendTelegram(
+            opts.telegram!.botToken,
+            opts.telegram!.chatId,
+            buildSecurityText(findings),
+            opts.fetchImpl,
+          );
+          if (t.ok) return { ok: true };
+          return { ok: false, error: t.error ?? `telegram ${t.status}` };
+        },
       );
-      if (res.ok) notified += 1;
-      else error = error ?? res.error ?? `telegram ${res.status}`;
+      if (r.sent) notified += 1;
+      else if (r.error !== undefined) error = error ?? r.error;
     }
   }
 
