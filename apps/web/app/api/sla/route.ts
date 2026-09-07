@@ -28,22 +28,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       sampledAt: { gte: new Date(from), lte: new Date(to) },
     },
     orderBy: { sampledAt: 'asc' },
-    select: { deviceKind: true, deviceId: true, valueText: true, sampledAt: true },
+    select: { connectionId: true, deviceKind: true, deviceId: true, valueText: true, sampledAt: true },
   });
 
-  const groups = new Map<
-    string,
-    { deviceKind: string; deviceId: string; samples: Array<{ t: number; status: 'online' | 'offline' | 'degraded' }> }
-  >();
+  // Group by (connectionId, deviceKind, deviceId) — the connectionId is a
+  // PRIMARY axis of the group, not metadata. Two connections can carry
+  // the same deviceId (e.g. ISP with two OLTs that both report an ONU
+  // numbered 123 in their local namespace), and the previous key
+  // `${deviceKind}:${deviceId}` silently merged them. With the fix,
+  // each (connection, device) pair is reported on its own row.
+  type Group = {
+    connectionId: string | null;
+    deviceKind: string;
+    deviceId: string;
+    samples: Array<{ t: number; status: 'online' | 'offline' | 'degraded' }>;
+  };
+  const groups = new Map<string, Group>();
 
   for (const row of rows) {
     if (row.valueText !== 'online' && row.valueText !== 'offline' && row.valueText !== 'degraded') {
       continue;
     }
-    const key = `${row.deviceKind}:${row.deviceId}`;
+    const key = `${row.connectionId ?? 'null'}:${row.deviceKind}:${row.deviceId}`;
     let group = groups.get(key);
     if (!group) {
-      group = { deviceKind: row.deviceKind, deviceId: row.deviceId, samples: [] };
+      group = {
+        connectionId: row.connectionId,
+        deviceKind: row.deviceKind,
+        deviceId: row.deviceId,
+        samples: [],
+      };
       groups.set(key, group);
     }
     group.samples.push({ t: row.sampledAt.getTime(), status: row.valueText });
@@ -52,14 +66,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const sla = [...groups.values()].map((group) => {
     const uptime = computeUptime(group.samples, { from, to });
     return {
+      connectionId: group.connectionId,
       deviceKind: group.deviceKind,
       deviceId: group.deviceId,
-      uptimePercent: uptime ? Math.round(uptime.uptimePercent * 100) / 100 : null,
+      uptimePercent: uptime ? Math.round((uptime.uptimePercent ?? 0) * 100) / 100 : null,
+      coveragePercent: uptime ? Math.round(uptime.coveragePercent * 100) / 100 : null,
+      measuredMs: uptime?.measuredMs ?? null,
+      unmeasuredMs: uptime?.unmeasuredMs ?? null,
       offlineMs: uptime?.offlineMs ?? null,
     };
   });
 
-  sla.sort((a, b) => (a.uptimePercent ?? 101) - (b.uptimePercent ?? 101));
+  // Sort: null uptimePercent (insufficient data) to the end; otherwise
+  // ascending by uptimePercent so the worst SLA lands at the top.
+  sla.sort((a, b) => {
+    if (a.uptimePercent === null && b.uptimePercent === null) return 0;
+    if (a.uptimePercent === null) return 1;
+    if (b.uptimePercent === null) return -1;
+    return a.uptimePercent - b.uptimePercent;
+  });
 
   return NextResponse.json({ windowDays: days, sla, count: sla.length });
 }
