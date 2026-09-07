@@ -29,6 +29,15 @@ importers:
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:packages/security
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.20.0
+        version: 8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       tsx:
         specifier: ^4.19.2
         version: 4.23.12
@@ -154,9 +163,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -176,9 +191,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -198,9 +219,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -213,9 +240,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -232,9 +265,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -251,9 +290,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -288,9 +333,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       prisma:
         specifier: ^5.22.0
         version: 5.22.0
@@ -309,9 +360,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -340,9 +397,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       tsx:
         specifier: ^4.19.2
         version: 4.23.12
@@ -365,9 +428,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -390,9 +459,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -405,9 +480,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -424,9 +505,15 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -452,9 +539,15 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: ^3.2.6
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

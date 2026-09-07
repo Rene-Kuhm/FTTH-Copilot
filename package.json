@@ -33,6 +33,9 @@
     "@ftth-copilot/connectors-smartolt": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/security": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "eslint": "^9.18.0",
     "tsx": "^4.19.2",
     "turbo": "^2.5.0",
     "typescript": "^5.7.2"
