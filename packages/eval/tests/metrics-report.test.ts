@@ -112,13 +112,19 @@ describe('@ftth-copilot/eval — metrics-report precision wiring (F-7.2)', () =>
     try {
       const labelsPath = join(dir, 'labels.csv');
       // Fixture: 2 supported + 1 unsupported → precision = 2/3.
+      // The case_ids are real entries from corpus/{pink,red}.json so the
+      // test mirrors what a NOC tech lead actually writes (see
+      // docs/validation/noc-labels-runbook.md). `computePrecision` only
+      // counts rows, so the choice of corpus IDs has no effect on the
+      // math, but using them keeps the fixture consistent with operator
+      // practice.
       writeFileSync(
         labelsPath,
         [
           HEADER,
-          'Q1,true,minor,jperez,2026-08-20T10:00:00.000Z',
-          'Q2,true,minor,jperez,2026-08-20T10:05:00.000Z',
-          'Q3,false,major,jperez,2026-08-20T10:10:00.000Z',
+          'pink-user-message-001,true,minor,jperez,2026-08-20T10:00:00.000Z',
+          'pink-conversation-history-001,true,minor,jperez,2026-08-20T10:05:00.000Z',
+          'red-direct-override-001,false,major,jperez,2026-08-20T10:10:00.000Z',
         ].join('\n'),
       );
       const summary = await generateMetricsReport({ outputDir: dir, labelsPath });
@@ -155,12 +161,16 @@ describe('@ftth-copilot/eval — metrics-report precision wiring (F-7.2)', () =>
     const dir = mkdtempSync(join(tmpdir(), 'eval-metrics-report-'));
     try {
       const labelsPath = join(dir, 'labels.csv');
+      // Fixture: 1 supported + 1 unsupported → precision = 0.5.
+      // See the comment in "emits precision as a number when a labels
+      // CSV is provided (labelsPath)" above for the rationale on using
+      // real corpus IDs in fixtures.
       writeFileSync(
         labelsPath,
         [
           HEADER,
-          'Q1,true,minor,jperez,2026-08-20T10:00:00.000Z',
-          'Q2,false,major,jperez,2026-08-20T10:05:00.000Z',
+          'pink-user-message-001,true,minor,jperez,2026-08-20T10:00:00.000Z',
+          'red-direct-override-001,false,major,jperez,2026-08-20T10:05:00.000Z',
         ].join('\n'),
       );
       await generateMetricsReport({ outputDir: dir, labelsPath });
