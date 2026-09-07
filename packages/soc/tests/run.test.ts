@@ -12,6 +12,7 @@ vi.mock('@ftth-copilot/db', () => ({
 import {
   runSecurityDetection,
   buildSecurityText,
+  buildSecurityPayload,
   runFirmwareAudit,
   DEFAULT_VULNERABLE_FIRMWARE,
 } from '../src/run';
@@ -305,5 +306,93 @@ describe('runFirmwareAudit', () => {
     expect(res.vulnerable).toBe(0);
     expect(res.notified).toBe(0);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+
+function makeFinding(overrides: Partial<SecurityFinding> = {}): SecurityFinding {
+  return {
+    id: 'f-default',
+    kind: 'brute_force',
+    severity: 'warning',
+    sourceIp: '1.2.3.4',
+    title: 'Default title',
+    description: 'Default description',
+    detectedAt: '2026-09-08T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('buildSecurityPayload (mapping primitive, direct tests)', () => {
+  it('returns the canonical envelope shape for an empty findings list', () => {
+    const payload = buildSecurityPayload([]);
+    expect(payload).toEqual({
+      type: 'ftth-copilot.security',
+      count: 0,
+      findings: [],
+    });
+  });
+
+  it('sets count to the length of the findings array', () => {
+    const payload = buildSecurityPayload([
+      makeFinding({ id: 'f-1' }),
+      makeFinding({ id: 'f-2', kind: 'config_change' }),
+      makeFinding({ id: 'f-3', kind: 'vulnerable_firmware' }),
+    ]);
+    expect((payload as { count: number }).count).toBe(3);
+    expect((payload as { findings: unknown[] }).findings).toHaveLength(3);
+  });
+
+  it('strips `id` from each finding (the canonical wire shape does not include it)', () => {
+    // The function intentionally drops `id` — see the source map: only
+    // kind, severity, sourceIp, title, description, detectedAt survive.
+    // Pin current behavior so any future schema bump is loud.
+    const payload = buildSecurityPayload([
+      makeFinding({ id: 'secret-internal-id-1' }),
+    ]);
+    const finding = (payload as { findings: Record<string, unknown>[] }).findings[0];
+    expect(finding).not.toHaveProperty('id');
+    expect(Object.keys(finding).sort()).toEqual(
+      ['description', 'detectedAt', 'kind', 'severity', 'sourceIp', 'title'].sort(),
+    );
+  });
+
+  it('preserves null sourceIp (does not coerce to undefined or empty string)', () => {
+    const payload = buildSecurityPayload([
+      makeFinding({ sourceIp: null }),
+    ]);
+    const finding = (payload as { findings: Record<string, unknown>[] }).findings[0];
+    expect(finding.sourceIp).toBeNull();
+  });
+
+  it('maps every documented SecurityFindingKind value', () => {
+    const kinds: SecurityFinding['kind'][] = [
+      'brute_force',
+      'access_after_failures',
+      'config_change',
+      'vulnerable_firmware',
+      'traffic_anomaly',
+    ];
+    const payload = buildSecurityPayload(
+      kinds.map((k, i) => makeFinding({ id: `f-${i}`, kind: k })),
+    );
+    const findings = (payload as { findings: { kind: string }[] }).findings;
+    expect(findings.map((f) => f.kind)).toEqual(kinds);
+  });
+
+  it('maps severity values verbatim (warning and critical)', () => {
+    const payload = buildSecurityPayload([
+      makeFinding({ id: 'f-w', severity: 'warning' }),
+      makeFinding({ id: 'f-c', severity: 'critical' }),
+    ]);
+    const findings = (payload as { findings: { severity: string }[] }).findings;
+    expect(findings.map((f) => f.severity)).toEqual(['warning', 'critical']);
+  });
+
+  it('always sets type to "ftth-copilot.security"', () => {
+    const payload = buildSecurityPayload([]);
+    expect((payload as { type: string }).type).toBe('ftth-copilot.security');
+    const payload2 = buildSecurityPayload([makeFinding()]);
+    expect((payload2 as { type: string }).type).toBe('ftth-copilot.security');
   });
 });
