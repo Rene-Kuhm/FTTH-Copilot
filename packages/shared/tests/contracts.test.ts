@@ -5,6 +5,7 @@ import {
   EVIDENCE_PROVENANCE_SCHEMA,
   findingSchema,
   telemetryEventSchema,
+  telemetrySourceSchema,
   TELEMETRY_SCHEMA,
   FINDING_SCHEMA,
   ACTION_SCHEMA,
@@ -62,6 +63,72 @@ describe('telemetry.v1', () => {
 
   it('rejects negative FEC counters', () => {
     const bad = { ...valid, metrics: { fec_corrected: -1 } };
+    expect(telemetryEventSchema.safeParse(bad).success).toBe(false);
+  });
+
+  // ── P2.3 SNMP traps contract coverage ─────────────────────────────────
+  // P2.3 (Colector SNMP traps) needs source: 'snmp-trap' to land in
+  // telemetry.v1. These tests pin the enum's accepted values and reject
+  // case-sensitivity drift / typos so the future collector cannot
+  // silently emit into the wrong channel.
+
+  it.each([
+    { name: 'poll',      value: 'poll' },
+    { name: 'syslog',    value: 'syslog' },
+    { name: 'snmp-trap', value: 'snmp-trap' },
+    { name: 'gnmi',      value: 'gnmi' },
+  ])('accepts source=$name (P2.3 valid value)', ({ value }: { value: string }) => {
+    const event = { ...valid, source: value };
+    expect(telemetryEventSchema.safeParse(event).success).toBe(true);
+  });
+
+  it.each([
+    'SNMP-TRAP',   // uppercase — case-sensitive enum
+    'snmpTrap',    // camelCase
+    'snmp_trap',   // underscore
+    'snmp',        // missing -trap suffix
+    'snmpv2-trap', // future expansion not in v1
+    '',            // empty string
+  ])('rejects non-canonical source value %s (P2.3 schema guard)', (badSource: string) => {
+    const event = { ...valid, source: badSource };
+    expect(telemetryEventSchema.safeParse(event).success).toBe(false);
+  });
+
+  it('accepts snmp-trap event with extendable metric passthrough', () => {
+    // Real SNMP traps often carry vendor-specific OIDs that future
+    // metrics need to thread through without bumping the telemetry.v1
+    // version. The schema's `passthrough()` on `metrics` is the
+    // contract that makes this safe — we pin it explicitly so a
+    // future refactor doesn't accidentally tighten the schema and
+    // break the P2.3 collector's ability to ship new counters.
+    const snmpSpecific = {
+      ...valid,
+      source: 'snmp-trap' as const,
+      metrics: {
+        ...valid.metrics,
+        ifInOctets: 12345,
+        ifOutErrors: 0,
+        ifOperStatus: 'up' as string, // passthrough accepts mixed types
+        snmpTrapOid: '1.3.6.1.4.1.99999.0.1',
+      },
+      tags: { oltId: 'olt-1', trapSource: 'mikrowisp-edge' },
+    };
+    const parsed = telemetryEventSchema.safeParse(snmpSpecific);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.source).toBe('snmp-trap');
+      expect(parsed.data.metrics.ifInOctets).toBe(12345);
+      expect(parsed.data.metrics.snmpTrapOid).toBe('1.3.6.1.4.1.99999.0.1');
+      expect(parsed.data.metrics.ifOperStatus).toBe('up');
+    }
+  });
+
+  it('rejects generic "trap" without snmp- prefix (P2.3 specificity guard)', () => {
+    // A bare "trap" might come from a developer defaulting to a generic
+    // term rather than the canonical 'snmp-trap'. The case-sensitive
+    // enum must reject it so the future P2.3 collector's channel is
+    // distinguishable from any future raw-trap channel.
+    const bad = { ...valid, source: 'trap' };
     expect(telemetryEventSchema.safeParse(bad).success).toBe(false);
   });
 });
