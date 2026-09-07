@@ -15,7 +15,9 @@ import {
   buildSecurityPayload,
   runFirmwareAudit,
   DEFAULT_VULNERABLE_FIRMWARE,
+  NOTIFY_CACHE,
 } from '../src/run';
+import { __clearNotifyCache } from '../src/notification-deduper';
 import type { SecurityFinding } from '@ftth-copilot/security';
 
 const NOW = new Date('2026-08-21T00:00:00.000Z');
@@ -33,6 +35,9 @@ function event(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   mocks.findManyEvents.mockReset();
+  // Reset the module-scoped dedupe cache so each test sees the
+  // notification path as if it were the first call since boot.
+  __clearNotifyCache(NOTIFY_CACHE);
 });
 
 describe('runSecurityDetection', () => {
