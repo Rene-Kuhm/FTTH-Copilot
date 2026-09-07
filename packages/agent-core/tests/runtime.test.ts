@@ -23,6 +23,7 @@ import {
   DEFAULT_TRUTH_GATE_MODE,
   resolveTruthGateMode,
   resolveTenantPolicy,
+  extractDeviceHintFromMessage,
   type ResolvedTenantPolicy,
 } from '../src/runtime';
 import { DEFAULT_TRUTH_GATE_MODE as INDEX_DEFAULT_TRUTH_GATE_MODE } from '../src/index';
@@ -1174,5 +1175,58 @@ describe('runAgent — Fase F warn-tier consume (text byte-identical)', () => {
     expect(result.verdicts?.map((v) => v.code)).toEqual(['low_confidence', 'low_confidence']);
     expect(result.text).toBe(LLM_TEXT_LITERAL);
     expect(result.warnings).toEqual(['low_confidence']);
+  });
+});
+
+
+
+describe('extractDeviceHintFromMessage', () => {
+  it('returns uppercase ONU match for "OLT-3 es lento" style messages', () => {
+    expect(extractDeviceHintFromMessage('OLT-3 es lento')).toBe('OLT-3');
+  });
+
+  it('returns uppercase OLT match without the dash when spelled contiguous', () => {
+    expect(extractDeviceHintFromMessage('ONU0001 falle')).toBe('ONU0001');
+  });
+
+  it('returns uppercase OLT match when the message says "OLT 5" with a space', () => {
+    // The regex permits a single optional dash between prefix and digits,
+    // not a space; the function may need a near-future patch to also
+    // accept whitespace. Pin current behavior.
+    expect(extractDeviceHintFromMessage('OLT 5 fallando')).toBeUndefined();
+  });
+
+  it('returns undefined for messages without OLT/ONU references', () => {
+    expect(extractDeviceHintFromMessage('hola, cómo andás?')).toBeUndefined();
+  });
+
+  it('returns undefined for an empty string', () => {
+    expect(extractDeviceHintFromMessage('')).toBeUndefined();
+  });
+
+  it('returns the first match when multiple devices are mentioned', () => {
+    expect(extractDeviceHintFromMessage('OLT-3 and ONU-1 son ruidosos')).toBe('OLT-3');
+  });
+
+  it('is case-insensitive at the regex level (normalizes to upper)', () => {
+    // /i flag captures olt-1, but result is upper-cased.
+    expect(extractDeviceHintFromMessage('olt-4 en línea')).toBe('OLT-4');
+    expect(extractDeviceHintFromMessage('onU-22 se cayó')).toBe('ONU-22');
+  });
+
+  it('returns undefined when only "OLT" or "ONU" appears as words (no digits)', () => {
+    expect(extractDeviceHintFromMessage('el OLT parpadea')).toBeUndefined();
+  });
+
+  it('does not confuse device-like tokens that are NOT OLT/ONU prefixes', () => {
+    // ROUTE, NTP, OIDC, NOC, ONURAMA — none start with OLT/ONU followed by digits.
+    expect(extractDeviceHintFromMessage('route OIDC problemas')).toBeUndefined();
+    expect(extractDeviceHintFromMessage('NTP down')).toBeUndefined();
+    expect(extractDeviceHintFromMessage('ONURAMA failure')).toBeUndefined();  // no digits after ONU
+  });
+
+  it('handles leading whitespace and trailing punctuation', () => {
+    expect(extractDeviceHintFromMessage('  OLT-7 falló.')).toBe('OLT-7');
+    expect(extractDeviceHintFromMessage('ONU-3,')).toBe('ONU-3');
   });
 });
