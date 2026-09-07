@@ -4,6 +4,7 @@ import {
   classifyEvent,
   truncateSyslogMessage,
   createRateWindowCounter,
+  extractSourceIpFromMessage,
 } from '@ftth-copilot/security';
 import { ingestEvent, runSecurityDetection } from '@ftth-copilot/soc';
 
@@ -46,9 +47,16 @@ export function startSyslogReceiver(): () => void {
       `${parsed.tag ? `${parsed.tag}: ` : ''}${parsed.message}`.trim(),
       maxMessageLength,
     );
+    // The previous implementation stored `parsed.hostname` as the
+    // event sourceIp, which silently merged attacks from distinct
+    // remote IPs into a single source whenever the syslog sender
+    // was a router forwarding logs for many internal hosts. Extract
+    // the IP from the message body instead, and fall back to the
+    // UDP source address only when the message has no IP literal.
+    const sourceIp = extractSourceIpFromMessage(parsed.message, rinfo.address);
     ingestEvent({
       tenantId,
-      sourceIp: parsed.hostname ?? rinfo.address,
+      sourceIp,
       facility: parsed.facility,
       severity: parsed.severity,
       category: classifyEvent(parsed),
