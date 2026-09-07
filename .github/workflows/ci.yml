@@ -196,6 +196,33 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    # The new auth-real.spec.ts (PR #108) issues real HTTP requests to
+    # /api/auth/* which require a live Postgres connection. The other
+    # specs mock /api/auth/* via page.route() and don't need a DB, but
+    # spinning one up for the whole job is cheaper than splitting the
+    # suite into "real" and "mocked" runners.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ftth
+          POSTGRES_PASSWORD: ftth
+          POSTGRES_DB: ftth_copilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ftth"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ftth:ftth@localhost:5432/ftth_copilot
+      # Required by the auth backend in production mode. The previous
+      # auth.spec.ts mocked the routes so this was never exercised;
+      # the new auth-real.spec.ts (PR #108) actually calls /api/auth/*
+      # and hits the "JWT_SECRET is not set" guard.
+      JWT_SECRET: e2e-jwt-secret-for-playwright-only
+      KMS_MASTER_KEY: e2e-kms-master-key-for-playwright-only
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -219,6 +246,12 @@ jobs:
 
       - name: Install Chromium
         run: pnpm --filter @ftth-copilot/web exec playwright install --with-deps chromium
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @ftth-copilot/db exec prisma generate
+
+      - name: Apply migrations
+        run: pnpm --filter @ftth-copilot/db exec prisma migrate deploy
 
       - name: Run E2E tests
         run: pnpm test:e2e
