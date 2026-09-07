@@ -25,6 +25,7 @@ export {
   type DeviceFirmware,
   type FirmwareDetectorOptions,
 } from './firmware';
+export { extractSourceIpFromMessage } from './source-ip';
 export {
   detectTrafficAnomaly,
   type TrafficSample,
