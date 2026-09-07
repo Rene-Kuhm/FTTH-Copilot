@@ -17,6 +17,8 @@ import {
   assertCoverage,
   assertInjectionKindsCovered,
   attackPassRate,
+  surfaceCoverage,
+  injectionKindsCoverage,
 } from '../src/assertions';
 import type { EvalRunResult, EvalRunSummary } from '../src/runner';
 import type { EvalCase } from '../src/corpus-schema';
@@ -52,6 +54,30 @@ function makeResult(
 function summary(...results: EvalRunResult[]): EvalRunSummary {
   return { casesRun: results.length, results };
 }
+
+// Re-declarations of the canonical enums to keep tests self-contained.
+// These mirror the literals in `src/corpus-schema.ts`. If the canonical
+// enum changes (e.g. a new surface added), update these lists AND the
+// expectations in the tests below. Pinning the values inline catches
+// drift in CI.
+const ALL_SURFACES_FOR_TEST = [
+  'user-message',
+  'conversation-history',
+  'tool-args',
+  'connector-payload',
+  'retrieval-block',
+  'system-assembly',
+  'prediction-provider',
+] as const;
+const ALL_INJECTION_KINDS_FOR_TEST = [
+  'direct-override',
+  'role-reassignment',
+  'customer-name-smuggle',
+  'connector-payload-smuggle',
+  'retrieval-row-smuggle',
+  'prediction-smuggle',
+  'system-injection',
+] as const;
 
 const corpusFixture: EvalCorpus = evalCorpusSchema.parse({
   schema: 'ftth.eval-corpus.v1',
@@ -181,4 +207,97 @@ describe('@ftth-copilot/eval — assertions (F-4.2)', () => {
       expect(() => assertInjectionKindsCovered(s)).toThrow(AssertionFailure);
     });
   });
+
+
+describe('surfaceCoverage (metric primitive, direct tests)', () => {
+  it('returns 1 when every ALL_SURFACES surface is represented at least once', () => {
+    const cases: EvalCase[] = ALL_SURFACES_FOR_TEST.map((s) => makeCase({ id: s, surface: s }));
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface }, true)));
+    expect(surfaceCoverage(s)).toBe(1);
+  });
+
+  it('returns the fraction hit/7 when fewer than 7 surfaces are represented', () => {
+    const cases: EvalCase[] = [
+      makeCase({ id: 'a', surface: 'user-message' }),
+      makeCase({ id: 'b', surface: 'tool-args' }),
+      makeCase({ id: 'c', surface: 'connector-payload' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface }, true)));
+    expect(surfaceCoverage(s)).toBeCloseTo(3 / 7, 10);
+  });
+
+  it('returns 0 when no results are present', () => {
+    const s = summary();
+    expect(surfaceCoverage(s)).toBe(0);
+  });
+
+  it('ignores duplicate surface occurrences (counts each only once via Set)', () => {
+    const cases: EvalCase[] = [
+      makeCase({ id: 'a', surface: 'user-message' }),
+      makeCase({ id: 'b', surface: 'user-message' }),
+      makeCase({ id: 'c', surface: 'user-message' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface }, true)));
+    expect(surfaceCoverage(s)).toBeCloseTo(1 / 7, 10);
+  });
+
+  it('ignores surfaces outside ALL_SURFACES (does not inflate the numerator)', () => {
+    // 'system-assembly' is in ALL_SURFACES, 'mystery-surface' is not. Pin
+    // behavior: unknown surfaces must NOT count toward the numerator.
+    const cases: EvalCase[] = [
+      makeCase({ id: 'a', surface: 'system-assembly' }),
+      makeCase({ id: 'b', surface: 'mystery-surface' as unknown as 'user-message' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface }, true)));
+    expect(surfaceCoverage(s)).toBeCloseTo(1 / 7, 10);
+  });
+});
+
+describe('injectionKindsCoverage (metric primitive, direct tests)', () => {
+  it('returns 1 when every ALL_INJECTION_KINDS kind is represented at least once', () => {
+    const cases: EvalCase[] = ALL_INJECTION_KINDS_FOR_TEST.map((k, i) =>
+      makeCase({ id: `k-${i}`, surface: 'user-message', injectionKind: k }),
+    );
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface, injectionKind: c.injectionKind }, true)));
+    expect(injectionKindsCoverage(s)).toBe(1);
+  });
+
+  it('returns the fraction hit/7 when fewer than 7 kinds are represented', () => {
+    const cases: EvalCase[] = [
+      makeCase({ id: 'k1', surface: 'user-message', injectionKind: 'direct-override' }),
+      makeCase({ id: 'k2', surface: 'user-message', injectionKind: 'role-reassignment' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface, injectionKind: c.injectionKind }, true)));
+    expect(injectionKindsCoverage(s)).toBeCloseTo(2 / 7, 10);
+  });
+
+  it('returns 0 when no results carry an injectionKind', () => {
+    const cases: EvalCase[] = [
+      makeCase({ id: 'k1', surface: 'user-message' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface }, true)));
+    expect(injectionKindsCoverage(s)).toBe(0);
+  });
+
+  it('skips cases with injectionKind === undefined (does not crash, does not count undefined)', () => {
+    // Defensive: the function explicitly guards `r.case.injectionKind !== undefined`.
+    // Pin the behavior: undefined is filtered out of the present set.
+    const cases: EvalCase[] = [
+      makeCase({ id: 'k1', surface: 'user-message', injectionKind: undefined }),
+      makeCase({ id: 'k2', surface: 'user-message', injectionKind: undefined }),
+      makeCase({ id: 'k3', surface: 'user-message', injectionKind: 'direct-override' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface, injectionKind: c.injectionKind }, true)));
+    expect(injectionKindsCoverage(s)).toBeCloseTo(1 / 7, 10);
+  });
+
+  it('ignores injection kinds outside ALL_INJECTION_KINDS (does not inflate the numerator)', () => {
+    const cases: EvalCase[] = [
+      makeCase({ id: 'k1', surface: 'user-message', injectionKind: 'direct-override' }),
+      makeCase({ id: 'k2', surface: 'user-message', injectionKind: 'mystery-kind' as unknown as 'direct-override' }),
+    ];
+    const s = summary(...cases.map((c) => makeResult({ id: c.id, surface: c.surface, injectionKind: c.injectionKind }, true)));
+    expect(injectionKindsCoverage(s)).toBeCloseTo(1 / 7, 10);
+  });
+});
 });
