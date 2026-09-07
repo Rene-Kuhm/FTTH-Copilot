@@ -14,6 +14,12 @@ import {
   pickFecFanOutSlice,
 } from '@ftth-copilot/analytics';
 import { buildConnectorFromConnection } from '@/lib/connectors/chat-client';
+import {
+  recordError as recordSchedulerError,
+  recordSuccess as recordSchedulerSuccess,
+  markExpected as markSchedulerExpected,
+  markNotExpected as markSchedulerNotExpected,
+} from './scheduler-health';
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -78,18 +84,22 @@ async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<bo
   try {
     await runFn();
     ok = true;
+    recordSchedulerSuccess(name as 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection');
   } catch (err) {
-    // The original setInterval pattern swallowed errors via
+    // The previous setInterval pattern swallowed errors via
     // `.catch(() => {})`. Preserve that behavior here so an in-flight
-    // run that throws does not take down the timer.
-    console.warn('[scheduler] tick threw', { name, error: (err as Error).message });
+    // run that throws does not take down the timer, BUT record the
+    // error in the health registry so the operator can see it via
+    // /api/health. The bug-report quote:
+    //   "Se descartan errores del poller, de conexiones y del receptor
+    //    syslog. Por ejemplo, el puerto syslog puede estar ocupado y
+    //    el error no queda informado."
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[scheduler] tick threw', { name, error: message });
+    recordSchedulerError(name as 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection', message);
   } finally {
     IN_FLIGHT.set(name, false);
   }
-  // ok=true means the run resolved cleanly; ok=false means it threw
-  // (the warn above carries the error to the operator). A subsequent
-  // tick is allowed in both cases because the in-flight flag has been
-  // reset in `finally`.
   return ok;
 }
 
@@ -206,7 +216,11 @@ export async function runScheduledFirmwareAudit() {
  * default so tests, previews and one-off instances never poll the NMS.
  */
 export function startPollingLoop(): () => void {
-  if (process.env['METRICS_POLLER_ENABLED'] !== 'true') return () => {};
+  if (process.env['METRICS_POLLER_ENABLED'] !== 'true') {
+    markSchedulerNotExpected('polling');
+    return () => {};
+  }
+  markSchedulerExpected('polling');
 
   const intervalMs = positiveInt(process.env['METRICS_POLL_INTERVAL_MS'], 15 * 60 * 1000);
   const interval = setInterval(() => {
@@ -234,7 +248,11 @@ export function startPollingLoop(): () => void {
  * changes infrequently; the default is 24h.
  */
 export function startFirmwareAuditLoop(): () => void {
-  if (process.env['FIRMWARE_AUDIT_ENABLED'] !== 'true') return () => {};
+  if (process.env['FIRMWARE_AUDIT_ENABLED'] !== 'true') {
+    markSchedulerNotExpected('firmware');
+    return () => {};
+  }
+  markSchedulerExpected('firmware');
 
   const intervalMs = positiveInt(
     process.env['FIRMWARE_AUDIT_INTERVAL_MS'],
@@ -368,7 +386,11 @@ export async function runScheduledFecCollection(): Promise<void> {
  * flight ticks run to completion (kill switch only prevents NEW ticks).
  */
 export function startFecCollectionLoop(): () => void {
-  if (process.env['FEC_COLLECTION_ENABLED'] !== 'true') return () => {};
+  if (process.env['FEC_COLLECTION_ENABLED'] !== 'true') {
+    markSchedulerNotExpected('fec');
+    return () => {};
+  }
+  markSchedulerExpected('fec');
 
   const intervalMs = positiveInt(process.env['FEC_COLLECTION_INTERVAL_MS'], 3_600_000);
   const interval = setInterval(() => {

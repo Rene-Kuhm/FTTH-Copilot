@@ -7,6 +7,13 @@ import {
   extractSourceIpFromMessage,
 } from '@ftth-copilot/security';
 import { ingestEvent, runSecurityDetection } from '@ftth-copilot/soc';
+import {
+  recordError as recordSchedulerError,
+  recordSuccess as recordSchedulerSuccess,
+  markExpected as markSchedulerExpected,
+  markNotExpected as markSchedulerNotExpected,
+  recordSyslogBound,
+} from './scheduler-health';
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -26,7 +33,15 @@ function telegramConfig() {
  */
 export function startSyslogReceiver(): () => void {
   const tenantId = process.env['SYSLOG_TENANT_ID'];
-  if (!tenantId || process.env['SYSLOG_RECEIVER_ENABLED'] !== 'true') return () => {};
+  if (!tenantId || process.env['SYSLOG_RECEIVER_ENABLED'] !== 'true') {
+    markSchedulerNotExpected('syslog');
+    markSchedulerNotExpected('syslog-detection');
+    recordSyslogBound(false);
+    return () => {};
+  }
+  markSchedulerExpected('syslog');
+  markSchedulerExpected('syslog-detection');
+  recordSyslogBound(false);
 
   const port = positiveInt(process.env['SYSLOG_UDP_PORT'], 5514);
   const socket = dgram.createSocket('udp4');
@@ -61,11 +76,29 @@ export function startSyslogReceiver(): () => void {
       severity: parsed.severity,
       category: classifyEvent(parsed),
       message,
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      // Swallow the ingest error to keep the socket listener alive
+      // (matching the previous `.catch(() => {})` semantics), but
+      // record it in the health registry so the operator can see it.
+      const msg = err instanceof Error ? err.message : String(err);
+      recordSchedulerError('syslog', `ingest failed: ${msg}`);
+    });
   });
 
-  socket.on('error', () => {});
-  socket.bind(port);
+  // The previous implementation swallowed socket errors with
+  // `socket.on('error', () => {})`. The bug-report quote:
+  //   "el puerto syslog puede estar ocupado y el error no queda
+  //    informado".
+  // We still swallow the error to keep the listener alive, but we
+  // surface it via the health registry and emit a warn to logs.
+  socket.on('error', (err: Error) => {
+    console.warn('[syslog] socket error', { error: err.message });
+    recordSchedulerError('syslog', `socket error: ${err.message}`);
+    recordSyslogBound(false);
+  });
+  socket.bind(port, () => {
+    recordSyslogBound(true);
+  });
 
   const intervalMs = positiveInt(process.env['SYSLOG_DETECTION_INTERVAL_MS'], 60 * 1000);
   const timer = setInterval(() => {
@@ -73,11 +106,17 @@ export function startSyslogReceiver(): () => void {
       tenantId,
       webhookUrl: process.env['ALERT_WEBHOOK_URL'],
       telegram: telegramConfig(),
-    }).catch(() => {});
+    })
+      .then(() => recordSchedulerSuccess('syslog-detection'))
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        recordSchedulerError('syslog-detection', msg);
+      });
   }, intervalMs);
 
   return () => {
     clearInterval(timer);
+    recordSyslogBound(false);
     socket.close();
   };
 }
