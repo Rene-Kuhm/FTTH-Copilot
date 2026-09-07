@@ -49,6 +49,10 @@ would do.
 | `scripts/backfill-verdict-log.ts` | Backfills the verdict log from the corpus for historical ranges; used by the P1.4 backfill job. |
 | `scripts/metrics-report.ts` | Renders the nightly report to stdout; consumed by the `eval-nightly` job artifact upload. |
 
+## Owning `precision` as the NOC
+
+`precision` is `TBD` until a NOC tech lead labels `docs/validation/labels.csv` with the agent's factual claims against operator records. The wiring (zod schema, parser, metrics contract, nightly leg) is already shipped; the bottleneck is the CSV itself. See [`docs/validation/noc-labels-runbook.md`](../../docs/validation/noc-labels-runbook.md) for the format, the worked example, and the pre-commit sanity check.
+
 ## Local commands
 
 ```bash
