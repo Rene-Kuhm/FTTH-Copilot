@@ -65,12 +65,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const sla = [...groups.values()].map((group) => {
     const uptime = computeUptime(group.samples, { from, to });
+    // Preserve `null` for "insufficient data" instead of coercing to 0.
+    // `0` means the device was monitored and offline for the whole
+    // measured window — a real signal. `null` means we have no
+    // measured time at all (e.g. a single same-day sample). The two
+    // are different operational states and the dashboard must show
+    // them differently. The sort below already pushes nulls to the
+    // end, so this is safe for the ordering.
+    const uptimePercent: number | null =
+      uptime && uptime.uptimePercent !== null
+        ? Math.round(uptime.uptimePercent * 100) / 100
+        : null;
+    const coveragePercent: number | null = uptime
+      ? Math.round(uptime.coveragePercent * 100) / 100
+      : null;
     return {
       connectionId: group.connectionId,
       deviceKind: group.deviceKind,
       deviceId: group.deviceId,
-      uptimePercent: uptime ? Math.round((uptime.uptimePercent ?? 0) * 100) / 100 : null,
-      coveragePercent: uptime ? Math.round(uptime.coveragePercent * 100) / 100 : null,
+      uptimePercent,
+      coveragePercent,
       measuredMs: uptime?.measuredMs ?? null,
       unmeasuredMs: uptime?.unmeasuredMs ?? null,
       offlineMs: uptime?.offlineMs ?? null,

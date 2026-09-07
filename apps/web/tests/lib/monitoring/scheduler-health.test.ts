@@ -70,6 +70,29 @@ describe('scheduler-health registry', () => {
   });
 });
 
+describe('snapshotHealth', () => {
+  beforeEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  it('regression: returns populated entries (not {}) after services register', () => {
+    // The previous implementation used Object.entries(STATE) on a Map,
+    // which always returned {} because Map properties are not
+    // enumerable. /api/health therefore always reported
+    // `services: {}` and `healthy: true`, masking every real error.
+    markExpected('polling');
+    recordSuccess('polling', 1_000);
+    markExpected('syslog');
+    recordSyslogBound(true);
+
+    const snap = snapshotHealth();
+    expect(Object.keys(snap).sort()).toEqual(['polling', 'syslog']);
+    expect(snap['polling']?.expected).toBe(true);
+    expect(snap['polling']?.lastRunAt).toBe(1_000);
+    expect(snap['syslog']?.bound).toBe(true);
+  });
+});
+
 describe('overallHealthy', () => {
   beforeEach(() => {
     __resetSchedulerHealth();

@@ -97,11 +97,15 @@ export function recordSyslogBound(bound: boolean): void {
 
 /** Read the current snapshot of all registered services. */
 export function snapshotHealth(): Record<string, ServiceHealth> {
-  const out: Record<string, ServiceHealth> = {};
-  for (const [name, s] of Object.entries(STATE)) {
-    out[name] = { ...s };
-  }
-  return out;
+  // Object.entries(STATE) is wrong: Map instances have no enumerable
+  // own properties, so it returned {} and the /api/health endpoint
+  // could never see any registered service. Object.fromEntries
+  // iterates the Map directly. The previous bug masked every
+  // scheduler/syslog error because /api/health always reported
+  // `services: {}` and `healthy: true`.
+  return Object.fromEntries(
+    Array.from(STATE, ([name, s]) => [name, { ...s }]),
+  );
 }
 
 /**
