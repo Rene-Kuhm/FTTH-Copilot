@@ -173,6 +173,9 @@ model Tenant {
   policy                    TenantPolicy?
   topologyEdges             TopologyEdge[]
   verdictLog                VerdictLog[]
+  InvestigationRun          InvestigationRun[]
+  InvestigationVersion      InvestigationVersion[]
+  InvestigationFeedback     InvestigationFeedback[]
 
   @@map("tenants")
 }
@@ -188,10 +191,12 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sessions           Session[]
-  conversations      Conversation[]
-  rateLimitBuckets   RateLimitBucket[]
-  confirmedIncidents ConfirmedIncident[]
+  sessions               Session[]
+  conversations          Conversation[]
+  rateLimitBuckets       RateLimitBucket[]
+  confirmedIncidents     ConfirmedIncident[]
+  investigationRuns      InvestigationRun[]      @relation("InvestigationRunRequestedBy")
+  investigationFeedbacks InvestigationFeedback[] @relation("InvestigationFeedbackAuthor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -234,6 +239,7 @@ model NmsConnection {
   incidents          Incident[]
   deviceEvents       DeviceEvent[]
   confirmedIncidents ConfirmedIncident[]
+  InvestigationRun   InvestigationRun[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -493,17 +499,17 @@ model PendingIncidentCandidate {
 // logging). `abstainOnCodes` is JSON-stringified so we can ship without a
 // Postgres-array dep — the chat route / promotion loader both decode it.
 model TenantPolicy {
-  tenantId           String       @id
-  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  schemaVersion      Int          @default(1)
+  tenantId           String         @id
+  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  schemaVersion      Int            @default(1)
   retrievalLimit     Int?
   retrievalSinceDays Int?
   truthGateMode      TruthGateMode?
   abstainOnCodes     Json?
   promotionMinAgeMs  Int?
   lastEvaluatedAt    DateTime?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@map("tenant_policies")
 }
@@ -549,20 +555,126 @@ model TopologyEdge {
 // `Message` envelope stays byte-identical and every read path keeps its
 // current shape (per design.md §Architecture Decisions #6).
 model VerdictLog {
-  id                  String          @id @default(cuid())
-  tenantId            String
-  tenant              Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  messageId           String
-  message             Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  conversationId      String? // soft ref; Message cascade covers cleanup
-  toolName            String
-  code                VerdictCode
-  severity            VerdictSeverity
-  observedAt          DateTime        @default(now())
-  injectionSuspicion  Boolean         @default(false)
+  id                 String          @id @default(cuid())
+  tenantId           String
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId          String
+  message            Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversationId     String? // soft ref; Message cascade covers cleanup
+  toolName           String
+  code               VerdictCode
+  severity           VerdictSeverity
+  observedAt         DateTime        @default(now())
+  injectionSuspicion Boolean         @default(false)
 
   @@index([tenantId, observedAt])
   @@index([tenantId, code, observedAt])
   @@index([messageId])
   @@map("verdict_log")
+}
+
+model InvestigationRun {
+  id                String         @id @default(cuid())
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId      String?
+  connection        NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  // Soft reference to Incident.id (no FK) so deleting an Incident does
+  // not cascade-delete the investigation history.
+  incidentId        String?
+  requestedByUserId String
+  requestedByUser   User           @relation("InvestigationRunRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  // Opaque, application-controlled identifier exported via
+  // packages/shared as `investigationRunIdSchema`. Never derived
+  // from the Prisma id.
+  runId             String         @unique
+  // 'pending' | 'ready' | 'failed' | 'expired'. Phase 1 keeps this
+  // constant 'pending' until Phase 3 starts producing versions.
+  status            String         @default("pending")
+  requestedAt       DateTime       @default(now())
+  windowStart       DateTime?
+  windowEnd         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // One-to-many to versions (real FK relation).
+  // versions is fetched via the soft runId column on
+  // InvestigationVersion — no Prisma relation needed.
+  // Feedbacks use soft refs (runId, versionId); no Prisma relation
+  // to keep the FK graph narrow and the cascade semantics explicit.
+
+  @@unique([tenantId, runId])
+  @@index([tenantId, requestedAt])
+  @@index([tenantId, incidentId])
+  @@map("investigation_runs")
+}
+
+model InvestigationVersion {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Soft FK. Run deletion does not cascade-delete versions.
+  runRefId       String?
+  // runRefId is denormalized; no Prisma relation — Run↔Version
+  // relations are declared on Run.versions ("RunToVersions") only.
+  runId          String
+  versionId      String
+  versionIndex   Int
+  rulesetVersion String
+  promptVersion  String
+  modelVersion   String
+  // No Prisma back-relations on Version: Run↔Version and
+  // Version↔Feedback use soft IDs (runId, versionId) and SetNull FKs.
+  // Application layer enforces the consistency.
+  // Snapshot bounds. Empty JSON until fase 3 produces real evidence.
+  snapshotJson   Json     @default("{}")
+  snapshotAt     DateTime @default(now())
+
+  @@unique([tenantId, runId, versionIndex])
+  @@unique([tenantId, versionId])
+  @@index([tenantId, runId])
+  @@map("investigation_versions")
+}
+
+model InvestigationFeedback {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Soft references. Version is the unit being adjudicated; run is
+  // duplicated here for O(1) (runId, versionId) lookup.
+  // Soft reference: deleting an InvestigationRun orphans its
+  // feedbacks (no FK cascade). Application layer keeps runId in sync.
+  runRefId           String?
+  // Real FK to InvestigationVersion: deleting a version nulls this
+  // reference. The adjudication row persists for audit.
+  versionRefId       String?
+  // versionRefId is denormalized; the @unique on (runId, versionId, author, label)
+  // enforces idempotency. No Prisma relation to InvestigationVersion
+  // — application layer handles orphaning.
+  runId              String
+  versionId          String
+  feedbackId         String
+  // 'confirmed' | 'incorrect' | 'insufficient_data'. Phase 1 closes
+  // this enum here; phase 5 may extend with 'maintenance' but that
+  // requires a separate spec change.
+  label              String
+  // Optional free-text justification from the technician.
+  observations       String?  @db.Text
+  // Optional structured real cause when label = 'confirmed'.
+  realCause          String?  @db.Text
+  // Optional structured resolution evidence.
+  resolutionEvidence String?  @db.Text
+  authorUserId       String
+  authorUser         User     @relation("InvestigationFeedbackAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  submittedAt        DateTime @default(now())
+
+  // Idempotency fingerprint. Same technician submitting the same
+  // (runId, versionId, label) twice collapses to the same row (the
+  // API returns the existing row). History is preserved (no
+  // updates; new label ⇒ new row).
+  @@unique([tenantId, runId, versionId, authorUserId, label])
+  @@unique([tenantId, feedbackId])
+  @@index([tenantId, versionId])
+  @@index([tenantId, authorUserId, submittedAt])
+  @@map("investigation_feedback")
 }
