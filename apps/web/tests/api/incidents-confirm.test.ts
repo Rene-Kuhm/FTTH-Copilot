@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   prismaConfirmedIncidentFindFirst: vi.fn(),
   prismaConfirmedIncidentCreate: vi.fn(),
   prismaAgentActionLogCreate: vi.fn(),
+  // Fase 1: optional link from operator confirm to investigation feedback.
+  prismaInvestigationFeedbackFindFirst: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -51,6 +53,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     agentActionLog: {
       create: mocks.prismaAgentActionLogCreate,
+    },
+    investigationFeedback: {
+      findFirst: mocks.prismaInvestigationFeedbackFindFirst,
     },
   },
 }));
@@ -81,6 +86,8 @@ function resetMocks() {
   mocks.prismaConfirmedIncidentFindFirst.mockReset();
   mocks.prismaConfirmedIncidentCreate.mockReset();
   mocks.prismaAgentActionLogCreate.mockReset();
+  // Default: no linked feedback.
+  mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue(null);
   // Default: no existing confirmation; route writes a new one.
   mocks.prismaConfirmedIncidentFindFirst.mockResolvedValue(null);
   mocks.prismaConfirmedIncidentCreate.mockImplementation(({ data }) => ({
@@ -239,5 +246,104 @@ describe('POST /api/incidents/:id/confirm — idempotency', () => {
     expect(mocks.prismaAgentActionLogCreate).not.toHaveBeenCalled();
     const body = (await res.json()) as { id: string };
     expect(body.id).toBe('ci-existing');
+  });
+});
+
+describe('POST /api/incidents/:id/confirm — investigationFeedbackId (Fase 1)', () => {
+  it('persists investigationFeedbackId when the linked feedback is `confirmed`', async () => {
+    // The lookup is always by (tenantId, feedbackId).
+    mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue({
+      feedbackId: 'f_linked',
+      label: 'confirmed',
+    });
+
+    const res = await callRoute('inc-1', {
+      ...validBody,
+      investigationFeedbackId: 'f_linked',
+    });
+    expect(res.status).toBe(201);
+
+    const ciArgs = mocks.prismaConfirmedIncidentCreate.mock.calls[0]?.[0] as {
+      data: { investigationFeedbackId: string | null; sourceTool: string };
+    };
+    expect(ciArgs.data.investigationFeedbackId).toBe('f_linked');
+    expect(ciArgs.data.sourceTool).toBe('__investigation_confirm__');
+
+    const logArgs = mocks.prismaAgentActionLogCreate.mock.calls[0]?.[0] as {
+      data: { toolName: string; parameters: Record<string, unknown> };
+    };
+    expect(logArgs.data.toolName).toBe('__investigation_confirm__');
+    expect(logArgs.data.parameters['investigationFeedbackId']).toBe('f_linked');
+  });
+
+  it('rejects negative feedback (`incorrect`) with 409 — negative adjudication MUST NOT promote', async () => {
+    mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue({
+      feedbackId: 'f_neg',
+      label: 'incorrect',
+    });
+    const res = await callRoute('inc-1', {
+      ...validBody,
+      investigationFeedbackId: 'f_neg',
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { feedbackLabel: string };
+    expect(body.feedbackLabel).toBe('incorrect');
+    expect(mocks.prismaConfirmedIncidentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects `insufficient_data` feedback with 409 — same reasoning', async () => {
+    mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue({
+      feedbackId: 'f_insuf',
+      label: 'insufficient_data',
+    });
+    const res = await callRoute('inc-1', {
+      ...validBody,
+      investigationFeedbackId: 'f_insuf',
+    });
+    expect(res.status).toBe(409);
+    expect(mocks.prismaConfirmedIncidentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a feedbackId that does not exist in this tenant with 404', async () => {
+    mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue(null);
+    const res = await callRoute('inc-1', {
+      ...validBody,
+      investigationFeedbackId: 'f_foreign',
+    });
+    expect(res.status).toBe(404);
+    expect(mocks.prismaConfirmedIncidentCreate).not.toHaveBeenCalled();
+  });
+
+  it('queries investigationFeedback with the caller tenantId (cross-tenant denied)', async () => {
+    mocks.prismaInvestigationFeedbackFindFirst.mockResolvedValue({
+      feedbackId: 'f_linked',
+      label: 'confirmed',
+    });
+    await callRoute('inc-1', { ...validBody, investigationFeedbackId: 'f_linked' });
+    expect(mocks.prismaInvestigationFeedbackFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: 'tenant-1' }),
+      }),
+    );
+  });
+
+  it('omits the link when investigationFeedbackId is not in the body', async () => {
+    const res = await callRoute('inc-1', validBody);
+    expect(res.status).toBe(201);
+    expect(mocks.prismaInvestigationFeedbackFindFirst).not.toHaveBeenCalled();
+    const ciArgs = mocks.prismaConfirmedIncidentCreate.mock.calls[0]?.[0] as {
+      data: { investigationFeedbackId: string | null; sourceTool: string };
+    };
+    expect(ciArgs.data.investigationFeedbackId).toBeNull();
+    expect(ciArgs.data.sourceTool).toBe('__operator_confirm__');
+  });
+
+  it('preserves the existing promotion path: no link, no extra writes, no regression', async () => {
+    const res = await callRoute('inc-1', validBody);
+    expect(res.status).toBe(201);
+    expect(mocks.prismaInvestigationFeedbackFindFirst).not.toHaveBeenCalled();
+    // The legacy write path is unchanged.
+    expect(mocks.prismaConfirmedIncidentCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaAgentActionLogCreate).toHaveBeenCalledTimes(1);
   });
 });

@@ -21,6 +21,12 @@ const bodySchema = z.object({
   rootCause: z.string().min(1),
   fix: z.string().min(1),
   summary: z.string().min(1),
+  // Optional link to the technician's feedback that motivated this
+  // promotion. Cognitive-investigation (Fase 1): a `confirmed` feedback
+  // is NOT required to promote. The application validates
+  // (tenantId, investigationFeedbackId) before persisting so a foreign
+  // or nonexistent feedback cannot slip into the immutable KB.
+  investigationFeedbackId: z.string().min(1).max(128).optional(),
 });
 
 function buildSearchTokens(rootCause: string, fix: string, summary: string): string {
@@ -66,6 +72,42 @@ export async function POST(
     );
   }
 
+  // Cognitive-investigation (Fase 1): if the operator opted to link a
+  // feedback, the (tenantId, feedbackId) MUST resolve in this tenant.
+  // We refuse foreign / nonexistent feedback to keep the immutable KB
+  // free of orphan references. Negative feedback (`incorrect` /
+  // `insufficient_data`) is REJECTED here: a negative adjudication MUST
+  // NOT promote an incident — the operator must re-run a fresh confirm
+  // without the link, or change the feedback label first.
+  let linkedFeedbackId: string | null = null;
+  if (parsed.data.investigationFeedbackId) {
+    const feedback = await prisma.investigationFeedback.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        feedbackId: parsed.data.investigationFeedbackId,
+      },
+      select: { feedbackId: true, label: true },
+    });
+    if (!feedback) {
+      return NextResponse.json(
+        { error: 'investigationFeedbackId not found in this tenant' },
+        { status: 404 },
+      );
+    }
+    if (feedback.label !== 'confirmed') {
+      return NextResponse.json(
+        {
+          error:
+            'Only a `confirmed` feedback may be linked to a ConfirmedIncident. ' +
+            'Negative adjudications MUST NOT promote an incident.',
+          feedbackLabel: feedback.label,
+        },
+        { status: 409 },
+      );
+    }
+    linkedFeedbackId = feedback.feedbackId;
+  }
+
   // Idempotency: an existing ConfirmedIncident for this source incident is
   // returned verbatim with no DB writes — re-confirming is a no-op.
   const existing = await prisma.confirmedIncident.findFirst({
@@ -84,7 +126,8 @@ export async function POST(
       deviceKind: incident.deviceKind,
       deviceId: incident.deviceId,
       sourceIncidentId: incident.id,
-      sourceTool: '__operator_confirm__',
+      investigationFeedbackId: linkedFeedbackId,
+      sourceTool: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
       summary: parsed.data.summary,
       symptoms: {} as object,
       rootCause: parsed.data.rootCause,
@@ -101,8 +144,11 @@ export async function POST(
     data: {
       tenantId: user.tenantId,
       userId: user.id,
-      toolName: '__operator_confirm__',
-      parameters: parsed.data as unknown as object,
+      toolName: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
+      parameters: {
+        ...parsed.data,
+        investigationFeedbackId: linkedFeedbackId,
+      } as unknown as object,
       result: created.id,
       durationMs: 0,
     },
