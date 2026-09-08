@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission } from '@/lib/auth/permissions';
 import { ServerStackIcon } from './icons';
+import { FeedbackControls } from './FeedbackControls';
 
 // ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
 //
@@ -199,6 +200,9 @@ export function IncidentsPanel() {
                         auth.user.role === 'OWNER' || auth.user.role === 'ADMIN'
                       }
                     />
+                  ) : null}
+                  {canConfirm ? (
+                    <FeedbackControls incidentId={incident.id} />
                   ) : null}
                 </div>
                 {resolved && canConfirm ? (
