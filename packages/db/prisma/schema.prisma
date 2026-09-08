@@ -442,32 +442,39 @@ model AuthRateLimit {
 // The Phase 2 pgvector `embedding` column is reserved nullable; no dense path
 // is implemented yet (deferred per the Fase D proposal).
 model ConfirmedIncident {
-  id                String         @id @default(cuid())
-  tenantId          String
-  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  connectionId      String?
-  connection        NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  deviceKind        DeviceKind
-  deviceId          String
-  sourceIncidentId  String? // soft reference to Incident.id; no FK (incidents stay deletable)
-  sourceTool        String
-  summary           String         @db.Text
-  symptoms          Json
-  rootCause         String         @db.Text
-  fix               String         @db.Text
-  observedAt        DateTime
-  resolvedAt        DateTime
-  confirmedBy       ConfirmedBy
-  confirmedByUserId String?
-  confirmedByUser   User?          @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
-  searchTokens      String         @db.Text // precomputed BM25 tokens, lowercased
-  embedding         Bytes? // nullable; Phase 2 pgvector deferred
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                      String         @id @default(cuid())
+  tenantId                String
+  tenant                  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId            String?
+  connection              NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  deviceKind              DeviceKind
+  deviceId                String
+  sourceIncidentId        String? // soft reference to Incident.id; no FK (incidents stay deletable)
+  // Cognitive-investigation (Fase 1, soft reference). The technician's
+  // feedback that motivated this promotion. NO FK: a feedback is
+  // optional and its deletion MUST NOT cascade into ConfirmedIncident
+  // (which is the immutable knowledge base). Application layer validates
+  // (tenantId, feedbackId) on insert.
+  investigationFeedbackId String?
+  sourceTool              String
+  summary                 String         @db.Text
+  symptoms                Json
+  rootCause               String         @db.Text
+  fix                     String         @db.Text
+  observedAt              DateTime
+  resolvedAt              DateTime
+  confirmedBy             ConfirmedBy
+  confirmedByUserId       String?
+  confirmedByUser         User?          @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  searchTokens            String         @db.Text // precomputed BM25 tokens, lowercased
+  embedding               Bytes? // nullable; Phase 2 pgvector deferred
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
 
   @@index([tenantId, deviceKind, deviceId])
   @@index([tenantId, resolvedAt])
   @@index([tenantId, connectionId])
+  @@index([tenantId, investigationFeedbackId])
   @@map("confirmed_incidents")
 }
 
