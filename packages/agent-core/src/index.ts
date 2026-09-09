@@ -34,3 +34,21 @@ export {
   type TruthGateMode,
 } from '@ftth-copilot/evidence';
 export type { TenantPolicy } from '@ftth-copilot/shared';
+
+// ── Fase 3.3 — cognitive investigation engine & deterministic facts ─────────
+export {
+  investigateIncident,
+  type InvestigationEngineArgs,
+} from './investigation-engine';
+export {
+  computeInvestigationFacts,
+  type InvestigationFacts,
+  type OpticalFacts,
+  type EventFacts,
+  type TopologyFacts,
+  type HistoryFacts,
+} from './investigation-facts';
+export {
+  INVESTIGATION_PROMPT_VERSION,
+  INVESTIGATION_RULESET_VERSION,
+} from './investigation-prompt';
