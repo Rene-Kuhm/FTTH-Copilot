@@ -33,3 +33,15 @@ export {
   type AuthQuotaOptions,
   type AuthRateLimitStore,
 } from './auth-rate-limit';
+
+// ── Fase 3.5 — immutable investigation version persistence & snapshot store ──
+export {
+  persistInvestigationVersion,
+  getLatestInvestigationVersion,
+  getInvestigationVersionById,
+  listInvestigationVersions,
+  type PersistInvestigationVersionArgs,
+  type PersistedInvestigationVersion,
+  type DbClient,
+} from './investigation-store';
+
