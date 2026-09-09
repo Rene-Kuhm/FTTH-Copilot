@@ -301,27 +301,18 @@ async function main(): Promise<void> {
       outputDir,
       labelsPath: cliLabelsPath,
     });
-    // eslint-disable-next-line no-console
-    console.log(`metrics-report: wrote ${join(outputDir, 'metrics-summary.json')}`);
-    // eslint-disable-next-line no-console
-    console.log(`attack-pass-rate: ${summary.attackPassRate}`);
-    // eslint-disable-next-line no-console
-    console.log(`coverage: ${summary.coverage}`);
-    // eslint-disable-next-line no-console
-    console.log(`abstention-rate: ${summary.abstentionRate}`);
-    // eslint-disable-next-line no-console
-    console.log(`gate-fp: ${summary.gateFp}`);
-    // eslint-disable-next-line no-console
-    console.log(`precision: ${summary.precision}`);
-    // eslint-disable-next-line no-console
-    console.log(`injection-suspicion-total: ${summary.injectionSuspicionTotal}`);
+        console.log(`metrics-report: wrote ${join(outputDir, 'metrics-summary.json')}`);
+        console.log(`attack-pass-rate: ${summary.attackPassRate}`);
+        console.log(`coverage: ${summary.coverage}`);
+        console.log(`abstention-rate: ${summary.abstentionRate}`);
+        console.log(`gate-fp: ${summary.gateFp}`);
+        console.log(`precision: ${summary.precision}`);
+        console.log(`injection-suspicion-total: ${summary.injectionSuspicionTotal}`);
     process.exit(0);
   } catch (err) {
     // Never fail the nightly job on metrics-shape errors.
-    // eslint-disable-next-line no-console
-    console.error('metrics-report: unexpected error; emitting fallback summary');
-    // eslint-disable-next-line no-console
-    console.error(err);
+        console.error('metrics-report: unexpected error; emitting fallback summary');
+        console.error(err);
     try {
       const fallback = await buildMetricsReportSummary();
       mkdirSync(outputDir, { recursive: true });

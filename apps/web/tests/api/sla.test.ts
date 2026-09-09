@@ -85,9 +85,15 @@ function sample(overrides: {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
   mocks.getCurrentUser.mockReset();
   mocks.hasPermission.mockReset();
   mocks.prismaMetricSampleFindMany.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 import { GET } from '@/app/api/sla/route';
@@ -162,7 +168,7 @@ describe('GET /api/sla', () => {
     mocks.getCurrentUser.mockResolvedValue(fakeUser);
     mocks.hasPermission.mockReturnValue(true);
     mocks.prismaMetricSampleFindMany.mockResolvedValue([
-      sample({ sampledAt: new Date(NOW.getTime() - 10 * DAY_MS), valueText: 'offline' }),
+      sample({ sampledAt: new Date(NOW.getTime() - 10 * DAY_MS), valueText: 'online' }),
       sample({ sampledAt: new Date(NOW.getTime() - 5 * DAY_MS), valueText: 'online' }),
     ]);
 

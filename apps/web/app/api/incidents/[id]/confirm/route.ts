@@ -145,10 +145,11 @@ export async function POST(
       tenantId: user.tenantId,
       userId: user.id,
       toolName: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
-      parameters: {
-        ...parsed.data,
-        investigationFeedbackId: linkedFeedbackId,
-      } as unknown as object,
+      parameters: (
+        linkedFeedbackId
+          ? { ...parsed.data, investigationFeedbackId: linkedFeedbackId }
+          : { rootCause: parsed.data.rootCause, fix: parsed.data.fix, summary: parsed.data.summary }
+      ) as unknown as object,
       result: created.id,
       durationMs: 0,
     },

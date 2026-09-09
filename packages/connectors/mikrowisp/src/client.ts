@@ -11,7 +11,6 @@ import {
 } from '@ftth-copilot/connectors-core';
 import {
   FIXTURE_ROUTERS,
-  FIXTURE_EQUIPOS,
   FIXTURE_ONUS,
   FIXTURE_ONU_DETAILS,
   FIXTURE_CLIENTES,

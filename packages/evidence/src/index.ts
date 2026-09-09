@@ -16,7 +16,6 @@ export type { TopologyHop } from './topology';
 export { bfsAncestors, bfsDownstream, topologyPath } from './topology';
 
 // ── Fase C — strict-mode abstention policy ──────────────────────────────────
-import type { Abstention } from '@ftth-copilot/shared';
 export type { Abstention } from '@ftth-copilot/shared';
 export { ABSTENTION_SCHEMA, abstentionSchema } from '@ftth-copilot/shared';
 export {

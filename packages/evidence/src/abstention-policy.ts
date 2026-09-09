@@ -175,7 +175,6 @@ export function buildAbstention(
 // ── nextStep ─────────────────────────────────────────────────────────────────
 
 const IDENTIFIER_HINT = /(?:onu|olt)/i;
-const METRICS_HINT = /(?:metric|telemetry|history)/i;
 
 /**
  * Returns the deterministic Spanish `nextStep` string for the abstention

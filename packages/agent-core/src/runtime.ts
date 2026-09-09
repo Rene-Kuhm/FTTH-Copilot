@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import type { AgentResult, ToolCallRecord, TenantPolicy } from '@ftth-copilot/shared';
 import {
   buildAbstention,
