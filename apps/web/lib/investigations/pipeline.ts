@@ -10,6 +10,7 @@ import {
 import {
   investigateIncident,
   validateInvestigationResult,
+  buildSafeFallbackResult,
 } from '@ftth-copilot/agent-core';
 import type { InvestigationResult } from '@ftth-copilot/shared';
 
@@ -152,16 +153,30 @@ export async function runInvestigationPipeline(
   });
 
   // 4. Cognitive investigation engine via @ftth-copilot/agent-core
-  const rawResult = await investigateIncident({
-    tenantId: args.tenantId,
-    connectionId: args.connectionId,
-    incidentId: args.incidentId,
-    runId: args.runId,
-    versionId: args.versionId,
-    windowStart,
-    windowEnd,
-    evidenceRefs,
-  });
+  let rawResult: InvestigationResult;
+  try {
+    rawResult = await investigateIncident({
+      tenantId: args.tenantId,
+      connectionId: args.connectionId,
+      incidentId: args.incidentId,
+      runId: args.runId,
+      versionId: args.versionId,
+      windowStart,
+      windowEnd,
+      evidenceRefs,
+    });
+  } catch (err) {
+    return buildSafeFallbackResult({
+      tenantId: args.tenantId,
+      connectionId: args.connectionId,
+      incidentId: args.incidentId,
+      runId: args.runId,
+      versionId: args.versionId,
+      windowStart,
+      windowEnd,
+      reason: err instanceof Error ? err.message : 'Error inesperado en motor de investigación cognitiva',
+    });
+  }
 
   // 5. Server-side validation gate via @ftth-copilot/agent-core
   const validationReport = validateInvestigationResult(rawResult, {
