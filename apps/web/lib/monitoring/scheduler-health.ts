@@ -109,6 +109,33 @@ export function snapshotHealth(): Record<string, ServiceHealth> {
 }
 
 /**
+ * Per-service "is the loop hung?" check (Fase 2 — 2.6).
+ *
+ * A loop is considered hung when its last successful tick is older
+ * than `staleAfterMs` (default 10 minutes). Returns the list of
+ * services that are expected AND have not produced a tick in that
+ * window. Pure: same snapshot → same list.
+ */
+export function detectHangedLoops(
+  snapshot: Record<string, ServiceHealth>,
+  now: number,
+  staleAfterMs: number = 10 * 60 * 1000,
+): SchedulerName[] {
+  const out: SchedulerName[] = [];
+  for (const [name, s] of Object.entries(snapshot) as Array<[SchedulerName, ServiceHealth]>) {
+    if (!s.expected) continue;
+    if (s.lastRunAt === null) {
+      // Never ran — counted as hung, not as recovered. This is the
+      // "ausencia de primera ejecución" case the roadmap requires.
+      out.push(name);
+      continue;
+    }
+    if (now - s.lastRunAt > staleAfterMs) out.push(name);
+  }
+  return out;
+}
+
+/**
  * Compute the overall verdict: `true` (healthy) iff every expected
  * service is either running cleanly OR has no recent error.
  *
