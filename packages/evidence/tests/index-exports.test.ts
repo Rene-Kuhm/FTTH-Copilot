@@ -186,3 +186,21 @@ describe('evidence public API surface — Fase 3.2 evidence collector re-exports
   });
 });
 
+// ── Fase 4.1 — topology correlation re-exports ──────────────────────────────
+
+describe('evidence public API surface — Fase 4.1 topology correlation re-exports', () => {
+  it('re-exports correlateByTopologyAndTime function', () => {
+    expect(typeof Evidence.correlateByTopologyAndTime).toBe('function');
+  });
+
+  it('re-exports TOPOLOGY_CORRELATION_SCHEMA constant', () => {
+    expect(Evidence.TOPOLOGY_CORRELATION_SCHEMA).toBe('ftth.topology-correlation.v1');
+  });
+
+  it('re-exports topology correlation zod schemas', () => {
+    expect(typeof Evidence.topologyCorrelationConfigSchema).toBe('object');
+    expect(typeof Evidence.topologyCorrelationEventSchema).toBe('object');
+    expect(typeof Evidence.topologyCorrelationGroupSchema).toBe('object');
+  });
+});
+
