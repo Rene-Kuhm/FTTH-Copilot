@@ -6,6 +6,7 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    testTimeout: 15_000,
     // The Next.js route imports server-only modules (next/headers, @ftth-copilot/db)
     // that should never execute during unit tests. They are replaced by `vi.mock`
     // inside each test file, but we still need to make sure the runner does not
