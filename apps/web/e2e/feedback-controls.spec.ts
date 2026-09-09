@@ -170,7 +170,7 @@ test.describe("FeedbackControls", () => {
     await expect(
       page.getByTestId("feedback-controls-inc-feedback-1"),
     ).toBeVisible();
-    expect(investigateCalls).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => investigateCalls).toBeGreaterThanOrEqual(1);
 
     await page.getByTestId("feedback-button-confirmed-inc-feedback-1").click();
 
