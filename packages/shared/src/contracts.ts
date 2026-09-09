@@ -796,3 +796,56 @@ export type InvestigationEvidenceRef = z.infer<typeof investigationEvidenceRefSc
 export type InvestigationContradiction = z.infer<typeof investigationContradictionSchema>;
 export type InvestigationMissing = z.infer<typeof investigationMissingSchema>;
 export type InvestigationCheck = z.infer<typeof investigationCheckSchema>;
+
+// ── Topology and time correlation (Fase 4.1) ─────────────────────────────────
+
+export const TOPOLOGY_CORRELATION_SCHEMA = 'ftth.topology-correlation.v1' as const;
+
+export const topologyCorrelationEventSchema = z
+  .object({
+    tenantId: z.string().min(1),
+    deviceId: z.string().min(1),
+    deviceKind: topologyNodeKindSchema,
+    timestamp: z.string().datetime(),
+    sourceEventId: z.string().optional(),
+    severity: z.enum(['warning', 'critical']).optional(),
+    category: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .strict();
+
+export type TopologyCorrelationEvent = z.infer<typeof topologyCorrelationEventSchema>;
+
+export const topologyCorrelationConfigSchema = z
+  .object({
+    timeWindowMs: z.number().int().positive(),
+    minAffectedCount: z.number().int().min(1),
+    minAffectedRatio: z.number().min(0).max(1),
+    targetAncestorKinds: z.array(topologyNodeKindSchema).optional(),
+  })
+  .strict();
+
+export type TopologyCorrelationConfig = z.infer<typeof topologyCorrelationConfigSchema>;
+
+export const topologyCorrelationGroupSchema = z
+  .object({
+    schema: z.literal(TOPOLOGY_CORRELATION_SCHEMA),
+    groupId: z.string().min(1),
+    tenantId: z.string().min(1),
+    ancestorKind: topologyNodeKindSchema,
+    ancestorId: z.string().min(1),
+    windowStart: z.string().datetime(),
+    windowEnd: z.string().datetime(),
+    affectedCount: z.number().int().nonnegative(),
+    totalPopulation: z.number().int().positive(),
+    affectedRatio: z.number().min(0).max(1),
+    affectedDeviceIds: z.array(z.string().min(1)),
+    healthyDeviceIds: z.array(z.string().min(1)),
+    evidenceEventIds: z.array(z.string().min(1)),
+    ruleMatched: z.string().min(1),
+    hypothesisSupport: z.string().min(1),
+  })
+  .strict();
+
+export type TopologyCorrelationGroup = z.infer<typeof topologyCorrelationGroupSchema>;
+

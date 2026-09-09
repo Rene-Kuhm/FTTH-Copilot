@@ -114,3 +114,17 @@ export {
   type FeedbackEvidenceInput,
 } from './evidence-collector';
 
+// ── Fase 4.1 — deterministic topology and time correlation rules ─────────────
+export { correlateByTopologyAndTime } from './topology-correlation';
+export type {
+  TopologyCorrelationConfig,
+  TopologyCorrelationEvent,
+  TopologyCorrelationGroup,
+} from '@ftth-copilot/shared';
+export {
+  TOPOLOGY_CORRELATION_SCHEMA,
+  topologyCorrelationConfigSchema,
+  topologyCorrelationEventSchema,
+  topologyCorrelationGroupSchema,
+} from '@ftth-copilot/shared';
+
