@@ -30,7 +30,15 @@ export function clampFreeText(value: string | null | undefined): string | null {
   if (trimmed.length === 0) return null;
   const bytes = UTF8.encode(trimmed);
   if (bytes.byteLength <= FREE_TEXT_MAX_BYTES) return trimmed;
-  return new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, FREE_TEXT_MAX_BYTES));
+  let out = '';
+  let used = 0;
+  for (const char of trimmed) {
+    const size = UTF8.encode(char).byteLength;
+    if (used + size > FREE_TEXT_MAX_BYTES) break;
+    out += char;
+    used += size;
+  }
+  return out;
 }
 
 /** Idempotency fingerprint key: the @@unique constraint on the model is
@@ -43,7 +51,14 @@ export function buildIdempotencyKey(
   authorUserId: string,
   label: FeedbackLabel,
 ): string {
-  return `${tenantId}\u0001${runId}\u0001${versionId}\u0001${authorUserId}\u0001${label}`;
+  const escapePart = (part: string): string => part.replaceAll('\u0001', '\u0001\u0001');
+  return [
+    escapePart(tenantId),
+    escapePart(runId),
+    escapePart(versionId),
+    escapePart(authorUserId),
+    label,
+  ].join('\u0001');
 }
 
 /** Stable feedbackId generator. The prefix distinguishes feedback rows

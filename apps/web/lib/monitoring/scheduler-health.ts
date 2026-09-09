@@ -163,10 +163,13 @@ export function overallHealthy(snapshot: Record<string, ServiceHealth>, recentEr
   }
   // If a service is expected and has never run, treat as unhealthy.
   // The interval defaults are minutes-to-hours, so a missing
-  // lastRunAt means the loop is dead.
+  // lastRunAt means the loop is dead. A stale error without a
+  // successful tick is different: after the recent-error window has
+  // elapsed, the operator-facing verdict recovers even though
+  // detectHangedLoops still reports the missing tick separately.
   for (const s of services) {
     if (!s.expected) continue;
-    if (s.lastRunAt === null) return false;
+    if (s.lastRunAt === null && s.lastErrorAt === null) return false;
   }
   return true;
 }

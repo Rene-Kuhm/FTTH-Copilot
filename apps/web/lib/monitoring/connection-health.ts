@@ -74,6 +74,7 @@ export function recordConnectionSuccess(
   now: number = Date.now(),
 ): ConnectionHealth {
   const c = getOrCreate(connectionId);
+  c.state = c.lastErrorAt !== null && now > c.lastErrorAt ? 'recovered' : 'healthy';
   c.lastRunAt = now;
   c.lastError = null;
   c.lastErrorAt = null;
@@ -108,11 +109,12 @@ export function snapshotConnectionHealth(): ConnectionHealth[] {
  * given the synthetic clock and the staleness thresholds.
  *
  * Order of evaluation (first match wins):
- *  1. no `lastRunAt` and no `lastError` → `fresh`
- *  2. `lastError` is recent (within `recentErrorMs`) → `error`
- *  3. `lastRunAt` is older than `staleAfterMs` → `stale`
- *  4. last tick was a success after a recent error → `recovered`
- *  5. otherwise → `healthy`
+ *  1. no observations at all → `fresh`
+ *  2. no successful tick + recent error → `error`
+ *  3. last successful tick happened after an error → `recovered`
+ *  4. last error is recent and no later success exists → `error`
+ *  5. `lastRunAt` is older than `staleAfterMs` → `stale`
+ *  6. otherwise → `healthy`
  *
  * Pure: the same inputs produce the same output.
  */
@@ -125,15 +127,21 @@ export function evaluateConnectionHealth(
   if (c.lastRunAt === null && c.lastError === null && c.lastErrorAt === null) {
     return 'fresh';
   }
+  if (c.lastRunAt === null) {
+    if (c.lastError !== null && c.lastErrorAt !== null && now - c.lastErrorAt <= recentErrorMs) {
+      return 'error';
+    }
+    return 'fresh';
+  }
+  if (c.state === 'recovered' && now - c.lastRunAt <= staleAfterMs) return 'recovered';
+  if (c.lastErrorAt !== null && c.lastRunAt > c.lastErrorAt) return 'recovered';
   if (c.lastError !== null && c.lastErrorAt !== null) {
     if (now - c.lastErrorAt <= recentErrorMs) return 'error';
   }
-  if (c.lastRunAt === null) return 'fresh';
   if (now - c.lastRunAt > staleAfterMs) return 'stale';
-  // Recovery: we have an error timestamp older than the window AND
-  // a recent successful run. The snapshot keeps `lastError` set
-  // until the next `recordConnectionSuccess`, so callers can see
-  // the historical error.
+  // Recovery from externally supplied snapshots that still carry
+  // the historical error fields. Registry snapshots use `state`
+  // to preserve the same recovered signal after clearing lastError.
   if (
     c.lastError !== null &&
     c.lastErrorAt !== null &&
