@@ -12,13 +12,14 @@ import {
   hypothesisSupportLevels,
   investigationCheckKinds,
   investigationSufficiencyStates,
+  investigationEvidenceKinds,
 } from '../src/contracts';
 
-function baseResult(overrides: Partial<ReturnType<typeof make>> = {}): ReturnType<typeof make> {
+function baseResult(overrides: Record<string, unknown> = {}) {
   return make(overrides);
 }
 
-function make(o: Partial<ReturnType<typeof make>> = {}) {
+function make(o: Record<string, unknown> = {}) {
   const start = '2026-09-01T00:00:00.000Z';
   const end = '2026-09-08T00:00:00.000Z';
   const result = {
@@ -166,6 +167,15 @@ describe('investigationResultSchema — free text byte cap', () => {
     });
     expect(() => investigationResultSchema.parse(r)).toThrow();
   });
+
+  it('rejects a hypothesis summary exceeding INVESTIGATION_FREE_TEXT_BYTES in UTF-8 bytes even when char count is lower', () => {
+    // 'á' is 2 UTF-8 bytes but 1 UTF-16 code unit
+    const multiByte = 'á'.repeat(2049); // 2049 chars, 4098 UTF-8 bytes (> 4096)
+    const r = baseResult({
+      hypotheses: [{ hypothesisId: 'h_1', summary: multiByte, supportLevel: 'unverified', forRefIds: [], againstRefIds: [] }],
+    });
+    expect(() => investigationResultSchema.parse(r)).toThrow();
+  });
 });
 
 describe('investigationResultSchema — window invariants', () => {
@@ -224,5 +234,23 @@ describe('investigationResultSchema — closed enums', () => {
       'metric_history',
     ]);
     expect(investigationSufficiencyStates).toEqual(['sufficient', 'provisional', 'insufficient']);
+    expect(investigationEvidenceKinds).toEqual([
+      'metric',
+      'event',
+      'topology',
+      'incident_history',
+      'feedback',
+    ]);
+  });
+});
+
+describe('investigationResultSchema — producedBy format', () => {
+  it('accepts agent-core@x.y.z and human:<userId>', () => {
+    expect(() => investigationResultSchema.parse(baseResult({ producedBy: 'agent-core@1.2.3' }))).not.toThrow();
+    expect(() => investigationResultSchema.parse(baseResult({ producedBy: 'human:tech_42' }))).not.toThrow();
+  });
+
+  it('rejects producedBy not matching agent-core@... or human:...', () => {
+    expect(() => investigationResultSchema.parse(baseResult({ producedBy: 'unauthorized-bot' }))).toThrow();
   });
 });

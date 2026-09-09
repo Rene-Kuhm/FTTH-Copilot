@@ -43,6 +43,8 @@ could carry PII or leak secrets.
 - `investigationSufficiencyStates = ['sufficient', 'provisional', 'insufficient']`.
   The investigation card renders these labels verbatim; the agent
   never invents a sufficiency percentage.
+- `investigationEvidenceKinds = ['metric', 'event', 'topology', 'incident_history', 'feedback']`.
+  Closed enum for evidence pointers.
 
 ## Scenarios (Given/When/Then)
 

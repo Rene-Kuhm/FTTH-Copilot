@@ -638,20 +638,24 @@ export const investigationSufficiencyStates = [
 export type InvestigationSufficiencyState =
   (typeof investigationSufficiencyStates)[number];
 
-// Hypothesis support evidence (closed structure).
-export const hypothesisSupportSchema = z
-  .object({
-    evidenceRefId: z.string().min(1).max(64), // opaque ID into the run's evidenceRefs
-    weight: z.enum(['for', 'against']),
-    note: z.string().max(INVESTIGATION_FREE_TEXT_BYTES).optional(),
-  })
-  .strict();
+const utf8Encoder = new TextEncoder();
+
+export const investigationFreeTextSchema = (minChars = 0) => {
+  let schema = z.string().max(INVESTIGATION_FREE_TEXT_BYTES);
+  if (minChars > 0) {
+    schema = schema.min(minChars);
+  }
+  return schema.refine(
+    (val) => utf8Encoder.encode(val).byteLength <= INVESTIGATION_FREE_TEXT_BYTES,
+    { message: `String exceeds ${INVESTIGATION_FREE_TEXT_BYTES} UTF-8 bytes` },
+  );
+};
 
 // Single hypothesis with explicit for/against evidence refs.
 export const investigationHypothesisSchema = z
   .object({
     hypothesisId: z.string().min(1).max(64),
-    summary: z.string().min(1).max(INVESTIGATION_FREE_TEXT_BYTES),
+    summary: investigationFreeTextSchema(1),
     supportLevel: z.enum(hypothesisSupportLevels),
     forRefIds: z.array(z.string().min(1).max(64)).max(MAX_INVESTIGATION_EVIDENCE_REFS),
     againstRefIds: z.array(z.string().min(1).max(64)).max(MAX_INVESTIGATION_EVIDENCE_REFS),
@@ -662,7 +666,7 @@ export const investigationHypothesisSchema = z
 export const investigationContradictionSchema = z
   .object({
     evidenceRefId: z.string().min(1).max(64),
-    note: z.string().max(INVESTIGATION_FREE_TEXT_BYTES),
+    note: investigationFreeTextSchema(0),
   })
   .strict();
 
@@ -670,8 +674,8 @@ export const investigationContradictionSchema = z
 // shift the diagnosis.
 export const investigationMissingSchema = z
   .object({
-    what: z.string().min(1).max(INVESTIGATION_FREE_TEXT_BYTES),
-    whyItMatters: z.string().max(INVESTIGATION_FREE_TEXT_BYTES).optional(),
+    what: investigationFreeTextSchema(1),
+    whyItMatters: investigationFreeTextSchema(0).optional(),
   })
   .strict();
 
@@ -690,10 +694,20 @@ export const investigationCheckSchema = z
   .object({
     checkId: z.string().min(1).max(64),
     kind: z.enum(investigationCheckKinds),
-    description: z.string().min(1).max(INVESTIGATION_FREE_TEXT_BYTES),
-    expectedToResolve: z.string().max(INVESTIGATION_FREE_TEXT_BYTES).optional(),
+    description: investigationFreeTextSchema(1),
+    expectedToResolve: investigationFreeTextSchema(0).optional(),
   })
   .strict();
+
+// Evidence kind: closed enum for categories of evidence pointers.
+export const investigationEvidenceKinds = [
+  'metric',
+  'event',
+  'topology',
+  'incident_history',
+  'feedback',
+] as const;
+export type InvestigationEvidenceKind = (typeof investigationEvidenceKinds)[number];
 
 // Evidence reference (no raw data — just a pointer into the
 // packages/evidence layer). The full data is recovered via the
@@ -702,10 +716,10 @@ export const investigationCheckSchema = z
 export const investigationEvidenceRefSchema = z
   .object({
     evidenceRefId: z.string().min(1).max(64),
-    kind: z.enum(['metric', 'event', 'topology', 'incident_history', 'feedback']),
+    kind: z.enum(investigationEvidenceKinds),
     source: z.string().min(1).max(256),
     observedAt: z.string().datetime(),
-    summary: z.string().min(1).max(INVESTIGATION_FREE_TEXT_BYTES),
+    summary: investigationFreeTextSchema(1),
     quality: z.enum(['fresh', 'stale', 'insufficient', 'unknown', 'error']),
     qualityReason: z.string().min(1).max(64),
   })
@@ -754,11 +768,17 @@ export const investigationResultSchema = z
 
     // Sufficiency — closed enum, never a confidence number.
     sufficiency: z.enum(investigationSufficiencyStates),
-    sufficiencyReason: z.string().min(1).max(INVESTIGATION_FREE_TEXT_BYTES),
+    sufficiencyReason: investigationFreeTextSchema(1),
 
     // Audit fields.
     producedAt: z.string().datetime(),
-    producedBy: z.string().min(1).max(64), // 'agent-core@x.y.z' | 'human:<userId>'
+    producedBy: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^(agent-core@\S+|human:\S+)$/, {
+        message: "producedBy must match 'agent-core@x.y.z' or 'human:<userId>'",
+      }),
   })
   .strict()
   .refine(
