@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import {
   overallHealthy,
   snapshotHealth,
+  detectHangedLoops,
 } from '@/lib/monitoring/scheduler-health';
+import {
+  snapshotEvaluatedConnectionHealth,
+} from '@/lib/monitoring/connection-health';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +33,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(): Promise<NextResponse> {
   const services = snapshotHealth();
   const healthy = overallHealthy(services);
+  const now = Date.now();
+  const hungLoops = detectHangedLoops(services, now);
+  const connections = snapshotEvaluatedConnectionHealth(now);
 
   return NextResponse.json(
     {
@@ -41,6 +48,8 @@ export async function GET(): Promise<NextResponse> {
       },
       version: process.env['npm_package_version'] ?? '0.1.0',
       services,
+      hungLoops,
+      connections,
     },
     { status: healthy ? 200 : 503 },
   );

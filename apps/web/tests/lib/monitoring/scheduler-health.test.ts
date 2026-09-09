@@ -155,3 +155,57 @@ describe('overallHealthy', () => {
     expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, 10_000)).toBe(false);
   });
 });
+
+import {
+  detectHangedLoops,
+  type ServiceHealth,
+  type SchedulerName,
+} from '../../../lib/monitoring/scheduler-health';
+
+describe('detectHangedLoops (Fase 2 — 2.6)', () => {
+  const NOW = 1_700_000_000_000;
+  const STALE_MS = 10 * 60 * 1000;
+
+  function snap(entries: Array<[SchedulerName, ServiceHealth]>): Record<string, ServiceHealth> {
+    return Object.fromEntries(entries);
+  }
+
+  it('reports services that never ran (ausencia de primera ejecución)', () => {
+    const s = snap([
+      ['polling', { expected: true, lastRunAt: null, lastError: null, lastErrorAt: null }],
+      ['firmware', { expected: true, lastRunAt: null, lastError: null, lastErrorAt: null }],
+    ]);
+    expect(detectHangedLoops(s, NOW).sort()).toEqual(['firmware', 'polling']);
+  });
+
+  it('reports services whose last successful tick is too old (ciclo colgado)', () => {
+    const s = snap([
+      [
+        'polling',
+        { expected: true, lastRunAt: NOW - 20 * 60 * 1000, lastError: null, lastErrorAt: null },
+      ],
+    ]);
+    expect(detectHangedLoops(s, NOW)).toEqual(['polling']);
+  });
+
+  it('does NOT report services that ran recently (healthy)', () => {
+    const s = snap([
+      ['polling', { expected: true, lastRunAt: NOW - 30_000, lastError: null, lastErrorAt: null }],
+    ]);
+    expect(detectHangedLoops(s, NOW)).toEqual([]);
+  });
+
+  it('does NOT report services that are not expected (env flag off)', () => {
+    const s = snap([
+      ['polling', { expected: false, lastRunAt: null, lastError: null, lastErrorAt: null }],
+    ]);
+    expect(detectHangedLoops(s, NOW)).toEqual([]);
+  });
+
+  it('is idempotent — same snapshot → same list', () => {
+    const s = snap([
+      ['polling', { expected: true, lastRunAt: null, lastError: null, lastErrorAt: null }],
+    ]);
+    expect(detectHangedLoops(s, NOW)).toEqual(detectHangedLoops(s, NOW));
+  });
+});
