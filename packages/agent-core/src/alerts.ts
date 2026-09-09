@@ -1,4 +1,4 @@
-import type { INmsConnector, OltSummary, OnuSummary } from '@ftth-copilot/connectors-core';
+import type { INmsConnector } from '@ftth-copilot/connectors-core';
 
 export interface Alert {
   id: string;
@@ -14,10 +14,9 @@ export async function detectAlerts(connector: INmsConnector): Promise<Alert[]> {
   const alerts: Alert[] = [];
   const now = new Date().toISOString();
 
-  const [olts, onus, overview] = await Promise.all([
+  const [olts, onus] = await Promise.all([
     connector.listOlts(),
     connector.listOnus(),
-    connector.getNetworkOverview(),
   ]);
 
   // OLTs with high temperature

@@ -1,4 +1,4 @@
-import type { OltSummary, OnuSummary, OnuDetail, NetworkOverview } from '@ftth-copilot/connectors-core';
+import type { OnuSummary, OnuDetail, NetworkOverview } from '@ftth-copilot/connectors-core';
 
 export interface MikrowispRouter {
   id: string;

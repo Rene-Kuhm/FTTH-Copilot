@@ -36,7 +36,7 @@
  */
 import { Prisma, prisma } from '@ftth-copilot/db';
 import { classifyEnvelope, classifyUnwrapped, type Verdict } from '@ftth-copilot/evidence';
-import { buildVerdictLogEntries, type VerdictLogEntryInput } from '../src/verdict-log-writer';
+import { buildVerdictLogEntries } from '../src/verdict-log-writer';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -51,17 +51,6 @@ interface StoredToolCall {
   name: string;
   arguments: string;
   result: string;
-}
-
-/**
- * Minimal message projection for the backfill. We only need the fields
- * required to classify tool calls and build verdict log entries.
- */
-interface BackfillMessage {
-  id: string;
-  conversationId: string | null;
-  toolCalls: unknown;
-  createdAt: Date;
 }
 
 /**
@@ -242,8 +231,7 @@ export async function backfillVerdictLog(
 
     // Progress logging every PROGRESS_INTERVAL messages.
     if ((i + 1) % PROGRESS_INTERVAL === 0) {
-      // eslint-disable-next-line no-console
-      console.log(
+            console.log(
         `backfill-verdict-log: processed ${i + 1}/${filteredMessages.length} messages ` +
           `(${entriesWritten} entries, ${messagesUpserted} upserted)`,
       );
@@ -291,26 +279,19 @@ async function main(): Promise<void> {
   }
 
   if (dryRun) {
-    // eslint-disable-next-line no-console
-    console.log('backfill-verdict-log: DRY RUN — no writes');
+        console.log('backfill-verdict-log: DRY RUN — no writes');
   }
 
   try {
     const result = await backfillVerdictLog({ dryRun, tenantId, limit });
-    // eslint-disable-next-line no-console
-    console.log(`backfill-verdict-log: done`);
-    // eslint-disable-next-line no-console
-    console.log(`  messages scanned: ${result.messagesScanned}`);
-    // eslint-disable-next-line no-console
-    console.log(`  messages upserted: ${result.messagesUpserted}`);
-    // eslint-disable-next-line no-console
-    console.log(`  entries written: ${result.entriesWritten}`);
+        console.log(`backfill-verdict-log: done`);
+        console.log(`  messages scanned: ${result.messagesScanned}`);
+        console.log(`  messages upserted: ${result.messagesUpserted}`);
+        console.log(`  entries written: ${result.entriesWritten}`);
     process.exit(0);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('backfill-verdict-log: unexpected error');
-    // eslint-disable-next-line no-console
-    console.error(err);
+        console.error('backfill-verdict-log: unexpected error');
+        console.error(err);
     process.exit(1);
   }
 }

@@ -88,7 +88,7 @@ function buildProvenanceEnvelope(
   return JSON.stringify(parsed.data);
 }
 
-export function buildTools(connector: INmsConnector): Anthropic.Tool[] {
+export function buildTools(_connector: INmsConnector): Anthropic.Tool[] {
   return [
     {
       name: 'get_predicted_issues',
