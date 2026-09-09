@@ -582,3 +582,217 @@ export const investigationFeedbackSchema = z
   .strict();
 
 export type InvestigationFeedback = z.infer<typeof investigationFeedbackSchema>;
+
+// ── Phase F-3.1 — full investigation result envelope ─────────────────────────
+//
+// `ftth.investigation-result.v1` is the full diagnosis record. Roadmap
+// 3.1 says it MUST contain: ID, tenant/conexión, incidente, versión,
+// fecha de corte, ventana temporal, referencias de evidencia, hipótesis,
+// contradicciones, faltantes, comprobaciones sugeridas, estado de
+// suficiencia y versiones de reglas/modelo/prompt.
+//
+// Cada hipótesis MUST separar soporte y contraevidencia. No mostrar
+// porcentajes de confianza sin calibración; usar estados explicables
+// de soporte.
+//
+// Límites de tamaño (documentados aquí, no como magic numbers sueltos):
+//   - maxEvidenceRefs = 64        — references to evidence rows.
+//   - maxHypotheses     = 8        — competing hypotheses to evaluate.
+//   - maxContradictions = 16       — pieces of evidence that contradict.
+//   - maxMissing        = 16       — pieces of evidence we expected and lack.
+//   - maxChecks         = 8        — suggested read-only checks.
+//   - freeTextBytes     = 4096     — UTF-8 byte cap on free-text fields.
+//   - maxWindowDays     = 30       — ventana temporal máxima permitida.
+
+export const INVESTIGATION_RESULT_SCHEMA = 'ftth.investigation-result.v1' as const;
+
+export const MAX_INVESTIGATION_EVIDENCE_REFS = 64;
+export const MAX_INVESTIGATION_HYPOTHESES = 8;
+export const MAX_INVESTIGATION_CONTRADICTIONS = 16;
+export const MAX_INVESTIGATION_MISSING = 16;
+export const MAX_INVESTIGATION_CHECKS = 8;
+export const INVESTIGATION_FREE_TEXT_BYTES = 4096;
+export const MAX_INVESTIGATION_WINDOW_DAYS = 30;
+
+// ── Hypothesis support state (3.1: "estados explicables de soporte") ─────────
+//
+// Closed enum: support_level ∈ { supported, contradicted, mixed, unverified }.
+// No numeric confidence — calibration has not happened yet. The
+// investigation card renders these labels verbatim, the agent never
+// invents a percentage.
+export const hypothesisSupportLevels = [
+  'supported',
+  'contradicted',
+  'mixed',
+  'unverified',
+] as const;
+export type HypothesisSupportLevel = (typeof hypothesisSupportLevels)[number];
+
+// Sufficiency state: whether the diagnosis has enough evidence to be
+// actionable, or is provisional / incomplete.
+export const investigationSufficiencyStates = [
+  'sufficient',
+  'provisional',
+  'insufficient',
+] as const;
+export type InvestigationSufficiencyState =
+  (typeof investigationSufficiencyStates)[number];
+
+const utf8Encoder = new TextEncoder();
+
+export const investigationFreeTextSchema = (minChars = 0) => {
+  let schema = z.string().max(INVESTIGATION_FREE_TEXT_BYTES);
+  if (minChars > 0) {
+    schema = schema.min(minChars);
+  }
+  return schema.refine(
+    (val) => utf8Encoder.encode(val).byteLength <= INVESTIGATION_FREE_TEXT_BYTES,
+    { message: `String exceeds ${INVESTIGATION_FREE_TEXT_BYTES} UTF-8 bytes` },
+  );
+};
+
+// Single hypothesis with explicit for/against evidence refs.
+export const investigationHypothesisSchema = z
+  .object({
+    hypothesisId: z.string().min(1).max(64),
+    summary: investigationFreeTextSchema(1),
+    supportLevel: z.enum(hypothesisSupportLevels),
+    forRefIds: z.array(z.string().min(1).max(64)).max(MAX_INVESTIGATION_EVIDENCE_REFS),
+    againstRefIds: z.array(z.string().min(1).max(64)).max(MAX_INVESTIGATION_EVIDENCE_REFS),
+  })
+  .strict();
+
+// Single contradiction: an evidence ref that contradicts the consensus.
+export const investigationContradictionSchema = z
+  .object({
+    evidenceRefId: z.string().min(1).max(64),
+    note: investigationFreeTextSchema(0),
+  })
+  .strict();
+
+// Single missing observation: a known-gap that, if observed, would
+// shift the diagnosis.
+export const investigationMissingSchema = z
+  .object({
+    what: investigationFreeTextSchema(1),
+    whyItMatters: investigationFreeTextSchema(0).optional(),
+  })
+  .strict();
+
+// A read-only check the technician can perform to gather more
+// evidence. The roadmap (regla 8) keeps NMS operations read-only:
+// this enum reflects that — never include provisioning / reboots.
+export const investigationCheckKinds = [
+  'observe_only',
+  'topology_lookup',
+  'recent_events',
+  'metric_history',
+] as const;
+export type InvestigationCheckKind = (typeof investigationCheckKinds)[number];
+
+export const investigationCheckSchema = z
+  .object({
+    checkId: z.string().min(1).max(64),
+    kind: z.enum(investigationCheckKinds),
+    description: investigationFreeTextSchema(1),
+    expectedToResolve: investigationFreeTextSchema(0).optional(),
+  })
+  .strict();
+
+// Evidence kind: closed enum for categories of evidence pointers.
+export const investigationEvidenceKinds = [
+  'metric',
+  'event',
+  'topology',
+  'incident_history',
+  'feedback',
+] as const;
+export type InvestigationEvidenceKind = (typeof investigationEvidenceKinds)[number];
+
+// Evidence reference (no raw data — just a pointer into the
+// packages/evidence layer). The full data is recovered via the
+// pointer; the investigation card shows what the evidence ref says,
+// not the entire payload.
+export const investigationEvidenceRefSchema = z
+  .object({
+    evidenceRefId: z.string().min(1).max(64),
+    kind: z.enum(investigationEvidenceKinds),
+    source: z.string().min(1).max(256),
+    observedAt: z.string().datetime(),
+    summary: investigationFreeTextSchema(1),
+    quality: z.enum(['fresh', 'stale', 'insufficient', 'unknown', 'error']),
+    qualityReason: z.string().min(1).max(64),
+  })
+  .strict();
+
+// Top-level investigation result envelope.
+export const investigationResultSchema = z
+  .object({
+    schema: z.literal(INVESTIGATION_RESULT_SCHEMA),
+    resultId: z.string().min(1).max(64),
+    runId: investigationRunIdSchema,
+    versionId: investigationVersionIdSchema,
+    tenantId: z.string().min(1),
+    connectionId: z.string().min(1).nullable(),
+    incidentId: z.string().min(1).nullable(),
+
+    // Window — bounded.
+    windowStart: z.string().datetime(),
+    windowEnd: z.string().datetime(),
+    windowDays: z.number().positive().max(MAX_INVESTIGATION_WINDOW_DAYS),
+
+    // Snapshot date — when the diagnosis was frozen.
+    cutoffAt: z.string().datetime(),
+
+    // Rule/model/prompt versions (roadmap 3.1).
+    rulesetVersion: z.string().min(1).max(64),
+    modelVersion: z.string().min(1).max(64),
+    promptVersion: z.string().min(1).max(64),
+
+    // Evidence and reasoning, bounded arrays.
+    evidenceRefs: z
+      .array(investigationEvidenceRefSchema)
+      .max(MAX_INVESTIGATION_EVIDENCE_REFS),
+    hypotheses: z
+      .array(investigationHypothesisSchema)
+      .max(MAX_INVESTIGATION_HYPOTHESES),
+    contradictions: z
+      .array(investigationContradictionSchema)
+      .max(MAX_INVESTIGATION_CONTRADICTIONS),
+    missing: z
+      .array(investigationMissingSchema)
+      .max(MAX_INVESTIGATION_MISSING),
+    suggestedChecks: z
+      .array(investigationCheckSchema)
+      .max(MAX_INVESTIGATION_CHECKS),
+
+    // Sufficiency — closed enum, never a confidence number.
+    sufficiency: z.enum(investigationSufficiencyStates),
+    sufficiencyReason: investigationFreeTextSchema(1),
+
+    // Audit fields.
+    producedAt: z.string().datetime(),
+    producedBy: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^(agent-core@\S+|human:\S+)$/, {
+        message: "producedBy must match 'agent-core@x.y.z' or 'human:<userId>'",
+      }),
+  })
+  .strict()
+  .refine(
+    (r) => new Date(r.windowEnd).getTime() >= new Date(r.windowStart).getTime(),
+    { message: 'windowEnd must be >= windowStart', path: ['windowEnd'] },
+  )
+  .refine(
+    (r) => new Date(r.cutoffAt).getTime() <= new Date(r.producedAt).getTime(),
+    { message: 'cutoffAt must be <= producedAt', path: ['cutoffAt'] },
+  );
+
+export type InvestigationResult = z.infer<typeof investigationResultSchema>;
+export type InvestigationHypothesis = z.infer<typeof investigationHypothesisSchema>;
+export type InvestigationEvidenceRef = z.infer<typeof investigationEvidenceRefSchema>;
+export type InvestigationContradiction = z.infer<typeof investigationContradictionSchema>;
+export type InvestigationMissing = z.infer<typeof investigationMissingSchema>;
+export type InvestigationCheck = z.infer<typeof investigationCheckSchema>;
