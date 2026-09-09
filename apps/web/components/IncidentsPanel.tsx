@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth/client';
 import { hasPermission } from '@/lib/auth/permissions';
 import { ServerStackIcon } from './icons';
 import { FeedbackControls } from './FeedbackControls';
+import { InvestigationCard } from './InvestigationCard';
 
 // ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
 //
@@ -54,8 +55,16 @@ export function IncidentsPanel() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [openInvestigations, setOpenInvestigations] = useState<Record<string, boolean>>({});
 
   const canConfirm = auth.user ? hasPermission(auth.user.role, 'view_network') : false;
+
+  const toggleInvestigation = useCallback((incidentId: string) => {
+    setOpenInvestigations((prev) => ({
+      ...prev,
+      [incidentId]: !prev[incidentId],
+    }));
+  }, []);
 
   const load = useCallback(async () => {
     if (!auth.user) return;
@@ -200,6 +209,23 @@ export function IncidentsPanel() {
                         auth.user.role === 'OWNER' || auth.user.role === 'ADMIN'
                       }
                     />
+                  ) : null}
+                  {canConfirm ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleInvestigation(incident.id)}
+                        className="rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/20"
+                        data-testid={`toggle-investigation-${incident.id}`}
+                      >
+                        {openInvestigations[incident.id]
+                          ? '▾ Ocultar investigación'
+                          : '▸ Investigar incidente'}
+                      </button>
+                      {openInvestigations[incident.id] ? (
+                        <InvestigationCard incidentId={incident.id} />
+                      ) : null}
+                    </div>
                   ) : null}
                   {canConfirm ? (
                     <FeedbackControls incidentId={incident.id} />
