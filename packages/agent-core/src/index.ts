@@ -52,3 +52,13 @@ export {
   INVESTIGATION_PROMPT_VERSION,
   INVESTIGATION_RULESET_VERSION,
 } from './investigation-prompt';
+
+// ── Fase 3.4 — server-side investigation reference & temporal validator ───────
+export {
+  validateInvestigationResult,
+  buildSafeFallbackResult,
+  type ValidationIssue,
+  type ValidationIssueCode,
+  type InvestigationValidationReport,
+  type ValidateInvestigationResultContext,
+} from './investigation-validator';
