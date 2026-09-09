@@ -103,3 +103,28 @@ export {
   type LabelRow,
 } from './labels-schema';
 
+// Phase F-X.1 — investigation feedback export (Fase 1 PR #5). The
+// helper maps an InvestigationFeedback row to a self-describing
+// envelope (`ftth.investigation-feedback-export.v1`) consumable by the
+// nightly eval leg, plus an aggregator that honours the spec rule
+// "if labels are missing, MUST show insufficiency, NEVER invent a
+// precision number". See feedback-export.ts for the closed mapping.
+export {
+  computeFeedbackSummary,
+  DEFAULT_MIN_SAMPLE_SIZE,
+  FEEDBACK_LABELS,
+  FEEDBACK_LABEL_CONFIRMED,
+  FEEDBACK_LABEL_INCORRECT,
+  FEEDBACK_LABEL_INSUFFICIENT,
+  FEEDBACK_TO_VERDICT_CODE,
+  INVESTIGATION_FEEDBACK_EXPORT_SCHEMA,
+  investigationFeedbackExportSchema,
+  isFeedbackLabel,
+  toInvestigationFeedbackExport,
+  toInvestigationFeedbackExportBatch,
+  type FeedbackLabel,
+  type FeedbackSummary,
+  type InvestigationFeedbackExportEntry,
+  type InvestigationFeedbackInput,
+} from './feedback-export';
+
