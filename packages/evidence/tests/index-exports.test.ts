@@ -173,3 +173,16 @@ describe('evidence public API surface — Fase E TenantPolicy re-exports', () =>
     expect(env.truthGateMode).toBe('observe');
   });
 });
+
+// ── Fase 3.2 — evidence collector re-exports ────────────────────────────────
+
+describe('evidence public API surface — Fase 3.2 evidence collector re-exports', () => {
+  it('re-exports collectInvestigationEvidence function', () => {
+    expect(typeof Evidence.collectInvestigationEvidence).toBe('function');
+  });
+
+  it('re-exports EvidenceMissingTenantError class', () => {
+    expect(typeof Evidence.EvidenceMissingTenantError).toBe('function');
+  });
+});
+
