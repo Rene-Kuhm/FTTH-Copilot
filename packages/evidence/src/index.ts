@@ -86,3 +86,19 @@ export {
   type BuildPendingIncidentCandidateArgs,
   type PromotionTenantPolicy,
 } from './pending-incident';
+
+// ── Fase 2 — evidence quality (freshness, coverage, counter sanity) ─────────
+export {
+  DEFAULT_SOURCE_POLICIES,
+  assessFreshness,
+  detectCounterReset,
+  isMissingValue,
+  toQualityVerdict,
+  type QualityLevel,
+  type QualityReason,
+  type QualityResult,
+  type QualitySample,
+  type QualityVerdictArgs,
+  type QualityWindow,
+  type SourcePolicy,
+} from './evidence-quality';
