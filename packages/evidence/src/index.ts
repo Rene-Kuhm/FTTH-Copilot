@@ -101,3 +101,16 @@ export {
   type QualityWindow,
   type SourcePolicy,
 } from './evidence-quality';
+
+// ── Fase 3.2 — cognitive investigation evidence collector ────────────────────
+export {
+  collectInvestigationEvidence,
+  MissingTenantError as EvidenceMissingTenantError,
+  type CollectEvidenceArgs,
+  type MetricEvidenceInput,
+  type EventEvidenceInput,
+  type TopologyEvidenceInput,
+  type IncidentHistoryEvidenceInput,
+  type FeedbackEvidenceInput,
+} from './evidence-collector';
+
