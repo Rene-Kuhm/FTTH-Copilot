@@ -21,6 +21,11 @@ export {
 export { SYSTEM_PROMPT } from './prompts/system';
 export { detectAlerts, type Alert } from './alerts';
 export {
+  qualityVerdictFromToolSamples,
+  type QualityVerdictFromToolArgs,
+  type QualityVerdictFromToolResult,
+} from './quality-bridge';
+export {
   classifyEnvelope,
   classifyUnwrapped,
   type Verdict,
