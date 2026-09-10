@@ -49,6 +49,34 @@ export const EVIDENCE_KIND_LABELS: Record<InvestigationEvidenceKind, string> = {
   feedback: 'Feedback técnico',
 };
 
+// ── Fase 5.5: Maintenance Context ───────────────────────────────────────────
+export const MAINTENANCE_CONTEXT_HEADING = 'Ventanas de Mantenimiento Relacionadas' as const;
+export const MAINTENANCE_CONTEXT_DISCLAIMER = 'Contexto operativo — no etiquetado como causa raíz' as const;
+
+export interface RelatedMaintenanceWindow {
+  id: string;
+  title: string;
+  description: string | null;
+  scope: { kind: string; id?: string };
+  startUtc: string;
+  endUtc: string;
+  timezone: string;
+  status: string;
+}
+
+export function formatMaintenanceWindowStatus(status: string): string {
+  switch (status) {
+    case 'scheduled':
+      return 'Programado';
+    case 'cancelled':
+      return 'Cancelado';
+    case 'completed':
+      return 'Completado';
+    default:
+      return status;
+  }
+}
+
 const READ_ONLY_CHECK_KINDS: ReadonlySet<string> = new Set<InvestigationCheckKind>([
   'observe_only',
   'topology_lookup',
@@ -186,6 +214,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [relatedMaintenance, setRelatedMaintenance] = useState<RelatedMaintenanceWindow[]>([]);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const fetchInvestigationRef = useRef<(() => Promise<void>) | null>(null);
@@ -215,6 +244,21 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
         `/api/incidents/${encodeURIComponent(incidentId)}/investigate`,
         { credentials: 'include' },
       );
+
+      // Fetch related maintenance context (Roadmap Fase 5 — 5.5: Context, NOT cause)
+      try {
+        const incRes = await fetch(`/api/incidents/${encodeURIComponent(incidentId)}`, {
+          credentials: 'include',
+        });
+        if (incRes.ok) {
+          const incBody = (await incRes.json().catch(() => ({}))) as {
+            relatedMaintenance?: RelatedMaintenanceWindow[];
+          };
+          setRelatedMaintenance(incBody.relatedMaintenance ?? []);
+        }
+      } catch {
+        // Non-blocking for the investigation card
+      }
 
       if (res.status === 404) {
         setData(null);
@@ -475,6 +519,47 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
               <span>Modelo: {result.modelVersion}</span>
             </div>
           </div>
+
+          {/* Related Maintenance Windows (Roadmap Fase 5 — 5.5: Context, NOT cause) */}
+          {relatedMaintenance.length > 0 ? (
+            <div
+              className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3.5"
+              data-testid={`investigation-maintenance-context-${incidentId}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-cyan-300">
+                  {MAINTENANCE_CONTEXT_HEADING}
+                </h4>
+                <span className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-200">
+                  {MAINTENANCE_CONTEXT_DISCLAIMER}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {relatedMaintenance.map((win) => (
+                  <div
+                    key={win.id}
+                    className="rounded-md border border-white/[0.06] bg-black/20 p-2.5 text-xs"
+                    data-testid={`investigation-maintenance-item-${win.id}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium text-white">{win.title}</span>
+                      <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] text-neutral-300 uppercase">
+                        {formatMaintenanceWindowStatus(win.status)}
+                      </span>
+                    </div>
+                    {win.description ? (
+                      <p className="mt-1 text-[11px] text-neutral-300">{win.description}</p>
+                    ) : null}
+                    <div className="mt-1.5 text-[10px] text-neutral-400 flex flex-wrap gap-x-3">
+                      <span>Inicio: {new Date(win.startUtc).toLocaleString()}</span>
+                      <span>Fin: {new Date(win.endUtc).toLocaleString()}</span>
+                      <span>Zona horaria: {win.timezone}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* 2. Competing Hypotheses */}
           <div>
