@@ -267,14 +267,15 @@ Gate 1:
 
 Objetivo: fijar comportamiento común antes de variantes privadas.
 
-- [ ] Cubrir SNMPv2-MIB, IF-MIB, SNMP-FRAMEWORK-MIB, ENTITY-MIB y NOTIFICATION-LOG-MIB cuando apliquen.
-- [ ] Mapear `coldStart`, `warmStart`, `linkDown`, `linkUp` y autenticación fallida.
-- [ ] Definir identificación por Enterprise OID, `sysObjectID` y contexto registrado.
-- [ ] Crear contrato `OltVendorAdapter` y registro determinista de adaptadores.
-- [ ] Rechazar ambigüedad cuando dos fabricantes o clones compartan árboles parecidos.
-- [ ] Probar que los adaptadores no pueden cambiar tenant, ejecutar comandos ni elevar severidad sin fuente.
+- [x] Cubrir SNMPv2-MIB, IF-MIB, SNMP-FRAMEWORK-MIB, ENTITY-MIB y NOTIFICATION-LOG-MIB cuando apliquen.
+- [x] Mapear `coldStart`, `warmStart`, `linkDown`, `linkUp` y autenticación fallida.
+- [x] Definir identificación por Enterprise OID, `sysObjectID` y contexto registrado.
+- [x] Crear contrato `OltVendorAdapter` y registro determinista de adaptadores.
+- [x] Rechazar ambigüedad cuando dos fabricantes o clones compartan árboles parecidos.
+- [x] Probar que los adaptadores no pueden cambiar tenant, ejecutar comandos ni elevar severidad sin fuente.
 
-Gate 2: los traps estándar atraviesan decoder, identidad, envelope, adaptador y `telemetry.v1` con pruebas binarias.
+Gate 2:
+- [x] Los traps estándar atraviesan decoder, identidad, envelope, adaptador y `telemetry.v1` con pruebas binarias. Verificado en PR #149 y archivado en `openspec/changes/archive/2026-09-10-fase-2-standard-traps-and-adapter-contract/`.
 
 ### Fase 3 — Huawei y ZTE
 
