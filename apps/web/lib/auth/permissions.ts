@@ -21,7 +21,8 @@ export type Permission =
   | 'delete_conversations'
   | 'view_network'
   | 'ack_alerts'
-  | 'execute_actions';
+  | 'execute_actions'
+  | 'manage_maintenance';
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   OWNER: [
@@ -34,6 +35,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view_network',
     'ack_alerts',
     'execute_actions',
+    'manage_maintenance',
   ],
   ADMIN: [
     'manage_users',
@@ -44,6 +46,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'delete_conversations',
     'view_network',
     'ack_alerts',
+    'manage_maintenance',
   ],
   OPERATOR: [
     'chat',
