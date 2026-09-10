@@ -3,6 +3,7 @@
 **Verdict**: **PASS**
 **Change**: `2026-09-10-fase-3-huawei-zte-adapters`
 **Roadmap Reference**: `docs/roadmap-olt-multivendor.md` (Fase 3)
+**Merged PR**: #151
 **Target Branch**: `main`
 **Verification Date**: 2026-09-10
 **Mode**: Strict TDD & OpenSpec Spec-Driven Development
