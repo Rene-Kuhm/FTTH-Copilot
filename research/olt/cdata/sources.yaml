@@ -11,3 +11,17 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: cdata-oem-architecture-002
+  vendor: C-Data
+  families:
+    - FD1600
+  firmware: unknown
+  title: C-Data OEM White-Labeling and Enterprise MIB Architecture
+  publisher: Shenzhen C-Data Technology / Cortina Systems
+  url: https://www.cdatatec.com/support/oem-specifications
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts: []

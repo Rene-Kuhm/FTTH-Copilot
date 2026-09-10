@@ -10,3 +10,4 @@ families:
     supported_traps: []
     sources:
       - ubiquiti-uisp-fiber-specs-001
+      - ubiquiti-snmp-uisp-boundary-002

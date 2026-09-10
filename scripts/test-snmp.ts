@@ -232,10 +232,40 @@ async function run(): Promise<void> {
     });
     await new Promise((r) => setTimeout(r, 200));
 
+    // 12. Send VSOL V1600 GPON ONT Dying Gasp Trap (Fase 6)
+    console.log('[test:snmp] Sending VSOL V1600 GPON ONT Dying Gasp Trap (vsolGponOntDyingGasp)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.37950.5.1.1.1',
+      varbinds: [
+        { oid: '1.3.6.1.4.1.37950.5.1.10.1', type: 'Integer', value: 1 },
+        { oid: '1.3.6.1.4.1.37950.5.1.10.2', type: 'Integer', value: 2 },
+        { oid: '1.3.6.1.4.1.37950.5.1.10.3', type: 'Integer', value: 5 },
+        { oid: '1.3.6.1.4.1.37950.5.1.10.4', type: 'OctetString', value: 'VSOL12345678' },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // 13. Send BDCOM P3600 GPON ONT LOS Trap (Fase 6)
+    console.log('[test:snmp] Sending BDCOM P3600 GPON ONT LOS Trap (nmsGponOntLos)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.3320.101.10.0.2',
+      varbinds: [
+        { oid: '1.3.6.1.4.1.3320.101.10.1.1.1', type: 'Integer', value: 1 },
+        { oid: '1.3.6.1.4.1.3320.101.10.1.1.2', type: 'Integer', value: 4 },
+        { oid: '1.3.6.1.4.1.3320.101.10.1.1.3', type: 'Integer', value: 12 },
+        { oid: '1.3.6.1.4.1.3320.101.10.1.1.4', type: 'OctetString', value: 'BDCM12345678' },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
     // Validations
     console.log(`[test:snmp] Total notifications received: ${received.length}`);
-    if (received.length < 11) {
-      throw new Error(`Expected 11 notifications, but received ${received.length}`);
+    if (received.length < 13) {
+      throw new Error(`Expected 13 notifications, but received ${received.length}`);
     }
 
     const versions = received.map((r) => r.notif.version);
@@ -255,10 +285,10 @@ async function run(): Promise<void> {
       }
     }
 
-    // Gate 2, Gate 3, Gate 4 & Gate 5 Telemetry Invariants & Schema Verification
+    // Gate 2, Gate 3, Gate 4, Gate 5 & Gate 6 Telemetry Invariants & Schema Verification
     console.log(`[test:snmp] Total telemetry.v1 events generated: ${telemetryEvents.length}`);
-    if (telemetryEvents.length < 11) {
-      throw new Error(`Expected at least 11 telemetry events, got ${telemetryEvents.length}`);
+    if (telemetryEvents.length < 13) {
+      throw new Error(`Expected at least 13 telemetry events, got ${telemetryEvents.length}`);
     }
 
     for (const event of telemetryEvents) {
@@ -373,7 +403,41 @@ async function run(): Promise<void> {
       throw new Error(`Invalid Adtran GPON hierarchy: onuId=${adtranOntEvent.metrics['onuId']}, slot=${adtranOntEvent.metrics['slot']}, port=${adtranOntEvent.metrics['port']}`);
     }
 
-    console.log('[test:snmp] ✅ Gate 0, Gate 2, Gate 3, Gate 4 & Gate 5 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei, ZTE, Nokia, FiberHome, Calix & Adtran adapters 100% OK.');
+    // Validate VSOL Adapter normalization (Fase 6)
+    const vsolOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'vsol' && e.metrics['trapName'] === 'vsolGponOntDyingGasp',
+    );
+    if (!vsolOntEvent) {
+      throw new Error('Expected VSOL normalized telemetry event from VsolOltAdapter');
+    }
+    if (vsolOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected VSOL event deviceKind 'ONU', got '${vsolOntEvent.deviceKind}'`);
+    }
+    if (vsolOntEvent.deviceId !== 'VSOL12345678') {
+      throw new Error(`Expected VSOL deviceId 'VSOL12345678', got '${vsolOntEvent.deviceId}'`);
+    }
+    if (vsolOntEvent.metrics['onuId'] !== 5 || vsolOntEvent.metrics['slot'] !== 1 || vsolOntEvent.metrics['port'] !== 2) {
+      throw new Error(`Invalid VSOL GPON hierarchy: onuId=${vsolOntEvent.metrics['onuId']}, slot=${vsolOntEvent.metrics['slot']}, port=${vsolOntEvent.metrics['port']}`);
+    }
+
+    // Validate BDCOM Adapter normalization (Fase 6)
+    const bdcomOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'bdcom' && e.metrics['trapName'] === 'nmsGponOntLos',
+    );
+    if (!bdcomOntEvent) {
+      throw new Error('Expected BDCOM normalized telemetry event from BdcomOltAdapter');
+    }
+    if (bdcomOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected BDCOM event deviceKind 'ONU', got '${bdcomOntEvent.deviceKind}'`);
+    }
+    if (bdcomOntEvent.deviceId !== 'BDCM12345678') {
+      throw new Error(`Expected BDCOM deviceId 'BDCM12345678', got '${bdcomOntEvent.deviceId}'`);
+    }
+    if (bdcomOntEvent.metrics['onuId'] !== 12 || bdcomOntEvent.metrics['slot'] !== 1 || bdcomOntEvent.metrics['port'] !== 4) {
+      throw new Error(`Invalid BDCOM GPON hierarchy: onuId=${bdcomOntEvent.metrics['onuId']}, slot=${bdcomOntEvent.metrics['slot']}, port=${bdcomOntEvent.metrics['port']}`);
+    }
+
+    console.log('[test:snmp] ✅ Gate 0, Gate 2, Gate 3, Gate 4, Gate 5 & Gate 6 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei, ZTE, Nokia, FiberHome, Calix, Adtran, VSOL & BDCOM adapters 100% OK.');
   } finally {
     receiver.close();
   }

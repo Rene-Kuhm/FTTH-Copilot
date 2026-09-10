@@ -10,3 +10,4 @@ families:
     supported_traps: []
     sources:
       - cdata-products-portal-001
+      - cdata-oem-architecture-002

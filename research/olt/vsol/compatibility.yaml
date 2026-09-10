@@ -4,9 +4,16 @@ iana_pens:
   - 37950
 families:
   - family: V1600
-    level: L1
-    confidence_grade: A
+    level: L2
+    confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - vsolGponOntDyingGasp
+      - vsolGponOntLossOfSignal
+      - vsolGponOntOnline
+      - vsolGponOntOffline
+      - vsolGponPortDown
+      - vsolGponPortUp
     sources:
       - vsol-download-portal-001
+      - vsol-gpon-mib-002

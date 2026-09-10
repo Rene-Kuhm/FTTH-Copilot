@@ -11,3 +11,17 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: ubiquiti-snmp-uisp-boundary-002
+  vendor: Ubiquiti
+  families:
+    - UF-OLT
+  firmware: unknown
+  title: Ubiquiti EdgeOS SNMP Support and UISP Management Boundary
+  publisher: Ubiquiti Inc. Community & Documentation
+  url: https://help.ui.com/hc/en-us/articles/205145990-EdgeMAX-SNMP
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

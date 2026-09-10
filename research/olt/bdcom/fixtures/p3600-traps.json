@@ -1,0 +1,136 @@
+[
+  {
+    "description": "BDCOM P3600 GPON ONT Loss of Signal Trap (nmsGponOntLos)",
+    "trapOid": "1.3.6.1.4.1.3320.101.10.0.2",
+    "version": "v2c",
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.2",
+        "type": "Integer",
+        "value": 4
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.3",
+        "type": "Integer",
+        "value": 12
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.4",
+        "type": "OctetString",
+        "value": "BDCM12345678"
+      }
+    ],
+    "expected": {
+      "trapName": "nmsGponOntLos",
+      "category": "los",
+      "severity": "critical",
+      "deviceKind": "ONU",
+      "deviceId": "BDCM12345678",
+      "slot": 1,
+      "port": 4,
+      "onuId": 12
+    }
+  },
+  {
+    "description": "BDCOM P3600 GPON ONT Dying Gasp Trap (nmsGponOntDyingGasp)",
+    "trapOid": "1.3.6.1.4.1.3320.101.10.0.1",
+    "version": "v2c",
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.2",
+        "type": "Integer",
+        "value": 4
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.3",
+        "type": "Integer",
+        "value": 12
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.4",
+        "type": "OctetString",
+        "value": "BDCM12345678"
+      }
+    ],
+    "expected": {
+      "trapName": "nmsGponOntDyingGasp",
+      "category": "dying_gasp",
+      "severity": "critical",
+      "deviceKind": "ONU",
+      "deviceId": "BDCM12345678",
+      "slot": 1,
+      "port": 4,
+      "onuId": 12
+    }
+  },
+  {
+    "description": "BDCOM P3600 GPON ONT Online Recovery Trap (nmsGponOntOnline)",
+    "trapOid": "1.3.6.1.4.1.3320.101.10.0.3",
+    "version": "v2c",
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.2",
+        "type": "Integer",
+        "value": 4
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.3",
+        "type": "Integer",
+        "value": 12
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.4",
+        "type": "OctetString",
+        "value": "BDCM12345678"
+      }
+    ],
+    "expected": {
+      "trapName": "nmsGponOntOnline",
+      "category": "onu_online",
+      "severity": "info",
+      "isClear": true,
+      "deviceKind": "ONU",
+      "deviceId": "BDCM12345678"
+    }
+  },
+  {
+    "description": "BDCOM P3600 GPON PON Down Trap (nmsGponPonDown)",
+    "trapOid": "1.3.6.1.4.1.3320.101.10.0.5",
+    "version": "v2c",
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.4.1.3320.101.10.1.1.2",
+        "type": "Integer",
+        "value": 4
+      }
+    ],
+    "expected": {
+      "trapName": "nmsGponPonDown",
+      "category": "pon_down",
+      "severity": "critical",
+      "deviceKind": "OLT",
+      "slot": 1,
+      "port": 4
+    }
+  }
+]
