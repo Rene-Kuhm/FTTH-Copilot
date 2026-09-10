@@ -26,6 +26,10 @@ import {
 import { decodeSnmpTrap } from './decoder';
 import { createRawEvidenceEnvelope } from './evidence';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from './types';
+import { type TelemetryEvent } from '@ftth-copilot/shared';
+import type { OltAdapterRegistry } from './adapter/registry';
+import type { ResolvedDeviceIdentity } from './identity';
+import { processSnmpNotification } from './pipeline';
 
 export interface ManagedSnmpReceiverOptions {
   port?: number;
@@ -33,10 +37,16 @@ export interface ManagedSnmpReceiverOptions {
   registrations?: SnmpSenderRegistration[];
   guardOptions?: SnmpGuardOptions;
   disableAuthorization?: boolean;
+  adapterRegistry?: OltAdapterRegistry;
   onNotification?: (
     notification: DecodedSnmpNotification,
     senderContext: SnmpSenderContext,
     evidence: RawSnmpEvidenceEnvelope,
+  ) => void;
+  onTelemetryEvent?: (
+    event: TelemetryEvent,
+    evidence: RawSnmpEvidenceEnvelope,
+    identity: ResolvedDeviceIdentity,
   ) => void;
   onError?: (error: Error, sourceIp?: string) => void;
   onSecurityNotice?: (notice: string) => void;
@@ -172,6 +182,14 @@ export function createManagedSnmpReceiver(
 
         // Emit notification
         options.onNotification?.(decoded, senderContext, evidence);
+
+        // Emit telemetry.v1 event through adapter pipeline
+        if (options.onTelemetryEvent) {
+          processSnmpNotification(decoded, senderContext, evidence, {
+            adapterRegistry: options.adapterRegistry,
+            onTelemetryEvent: options.onTelemetryEvent,
+          });
+        }
       } catch (err: unknown) {
         const errorObj = err instanceof Error ? err : new Error(String(err));
         options.onError?.(errorObj, rawTrap?.rinfo?.address);

@@ -11,6 +11,7 @@ export {
 export {
   lookupTrapDefinition,
   isKnownTrapOid,
+  validateCatalogAdmission,
   KNOWN_TRAP_DEFINITIONS,
   type SnmpTrapDefinition,
   type SnmpTrapCategory,
@@ -124,3 +125,37 @@ export type {
   DecodedSnmpNotification,
   RawSnmpEvidenceEnvelope,
 } from './snmp/types';
+
+export {
+  extractIfMibVarbinds,
+  mapIfAdminStatus,
+  mapIfOperStatus,
+  type ExtractedIfMibData,
+  type IfAdminStatus,
+  type IfOperStatus,
+} from './snmp/extractors/if-mib';
+
+export {
+  resolveDeviceIdentity,
+  type ResolvedDeviceIdentity,
+} from './snmp/identity';
+
+export {
+  executeAdapterSafe,
+  AdapterSecurityViolationError,
+  type OltVendorAdapter,
+} from './snmp/adapter/contract';
+
+export { StandardOltAdapter } from './snmp/adapter/standard';
+
+export {
+  OltAdapterRegistry,
+  defaultAdapterRegistry,
+} from './snmp/adapter/registry';
+
+export {
+  processSnmpNotification,
+  type SnmpPipelineOptions,
+  type SnmpPipelineResult,
+} from './snmp/pipeline';
+

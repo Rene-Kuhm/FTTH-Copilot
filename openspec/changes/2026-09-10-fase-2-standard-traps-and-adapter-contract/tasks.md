@@ -1,0 +1,29 @@
+# Tasks: Fase 2 — Base estándar y contrato de adaptadores OLT
+
+- [x] 1. Standard Traps Expansion & Audit Metadata (`packages/monitoring/src/snmp/catalog.ts`)
+  - [x] 1.1 Expand `SnmpTrapDefinition` with audit fields (`source_id`, `source_grade`, `target_models`, `firmware`, `license`)
+  - [x] 1.2 Add `authenticationFailure` (SNMPv2-MIB `1.3.6.1.6.3.1.1.5.5`) and `entConfigChange` (ENTITY-MIB `1.3.6.1.2.1.47.2.0.1`)
+  - [x] 1.3 Add audit fields to all standard and vendor trap definitions conforming to Gate 1
+- [x] 2. IF-MIB Varbind Extraction (`packages/monitoring/src/snmp/extractors/if-mib.ts`)
+  - [x] 2.1 Implement parser for standard IF-MIB varbinds (`ifIndex`, `ifAdminStatus`, `ifOperStatus`, `ifDescr`, `ifName`, `ifAlias`)
+  - [x] 2.2 Map status integers to standard symbolic states (`up`, `down`, `testing`, `dormant`, etc.)
+- [x] 3. Multi-Source Identity & Ambiguity Resolution (`packages/monitoring/src/snmp/identity.ts`)
+  - [x] 3.1 Correlate `senderContext`, `sysObjectID`, and Enterprise OID from IANA PEN resolver
+  - [x] 3.2 Implement ambiguity detector rejecting vendor mismatches or cross-claiming
+- [x] 4. OltVendorAdapter Contract & Standard Adapter (`packages/monitoring/src/snmp/adapter/`)
+  - [x] 4.1 Define `OltVendorAdapter` interface with purity and isolation invariants
+  - [x] 4.2 Implement `StandardOltAdapter` handling SNMPv2-MIB, IF-MIB, and ENTITY-MIB traps
+  - [x] 4.3 Implement `OltAdapterRegistry` with deterministic resolution priority
+  - [x] 4.4 Implement `AdapterHarness` enforcing tenant immutability and observation purity
+- [x] 5. Pipeline Integration (`packages/monitoring/src/snmp/pipeline.ts`)
+  - [x] 5.1 Wire binary decoding -> raw envelope -> identity -> adapter dispatch -> `telemetry.v1`
+  - [x] 5.2 Export all components from `packages/monitoring/src/index.ts`
+- [x] 6. Test Suite & Gate 2 Verification
+  - [x] 6.1 Unit tests for standard trap catalog lookup and audit completeness (`catalog.test.ts`)
+  - [x] 6.2 Unit tests for IF-MIB varbind extractor (`if-mib.test.ts`)
+  - [x] 6.3 Unit tests for device identity and ambiguity rejection (`identity.test.ts`)
+  - [x] 6.4 Unit tests for adapter runner, tenant immutability, and deterministic registry (`adapter.test.ts`)
+  - [x] 6.5 End-to-end binary test for standard traps (`pipeline.test.ts` & `test-snmp.ts`)
+- [x] 7. Verification Report & Monorepo Validation
+  - [x] 7.1 Verify full monorepo pass (`pnpm turbo run lint typecheck test`)
+  - [x] 7.2 Create `verify-report.md`

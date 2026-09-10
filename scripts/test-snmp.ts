@@ -11,10 +11,12 @@ import {
   type DecodedSnmpNotification,
   type RawSnmpEvidenceEnvelope,
 } from '../packages/monitoring/src';
+import { type TelemetryEvent, telemetryEventSchema } from '../packages/shared/src';
 
 async function run(): Promise<void> {
   const testPort = 12180;
   const received: Array<{ notif: DecodedSnmpNotification; evidence: RawSnmpEvidenceEnvelope }> = [];
+  const telemetryEvents: TelemetryEvent[] = [];
 
   console.log(`[test:snmp] Starting managed SNMP receiver on 127.0.0.1:${testPort}...`);
 
@@ -42,6 +44,9 @@ async function run(): Promise<void> {
     onNotification: (notif, _ctx, evidence) => {
       console.log(`[test:snmp] Received ${notif.version} ${notif.pduType} (OID: ${notif.trapOid}, sysUpTime: ${notif.sysUpTime})`);
       received.push({ notif, evidence });
+    },
+    onTelemetryEvent: (event) => {
+      telemetryEvents.push(event);
     },
     onError: (err, sourceIp) => {
       console.error(`[test:snmp] Receiver error from ${sourceIp}: ${err.message}`);
@@ -107,10 +112,20 @@ async function run(): Promise<void> {
     });
     await new Promise((r) => setTimeout(r, 200));
 
+    // 5. Send SNMPv2c RFC Standard authenticationFailure Trap (RFC 3418)
+    console.log('[test:snmp] Sending binary SNMPv2c authenticationFailure Trap...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.6.3.1.1.5.5', // authenticationFailure
+      varbinds: [],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
     // Validations
     console.log(`[test:snmp] Total notifications received: ${received.length}`);
-    if (received.length < 4) {
-      throw new Error(`Expected 4 notifications (v1, v2c, Inform, v3), but received ${received.length}`);
+    if (received.length < 5) {
+      throw new Error(`Expected 5 notifications (v1, v2c, Inform, v3, authFailure), but received ${received.length}`);
     }
 
     const versions = received.map((r) => r.notif.version);
@@ -130,7 +145,26 @@ async function run(): Promise<void> {
       }
     }
 
-    console.log('[test:snmp] ✅ Gate 0 SNMP verification passed: v1, v2c, Inform, v3, raw evidence & redaction 100% OK.');
+    // Gate 2 Telemetry Invariants & Schema Verification
+    console.log(`[test:snmp] Total telemetry.v1 events generated: ${telemetryEvents.length}`);
+    if (telemetryEvents.length < 5) {
+      throw new Error(`Expected at least 5 telemetry events, got ${telemetryEvents.length}`);
+    }
+
+    for (const event of telemetryEvents) {
+      const parsed = telemetryEventSchema.parse(event);
+      if (parsed.tenantId !== 'tenant-test') {
+        throw new Error(`Tenant isolation breached: expected 'tenant-test', got '${parsed.tenantId}'`);
+      }
+      if (parsed.deviceKind !== 'OLT') {
+        throw new Error(`Expected deviceKind 'OLT', got '${parsed.deviceKind}'`);
+      }
+      if (parsed.source !== 'snmp-trap') {
+        throw new Error(`Expected source 'snmp-trap', got '${parsed.source}'`);
+      }
+    }
+
+    console.log('[test:snmp] ✅ Gate 0 & Gate 2 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, evidence envelopes & telemetry.v1 100% OK.');
   } finally {
     receiver.close();
   }
