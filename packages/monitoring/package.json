@@ -18,7 +18,8 @@
   "dependencies": {
     "@ftth-copilot/alerts": "workspace:*",
     "@ftth-copilot/analytics": "workspace:*",
-    "@ftth-copilot/connectors-core": "workspace:*"
+    "@ftth-copilot/connectors-core": "workspace:*",
+    "@ftth-copilot/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

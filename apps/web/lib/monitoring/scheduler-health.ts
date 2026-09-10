@@ -29,7 +29,7 @@
  *                       bound. False after a bind error or socket close.
  */
 
-export type SchedulerName = 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection';
+export type SchedulerName = 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection' | 'snmp';
 
 export interface ServiceHealth {
   expected: boolean;
@@ -92,6 +92,12 @@ export function recordError(name: SchedulerName, error: string, now: number = Da
 /** Record that the syslog UDP socket bound successfully. */
 export function recordSyslogBound(bound: boolean): void {
   const s = getOrCreate('syslog', STATE.get('syslog')?.expected ?? false);
+  s.bound = bound;
+}
+
+/** Record that the SNMP UDP socket bound successfully. */
+export function recordSnmpBound(bound: boolean): void {
+  const s = getOrCreate('snmp', STATE.get('snmp')?.expected ?? false);
   s.bound = bound;
 }
 

@@ -458,6 +458,9 @@ importers:
       '@ftth-copilot/connectors-core':
         specifier: workspace:*
         version: link:../connectors/core
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
