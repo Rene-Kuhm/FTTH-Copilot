@@ -37,3 +37,13 @@ export {
   type SnmpDropReason,
   type SnmpGuardMetrics,
 } from './snmp/guard';
+
+export {
+  correlateTrapWithIncidents,
+  isClearingTrap,
+  type ActiveIncidentContext,
+  type TrapCorrelationAction,
+  type TrapCorrelationOutcome,
+  type CorrelateTrapArgs,
+} from './snmp/incident-linker';
+
