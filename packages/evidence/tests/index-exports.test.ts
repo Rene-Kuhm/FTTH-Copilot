@@ -204,3 +204,18 @@ describe('evidence public API surface — Fase 4.1 topology correlation re-expor
   });
 });
 
+// ── Fase 4.2 — temporal topology helpers re-exports ──────────────────────────
+
+describe('evidence public API surface — Fase 4.2 temporal topology helpers', () => {
+  it('re-exports isEdgeValidAt function', () => {
+    expect(typeof Evidence.isEdgeValidAt).toBe('function');
+  });
+
+  it('re-exports bfsAncestors, bfsDownstream, and topologyPath functions', () => {
+    expect(typeof Evidence.bfsAncestors).toBe('function');
+    expect(typeof Evidence.bfsDownstream).toBe('function');
+    expect(typeof Evidence.topologyPath).toBe('function');
+  });
+});
+
+

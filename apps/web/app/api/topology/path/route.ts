@@ -71,6 +71,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
   const kindParam = url.searchParams.get('kind');
   const idParam = url.searchParams.get('id');
+  const asOfParam = url.searchParams.get('asOf');
 
   if (!kindParam || !idParam) {
     return NextResponse.json(
@@ -89,8 +90,24 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'id must be non-empty' }, { status: 400 });
   }
 
+  let asOfDate: Date | undefined;
+  if (asOfParam !== null) {
+    asOfDate = new Date(asOfParam);
+    if (Number.isNaN(asOfDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid asOf format' }, { status: 400 });
+    }
+  }
+
+  const whereClause = asOfDate
+    ? {
+        tenantId: user.tenantId,
+        validFrom: { lte: asOfDate },
+        OR: [{ validTo: null }, { validTo: { gt: asOfDate } }],
+      }
+    : { tenantId: user.tenantId, validTo: null };
+
   const edges = await prisma.topologyEdge.findMany({
-    where: { tenantId: user.tenantId, validTo: null },
+    where: whereClause,
     select: {
       id: true,
       tenantId: true,
@@ -121,11 +138,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const path = topologyPath(topologyEdges, kindParse.data, idParam);
+  const path = topologyPath(topologyEdges, kindParse.data, idParam, asOfParam ?? undefined);
   return NextResponse.json({
     schema: TOPOLOGY_PATH_SCHEMA,
     kind: kindParse.data,
     id: idParam,
+    ...(asOfParam ? { asOf: asOfParam } : {}),
     path,
   });
 }
