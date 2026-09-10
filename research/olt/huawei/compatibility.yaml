@@ -10,13 +10,25 @@ families:
     supported_traps:
       - hwGponOntDyingGasp
       - hwGponOntOpticalPowerLoss
+      - hwGponOntOffline
+      - hwGponOntOnline
+      - hwGponOntLosClear
+      - hwGponPortDown
+      - hwGponPortUp
     sources:
       - huawei-ma5600-snmp-mib-001
+      - huawei-ma5600-manual-v800
   - family: MA5800
     level: L2
     confidence_grade: B
     firmware: unknown
     supported_traps:
       - hwGponOntDyingGasp
+      - hwGponOntOffline
+      - hwGponOntOnline
+      - hwGponOntLosClear
+      - hwGponPortDown
+      - hwGponPortUp
     sources:
       - huawei-ma5800-product-doc-001
+      - huawei-ma5600-manual-v800

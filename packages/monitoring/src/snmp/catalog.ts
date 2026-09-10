@@ -15,6 +15,10 @@ export type SnmpTrapCategory =
   | 'restart'
   | 'auth_failure'
   | 'config_change'
+  | 'onu_offline'
+  | 'onu_online'
+  | 'pon_down'
+  | 'pon_up'
   | 'unknown_trap';
 
 export interface SnmpTrapDefinition {
@@ -29,6 +33,8 @@ export interface SnmpTrapDefinition {
   license?: 'standard' | 'permissive' | 'restricted' | 'review-required';
   target_models?: ReadonlyArray<string>;
   firmware?: string;
+  is_clear?: boolean;
+  clears_trap_oid?: string;
 }
 
 export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
@@ -152,6 +158,77 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     target_models: ['MA5600', 'MA5800'],
     firmware: 'unknown',
   },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.10',
+    name: 'hwGponOntOffline',
+    category: 'onu_offline',
+    severity: 'warning',
+    vendor: 'Huawei',
+    description: 'GPON ONT has transitioned to offline state',
+    source_id: 'huawei-ma5600-manual-v800',
+    source_grade: 'B',
+    license: 'restricted',
+    target_models: ['MA5600', 'MA5800'],
+    firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.11',
+    name: 'hwGponOntOnline',
+    category: 'onu_online',
+    severity: 'info',
+    vendor: 'Huawei',
+    description: 'GPON ONT is online and authenticated',
+    source_id: 'huawei-ma5600-manual-v800',
+    source_grade: 'B',
+    license: 'restricted',
+    target_models: ['MA5600', 'MA5800'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.10',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.12',
+    name: 'hwGponOntLosClear',
+    category: 'link_up',
+    severity: 'info',
+    vendor: 'Huawei',
+    description: 'GPON ONT optical loss of signal cleared',
+    source_id: 'huawei-ma5600-manual-v800',
+    source_grade: 'B',
+    license: 'restricted',
+    target_models: ['MA5600', 'MA5800'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.20',
+    name: 'hwGponPortDown',
+    category: 'pon_down',
+    severity: 'critical',
+    vendor: 'Huawei',
+    description: 'OLT GPON port operational status down',
+    source_id: 'huawei-ma5600-manual-v800',
+    source_grade: 'B',
+    license: 'restricted',
+    target_models: ['MA5600', 'MA5800'],
+    firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.21',
+    name: 'hwGponPortUp',
+    category: 'pon_up',
+    severity: 'info',
+    vendor: 'Huawei',
+    description: 'OLT GPON port operational status up',
+    source_id: 'huawei-ma5600-manual-v800',
+    source_grade: 'B',
+    license: 'restricted',
+    target_models: ['MA5600', 'MA5800'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.20',
+  },
 
   // ── ZTE GPON Traps (ZX-GPON-MIB) ───────────────────────────────────────────
   {
@@ -179,6 +256,90 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'permissive',
     target_models: ['C300', 'C600'],
     firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.3',
+    name: 'zxGponOntLossOfFrame',
+    category: 'los',
+    severity: 'critical',
+    vendor: 'ZTE',
+    description: 'Loss of frame on ZTE GPON ONT',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.10',
+    name: 'zxGponOntOffline',
+    category: 'onu_offline',
+    severity: 'warning',
+    vendor: 'ZTE',
+    description: 'ZTE GPON ONT offline event',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.11',
+    name: 'zxGponOntOnline',
+    category: 'onu_online',
+    severity: 'info',
+    vendor: 'ZTE',
+    description: 'ZTE GPON ONT online registration',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.10',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.12',
+    name: 'zxGponOntLosClear',
+    category: 'link_up',
+    severity: 'info',
+    vendor: 'ZTE',
+    description: 'ZTE GPON ONT loss of signal recovery',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.1',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.20',
+    name: 'zxGponPortDown',
+    category: 'pon_down',
+    severity: 'critical',
+    vendor: 'ZTE',
+    description: 'ZTE OLT PON port communication failure',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+  },
+  {
+    oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.21',
+    name: 'zxGponPortUp',
+    category: 'pon_up',
+    severity: 'info',
+    vendor: 'ZTE',
+    description: 'ZTE OLT PON port communication restored',
+    source_id: 'zte-c300-mib-librenms',
+    source_grade: 'B',
+    license: 'permissive',
+    target_models: ['C300', 'C600'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.20',
   },
 
   // ── Fiberhome GPON Traps (FH-GPON-MIB) ─────────────────────────────────────
@@ -215,19 +376,36 @@ const TRAP_MAP = new Map<string, SnmpTrapDefinition>(
 );
 
 export function isKnownTrapOid(oid: string): boolean {
-  return TRAP_MAP.has(oid.trim());
+  const clean = oid.trim();
+  if (TRAP_MAP.has(clean)) return true;
+  return KNOWN_TRAP_DEFINITIONS.some((def) => clean.startsWith(`${def.oid}.`));
 }
 
 /**
  * Looks up a trap definition by OID.
  *
+ * Checks exact match first. If not found, checks for the longest matching
+ * registered trap OID prefix (for instance-indexed traps like .frame.slot.port.onuId).
  * For unknown OIDs, returns a safe fallback definition with `category: 'unknown_trap'`
  * and `severity: 'info'` (Rule 6.4: no fabricated diagnoses).
  */
 export function lookupTrapDefinition(oid: string): SnmpTrapDefinition {
   const clean = oid.trim();
-  const known = TRAP_MAP.get(clean);
-  if (known) return known;
+  const exact = TRAP_MAP.get(clean);
+  if (exact) return exact;
+
+  let longestMatch: SnmpTrapDefinition | undefined;
+  for (const def of KNOWN_TRAP_DEFINITIONS) {
+    if (clean.startsWith(`${def.oid}.`)) {
+      if (!longestMatch || def.oid.length > longestMatch.oid.length) {
+        longestMatch = def;
+      }
+    }
+  }
+
+  if (longestMatch) {
+    return longestMatch;
+  }
 
   return {
     oid: clean,

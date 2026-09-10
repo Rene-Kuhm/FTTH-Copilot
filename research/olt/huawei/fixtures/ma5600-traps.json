@@ -1,0 +1,98 @@
+[
+  {
+    "description": "Huawei MA5600 GPON ONT Dying Gasp alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.2011.6.128.1.1.2.43.2.0.2.1.14",
+    "senderIp": "10.100.1.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 345600
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.2011.6.128.1.1.2.43.2.0.2.1.14"
+      },
+      {
+        "oid": "1.3.6.1.4.1.2011.6.128.1.1.2.43.1.1",
+        "type": "OctetString",
+        "value": "HWTC12345678",
+        "rawHex": "485754433132333435363738"
+      }
+    ],
+    "expected": {
+      "vendor": "Huawei",
+      "deviceKind": "ONU",
+      "deviceId": "HWTC12345678",
+      "severity": "critical",
+      "frame": 0,
+      "slot": 2,
+      "port": 1,
+      "onuId": 14
+    }
+  },
+  {
+    "description": "Huawei MA5600 GPON ONT Offline alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.2011.6.128.1.1.2.43.10.0.1.3.22",
+    "senderIp": "10.100.1.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 345900
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.2011.6.128.1.1.2.43.10.0.1.3.22"
+      },
+      {
+        "oid": "1.3.6.1.4.1.2011.6.128.1.1.2.43.1.1",
+        "type": "OctetString",
+        "value": "HWTC98765432"
+      }
+    ],
+    "expected": {
+      "vendor": "Huawei",
+      "deviceKind": "ONU",
+      "deviceId": "HWTC98765432",
+      "severity": "warning",
+      "frame": 0,
+      "slot": 1,
+      "port": 3,
+      "onuId": 22
+    }
+  },
+  {
+    "description": "Huawei MA5600 GPON Port Down event",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.2011.6.128.1.1.2.43.20.0.1.4",
+    "senderIp": "10.100.1.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 346000
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.2011.6.128.1.1.2.43.20.0.1.4"
+      }
+    ],
+    "expected": {
+      "vendor": "Huawei",
+      "deviceKind": "OLT",
+      "severity": "critical",
+      "frame": 0,
+      "slot": 1,
+      "port": 4
+    }
+  }
+]

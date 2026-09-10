@@ -1,0 +1,33 @@
+# Tasks: Fase 3 — Adaptadores de Fabricante OLT: Huawei y ZTE
+
+- [x] 1. Catalog Updates & Audit Metadata (`packages/monitoring/src/snmp/catalog.ts`)
+  - [x] 1.1 Add clear and port traps for Huawei (`hwGponOntOnline`, `hwGponOntLosClear`, `hwGponPortDown`, `hwGponPortUp`)
+  - [x] 1.2 Add clear and port traps for ZTE (`zxGponOntOnline`, `zxGponOntLosClear`, `zxGponPortDown`, `zxGponPortUp`)
+  - [x] 1.3 Audit all Huawei and ZTE definitions with source IDs and Gate 1 compliance
+- [x] 2. Serial & Hex Decoders Helper (`packages/monitoring/src/snmp/extractors/vendor-helpers.ts`)
+  - [x] 2.1 Implement robust ASCII/Hex serial decoder (`HWTC...`, `ZTEG...`)
+  - [x] 2.2 Implement OID instance suffix parser for slot/port/ONU hierarchies
+- [x] 3. Huawei OLT Adapter (`packages/monitoring/src/snmp/adapter/huawei.ts`)
+  - [x] 3.1 Implement `HuaweiOltAdapter` with PEN 2011 and `MA5600`/`MA5800` families
+  - [x] 3.2 Extract frame/slot/port/ONU and serial from varbinds and instance OIDs
+  - [x] 3.3 Set `deviceKind: 'ONU'` with `deviceId: serial` when ONU is present
+  - [x] 3.4 Support clear pairs (`hwGponOntOnline`, `hwGponOntLosClear`)
+- [x] 4. ZTE OLT Adapter (`packages/monitoring/src/snmp/adapter/zte.ts`)
+  - [x] 4.1 Implement `ZteOltAdapter` with PEN 3902 and `C300`/`C600` families
+  - [x] 4.2 Extract rack/shelf/slot/port/ONU and serial from varbinds and instance OIDs
+  - [x] 4.3 Set `deviceKind: 'ONU'` with `deviceId: serial` when ONU is present
+  - [x] 4.4 Support clear pairs (`zxGponOntOnline`, `zxGponOntLosClear`)
+- [x] 5. Adapter Registry Integration & Exports
+  - [x] 5.1 Register `HuaweiOltAdapter` and `ZteOltAdapter` in `defaultAdapterRegistry`
+  - [x] 5.2 Export new adapters and helpers from `packages/monitoring/src/index.ts`
+- [x] 6. Research Registries & Fixtures (Level L2)
+  - [x] 6.1 Update `research/olt/huawei/sources.yaml` and `compatibility.yaml` to L2
+  - [x] 6.2 Update `research/olt/zte/sources.yaml` and `compatibility.yaml` to L2
+  - [x] 6.3 Add test fixture files in `research/olt/huawei/fixtures/` and `research/olt/zte/fixtures/`
+  - [x] 6.4 Verify `pnpm check:sources` and `pnpm generate:matrix`
+- [x] 7. Test Suites & Gate 3 Verification
+  - [x] 7.1 Unit tests for Huawei adapter (`tests/snmp/huawei-adapter.test.ts`)
+  - [x] 7.2 Unit tests for ZTE adapter (`tests/snmp/zte-adapter.test.ts`)
+  - [x] 7.3 End-to-end binary test for Huawei and ZTE traps (`scripts/test-snmp.ts`)
+  - [x] 7.4 Monorepo validation (`pnpm turbo run lint typecheck test`)
+  - [x] 7.5 Create `verify-report.md`

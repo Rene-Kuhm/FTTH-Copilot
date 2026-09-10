@@ -1,8 +1,9 @@
 /**
- * SNMP Automated Trap & Inform Verification Script (Roadmap Fase 0).
+ * SNMP Automated Trap & Inform Verification Script (Roadmap Fase 0, 2 & 3).
  *
  * Runs end-to-end verification of binary SNMPv1, SNMPv2c (TrapV2 & Inform),
- * and SNMPv3 (RFC 3414 authPriv) reception and parsing in CI/local lab.
+ * SNMPv3 (RFC 3414 authPriv), Standard RFC OLT adapter, Huawei OLT adapter,
+ * and ZTE OLT adapter in CI/local lab.
  */
 
 import {
@@ -29,7 +30,6 @@ async function run(): Promise<void> {
         tenantId: 'tenant-test',
         connectionId: 'conn-lab-1',
         oltId: 'OLT-TEST-01',
-        vendor: 'Huawei',
         community: 'public',
         v3User: {
           name: 'noc-operator',
@@ -67,20 +67,19 @@ async function run(): Promise<void> {
     await new Promise((r) => setTimeout(r, 150));
 
     // 2. Send SNMPv2c TrapV2
-    console.log('[test:snmp] Sending binary SNMPv2c TrapV2...');
+    console.log('[test:snmp] Sending binary SNMPv2c TrapV2 (Standard linkDown)...');
     await sendSnmpTestTrap({
       port: testPort,
       version: 'v2c',
       trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
       varbinds: [
         { oid: '1.3.6.1.2.1.2.2.1.1.1', type: 'Integer', value: 1 },
-        { oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1', type: 'OctetString', value: 'HWTC12345678' },
       ],
     });
     await new Promise((r) => setTimeout(r, 150));
 
     // 3. Send SNMPv2c InformRequest (asserts automatic ResponsePDU acknowledgement)
-    console.log('[test:snmp] Sending binary SNMPv2c InformRequest...');
+    console.log('[test:snmp] Sending binary SNMPv2c InformRequest (Standard linkUp)...');
     await sendSnmpTestTrap({
       port: testPort,
       version: 'v2c',
@@ -122,10 +121,42 @@ async function run(): Promise<void> {
     });
     await new Promise((r) => setTimeout(r, 200));
 
+    // 6. Send Huawei GPON ONT Dying Gasp Trap (Fase 3)
+    console.log('[test:snmp] Sending Huawei GPON ONT Dying Gasp Trap (hwGponOntDyingGasp)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2.0.2.1.14', // frame 0, slot 2, port 1, onu 14
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.1',
+          type: 'OctetString',
+          value: 'HWTC12345678',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // 7. Send ZTE GPON ONT LOS Trap (Fase 3)
+    console.log('[test:snmp] Sending ZTE GPON ONT LOS Trap (zxGponOntLossOfSignal)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1.3.2.5', // rack 1, shelf 1, slot 3, port 2, onu 5
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1',
+          type: 'OctetString',
+          value: 'ZTEGC8765432',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
     // Validations
     console.log(`[test:snmp] Total notifications received: ${received.length}`);
-    if (received.length < 5) {
-      throw new Error(`Expected 5 notifications (v1, v2c, Inform, v3, authFailure), but received ${received.length}`);
+    if (received.length < 7) {
+      throw new Error(`Expected 7 notifications, but received ${received.length}`);
     }
 
     const versions = received.map((r) => r.notif.version);
@@ -145,10 +176,10 @@ async function run(): Promise<void> {
       }
     }
 
-    // Gate 2 Telemetry Invariants & Schema Verification
+    // Gate 2 & Gate 3 Telemetry Invariants & Schema Verification
     console.log(`[test:snmp] Total telemetry.v1 events generated: ${telemetryEvents.length}`);
-    if (telemetryEvents.length < 5) {
-      throw new Error(`Expected at least 5 telemetry events, got ${telemetryEvents.length}`);
+    if (telemetryEvents.length < 7) {
+      throw new Error(`Expected at least 7 telemetry events, got ${telemetryEvents.length}`);
     }
 
     for (const event of telemetryEvents) {
@@ -156,15 +187,46 @@ async function run(): Promise<void> {
       if (parsed.tenantId !== 'tenant-test') {
         throw new Error(`Tenant isolation breached: expected 'tenant-test', got '${parsed.tenantId}'`);
       }
-      if (parsed.deviceKind !== 'OLT') {
-        throw new Error(`Expected deviceKind 'OLT', got '${parsed.deviceKind}'`);
-      }
       if (parsed.source !== 'snmp-trap') {
         throw new Error(`Expected source 'snmp-trap', got '${parsed.source}'`);
       }
     }
 
-    console.log('[test:snmp] ✅ Gate 0 & Gate 2 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, evidence envelopes & telemetry.v1 100% OK.');
+    // Validate Huawei Adapter normalization
+    const huaweiOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'huawei' && e.metrics['trapName'] === 'hwGponOntDyingGasp',
+    );
+    if (!huaweiOntEvent) {
+      throw new Error('Expected Huawei normalized telemetry event from HuaweiOltAdapter');
+    }
+    if (huaweiOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected Huawei event deviceKind 'ONU', got '${huaweiOntEvent.deviceKind}'`);
+    }
+    if (huaweiOntEvent.deviceId !== 'HWTC12345678') {
+      throw new Error(`Expected Huawei deviceId 'HWTC12345678', got '${huaweiOntEvent.deviceId}'`);
+    }
+    if (huaweiOntEvent.metrics['onuId'] !== 14 || huaweiOntEvent.metrics['slot'] !== 2) {
+      throw new Error(`Invalid Huawei GPON hierarchy: onuId=${huaweiOntEvent.metrics['onuId']}, slot=${huaweiOntEvent.metrics['slot']}`);
+    }
+
+    // Validate ZTE Adapter normalization
+    const zteOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'zte' && e.metrics['trapName'] === 'zxGponOntLossOfSignal',
+    );
+    if (!zteOntEvent) {
+      throw new Error('Expected ZTE normalized telemetry event from ZteOltAdapter');
+    }
+    if (zteOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected ZTE event deviceKind 'ONU', got '${zteOntEvent.deviceKind}'`);
+    }
+    if (zteOntEvent.deviceId !== 'ZTEGC8765432') {
+      throw new Error(`Expected ZTE deviceId 'ZTEGC8765432', got '${zteOntEvent.deviceId}'`);
+    }
+    if (zteOntEvent.metrics['onuId'] !== 5 || zteOntEvent.metrics['slot'] !== 3) {
+      throw new Error(`Invalid ZTE GPON hierarchy: onuId=${zteOntEvent.metrics['onuId']}, slot=${zteOntEvent.metrics['slot']}`);
+    }
+
+    console.log('[test:snmp] ✅ Gate 0, Gate 2 & Gate 3 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei & ZTE adapters 100% OK.');
   } finally {
     receiver.close();
   }

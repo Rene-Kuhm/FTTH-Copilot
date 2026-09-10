@@ -147,6 +147,16 @@ export {
 } from './snmp/adapter/contract';
 
 export { StandardOltAdapter } from './snmp/adapter/standard';
+export { HuaweiOltAdapter } from './snmp/adapter/huawei';
+export { ZteOltAdapter } from './snmp/adapter/zte';
+
+export {
+  decodeVendorSerialNumber,
+  extractHierarchyFromOid,
+  extractHuaweiGponHierarchy,
+  extractZteGponHierarchy,
+  type GponOpticalHierarchy,
+} from './snmp/extractors/vendor-helpers';
 
 export {
   OltAdapterRegistry,
