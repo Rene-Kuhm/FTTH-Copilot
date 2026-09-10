@@ -90,6 +90,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 - **Escala:** si hay picos de traps que Node no absorbe → separar a collector (ver 3.1).
 - **Criterio de hecho:** receptor SNMP ingesta traps y los normaliza a `telemetry.v1`.
 - **Estado actual:** Implementado en TypeScript en `packages/monitoring/src/snmp/` y `apps/web/lib/monitoring/snmp.ts` (PR #139: catálogo MIB/OID, mapping por IP, parser, guardia de ingesta; PR #140: correlación con incidentes y recuperación tolerante a UDP fuera de orden). Validado en laboratorio con suites de prueba unitarias e integración; receptor en modo observación (`SNMP_RECEIVER_ENABLED=false`). Pendiente: validación de campo contra hardware OLT físico autorizado (Gate 6 abierto).
+- **Expansión multi-fabricante:** seguir `docs/roadmap-olt-multivendor.md`. Primero debe completarse el decoder de datagramas reales; luego se incorporan paquetes trazables para 12 fabricantes y validación reproducible sin hardware.
 
 ### 2.4 Streaming gNMI/NETCONF (futuro) — 🔵 PENDIENTE
 - **Objetivo:** telemetría push estructurada desde el NMS.
@@ -146,7 +147,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 | 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría | ✅ shipped (#82) |
 | 🟡 P2.1 | FEC errors (BIP-8) | Medio | telemetría | ✅ shipped (#83/#86) |
 | 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría | ✅ shipped (#88/#89) |
-| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | 🔵 pendiente |
+| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | 🟡 laboratorio; expansión multi-fabricante planificada |
 | 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta | 🔵 pendiente |
 | 🟡 P2.5 | NetSense | Medio | conector | 🔵 bloqueado (NMS) |
 | 🔵 P3.x | Collector Go / Polars / Python / Bus | — | gated | 🔵 SOLO con gates |
@@ -156,7 +157,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 ## Recomendación de arranque (próxima sesión)
 
 1. **P1.1 — Precision real (corpus etiquetado)** — arrancar en paralelo, depende del tech lead NOC etiquetando `docs/validation/labels.csv`.
-2. **P2.3 — Colector SNMP traps** — siguiente paso de ingesta cuando tengamos telemetría óptica completa consolidada.
+2. **P2.3 — OLT multi-fabricante** — ejecutar `docs/roadmap-olt-multivendor.md`, comenzando por el decoder SNMP binario real.
 3. **P2.5 — NetSense** — solo cuando haya NMS real disponible.
 
 ---
