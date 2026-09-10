@@ -18,6 +18,9 @@ import { NokiaOltAdapter } from './nokia';
 import { FiberhomeOltAdapter } from './fiberhome';
 import { CalixOltAdapter } from './calix';
 import { AdtranOltAdapter } from './adtran';
+import { VsolOltAdapter } from './vsol';
+import { BdcomOltAdapter } from './bdcom';
+import { GenericXponAdapter } from './generic-xpon';
 
 export class OltAdapterRegistry {
   private readonly adapters = new Map<string, OltVendorAdapter>();
@@ -90,3 +93,6 @@ defaultAdapterRegistry.register(new NokiaOltAdapter());
 defaultAdapterRegistry.register(new FiberhomeOltAdapter());
 defaultAdapterRegistry.register(new CalixOltAdapter());
 defaultAdapterRegistry.register(new AdtranOltAdapter());
+defaultAdapterRegistry.register(new VsolOltAdapter());
+defaultAdapterRegistry.register(new BdcomOltAdapter());
+defaultAdapterRegistry.register(new GenericXponAdapter());

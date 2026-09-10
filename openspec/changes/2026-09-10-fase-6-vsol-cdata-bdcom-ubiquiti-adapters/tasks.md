@@ -1,0 +1,31 @@
+# Tasks: Fase 6 — Adaptadores de Fabricante OLT: VSOL, C-Data, BDCOM y Ubiquiti
+
+- [x] 1. Research Registry & Elevation
+  - [x] 1.1 Update `research/olt/vsol/sources.yaml` and `compatibility.yaml` (elevate V1600 GPON to L2)
+  - [x] 1.2 Add fixture `research/olt/vsol/fixtures/v1600-traps.json`
+  - [x] 1.3 Update `research/olt/bdcom/sources.yaml` and `compatibility.yaml` (elevate P3600 GPON to L2)
+  - [x] 1.4 Add fixture `research/olt/bdcom/fixtures/p3600-traps.json`
+  - [x] 1.5 Update `research/olt/cdata/sources.yaml` and `compatibility.yaml` documenting OEM white-label architecture
+  - [x] 1.6 Update `research/olt/ubiquiti/sources.yaml` and `compatibility.yaml` documenting UISP vs SNMP boundary
+  - [x] 1.7 Verify `pnpm check:sources` and `pnpm generate:matrix`
+- [x] 2. Catalog Extensions (`packages/monitoring/src/snmp/catalog.ts`)
+  - [x] 2.1 Add VSOL V1600 GPON trap definitions (`vsolGponOntDyingGasp`, `vsolGponOntLossOfSignal`, `vsolGponOntOnline`, `vsolGponOntOffline`, `vsolGponPortDown`, `vsolGponPortUp`)
+  - [x] 2.2 Add BDCOM P3600 GPON trap definitions (`nmsGponOntDyingGasp`, `nmsGponOntLos`, `nmsGponOntOnline`, `nmsGponOntOffline`, `nmsGponPonDown`, `nmsGponPonUp`)
+  - [x] 2.3 Ensure full Gate 1 audit metadata compliance
+- [x] 3. Hierarchy & Serial Decoding Helpers (`packages/monitoring/src/snmp/extractors/vendor-helpers.ts`)
+  - [x] 3.1 Support `VSOL` and `BDCM` in serial prefix decoding
+  - [x] 3.2 Implement `extractVsolHierarchy`
+  - [x] 3.3 Implement `extractBdcomHierarchy`
+- [x] 4. Adapter Implementations
+  - [x] 4.1 Implement `VsolOltAdapter` (`packages/monitoring/src/snmp/adapter/vsol.ts`)
+  - [x] 4.2 Implement `BdcomOltAdapter` (`packages/monitoring/src/snmp/adapter/bdcom.ts`)
+  - [x] 4.3 Implement `GenericXponAdapter` (`packages/monitoring/src/snmp/adapter/generic-xpon.ts`)
+  - [x] 4.4 Register adapters in `OltAdapterRegistry` (`packages/monitoring/src/snmp/adapter/registry.ts`)
+  - [x] 4.5 Export new adapters in `packages/monitoring/src/index.ts`
+- [x] 5. Testing & Gate 6 Verification
+  - [x] 5.1 Unit tests for VSOL adapter (`tests/snmp/vsol-adapter.test.ts`)
+  - [x] 5.2 Unit tests for BDCOM adapter (`tests/snmp/bdcom-adapter.test.ts`)
+  - [x] 5.3 Unit tests for Generic xPON adapter (`tests/snmp/generic-xpon-adapter.test.ts`)
+  - [x] 5.4 Update `scripts/test-snmp.ts` with VSOL and BDCOM binary traps
+  - [x] 5.5 Run full monorepo validation (`pnpm turbo run lint typecheck test`)
+  - [x] 5.6 Create `verify-report.md`

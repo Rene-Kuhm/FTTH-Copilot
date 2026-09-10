@@ -11,3 +11,47 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: vsol-gpon-mib-002
+  vendor: VSOL
+  families:
+    - V1600
+  firmware: unknown
+  title: VSOL V1600 GPON Enterprise MIB & Traps
+  publisher: Guangzhou V-Solution
+  url: https://www.vsolcn.com/support/mib/v1600-gpon
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: vsolGponOntDyingGasp
+      oid: 1.3.6.1.4.1.37950.5.1.1.1
+      status: recognized
+      severity: critical
+      category: dying_gasp
+    - notification_name: vsolGponOntLossOfSignal
+      oid: 1.3.6.1.4.1.37950.5.1.1.2
+      status: recognized
+      severity: critical
+      category: los
+    - notification_name: vsolGponOntOnline
+      oid: 1.3.6.1.4.1.37950.5.1.1.3
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: vsolGponOntOffline
+      oid: 1.3.6.1.4.1.37950.5.1.1.4
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: vsolGponPortDown
+      oid: 1.3.6.1.4.1.37950.5.1.2.1
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: vsolGponPortUp
+      oid: 1.3.6.1.4.1.37950.5.1.2.2
+      status: recognized
+      severity: info
+      category: pon_up

@@ -180,6 +180,50 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     expect(adtranLosClear.is_clear).toBe(true);
   });
 
+  it('recognizes VSOL V1600 GPON and recovery traps', () => {
+    const vsolLos = lookupTrapDefinition('1.3.6.1.4.1.37950.5.1.1.2');
+    expect(vsolLos.category).toBe('los');
+    expect(vsolLos.severity).toBe('critical');
+    expect(vsolLos.vendor).toBe('VSOL');
+
+    const vsolDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.37950.5.1.1.1');
+    expect(vsolDyingGasp.category).toBe('dying_gasp');
+    expect(vsolDyingGasp.severity).toBe('critical');
+
+    const vsolOnline = lookupTrapDefinition('1.3.6.1.4.1.37950.5.1.1.3');
+    expect(vsolOnline.category).toBe('onu_online');
+    expect(vsolOnline.is_clear).toBe(true);
+
+    const vsolPortDown = lookupTrapDefinition('1.3.6.1.4.1.37950.5.1.2.1');
+    expect(vsolPortDown.category).toBe('pon_down');
+
+    const vsolPortUp = lookupTrapDefinition('1.3.6.1.4.1.37950.5.1.2.2');
+    expect(vsolPortUp.category).toBe('pon_up');
+    expect(vsolPortUp.is_clear).toBe(true);
+  });
+
+  it('recognizes BDCOM P3600 GPON and recovery traps (NMS-GPON-MIB)', () => {
+    const bdcomLos = lookupTrapDefinition('1.3.6.1.4.1.3320.101.10.0.2');
+    expect(bdcomLos.category).toBe('los');
+    expect(bdcomLos.severity).toBe('critical');
+    expect(bdcomLos.vendor).toBe('BDCOM');
+
+    const bdcomDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.3320.101.10.0.1');
+    expect(bdcomDyingGasp.category).toBe('dying_gasp');
+    expect(bdcomDyingGasp.severity).toBe('critical');
+
+    const bdcomOnline = lookupTrapDefinition('1.3.6.1.4.1.3320.101.10.0.3');
+    expect(bdcomOnline.category).toBe('onu_online');
+    expect(bdcomOnline.is_clear).toBe(true);
+
+    const bdcomPonDown = lookupTrapDefinition('1.3.6.1.4.1.3320.101.10.0.5');
+    expect(bdcomPonDown.category).toBe('pon_down');
+
+    const bdcomPonUp = lookupTrapDefinition('1.3.6.1.4.1.3320.101.10.0.6');
+    expect(bdcomPonUp.category).toBe('pon_up');
+    expect(bdcomPonUp.is_clear).toBe(true);
+  });
+
   it('safely handles unknown OIDs without fabricating diagnoses (6.4)', () => {
     const unknownOid = '1.3.6.1.4.1.99999.1.2.3.4';
     expect(isKnownTrapOid(unknownOid)).toBe(false);

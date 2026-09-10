@@ -4,9 +4,15 @@ iana_pens:
   - 3320
 families:
   - family: P3600
-    level: L1
+    level: L2
     confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - nmsGponOntDyingGasp
+      - nmsGponOntLos
+      - nmsGponOntOnline
+      - nmsGponOntOffline
+      - nmsGponPonDown
+      - nmsGponPonUp
     sources:
       - bdcom-librenms-gpon-mib-001

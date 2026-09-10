@@ -324,14 +324,15 @@ Gate 5:
 
 Objetivo: cubrir equipos frecuentes en ISP pequeños y regionales.
 
-- [ ] Separar GPON, EPON, XGS-PON y Combo; estos equipos pueden usar árboles distintos dentro de una misma marca.
-- [ ] Investigar VSOL V1600/V3600 por firmware publicado.[^11]
-- [ ] Investigar C-Data FD por Enterprise OID y chipset, evitando identificar clones solo por marca comercial.[^12]
-- [ ] Contrastar BDCOM con NMS-GPON-MIB y evidencia pública de campo.[^13]
-- [ ] Investigar UF-OLT y UISP Fiber OLT XGS; registrar cuándo la gestión se expone por UISP y cuándo por SNMP.[^14]
-- [ ] Añadir un perfil `generic_xpon` que conserve traps desconocidos sin pretender compatibilidad.
+- [x] Separar GPON, EPON, XGS-PON y Combo; estos equipos pueden usar árboles distintos dentro de una misma marca.
+- [x] Investigar VSOL V1600/V3600 por firmware publicado.[^11]
+- [x] Investigar C-Data FD por Enterprise OID y chipset, evitando identificar clones solo por marca comercial.[^12]
+- [x] Contrastar BDCOM con NMS-GPON-MIB y evidencia pública de campo.[^13]
+- [x] Investigar UF-OLT y UISP Fiber OLT XGS; registrar cuándo la gestión se expone por UISP y cuándo por SNMP.[^14]
+- [x] Añadir un perfil `generic_xpon` que conserve traps desconocidos sin pretender compatibilidad.
 
-Gate 6: los cuatro fabricantes tienen inventario; al menos dos alcanzan L2 y los demás publican bloqueos verificables.
+Gate 6:
+- [x] Los cuatro fabricantes tienen inventario; VSOL y BDCOM alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback, y C-Data y Ubiquiti publican sus restricciones y límites arquitectónicos verificables (UISP vs SNMP y white-label OEM). Verificado en `openspec/changes/2026-09-10-fase-6-vsol-cdata-bdcom-ubiquiti-adapters/verify-report.md`.
 
 ### Fase 7 — Laboratorio de conformidad sin hardware
 

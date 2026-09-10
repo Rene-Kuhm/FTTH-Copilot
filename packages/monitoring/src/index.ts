@@ -153,6 +153,9 @@ export { NokiaOltAdapter } from './snmp/adapter/nokia';
 export { FiberhomeOltAdapter } from './snmp/adapter/fiberhome';
 export { CalixOltAdapter } from './snmp/adapter/calix';
 export { AdtranOltAdapter } from './snmp/adapter/adtran';
+export { VsolOltAdapter } from './snmp/adapter/vsol';
+export { BdcomOltAdapter } from './snmp/adapter/bdcom';
+export { GenericXponAdapter } from './snmp/adapter/generic-xpon';
 
 export {
   decodeVendorSerialNumber,
@@ -163,6 +166,8 @@ export {
   extractFiberhomeGponHierarchy,
   extractCalixHierarchy,
   extractAdtranHierarchy,
+  extractVsolHierarchy,
+  extractBdcomHierarchy,
   type GponOpticalHierarchy,
   type CalixParsedEvent,
 } from './snmp/extractors/vendor-helpers';

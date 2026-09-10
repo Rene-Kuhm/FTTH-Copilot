@@ -615,3 +615,133 @@ export function extractAdtranHierarchy(
 
   return hierarchy;
 }
+
+/**
+ * Extracts VSOL V1600 GPON hierarchy and serial from notification trap OID and varbinds.
+ */
+export function extractVsolHierarchy(
+  notification: DecodedSnmpNotification,
+  baseTrapOid?: string,
+): GponOpticalHierarchy {
+  const hierarchy: GponOpticalHierarchy = {};
+
+  // 1. Check trap OID suffix if provided
+  if (baseTrapOid && notification.trapOid.startsWith(`${baseTrapOid}.`)) {
+    const suffix = notification.trapOid.slice(baseTrapOid.length + 1);
+    const parts = suffix
+      .split('.')
+      .map((p) => parseInt(p, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 0);
+
+    if (parts.length >= 3) {
+      const [sl, p, o] = parts.slice(-3);
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+      hierarchy.onuId = o;
+    } else if (parts.length === 2) {
+      const [sl, p] = parts;
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+    }
+  }
+
+  // 2. Scan varbinds for explicit OID indexes or string descriptions
+  for (const vb of notification.varbinds) {
+    if (vb.oid.endsWith('.10.1') && typeof vb.value === 'number') {
+      hierarchy.slot = vb.value;
+    } else if (vb.oid.endsWith('.10.2') && typeof vb.value === 'number') {
+      hierarchy.port = vb.value;
+    } else if (vb.oid.endsWith('.10.3') && typeof vb.value === 'number') {
+      hierarchy.onuId = vb.value;
+    } else if (typeof vb.value === 'string') {
+      const val = vb.value.trim();
+      // Match patterns like "gpon 1/2:5", "ont 1/2/5", "epon 0/1:3"
+      const match3 = val.match(/(?:gpon|epon|ont)\s*(\d+)\/(\d+)[:/](\d+)/i);
+      if (match3) {
+        hierarchy.slot = parseInt(match3[1], 10);
+        hierarchy.port = parseInt(match3[2], 10);
+        hierarchy.onuId = parseInt(match3[3], 10);
+      } else {
+        const match2 = val.match(/(?:gpon|epon|port)\s*(\d+)\/(\d+)/i);
+        if (match2 && !hierarchy.port) {
+          hierarchy.slot = parseInt(match2[1], 10);
+          hierarchy.port = parseInt(match2[2], 10);
+        }
+      }
+    }
+
+    if (!hierarchy.serial) {
+      const serial = decodeVendorSerialNumber(vb.value, vb.rawHex);
+      if (serial) {
+        hierarchy.serial = serial;
+      }
+    }
+  }
+
+  return hierarchy;
+}
+
+/**
+ * Extracts BDCOM P3600 GPON hierarchy and serial from notification trap OID and varbinds.
+ */
+export function extractBdcomHierarchy(
+  notification: DecodedSnmpNotification,
+  baseTrapOid?: string,
+): GponOpticalHierarchy {
+  const hierarchy: GponOpticalHierarchy = {};
+
+  // 1. Check trap OID suffix if provided
+  if (baseTrapOid && notification.trapOid.startsWith(`${baseTrapOid}.`)) {
+    const suffix = notification.trapOid.slice(baseTrapOid.length + 1);
+    const parts = suffix
+      .split('.')
+      .map((p) => parseInt(p, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 0);
+
+    if (parts.length >= 3) {
+      const [sl, p, o] = parts.slice(-3);
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+      hierarchy.onuId = o;
+    } else if (parts.length === 2) {
+      const [sl, p] = parts;
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+    }
+  }
+
+  // 2. Scan varbinds for NMS-GPON-MIB attributes (.1.1.1=slot, .1.1.2=port, .1.1.3=onuId)
+  for (const vb of notification.varbinds) {
+    if (vb.oid.endsWith('.1.1.1') && typeof vb.value === 'number') {
+      hierarchy.slot = vb.value;
+    } else if (vb.oid.endsWith('.1.1.2') && typeof vb.value === 'number') {
+      hierarchy.port = vb.value;
+    } else if (vb.oid.endsWith('.1.1.3') && typeof vb.value === 'number') {
+      hierarchy.onuId = vb.value;
+    } else if (typeof vb.value === 'string') {
+      const val = vb.value.trim();
+      // Match patterns like "gpon0/4:12", "GPON 0/4:12"
+      const match3 = val.match(/gpon\s*(\d+)\/(\d+)[:/](\d+)/i);
+      if (match3) {
+        hierarchy.slot = parseInt(match3[1], 10);
+        hierarchy.port = parseInt(match3[2], 10);
+        hierarchy.onuId = parseInt(match3[3], 10);
+      } else {
+        const match2 = val.match(/gpon\s*(\d+)\/(\d+)/i);
+        if (match2 && !hierarchy.port) {
+          hierarchy.slot = parseInt(match2[1], 10);
+          hierarchy.port = parseInt(match2[2], 10);
+        }
+      }
+    }
+
+    if (!hierarchy.serial) {
+      const serial = decodeVendorSerialNumber(vb.value, vb.rawHex);
+      if (serial) {
+        hierarchy.serial = serial;
+      }
+    }
+  }
+
+  return hierarchy;
+}
