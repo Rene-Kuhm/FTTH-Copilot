@@ -1,0 +1,14 @@
+- source_id: dzs-velocity-portal-001
+  vendor: DZS
+  families:
+    - MXK
+    - Velocity-V1
+  firmware: unknown
+  title: DZS Fiber Access Velocity OLT Architecture
+  publisher: DZS Inc.
+  url: https://dzsi.com/products-and-services/access-edge/fiber-access/
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

@@ -1,0 +1,20 @@
+vendor: DZS
+priority: P1
+iana_pens:
+  - 5597
+  - 6296
+families:
+  - family: MXK
+    level: L1
+    confidence_grade: C
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - dzs-velocity-portal-001
+  - family: Velocity-V1
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - dzs-velocity-portal-001

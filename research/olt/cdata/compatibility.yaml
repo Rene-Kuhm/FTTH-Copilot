@@ -1,0 +1,12 @@
+vendor: C-Data
+priority: P1
+iana_pens:
+  - 34592
+families:
+  - family: FD1600
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - cdata-products-portal-001

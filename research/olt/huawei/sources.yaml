@@ -1,0 +1,36 @@
+- source_id: huawei-ma5600-snmp-mib-001
+  vendor: Huawei
+  families:
+    - MA5600
+  firmware: unknown
+  title: Huawei OLT/ONT Community SNMP MIB Collection
+  publisher: Huawei / Community Mirror
+  url: https://github.com/Jeremias0618/Huawei-OLT-ONT-SNMP-MIBs
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: hwGponOntDyingGasp
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43
+      status: provisional
+      severity: major
+      category: dying_gasp
+    - notification_name: hwGponOntOpticalPowerLoss
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.46
+      status: provisional
+      severity: critical
+      category: pon_los
+- source_id: huawei-ma5800-product-doc-001
+  vendor: Huawei
+  families:
+    - MA5800
+  firmware: unknown
+  title: SmartAX MA5800 Series Optical Access OLT
+  publisher: Huawei Technologies
+  url: https://e.huawei.com/eu/products/optical-access/ma5800
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

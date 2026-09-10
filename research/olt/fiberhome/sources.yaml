@@ -1,0 +1,47 @@
+- source_id: fiberhome-snmp-implementation-001
+  vendor: FiberHome
+  families:
+    - AN5516
+  firmware: unknown
+  title: Community SNMP Driver for FiberHome AN5516 OLT
+  publisher: Community / ISP Lab
+  url: https://github.com/tqandrade/snmp-fiberhome
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: fhOnuDyingGasp
+      oid: 1.3.6.1.4.1.3807.1.3.1.2.2
+      status: provisional
+      category: dying_gasp
+    - notification_name: fhOnuPowerOff
+      oid: 1.3.6.1.4.1.3807.1.3.1.2.3
+      status: provisional
+      category: power_failure
+- source_id: fiberhome-librenms-common-mib-001
+  vendor: FiberHome
+  families:
+    - AN5516
+  firmware: unknown
+  title: FiberHome OLT Common MIB in LibreNMS
+  publisher: LibreNMS Project
+  url: https://github.com/librenms/librenms-mibs/blob/master/FIBERHOME-OLT-COMMON-MIB
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts: []
+- source_id: fiberhome-an6000-official-portal-001
+  vendor: FiberHome
+  families:
+    - AN6000
+  firmware: unknown
+  title: FiberHome AN6000 Series OLT Platform Documentation
+  publisher: FiberHome Telecommunication
+  url: https://www.fiberhome.com/OLTAN6000xl/20230110/42575.html
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

@@ -1,0 +1,13 @@
+- source_id: bdcom-librenms-gpon-mib-001
+  vendor: BDCOM
+  families:
+    - P3600
+  firmware: unknown
+  title: BDCOM NMS-GPON-MIB in LibreNMS
+  publisher: LibreNMS / BDCOM
+  url: https://github.com/librenms/librenms/blob/master/mibs/bdcom/NMS-GPON-MIB
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts: []

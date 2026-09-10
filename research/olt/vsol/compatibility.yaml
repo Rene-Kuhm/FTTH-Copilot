@@ -1,0 +1,12 @@
+vendor: VSOL
+priority: P1
+iana_pens:
+  - 37950
+families:
+  - family: V1600
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - vsol-download-portal-001

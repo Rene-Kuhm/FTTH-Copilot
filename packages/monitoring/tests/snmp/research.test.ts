@@ -1,0 +1,151 @@
+import { describe, expect, it } from 'vitest';
+import {
+  validateSourcesList,
+  validateCompatibilityRecord,
+  validateCrossVendorRegistry,
+} from '../../src/snmp/research/validator';
+
+describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () => {
+  const validSource = {
+    source_id: 'huawei-ma5800-gpon-alarm-001',
+    vendor: 'Huawei',
+    families: ['MA5800'],
+    firmware: 'unknown',
+    title: 'HUAWEI-GPON-MIB Alarm Definitions',
+    publisher: 'Huawei',
+    url: 'https://support.huawei.com/enterprise/en/doc/EDOC1100000001',
+    source_grade: 'B' as const,
+    retrieved_at: '2026-09-10',
+    license: 'review-required' as const,
+    sha256: null,
+    facts: [
+      {
+        notification_name: 'hwGponOntDyingGasp',
+        oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+        status: 'provisional' as const,
+        severity: 'major',
+        category: 'dying_gasp',
+      },
+    ],
+  };
+
+  it('validates a compliant sources list without errors', () => {
+    const result = validateSourcesList([validSource]);
+    expect(result.valid).toBe(true);
+    expect(result.issues.filter((i) => i.type === 'error')).toHaveLength(0);
+  });
+
+  it('rejects invalid source_grade or malformed source_id', () => {
+    const invalidSource = {
+      ...validSource,
+      source_id: 'Invalid_UPPERCASE_ID',
+      source_grade: 'Z', // invalid grade
+    };
+
+    const result = validateSourcesList([invalidSource]);
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.message.includes('kebab-case'))).toBe(true);
+  });
+
+  it('detects duplicate source_ids within the same file', () => {
+    const duplicateList = [validSource, { ...validSource, title: 'Second copy' }];
+    const result = validateSourcesList(duplicateList);
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.message.includes('Duplicate source_id'))).toBe(true);
+  });
+
+  it('validates a compliant vendor compatibility record', () => {
+    const validCompat = {
+      vendor: 'Huawei',
+      priority: 'P0' as const,
+      iana_pens: [2011],
+      families: [
+        {
+          family: 'MA5800',
+          level: 'L2' as const,
+          confidence_grade: 'B' as const,
+          firmware: 'unknown',
+          supported_traps: ['hwGponOntDyingGasp'],
+          sources: ['huawei-ma5800-gpon-alarm-001'],
+        },
+      ],
+    };
+
+    const result = validateCompatibilityRecord(validCompat);
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects invalid support level (outside L0-L4)', () => {
+    const invalidCompat = {
+      vendor: 'Huawei',
+      priority: 'P0' as const,
+      iana_pens: [2011],
+      families: [
+        {
+          family: 'MA5800',
+          level: 'L9', // invalid level
+          confidence_grade: 'B' as const,
+          firmware: 'unknown',
+          supported_traps: [],
+          sources: [],
+        },
+      ],
+    };
+
+    const result = validateCompatibilityRecord(invalidCompat);
+    expect(result.valid).toBe(false);
+  });
+
+  it('cross-validates cross-vendor registry detecting broken references and duplicate IDs', () => {
+    const pkgA = {
+      vendorId: 'huawei',
+      sources: [validSource],
+      compatibility: {
+        vendor: 'Huawei',
+        priority: 'P0' as const,
+        iana_pens: [2011],
+        families: [
+          {
+            family: 'MA5800',
+            level: 'L2' as const,
+            confidence_grade: 'B' as const,
+            firmware: 'unknown',
+            supported_traps: ['hwGponOntDyingGasp'],
+            sources: ['huawei-ma5800-gpon-alarm-001'],
+          },
+        ],
+      },
+    };
+
+    const pkgB = {
+      vendorId: 'zte',
+      sources: [
+        {
+          ...validSource,
+          source_id: 'huawei-ma5800-gpon-alarm-001', // Colliding ID in another vendor!
+          vendor: 'ZTE',
+        },
+      ],
+      compatibility: {
+        vendor: 'ZTE',
+        priority: 'P0' as const,
+        iana_pens: [3902],
+        families: [
+          {
+            family: 'C300',
+            level: 'L1' as const,
+            confidence_grade: 'B' as const,
+            firmware: 'unknown',
+            supported_traps: [],
+            sources: ['nonexistent-source-ref'], // Broken reference!
+          },
+        ],
+      },
+    };
+
+    const crossResult = validateCrossVendorRegistry([pkgA, pkgB]);
+    expect(crossResult.valid).toBe(false);
+    expect(crossResult.issues.some((i) => i.message.includes('Cross-vendor duplicate'))).toBe(true);
+    expect(crossResult.issues.some((i) => i.message.includes('nonexistent-source-ref'))).toBe(true);
+  });
+});

@@ -1,0 +1,26 @@
+- source_id: calix-e7-librenms-mib-001
+  vendor: Calix
+  families:
+    - E7
+  firmware: unknown
+  title: Calix E7 MIB Definitions in LibreNMS
+  publisher: LibreNMS / Calix
+  url: https://github.com/librenms/librenms/blob/master/mibs/calix/E7-Calix-MIB
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts: []
+- source_id: calix-axos-e9-portal-001
+  vendor: Calix
+  families:
+    - E9
+  firmware: unknown
+  title: AXOS E9-2 Intelligent Access Appliance
+  publisher: Calix Networks
+  url: https://www.calix.com/products/platform/intelligent-access/systems/axos-e9-2.html
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

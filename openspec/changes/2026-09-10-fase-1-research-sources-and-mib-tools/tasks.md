@@ -1,0 +1,23 @@
+# Tasks: Fase 1 — OLT Research Sources Registry, IANA PEN & MIB Tooling
+
+- [x] 1. Research Schema & Types (`packages/monitoring/src/snmp/research/schema.ts`)
+  - [x] 1.1 Define Zod schema for `SourceRecord`, `FactRecord`, `CompatibilityFamilyRecord`, `VendorCompatibilityRecord`
+  - [x] 1.2 Implement validation functions for single sources, batches, duplicate detection, and URL/license checks
+- [x] 2. IANA Private Enterprise Numbers Registry (`packages/monitoring/src/snmp/iana-pen.ts`)
+  - [x] 2.1 Define authoritative registry mapping PENs (Huawei 2011, ZTE 3902, Nokia 637/6527/28458, FiberHome 3807, Calix 1264, Adtran 664, DZS 5597/6296, Zyxel 890, VSOL 37950, C-Data 34592, BDCOM 3320, Ubiquiti 41112)
+  - [x] 2.2 Implement `resolveVendorByOid` and `resolvePenByVendor` avoiding free-text heuristics
+- [x] 3. Structured Vendor Registries (`research/olt/<vendor>/`)
+  - [x] 3.1 Create directories for all 12 vendors: `huawei`, `zte`, `nokia`, `fiberhome`, `calix`, `adtran`, `dzs`, `zyxel`, `vsol`, `cdata`, `bdcom`, `ubiquiti`
+  - [x] 3.2 Add valid `sources.yaml`, `compatibility.yaml`, and `fixtures/` placeholders for each vendor
+- [x] 4. Dynamic Matrix Generator & Check Command (`scripts/generate-compatibility-matrix.ts`)
+  - [x] 4.1 Build script that scans `research/olt/**`, validates schemas, and generates Markdown table
+  - [x] 4.2 Add `"check:sources"` and `"generate:matrix"` to `package.json`
+- [x] 5. Governance Documentation (`docs/procedimiento-fuentes-mibs.md`)
+  - [x] 5.1 Document procedures for reporting retired sources, updated MIBs, and handling proprietary materials
+- [x] 6. Test Suite (`packages/monitoring/tests/snmp/`)
+  - [x] 6.1 Unit tests for schema validation, duplicate ID rejection, invalid grades, and malformed URLs
+  - [x] 6.2 Unit tests for IANA PEN resolution and non-PEN tree handling
+  - [x] 6.3 Gate 1 verification: catalog admission rules
+- [x] 7. Verification Report & Monorepo Validation
+  - [x] 7.1 Verify full monorepo pass (`pnpm turbo run lint typecheck test`)
+  - [x] 7.2 Create `verify-report.md`

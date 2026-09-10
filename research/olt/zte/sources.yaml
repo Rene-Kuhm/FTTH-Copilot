@@ -1,0 +1,36 @@
+- source_id: zte-c320-monitoring-001
+  vendor: ZTE
+  families:
+    - C300
+  firmware: unknown
+  title: ZTE C320 Monitoring & MIB Project
+  publisher: ZTE / Community
+  url: https://github.com/didikw/zte_c320_monitoring
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: zxAnGponOnuDyingGasp
+      oid: 1.3.6.1.4.1.3902.1082.500.1.2.3
+      status: provisional
+      severity: major
+      category: dying_gasp
+    - notification_name: zxAnGponOnuLos
+      oid: 1.3.6.1.4.1.3902.1082.500.1.2.4
+      status: provisional
+      severity: critical
+      category: pon_los
+- source_id: zte-c600-official-portal-001
+  vendor: ZTE
+  families:
+    - C600
+  firmware: unknown
+  title: ZXA10 C600 Large-Capacity Optical Access Platform
+  publisher: ZTE Corporation
+  url: https://www.zte.com.cn/global/home_and_enterprise/campus_network/zxa10_c600.html
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

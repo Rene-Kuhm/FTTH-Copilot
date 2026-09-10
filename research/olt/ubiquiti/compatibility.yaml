@@ -1,0 +1,12 @@
+vendor: Ubiquiti
+priority: P2
+iana_pens:
+  - 41112
+families:
+  - family: UF-OLT
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - ubiquiti-uisp-fiber-specs-001
