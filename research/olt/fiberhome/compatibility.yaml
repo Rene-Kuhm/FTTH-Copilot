@@ -8,15 +8,31 @@ families:
     confidence_grade: B
     firmware: unknown
     supported_traps:
-      - fhOnuDyingGasp
-      - fhOnuPowerOff
+      - fhGponOntLossOfSignal
+      - fhGponOntDyingGasp
+      - fhGponOntOffline
+      - fhGponOntOnline
+      - fhGponOntLosClear
+      - fhGponPortDown
+      - fhGponPortUp
+      - fhCardFailure
     sources:
       - fiberhome-snmp-implementation-001
       - fiberhome-librenms-common-mib-001
   - family: AN6000
-    level: L1
-    confidence_grade: A
+    level: L2
+    confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - fhGponOntLossOfSignal
+      - fhGponOntDyingGasp
+      - fhGponOntOffline
+      - fhGponOntOnline
+      - fhGponOntLosClear
+      - fhGponPortDown
+      - fhGponPortUp
+      - fhCardFailure
     sources:
+      - fiberhome-snmp-implementation-001
+      - fiberhome-librenms-common-mib-001
       - fiberhome-an6000-official-portal-001

@@ -14,6 +14,8 @@ import type { OltVendorAdapter } from './contract';
 import { StandardOltAdapter } from './standard';
 import { HuaweiOltAdapter } from './huawei';
 import { ZteOltAdapter } from './zte';
+import { NokiaOltAdapter } from './nokia';
+import { FiberhomeOltAdapter } from './fiberhome';
 
 export class OltAdapterRegistry {
   private readonly adapters = new Map<string, OltVendorAdapter>();
@@ -82,3 +84,5 @@ export class OltAdapterRegistry {
 export const defaultAdapterRegistry = new OltAdapterRegistry();
 defaultAdapterRegistry.register(new HuaweiOltAdapter());
 defaultAdapterRegistry.register(new ZteOltAdapter());
+defaultAdapterRegistry.register(new NokiaOltAdapter());
+defaultAdapterRegistry.register(new FiberhomeOltAdapter());

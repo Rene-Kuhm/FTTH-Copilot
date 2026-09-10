@@ -149,12 +149,16 @@ export {
 export { StandardOltAdapter } from './snmp/adapter/standard';
 export { HuaweiOltAdapter } from './snmp/adapter/huawei';
 export { ZteOltAdapter } from './snmp/adapter/zte';
+export { NokiaOltAdapter } from './snmp/adapter/nokia';
+export { FiberhomeOltAdapter } from './snmp/adapter/fiberhome';
 
 export {
   decodeVendorSerialNumber,
   extractHierarchyFromOid,
   extractHuaweiGponHierarchy,
   extractZteGponHierarchy,
+  extractNokiaHierarchy,
+  extractFiberhomeGponHierarchy,
   type GponOpticalHierarchy,
 } from './snmp/extractors/vendor-helpers';
 

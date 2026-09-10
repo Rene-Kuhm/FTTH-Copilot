@@ -3,18 +3,36 @@ priority: P0
 iana_pens:
   - 637
   - 6527
+  - 28458
 families:
   - family: 7360-ISAM-FX
-    level: L1
+    level: L2
     confidence_grade: A
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+      - nokiaCardFailure
     sources:
       - nokia-broadband-access-001
   - family: Lightspan-MF
-    level: L1
+    level: L2
     confidence_grade: A
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+      - nokiaLightspanPortDown
+      - nokiaLightspanPortUp
     sources:
       - nokia-broadband-access-001

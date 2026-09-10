@@ -79,6 +79,62 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     expect(zteDyingGasp.vendor).toBe('ZTE');
   });
 
+  it('recognizes FiberHome GPON ONT Loss of Signal, Dying Gasp, and recovery traps', () => {
+    const fhLos = lookupTrapDefinition('1.3.6.1.4.1.3807.1.3.1.1.1');
+    expect(fhLos.category).toBe('los');
+    expect(fhLos.severity).toBe('critical');
+    expect(fhLos.vendor).toBe('Fiberhome');
+
+    const fhDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.3807.1.3.1.1.2');
+    expect(fhDyingGasp.category).toBe('dying_gasp');
+    expect(fhDyingGasp.severity).toBe('critical');
+
+    const fhOnline = lookupTrapDefinition('1.3.6.1.4.1.3807.1.3.1.1.4');
+    expect(fhOnline.category).toBe('onu_online');
+    expect(fhOnline.is_clear).toBe(true);
+    expect(fhOnline.clears_trap_oid).toBe('1.3.6.1.4.1.3807.1.3.1.1.3');
+
+    const fhLosClear = lookupTrapDefinition('1.3.6.1.4.1.3807.1.3.1.1.5');
+    expect(fhLosClear.category).toBe('los_clear');
+    expect(fhLosClear.is_clear).toBe(true);
+
+    const fhPortDown = lookupTrapDefinition('1.3.6.1.4.1.3807.1.3.1.2.1');
+    expect(fhPortDown.category).toBe('pon_down');
+
+    const fhCardFault = lookupTrapDefinition('1.3.6.1.4.1.3807.1.1.1.1');
+    expect(fhCardFault.category).toBe('card_failure');
+  });
+
+  it('recognizes Nokia 7360 ISAM & Lightspan GPON and recovery traps', () => {
+    const nokiaLos = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.36.1.1.1');
+    expect(nokiaLos.category).toBe('los');
+    expect(nokiaLos.severity).toBe('critical');
+    expect(nokiaLos.vendor).toBe('Nokia');
+
+    const nokiaDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.36.1.1.2');
+    expect(nokiaDyingGasp.category).toBe('dying_gasp');
+    expect(nokiaDyingGasp.severity).toBe('critical');
+
+    const nokiaOnline = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.36.1.1.4');
+    expect(nokiaOnline.category).toBe('onu_online');
+    expect(nokiaOnline.is_clear).toBe(true);
+    expect(nokiaOnline.clears_trap_oid).toBe('1.3.6.1.4.1.637.61.1.36.1.1.3');
+
+    const nokiaPortDown = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.36.2.1.1');
+    expect(nokiaPortDown.category).toBe('pon_down');
+
+    const nokiaPortUp = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.36.2.1.2');
+    expect(nokiaPortUp.category).toBe('pon_up');
+    expect(nokiaPortUp.is_clear).toBe(true);
+
+    const nokiaCard = lookupTrapDefinition('1.3.6.1.4.1.637.61.1.3.1.1.1');
+    expect(nokiaCard.category).toBe('card_failure');
+
+    const lightspanPortDown = lookupTrapDefinition('1.3.6.1.4.1.6527.3.1.2.2.4.3');
+    expect(lightspanPortDown.category).toBe('pon_down');
+    expect(lightspanPortDown.vendor).toBe('Nokia');
+  });
+
   it('safely handles unknown OIDs without fabricating diagnoses (6.4)', () => {
     const unknownOid = '1.3.6.1.4.1.99999.1.2.3.4';
     expect(isKnownTrapOid(unknownOid)).toBe(false);
