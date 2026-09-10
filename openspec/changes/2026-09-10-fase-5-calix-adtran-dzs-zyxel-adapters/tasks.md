@@ -1,0 +1,38 @@
+# Tasks: Fase 5 — Adaptadores de Fabricante OLT: Calix, Adtran, DZS y Zyxel
+
+- [x] 1. IANA PEN Registry & Research Updates
+  - [x] 1.1 Update `packages/monitoring/src/snmp/iana-pen.ts` with Calix PEN 6321 (and 1264 alias) and DZS PEN 5504/6296 (and 5597 alias)
+  - [x] 1.2 Update `research/olt/calix/sources.yaml` and `compatibility.yaml` (elevate E7 to L2, maintain E9 at L1)
+  - [x] 1.3 Update `research/olt/adtran/sources.yaml` and `compatibility.yaml` (elevate TA5000 to L2, maintain SDX-6000 at L1)
+  - [x] 1.4 Update `research/olt/dzs/sources.yaml` and `compatibility.yaml` with accurate IANA PENs 5504 and 6296
+  - [x] 1.5 Update `research/olt/zyxel/sources.yaml` and `compatibility.yaml` with accurate IANA PEN 890
+  - [x] 1.6 Add test fixtures `research/olt/calix/fixtures/e7-traps.json` and `research/olt/adtran/fixtures/ta5000-traps.json`
+  - [x] 1.7 Verify `pnpm check:sources` and `pnpm generate:matrix`
+- [x] 2. Catalog Updates (`packages/monitoring/src/snmp/catalog.ts`)
+  - [x] 2.1 Add Calix E7 trap definitions (`e7TrapAlarm`, `e7TrapEvent`, `e7TrapDbChange`, `e7TrapSecurity`, `e7TrapAlarmClear`)
+  - [x] 2.2 Add Adtran TA5000 GPON trap definitions (`adGenGponOntAlarmSlotLosLevel`, `adGenGponOntOMCICommFailAlarmSet`, `adGenGponOntDyingGaspAlarm`, `adGenGponPonDown`, `adGenGponPonUp`, `adGenGponOntOnline`, `adGenGponOntLosClear`)
+  - [x] 2.3 Ensure full Gate 1 audit metadata compliance (source_id, grade, models, firmware, license, clear pairs)
+- [x] 3. Hierarchy & Serial Decoding Helpers (`packages/monitoring/src/snmp/extractors/vendor-helpers.ts`)
+  - [x] 3.1 Support `CXNK` and `ADTN` prefixes in `decodeVendorSerialNumber`
+  - [x] 3.2 Implement `extractCalixHierarchy` for `e7TrapCliObject`, `e7TrapText`, and serial
+  - [x] 3.3 Implement `extractAdtranHierarchy` for `ifDescr`, instance suffixes, and serial
+- [x] 4. Calix OLT Adapter (`packages/monitoring/src/snmp/adapter/calix.ts`)
+  - [x] 4.1 Implement `CalixOltAdapter` supporting PENs 6321 and 1264, E7 family
+  - [x] 4.2 Explicitly abstain on E9/AXOS to enforce architectural separation
+  - [x] 4.3 Normalize ONT alarms (`deviceKind: 'ONU'`, serial) vs chassis alarms (`deviceKind: 'OLT'`)
+  - [x] 4.4 Pair recovery traps
+- [x] 5. Adtran OLT Adapter (`packages/monitoring/src/snmp/adapter/adtran.ts`)
+  - [x] 5.1 Implement `AdtranOltAdapter` supporting PEN 664, TA5000 family
+  - [x] 5.2 Explicitly abstain on SDX-6000/Mosaic to enforce architectural separation
+  - [x] 5.3 Normalize ONT alarms (`deviceKind: 'ONU'`, serial) vs chassis alarms (`deviceKind: 'OLT'`)
+  - [x] 5.4 Pair recovery traps
+- [x] 6. Registry Wiring & Module Exports
+  - [x] 6.1 Register `CalixOltAdapter` and `AdtranOltAdapter` in `defaultAdapterRegistry`
+  - [x] 6.2 Export new adapters and helpers in `packages/monitoring/src/index.ts`
+- [x] 7. Verification & Gate 5 Validation
+  - [x] 7.1 Unit tests for Calix adapter (`tests/snmp/calix-adapter.test.ts`)
+  - [x] 7.2 Unit tests for Adtran adapter (`tests/snmp/adtran-adapter.test.ts`)
+  - [x] 7.3 End-to-end binary test for Calix and Adtran traps (`scripts/test-snmp.ts`)
+  - [x] 7.4 Update IANA PEN unit test (`tests/snmp/iana-pen.test.ts`)
+  - [x] 7.5 Monorepo validation (`pnpm turbo run lint typecheck test`)
+  - [x] 7.6 Create `verify-report.md`

@@ -1,0 +1,151 @@
+[
+  {
+    "description": "Adtran TA5000 GPON ONT Loss of Signal alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1.1.2.4",
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 612000
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1.1.2.4"
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.10204",
+        "type": "OctetString",
+        "value": "ont 1/2.4"
+      },
+      {
+        "oid": "1.3.6.1.4.1.664.6.10000.76.1.1.1.1.3.10204",
+        "type": "OctetString",
+        "value": "ADTN12345678",
+        "rawHex": "4144544E3132333435363738"
+      }
+    ],
+    "expected": {
+      "vendor": "Adtran",
+      "deviceKind": "ONU",
+      "deviceId": "ADTN12345678",
+      "category": "los",
+      "severity": "critical",
+      "slot": 1,
+      "port": 2,
+      "onuId": 4
+    }
+  },
+  {
+    "description": "Adtran TA5000 GPON ONT Dying Gasp alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38.1.1.10",
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 612400
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38.1.1.10"
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.10110",
+        "type": "OctetString",
+        "value": "ont 1/1.10"
+      },
+      {
+        "oid": "1.3.6.1.4.1.664.6.10000.76.1.1.1.1.3.10110",
+        "type": "OctetString",
+        "value": "ADTN87654321"
+      }
+    ],
+    "expected": {
+      "vendor": "Adtran",
+      "deviceKind": "ONU",
+      "deviceId": "ADTN87654321",
+      "category": "dying_gasp",
+      "severity": "critical",
+      "slot": 1,
+      "port": 1,
+      "onuId": 10
+    }
+  },
+  {
+    "description": "Adtran TA5000 PON Port Down alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5.1.2",
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 612800
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5.1.2"
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.10200",
+        "type": "OctetString",
+        "value": "gpon 1/2"
+      }
+    ],
+    "expected": {
+      "vendor": "Adtran",
+      "deviceKind": "OLT",
+      "category": "pon_down",
+      "severity": "critical",
+      "slot": 1,
+      "port": 2
+    }
+  },
+  {
+    "description": "Adtran TA5000 GPON ONT Loss of Signal Clear recovery notification",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2.1.2.4",
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 613200
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2.1.2.4"
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.10204",
+        "type": "OctetString",
+        "value": "ont 1/2.4"
+      },
+      {
+        "oid": "1.3.6.1.4.1.664.6.10000.76.1.1.1.1.3.10204",
+        "type": "OctetString",
+        "value": "ADTN12345678"
+      }
+    ],
+    "expected": {
+      "vendor": "Adtran",
+      "deviceKind": "ONU",
+      "deviceId": "ADTN12345678",
+      "category": "los_clear",
+      "severity": "info",
+      "isClear": true,
+      "clearsCategory": "los"
+    }
+  }
+]

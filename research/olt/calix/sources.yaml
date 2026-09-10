@@ -10,7 +10,32 @@
   retrieved_at: 2026-09-10
   license: review-required
   sha256: null
-  facts: []
+  facts:
+    - notification_name: e7TrapAlarm
+      oid: 1.3.6.1.4.1.6321.1.2.2.4.2.1
+      status: recognized
+      severity: critical
+      category: los
+    - notification_name: e7TrapEvent
+      oid: 1.3.6.1.4.1.6321.1.2.2.4.2.2
+      status: recognized
+      severity: info
+      category: unknown_trap
+    - notification_name: e7TrapDbChange
+      oid: 1.3.6.1.4.1.6321.1.2.2.4.2.3
+      status: recognized
+      severity: info
+      category: config_change
+    - notification_name: e7TrapSecurity
+      oid: 1.3.6.1.4.1.6321.1.2.2.4.2.4
+      status: recognized
+      severity: warning
+      category: auth_failure
+    - notification_name: e7TrapAlarmClear
+      oid: 1.3.6.1.4.1.6321.1.2.2.4.2.10
+      status: recognized
+      severity: info
+      category: los_clear
 - source_id: calix-axos-e9-portal-001
   vendor: Calix
   families:

@@ -19,6 +19,8 @@ export interface ResolvedDeviceIdentity {
   connectionId: string;
   oltId: string;
   vendor: string;
+  model?: string;
+  hardwareModel?: string;
   pen?: number;
   sysObjectID?: string;
   isStandardTrap: boolean;
@@ -37,7 +39,7 @@ export function resolveDeviceIdentity(
   declaredSysObjectId?: string,
 ): ResolvedDeviceIdentity {
   // Always lock tenantId, connectionId, and oltId to the managed sender context
-  const { tenantId, connectionId, oltId } = senderContext;
+  const { tenantId, connectionId, oltId, model, hardwareModel } = senderContext;
 
   // 1. Look for sysObjectID in varbinds or declared
   let sysObjectId = declaredSysObjectId;
@@ -81,6 +83,8 @@ export function resolveDeviceIdentity(
       connectionId,
       oltId,
       vendor: 'Standard',
+      model,
+      hardwareModel,
       isStandardTrap,
       isAmbiguous: true,
       ambiguityReason: `Vendor mismatch: sender registered as '${registeredVendor}', but trap OID '${notification.trapOid}' belongs to '${trapVendorResolution.displayName}' (PEN ${trapPen ?? 'unknown'})`,
@@ -98,6 +102,8 @@ export function resolveDeviceIdentity(
       connectionId,
       oltId,
       vendor: 'Standard',
+      model,
+      hardwareModel,
       isStandardTrap,
       isAmbiguous: true,
       ambiguityReason: `Conflicting vendor evidence: sysObjectID resolves to '${sysObjVendorResolution.displayName}' (PEN ${sysObjPen ?? 'unknown'}), but trap OID belongs to '${trapVendorResolution.displayName}' (PEN ${trapPen ?? 'unknown'})`,
@@ -111,6 +117,8 @@ export function resolveDeviceIdentity(
       connectionId,
       oltId,
       vendor: registeredVendor ?? sysObjVendorResolution?.displayName ?? 'Standard',
+      model,
+      hardwareModel,
       pen: sysObjPen,
       sysObjectID: sysObjectId,
       isStandardTrap: true,
@@ -124,6 +132,8 @@ export function resolveDeviceIdentity(
     connectionId,
     oltId,
     vendor: trapVendorResolution.displayName,
+    model,
+    hardwareModel,
     pen: trapPen ?? trapVendorResolution.pens[0],
     sysObjectID: sysObjectId,
     isStandardTrap: false,

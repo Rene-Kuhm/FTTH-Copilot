@@ -49,9 +49,9 @@ export const IANA_VENDOR_REGISTRY: readonly IanaVendorRecord[] = Object.freeze([
   {
     vendorId: 'calix',
     displayName: 'Calix',
-    pens: [1264],
+    pens: [6321, 1264],
     priority: 'P1',
-    description: 'Calix Networks (E7, E9 series)',
+    description: 'Calix Networks (E7, E9 series; authoritative PEN 6321, legacy 1264)',
   },
   {
     vendorId: 'adtran',
@@ -63,9 +63,9 @@ export const IANA_VENDOR_REGISTRY: readonly IanaVendorRecord[] = Object.freeze([
   {
     vendorId: 'dzs',
     displayName: 'DZS',
-    pens: [5597, 6296],
+    pens: [5504, 6296, 5597],
     priority: 'P1',
-    description: 'DZS / Zhone Technologies / DASAN Network Solutions (MXK, Velocity)',
+    description: 'DZS / Zhone Technologies / DASAN Network Solutions (authoritative PENs 5504 and 6296, legacy 5597)',
   },
   {
     vendorId: 'zyxel',

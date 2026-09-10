@@ -16,6 +16,8 @@ import { HuaweiOltAdapter } from './huawei';
 import { ZteOltAdapter } from './zte';
 import { NokiaOltAdapter } from './nokia';
 import { FiberhomeOltAdapter } from './fiberhome';
+import { CalixOltAdapter } from './calix';
+import { AdtranOltAdapter } from './adtran';
 
 export class OltAdapterRegistry {
   private readonly adapters = new Map<string, OltVendorAdapter>();
@@ -86,3 +88,5 @@ defaultAdapterRegistry.register(new HuaweiOltAdapter());
 defaultAdapterRegistry.register(new ZteOltAdapter());
 defaultAdapterRegistry.register(new NokiaOltAdapter());
 defaultAdapterRegistry.register(new FiberhomeOltAdapter());
+defaultAdapterRegistry.register(new CalixOltAdapter());
+defaultAdapterRegistry.register(new AdtranOltAdapter());
