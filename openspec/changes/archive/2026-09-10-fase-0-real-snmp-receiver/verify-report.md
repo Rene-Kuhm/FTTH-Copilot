@@ -3,6 +3,8 @@
 **Verdict**: **PASS**
 **Change**: `2026-09-10-fase-0-real-snmp-receiver`
 **Roadmap Reference**: `docs/roadmap-olt-multivendor.md` (Fase 0)
+**Merged PR**: #145
+**Target Branch**: `main`
 **Verification Date**: 2026-09-10
 **Mode**: Strict TDD & OpenSpec Spec-Driven Development
 

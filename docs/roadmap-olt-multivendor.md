@@ -226,27 +226,27 @@ Cada alarma debe declarar si existe un evento `clear`, qué clave forma su ident
 
 Cada fase comienza con un cambio OpenSpec y termina con pruebas ejecutadas, informe de verificación y archivo del cambio. Los PR deben ser pequeños y mantener el receptor desactivado por defecto.
 
-### Fase 0 — Receptor SNMP real y evidencia cruda
+### Fase 0 — Receptor SNMP real y evidencia cruda (Verificada en PR #145)
 
 Objetivo: sustituir el scaffold por una ruta binaria comprobable.
 
-- [ ] Elegir una biblioteca SNMP mantenida o justificar un decoder acotado; registrar versiones, límites y CVE relevantes.
-- [ ] Decodificar PDU v1, TrapV2 e Inform desde los bytes UDP reales.
-- [ ] Responder correctamente a Inform cuando el protocolo lo requiera.
-- [ ] Separar `eventTime`, `sysUpTime` y `receivedAt`.
-- [ ] Preservar OID, tipos y valores de varbinds en un envelope acotado y redactado.
-- [ ] Reemplazar la deduplicación `IP:tamaño` por una huella de remitente, versión, request ID, OID y varbinds canónicos.
-- [ ] Validar community v2c sin exponerla; implementar USM SNMPv3 `authPriv` conforme a RFC 3414.[^19]
-- [ ] Mantener v1/v2c disponibles por compatibilidad, con advertencia y segmentación de red.
-- [ ] Probar paquetes truncados, ASN.1 inválido, payload máximo, flood, replay y remitente desconocido.
-- [ ] Agregar `pnpm test:snmp` para enviar traps con Net-SNMP; `snmptrap` soporta v1, v2c, v3 y varbinds tipados.[^20]
+- [x] Elegir una biblioteca SNMP mantenida o justificar un decoder acotado; registrar versiones, límites y CVE relevantes (`net-snmp` v3.26.3).
+- [x] Decodificar PDU v1, TrapV2 e Inform desde los bytes UDP reales.
+- [x] Responder correctamente a Inform cuando el protocolo lo requiera.
+- [x] Separar `eventTime`, `sysUpTime` y `receivedAt`.
+- [x] Preservar OID, tipos y valores de varbinds en un envelope acotado y redactado.
+- [x] Reemplazar la deduplicación `IP:tamaño` por una huella de remitente, versión, request ID, OID y varbinds canónicos.
+- [x] Validar community v2c sin exponerla; implementar USM SNMPv3 `authPriv` conforme a RFC 3414.[^19]
+- [x] Mantener v1/v2c disponibles por compatibilidad, con advertencia y segmentación de red.
+- [x] Probar paquetes truncados, ASN.1 inválido, payload máximo, flood, replay y remitente desconocido.
+- [x] Agregar `pnpm test:snmp` para enviar traps con Net-SNMP; `snmptrap` soporta v1, v2c, v3 y varbinds tipados.[^20]
 
 Gate 0:
 
-- Un datagrama generado externamente llega al callback con su OID y varbinds reales.
-- Dos traps distintos con el mismo tamaño no colisionan.
-- Un trap desconocido conserva evidencia y no crea diagnóstico.
-- Las pruebas de v1, v2c, v3, TrapV2 e Inform pasan en CI.
+- [x] Un datagrama generado externamente llega al callback con su OID y varbinds reales.
+- [x] Dos traps distintos con el mismo tamaño no colisionan.
+- [x] Un trap desconocido conserva evidencia y no crea diagnóstico.
+- [x] Las pruebas de v1, v2c, v3, TrapV2 e Inform pasan en CI.
 
 ### Fase 1 — Registro de fuentes y herramientas MIB
 
