@@ -1,0 +1,12 @@
+vendor: BDCOM
+priority: P2
+iana_pens:
+  - 3320
+families:
+  - family: P3600
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - bdcom-librenms-gpon-mib-001

@@ -1,0 +1,20 @@
+vendor: Nokia
+priority: P0
+iana_pens:
+  - 637
+  - 6527
+families:
+  - family: 7360-ISAM-FX
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - nokia-broadband-access-001
+  - family: Lightspan-MF
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - nokia-broadband-access-001

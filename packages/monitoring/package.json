@@ -20,7 +20,9 @@
     "@ftth-copilot/analytics": "workspace:*",
     "@ftth-copilot/connectors-core": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
-    "net-snmp": "^3.26.3"
+    "net-snmp": "^3.26.3",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/net-snmp": "^3.23.0",

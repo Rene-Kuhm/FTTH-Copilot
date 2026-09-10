@@ -1,0 +1,13 @@
+- source_id: ubiquiti-uisp-fiber-specs-001
+  vendor: Ubiquiti
+  families:
+    - UF-OLT
+  firmware: unknown
+  title: Ubiquiti UISP Fiber OLT Technical Specifications
+  publisher: Ubiquiti Inc.
+  url: https://techspecs.ui.com/uisp/fiber
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

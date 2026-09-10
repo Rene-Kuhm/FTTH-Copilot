@@ -1,0 +1,13 @@
+- source_id: vsol-download-portal-001
+  vendor: VSOL
+  families:
+    - V1600
+  firmware: unknown
+  title: VSOL OLT Firmware Downloads & Technical Releases
+  publisher: Guangzhou V-Solution
+  url: https://www.vsolcn.com/downloads/olt
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

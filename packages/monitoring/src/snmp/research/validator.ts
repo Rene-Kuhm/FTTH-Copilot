@@ -1,0 +1,149 @@
+/**
+ * OLT Research Sources & Compatibility Validator (Roadmap Fase 1).
+ *
+ * Enforces Gate 1: No OID or definition enters without valid source_id,
+ * confidence grade, target models, known/unknown firmware, and license status.
+ */
+
+import {
+  SourcesFileSchema,
+  VendorCompatibilityRecordSchema,
+  type SourceRecord,
+  type VendorCompatibilityRecord,
+} from './schema';
+import { resolveVendorByOid } from '../iana-pen';
+
+export interface ValidationIssue {
+  type: 'error' | 'warning';
+  file?: string;
+  sourceId?: string;
+  message: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+}
+
+/**
+ * Validates an array of source records from a sources.yaml file.
+ */
+export function validateSourcesList(sources: unknown, fileName = 'sources.yaml'): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  const seenIds = new Set<string>();
+
+  const parseResult = SourcesFileSchema.safeParse(sources);
+  if (!parseResult.success) {
+    for (const err of parseResult.error.errors) {
+      issues.push({
+        type: 'error',
+        file: fileName,
+        message: `${err.path.join('.')}: ${err.message}`,
+      });
+    }
+    return { valid: false, issues };
+  }
+
+  for (const src of parseResult.data) {
+    if (seenIds.has(src.source_id)) {
+      issues.push({
+        type: 'error',
+        file: fileName,
+        sourceId: src.source_id,
+        message: `Duplicate source_id detected: '${src.source_id}'`,
+      });
+    }
+    seenIds.add(src.source_id);
+
+    // Validate facts
+    for (const fact of src.facts) {
+      const vendorRecord = resolveVendorByOid(fact.oid);
+      if (vendorRecord && vendorRecord.displayName.toLowerCase() !== src.vendor.toLowerCase()) {
+        issues.push({
+          type: 'warning',
+          file: fileName,
+          sourceId: src.source_id,
+          message: `Fact OID '${fact.oid}' belongs to IANA PEN vendor '${vendorRecord.displayName}', but source declares '${src.vendor}'`,
+        });
+      }
+    }
+  }
+
+  return {
+    valid: issues.every((i) => i.type !== 'error'),
+    issues,
+  };
+}
+
+/**
+ * Validates a vendor compatibility record from compatibility.yaml.
+ */
+export function validateCompatibilityRecord(record: unknown, fileName = 'compatibility.yaml'): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  const parseResult = VendorCompatibilityRecordSchema.safeParse(record);
+  if (!parseResult.success) {
+    for (const err of parseResult.error.errors) {
+      issues.push({
+        type: 'error',
+        file: fileName,
+        message: `${err.path.join('.')}: ${err.message}`,
+      });
+    }
+    return { valid: false, issues };
+  }
+
+  return {
+    valid: true,
+    issues: [],
+  };
+}
+
+export interface VendorPackageContent {
+  vendorId: string;
+  sources: SourceRecord[];
+  compatibility: VendorCompatibilityRecord;
+}
+
+/**
+ * Cross-validates all vendor packages ensuring global uniqueness of source_ids
+ * and that all source references inside compatibility.yaml exist.
+ */
+export function validateCrossVendorRegistry(packages: VendorPackageContent[]): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  const globalSourceIds = new Map<string, string>(); // source_id -> vendorId
+
+  for (const pkg of packages) {
+    for (const src of pkg.sources) {
+      const existingVendor = globalSourceIds.get(src.source_id);
+      if (existingVendor) {
+        issues.push({
+          type: 'error',
+          sourceId: src.source_id,
+          message: `Cross-vendor duplicate source_id detected: '${src.source_id}' in '${pkg.vendorId}' already defined in '${existingVendor}'`,
+        });
+      } else {
+        globalSourceIds.set(src.source_id, pkg.vendorId);
+      }
+    }
+  }
+
+  // Check compatibility source references
+  for (const pkg of packages) {
+    for (const fam of pkg.compatibility.families) {
+      for (const srcId of fam.sources) {
+        if (!globalSourceIds.has(srcId)) {
+          issues.push({
+            type: 'error',
+            message: `Family '${fam.family}' in vendor '${pkg.vendorId}' references nonexistent source_id: '${srcId}'`,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    valid: issues.every((i) => i.type !== 'error'),
+    issues,
+  };
+}

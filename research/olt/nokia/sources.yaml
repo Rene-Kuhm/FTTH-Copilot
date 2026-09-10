@@ -1,0 +1,14 @@
+- source_id: nokia-broadband-access-001
+  vendor: Nokia
+  families:
+    - 7360-ISAM-FX
+    - Lightspan-MF
+  firmware: unknown
+  title: Nokia Broadband Access Optical Networks Portfolio
+  publisher: Nokia Networks
+  url: https://www.nokia.com/broadband-access/
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

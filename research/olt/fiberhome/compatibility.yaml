@@ -1,0 +1,22 @@
+vendor: FiberHome
+priority: P0
+iana_pens:
+  - 3807
+families:
+  - family: AN5516
+    level: L2
+    confidence_grade: B
+    firmware: unknown
+    supported_traps:
+      - fhOnuDyingGasp
+      - fhOnuPowerOff
+    sources:
+      - fiberhome-snmp-implementation-001
+      - fiberhome-librenms-common-mib-001
+  - family: AN6000
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - fiberhome-an6000-official-portal-001

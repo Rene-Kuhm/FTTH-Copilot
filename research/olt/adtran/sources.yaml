@@ -1,0 +1,26 @@
+- source_id: adtran-ta5000-tc-mib-001
+  vendor: Adtran
+  families:
+    - TA5000
+  firmware: unknown
+  title: Adtran Textual Conventions and TA5000 MIB
+  publisher: LibreNMS / Adtran
+  url: https://github.com/librenms/librenms/blob/master/mibs/adtran/ADTRAN-TC
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: review-required
+  sha256: null
+  facts: []
+- source_id: adtran-sdx-6000-portal-001
+  vendor: Adtran
+  families:
+    - SDX-6000
+  firmware: unknown
+  title: Adtran SDX 6000 Series 10G OLT Portfolio
+  publisher: ADTRAN, Inc.
+  url: https://www.adtran.com/en/products-and-services/sdx-6000-series
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

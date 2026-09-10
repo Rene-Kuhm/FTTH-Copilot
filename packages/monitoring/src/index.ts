@@ -71,6 +71,48 @@ export {
   type SendSnmpTrapOptions,
 } from './snmp/test-client';
 
+export {
+  IANA_VENDOR_REGISTRY,
+  IANA_ENTERPRISE_ROOT,
+  STANDARD_MIB2_ROOT,
+  SNMP_FRAMEWORK_ROOT,
+  extractEnterprisePen,
+  resolveVendorByPen,
+  resolveVendorByOid,
+  isStandardOid,
+  type IanaVendorRecord,
+} from './snmp/iana-pen';
+
+export {
+  SourceGradeSchema,
+  LicenseStatusSchema,
+  FactStatusSchema,
+  FactRecordSchema,
+  SourceRecordSchema,
+  SourcesFileSchema,
+  SupportLevelSchema,
+  CompatibilityFamilyRecordSchema,
+  VendorCompatibilityRecordSchema,
+  type SourceGrade,
+  type LicenseStatus,
+  type FactStatus,
+  type FactRecord,
+  type SourceRecord,
+  type SourcesFile,
+  type SupportLevel,
+  type CompatibilityFamilyRecord,
+  type VendorCompatibilityRecord,
+} from './snmp/research/schema';
+
+export {
+  validateSourcesList,
+  validateCompatibilityRecord,
+  validateCrossVendorRegistry,
+  type ValidationIssue,
+  type ValidationResult,
+  type VendorPackageContent,
+} from './snmp/research/validator';
+
 export type {
   SnmpVersion,
   SnmpPduType,

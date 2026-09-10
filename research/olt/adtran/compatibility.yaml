@@ -1,0 +1,19 @@
+vendor: Adtran
+priority: P1
+iana_pens:
+  - 664
+families:
+  - family: TA5000
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - adtran-ta5000-tc-mib-001
+  - family: SDX-6000
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - adtran-sdx-6000-portal-001

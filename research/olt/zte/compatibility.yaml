@@ -1,0 +1,21 @@
+vendor: ZTE
+priority: P0
+iana_pens:
+  - 3902
+families:
+  - family: C300
+    level: L2
+    confidence_grade: B
+    firmware: unknown
+    supported_traps:
+      - zxAnGponOnuDyingGasp
+      - zxAnGponOnuLos
+    sources:
+      - zte-c320-monitoring-001
+  - family: C600
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - zte-c600-official-portal-001

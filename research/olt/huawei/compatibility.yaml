@@ -1,0 +1,22 @@
+vendor: Huawei
+priority: P0
+iana_pens:
+  - 2011
+families:
+  - family: MA5600
+    level: L2
+    confidence_grade: B
+    firmware: unknown
+    supported_traps:
+      - hwGponOntDyingGasp
+      - hwGponOntOpticalPowerLoss
+    sources:
+      - huawei-ma5600-snmp-mib-001
+  - family: MA5800
+    level: L2
+    confidence_grade: B
+    firmware: unknown
+    supported_traps:
+      - hwGponOntDyingGasp
+    sources:
+      - huawei-ma5800-product-doc-001

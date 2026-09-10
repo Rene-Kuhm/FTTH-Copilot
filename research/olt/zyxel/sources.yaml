@@ -1,0 +1,13 @@
+- source_id: zyxel-ies5206-portal-001
+  vendor: Zyxel
+  families:
+    - IES5206
+  firmware: unknown
+  title: Zyxel IES5206 Series Chassis OLT
+  publisher: Zyxel Communications
+  url: https://www.zyxel.com/service-provider/emea/en/products/fiber-oltsonts/xgs-pon/olts/ies5206-series
+  source_grade: A
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts: []

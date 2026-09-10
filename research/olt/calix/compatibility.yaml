@@ -1,0 +1,19 @@
+vendor: Calix
+priority: P1
+iana_pens:
+  - 1264
+families:
+  - family: E7
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - calix-e7-librenms-mib-001
+  - family: E9
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - calix-axos-e9-portal-001

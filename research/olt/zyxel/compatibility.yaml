@@ -1,0 +1,12 @@
+vendor: Zyxel
+priority: P1
+iana_pens:
+  - 890
+families:
+  - family: IES5206
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    supported_traps: []
+    sources:
+      - zyxel-ies5206-portal-001
