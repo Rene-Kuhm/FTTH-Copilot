@@ -176,6 +176,7 @@ model Tenant {
   InvestigationRun          InvestigationRun[]
   InvestigationVersion      InvestigationVersion[]
   InvestigationFeedback     InvestigationFeedback[]
+  maintenanceWindows        MaintenanceWindow[]
 
   @@map("tenants")
 }
@@ -684,4 +685,42 @@ model InvestigationFeedback {
   @@index([tenantId, versionId])
   @@index([tenantId, authorUserId, submittedAt])
   @@map("investigation_feedback")
+}
+
+// Fase 5 — Maintenance windows (roadmap 5.1 + 5.2).
+//
+// First version: no recurrences. Each window is a single time range
+// with an explicit scope (devices / connection / tenant-wide).
+// Solapamiento determinista: a new window that overlaps an existing
+// one of the same tenant is REJECTED (no silent merge — evidence
+// stays intact).
+//
+// Aditivo: this model does not change any existing table. The
+// `manage_maintenance` flag (apps/web/lib/auth/permissions.ts) is
+// off by default at the API layer: routes check the permission
+// before any write.
+model MaintenanceWindow {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?  @db.Text
+  /// JSON scope descriptor: { kind: 'tenant' | 'connection' | 'device', ... }
+  scopeJson         String   @db.Text
+  startUtc          DateTime
+  endUtc            DateTime
+  /// IANA timezone string for display only (the start/end above are UTC).
+  timezone          String
+  /// 'scheduled' | 'cancelled' | 'completed'
+  status            String   @default("scheduled")
+  createdByUserId   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cancelledAt       DateTime?
+  cancelledByUserId String?
+  cancellationReason String?  @db.Text
+
+  @@index([tenantId, status, startUtc, endUtc])
+  @@index([tenantId, startUtc, endUtc])
+  @@map("maintenance_windows")
 }
