@@ -143,3 +143,14 @@ export {
   type CollisionReport,
   type EdgeIdentity,
 } from './edge-identity';
+
+export {
+  associateGroupsWithIncidents,
+  composeGroupIdentityKey,
+  dedupGroups,
+  groupIdentityHash,
+  reconcileGroups,
+  type AssociateArgs,
+  type DedupArgs,
+  type ReconciledGroup,
+} from './groups-reconciler';
