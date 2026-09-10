@@ -128,3 +128,48 @@ export {
   type InvestigationFeedbackInput,
 } from './feedback-export';
 
+// Phase 7 — Pilot & Acceptance (Roadmap 7.1 to 7.7)
+export {
+  PILOT_TENANT_CONFIG_SCHEMA,
+  pilotProgressiveFeaturesSchema,
+  pilotTenantConfigSchema,
+  evaluatePilotFeatureAccess,
+  type PilotProgressiveFeatures,
+  type PilotTenantConfig,
+  type FeatureAccessDecision,
+} from './pilot-tenant';
+
+export {
+  PILOT_FROZEN_EVAL_SCHEMA,
+  PILOT_FROZEN_EVAL_VERSION,
+  pilotCaseCategorySchema,
+  pilotEvalCaseSchema,
+  pilotFrozenEvalDatasetSchema,
+  FROZEN_PILOT_EVAL_DATASET,
+  validatePilotExecutionMetadata,
+  type PilotCaseCategory,
+  type PilotEvalCase,
+  type PilotFrozenEvalDataset,
+  type PilotExecutionMetadata,
+} from './pilot-frozen-dataset';
+
+export {
+  computePilotMetrics,
+  type PilotInvestigationRecord,
+  type PilotAlertRecord,
+  type PilotMetricsInput,
+  type PilotMetricsReport,
+  type DurationStats,
+} from './pilot-metrics';
+
+export {
+  DEFAULT_PILOT_THRESHOLDS,
+  evaluateHardSafetyCriteria,
+  evaluatePilotAcceptance,
+  type HardSafetyMetrics,
+  type HardSafetyResult,
+  type PilotAcceptanceThresholds,
+  type PilotAcceptanceResult,
+} from './pilot-acceptance';
+
+
