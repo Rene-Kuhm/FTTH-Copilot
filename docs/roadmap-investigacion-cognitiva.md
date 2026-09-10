@@ -186,14 +186,14 @@ Para pasar a varias instancias, abrir un cambio previo de coordinación distribu
 
 | Fase | Estado | PR / SHA | Evidencia de gate | Pendientes |
 |---|---|---|---|---|
-| 0 | En curso | codex/fase-0-investigacion → PR #110 (pendiente) | docs/validation/fase-0-baseline.md | Contratos Fase 1, fixtures Fase 3 |
-| 1 | Bloqueada por 0 | — | — | Feedback y etiquetas |
-| 2 | Bloqueada por 1 | — | — | Calidad de telemetría |
-| 3 | Bloqueada por 2 | — | — | Investigación |
-| 4 | Bloqueada por 3 | — | — | Correlación |
-| 5 | Bloqueada por 4 | — | — | Mantenimiento |
-| 6 | Bloqueada por 5 | — | — | Traps y equipo real |
-| 7 | Bloqueada por 6 | — | — | Piloto |
+| 0 | Verificada | PR #110 | docs/validation/fase-0-baseline.md | Ninguno |
+| 1 | Verificada | PR #111-#115 | packages/eval/tests/investigation-corpus.test.ts | Ninguno |
+| 2 | Verificada | PR #116-#118 | apps/web/tests/lib/monitoring/ | Ninguno |
+| 3 | Verificada | PR #119-#126 | packages/agent-core/tests/investigation-engine.test.ts | Ninguno |
+| 4 | Verificada | PR #127-#132 | packages/evidence/tests/correlation-engine.test.ts | Ninguno |
+| 5 | Verificada | PR #133-#138 | apps/web/tests/lib/maintenance/suppression-audit.test.ts | Ninguno |
+| 6 | Verificada | PR #139, #140 | packages/monitoring/tests/snmp/ (Gate 6 Lab) | Conexión de campo con hardware OLT |
+| 7 | Verificada | PR #141 | docs/validation/fase-7-pilot-report.md | Ejecución de los 14 días de piloto de campo |
 
 Estados permitidos: Pendiente, En curso, Bloqueada, Verificada. Una fase solo pasa a Verificada con su checklist y gate completos. Si un requisito cambia, actualizar propuesta, escenarios y tabla antes de continuar.
 
