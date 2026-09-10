@@ -1,9 +1,10 @@
 /**
- * SNMP Trap Parser and Normalizer (Roadmap Fase 6 — 6.3 + 6.4).
+ * SNMP Trap Parser and Normalizer (Roadmap Fase 6 — 6.3 + 6.4 & Roadmap Fase 0).
  *
  * 6.3: "Reutilizar TypeScript si alcanza; no introducir Go, Redis o NATS sin mediciones."
  * 6.4: "Implementar recepción acotada, validación, parsing y normalización al contrato
  *      de telemetría vigente. OIDs desconocidos no se convierten en diagnósticos inventados."
+ * Fase 0: "Separar eventTime, sysUpTime y receivedAt. Preservar OID, tipos y valores de varbinds."
  */
 
 import { type TelemetryEvent } from '@ftth-copilot/shared';
@@ -14,6 +15,7 @@ export interface SnmpVarbind {
   oid: string;
   type?: string;
   value: unknown;
+  rawHex?: string;
 }
 
 export interface RawSnmpTrapPacket {
@@ -22,6 +24,9 @@ export interface RawSnmpTrapPacket {
   trapOid: string;
   varbinds: SnmpVarbind[];
   receivedAtMs?: number;
+  sysUpTime?: number;
+  eventTime?: string;
+  pduType?: string;
 }
 
 /** Regex for typical GPON ONT Serial Numbers (e.g. HWTC12345678, ZTEGC1234567). */
@@ -60,6 +65,22 @@ export function parseAndNormalizeSnmpTrap(
     ? (onuIdentifier ?? `${senderContext.oltId}-ONU-UNKNOWN`)
     : senderContext.oltId;
 
+  const metrics: Record<string, unknown> = {
+    snmpTrapOid: trapDef.oid,
+    trapCategory: trapDef.category,
+    trapName: trapDef.name,
+    severity: trapDef.severity,
+    vendor: trapDef.vendor ?? senderContext.vendor ?? 'Standard',
+    description: trapDef.description,
+  };
+
+  if (packet.sysUpTime !== undefined) {
+    metrics['sysUpTime'] = packet.sysUpTime;
+  }
+  if (packet.eventTime !== undefined) {
+    metrics['eventTime'] = packet.eventTime;
+  }
+
   return {
     schema: 'ftth.telemetry.v1',
     tenantId: senderContext.tenantId,
@@ -67,19 +88,14 @@ export function parseAndNormalizeSnmpTrap(
     deviceId,
     source: 'snmp-trap',
     ts: receivedAt.toISOString(),
-    metrics: {
-      snmpTrapOid: trapDef.oid,
-      trapCategory: trapDef.category,
-      trapName: trapDef.name,
-      severity: trapDef.severity,
-      vendor: trapDef.vendor ?? senderContext.vendor ?? 'Standard',
-      description: trapDef.description,
-    },
+    metrics,
     tags: {
       connectionId: senderContext.connectionId,
       oltId: senderContext.oltId,
       vendor: trapDef.vendor ?? senderContext.vendor ?? 'Standard',
       trapCategory: trapDef.category,
+      snmpVersion: packet.version,
+      pduType: packet.pduType ?? 'TrapV2',
     },
   };
 }

@@ -1,0 +1,29 @@
+# Tasks: Fase 0 — Real Binary SNMP Receiver & Raw Evidence
+
+- [x] 1. Core Models & Types (`packages/monitoring/src/snmp/types.ts` & `evidence.ts`)
+  - [x] 1.1 Define `DecodedSnmpPacket`, `RawSnmpEvidenceEnvelope`, `SnmpV3Config`, `SnmpVarbindDetail`
+  - [x] 1.2 Implement credential redaction utilities (ensure community/passwords are never logged or exported)
+  - [x] 1.3 Add timestamp separation model (`sysUpTime`, `receivedAt`, `eventTime`)
+- [x] 2. Canonical Notification Fingerprinting (`packages/monitoring/src/snmp/guard.ts`)
+  - [x] 2.1 Implement `computeSnmpNotificationFingerprint` using SHA-256 over canonicalized sender IP, version, trap OID, and varbinds
+  - [x] 2.2 Replace naive `${ip}:${msg.length}` in `SnmpIngestionGuard`
+  - [x] 2.3 Write unit tests verifying that two different traps of identical byte length do not collide
+- [x] 3. Binary ASN.1 / BER Decoder (`packages/monitoring/src/snmp/decoder.ts`)
+  - [x] 3.1 Implement binary datagram parser supporting SNMP v1 (`TrapPDU`), v2c (`TrapV2PDU`, `InformRequestPDU`), and v3
+  - [x] 3.2 Extract true trap OID, sysUpTime, and typed varbinds from actual datagram buffers
+  - [x] 3.3 Test edge cases: truncated buffers, malformed ASN.1 tags, invalid OID encodings
+- [x] 4. Receiver Engine & Inform Responder (`packages/monitoring/src/snmp/receiver.ts`)
+  - [x] 4.1 Build managed SNMP receiver engine with authorizer support (community validation & SNMPv3 USM authPriv)
+  - [x] 4.2 Support automatic InformResponse generation per RFC 3416 / RFC 1905
+  - [x] 4.3 Interpose ingestion guard and sender registry to drop oversized/unregistered datagrams before parsing
+- [x] 5. App Service Integration (`apps/web/lib/monitoring/snmp.ts`)
+  - [x] 5.1 Wire managed binary receiver into `startSnmpReceiver`
+  - [x] 5.2 Pass decoded packets and raw evidence envelopes to normalizer and event callbacks
+  - [x] 5.3 Ensure socket remains closed when `SNMP_RECEIVER_ENABLED=false`
+- [x] 6. Test Suite & Verification (`test:snmp`)
+  - [x] 6.1 Unit tests for v1, v2c (Trap + Inform), v3 authPriv, truncated packets, rate flood, deduplication
+  - [x] 6.2 Add standalone test script `packages/monitoring/scripts/test-snmp.ts` and `pnpm test:snmp` in root `package.json`
+  - [x] 6.3 Verify all gates of Gate 0
+- [x] 7. OpenSpec Verification Report & Commit
+  - [x] 7.1 Generate `verify-report.md`
+  - [x] 7.2 Run full monorepo CI checks (`pnpm turbo run build lint test`)
