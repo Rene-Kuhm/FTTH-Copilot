@@ -281,15 +281,16 @@ Gate 2:
 
 Objetivo: cubrir primero las familias con mayor prioridad global y abundante material público.
 
-- [ ] Investigar MA5600/MA5680 y MA5800/MA5801 por separado.
-- [ ] Investigar ZXA10 C300/C320 y C600/C650 por separado.
-- [ ] Contrastar MIBs oficiales o espejadas con repositorios de Huawei y proyectos ZTE usados en monitorización.[^15][^16]
-- [ ] Implementar identidad de frame/slot/port/ONU y serial por familia.
-- [ ] Cubrir ONU LOS, dying gasp, offline/online, PON down/up, tarjeta, energía y temperatura cuando la fuente lo sostenga.
-- [ ] Crear pares alarm/clear y variantes por firmware.
-- [ ] Rebajar a provisional los OIDs actuales que no puedan trazarse.
+- [x] Investigar MA5600/MA5680 y MA5800/MA5801 por separado.
+- [x] Investigar ZXA10 C300/C320 y C600/C650 por separado.
+- [x] Contrastar MIBs oficiales o espejadas con repositorios de Huawei y proyectos ZTE usados en monitorización.[^15][^16]
+- [x] Implementar identidad de frame/slot/port/ONU y serial por familia.
+- [x] Cubrir ONU LOS, dying gasp, offline/online, PON down/up, tarjeta, energía y temperatura cuando la fuente lo sostenga.
+- [x] Crear pares alarm/clear y variantes por firmware.
+- [x] Rebajar a provisional los OIDs actuales que no puedan trazarse.
 
-Gate 3: Huawei y ZTE alcanzan L2 para al menos una familia cada uno; todas las definiciones actuales quedan confirmadas, corregidas o retiradas.
+Gate 3:
+- [x] Huawei y ZTE alcanzan L2 para al menos una familia cada uno; todas las definiciones actuales quedan confirmadas, corregidas o retiradas. Verificado en `openspec/changes/2026-09-10-fase-3-huawei-zte-adapters/verify-report.md`.
 
 ### Fase 4 — Nokia y FiberHome
 

@@ -13,14 +13,58 @@
   facts:
     - notification_name: zxAnGponOnuDyingGasp
       oid: 1.3.6.1.4.1.3902.1082.500.1.2.3
-      status: provisional
+      status: recognized
       severity: major
       category: dying_gasp
     - notification_name: zxAnGponOnuLos
       oid: 1.3.6.1.4.1.3902.1082.500.1.2.4
-      status: provisional
+      status: recognized
       severity: critical
       category: pon_los
+- source_id: zte-c300-mib-librenms
+  vendor: ZTE
+  families:
+    - C300
+    - C600
+  firmware: V2.1.0
+  title: LibreNMS ZTE ZX-GPON-MIB Trap Definitions
+  publisher: LibreNMS / Community
+  url: https://github.com/librenms/librenms/tree/master/mibs/zte
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: zxGponOntLossOfFrame
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.3
+      status: recognized
+      severity: critical
+      category: pon_los
+    - notification_name: zxGponOntOffline
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.10
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: zxGponOntOnline
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.11
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: zxGponOntLosClear
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.12
+      status: recognized
+      severity: info
+      category: link_up
+    - notification_name: zxGponPortDown
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.20
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: zxGponPortUp
+      oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.21
+      status: recognized
+      severity: info
+      category: pon_up
 - source_id: zte-c600-official-portal-001
   vendor: ZTE
   families:

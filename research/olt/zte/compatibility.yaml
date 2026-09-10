@@ -10,12 +10,28 @@ families:
     supported_traps:
       - zxAnGponOnuDyingGasp
       - zxAnGponOnuLos
+      - zxGponOntLossOfFrame
+      - zxGponOntOffline
+      - zxGponOntOnline
+      - zxGponOntLosClear
+      - zxGponPortDown
+      - zxGponPortUp
     sources:
       - zte-c320-monitoring-001
+      - zte-c300-mib-librenms
   - family: C600
-    level: L1
-    confidence_grade: A
+    level: L2
+    confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - zxAnGponOnuDyingGasp
+      - zxAnGponOnuLos
+      - zxGponOntLossOfFrame
+      - zxGponOntOffline
+      - zxGponOntOnline
+      - zxGponOntLosClear
+      - zxGponPortDown
+      - zxGponPortUp
     sources:
       - zte-c600-official-portal-001
+      - zte-c300-mib-librenms

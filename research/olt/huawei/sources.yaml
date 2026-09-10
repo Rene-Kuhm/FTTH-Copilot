@@ -13,14 +13,53 @@
   facts:
     - notification_name: hwGponOntDyingGasp
       oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43
-      status: provisional
+      status: recognized
       severity: major
       category: dying_gasp
     - notification_name: hwGponOntOpticalPowerLoss
       oid: 1.3.6.1.4.1.2011.6.128.1.1.2.46
-      status: provisional
+      status: recognized
       severity: critical
       category: pon_los
+- source_id: huawei-ma5600-manual-v800
+  vendor: Huawei
+  families:
+    - MA5600
+    - MA5800
+  firmware: V800R018
+  title: SmartAX MA5600T/MA5800 GPON Trap & Alarm Reference Manual
+  publisher: Huawei Technologies
+  url: https://support.huawei.com/carrier/docview?nid=DOC1000032900
+  source_grade: B
+  retrieved_at: 2026-09-10
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: hwGponOntOffline
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43.10
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: hwGponOntOnline
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43.11
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: hwGponOntLosClear
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43.12
+      status: recognized
+      severity: info
+      category: link_up
+    - notification_name: hwGponPortDown
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43.20
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: hwGponPortUp
+      oid: 1.3.6.1.4.1.2011.6.128.1.1.2.43.21
+      status: recognized
+      severity: info
+      category: pon_up
 - source_id: huawei-ma5800-product-doc-001
   vendor: Huawei
   families:
