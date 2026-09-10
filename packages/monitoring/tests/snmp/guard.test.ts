@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createSnmpIngestionGuard } from '../../src/snmp/guard';
+import {
+  createSnmpIngestionGuard,
+  computeSnmpNotificationFingerprint,
+} from '../../src/snmp/guard';
 
-describe('SNMP Ingestion Guard (Roadmap Fase 6 — 6.5)', () => {
+describe('SNMP Ingestion Guard (Roadmap Fase 6 — 6.5 & Roadmap Fase 0)', () => {
   it('allows packets within payload size and rate limits', () => {
     const guard = createSnmpIngestionGuard({
       maxPayloadBytes: 2048,
@@ -55,5 +58,44 @@ describe('SNMP Ingestion Guard (Roadmap Fase 6 — 6.5)', () => {
 
     // After deduplication window expires, arrival is allowed
     expect(guard.evaluate(100, 'olt-1:hwOntDyingGasp:onu-12', 7000).allow).toBe(true);
+  });
+
+  it('verifies two distinct traps with the identical byte length do not collide (Gate 0)', () => {
+    const guard = createSnmpIngestionGuard({ dedupWindowMs: 5000 });
+
+    const trapA = {
+      senderIp: '192.168.10.1',
+      version: 'v2c' as const,
+      requestId: 101,
+      trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
+      varbinds: [{ oid: '1.3.6.1.2.1.2.2.1.1.1', value: 1 }],
+      sysUpTime: 1000,
+    };
+
+    const trapB = {
+      senderIp: '192.168.10.1',
+      version: 'v2c' as const,
+      requestId: 102,
+      trapOid: '1.3.6.1.6.3.1.1.5.4', // linkUp (different alarm, same byte size)
+      varbinds: [{ oid: '1.3.6.1.2.1.2.2.1.1.1', value: 1 }],
+      sysUpTime: 1000,
+    };
+
+    const fpA = computeSnmpNotificationFingerprint(trapA);
+    const fpB = computeSnmpNotificationFingerprint(trapB);
+
+    expect(fpA).not.toBe(fpB);
+
+    // Pre-parse allows both packets of same length (e.g. 150 bytes)
+    const byteSize = 150;
+    expect(guard.evaluatePreParse(byteSize, trapA.senderIp, 1000).allow).toBe(true);
+    expect(guard.evaluatePreParse(byteSize, trapB.senderIp, 1000).allow).toBe(true);
+
+    // Fingerprint deduplication evaluates both independently
+    expect(guard.evaluateDeduplication(fpA, 1000).allow).toBe(true);
+    expect(guard.evaluateDeduplication(fpB, 1000).allow).toBe(true);
+
+    // True duplicate of Trap A within dedup window is rejected
+    expect(guard.evaluateDeduplication(fpA, 2000).allow).toBe(false);
   });
 });

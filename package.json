@@ -24,7 +24,8 @@
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",
-    "test:mock-nms": "tsx scripts/mock-nms.ts"
+    "test:mock-nms": "tsx scripts/mock-nms.ts",
+    "test:snmp": "tsx scripts/test-snmp.ts"
   },
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",
