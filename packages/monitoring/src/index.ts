@@ -151,6 +151,8 @@ export { HuaweiOltAdapter } from './snmp/adapter/huawei';
 export { ZteOltAdapter } from './snmp/adapter/zte';
 export { NokiaOltAdapter } from './snmp/adapter/nokia';
 export { FiberhomeOltAdapter } from './snmp/adapter/fiberhome';
+export { CalixOltAdapter } from './snmp/adapter/calix';
+export { AdtranOltAdapter } from './snmp/adapter/adtran';
 
 export {
   decodeVendorSerialNumber,
@@ -159,7 +161,10 @@ export {
   extractZteGponHierarchy,
   extractNokiaHierarchy,
   extractFiberhomeGponHierarchy,
+  extractCalixHierarchy,
+  extractAdtranHierarchy,
   type GponOpticalHierarchy,
+  type CalixParsedEvent,
 } from './snmp/extractors/vendor-helpers';
 
 export {

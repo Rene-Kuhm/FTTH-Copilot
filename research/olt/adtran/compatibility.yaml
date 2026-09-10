@@ -4,10 +4,17 @@ iana_pens:
   - 664
 families:
   - family: TA5000
-    level: L1
+    level: L2
     confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - adGenGponOntAlarmSlotLosLevel
+      - adGenGponOntOMCICommFailAlarmSet
+      - adGenGponOntDyingGaspAlarm
+      - adGenGponPonDown
+      - adGenGponPonUp
+      - adGenGponOntOnline
+      - adGenGponOntLosClear
     sources:
       - adtran-ta5000-tc-mib-001
   - family: SDX-6000

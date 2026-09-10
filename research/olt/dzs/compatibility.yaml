@@ -1,8 +1,9 @@
 vendor: DZS
 priority: P1
 iana_pens:
-  - 5597
+  - 5504
   - 6296
+  - 5597
 families:
   - family: MXK
     level: L1

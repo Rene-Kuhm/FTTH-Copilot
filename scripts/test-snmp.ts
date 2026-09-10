@@ -185,10 +185,57 @@ async function run(): Promise<void> {
     });
     await new Promise((r) => setTimeout(r, 200));
 
+    // 10. Send Calix E7 GPON ONT LOS Trap (Fase 5)
+    console.log('[test:snmp] Sending Calix E7 GPON ONT LOS Trap (e7TrapAlarm)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.6321.1.2.2.4.2.1',
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.6321.1.2.2.4.1.1.6',
+          type: 'OctetString',
+          value: 'ont 1/1/2/4',
+        },
+        {
+          oid: '1.3.6.1.4.1.6321.1.2.2.4.1.1.7',
+          type: 'OctetString',
+          value: 'Loss of Signal',
+        },
+        {
+          oid: '1.3.6.1.4.1.6321.1.2.2.4.1.1.10',
+          type: 'OctetString',
+          value: 'CXNK00123456',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // 11. Send Adtran TA5000 GPON ONT Dying Gasp Trap (Fase 5)
+    console.log('[test:snmp] Sending Adtran TA5000 GPON ONT Dying Gasp Trap (adGenGponOntDyingGaspAlarm)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38.1.2.8', // slot 1, port 2, onu 8
+      varbinds: [
+        {
+          oid: '1.3.6.1.2.1.2.2.1.2.10208',
+          type: 'OctetString',
+          value: 'ont 1/2.8',
+        },
+        {
+          oid: '1.3.6.1.4.1.664.6.10000.76.1.1.1.1.3.10208',
+          type: 'OctetString',
+          value: 'ADTN12345678',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
     // Validations
     console.log(`[test:snmp] Total notifications received: ${received.length}`);
-    if (received.length < 9) {
-      throw new Error(`Expected 9 notifications, but received ${received.length}`);
+    if (received.length < 11) {
+      throw new Error(`Expected 11 notifications, but received ${received.length}`);
     }
 
     const versions = received.map((r) => r.notif.version);
@@ -208,10 +255,10 @@ async function run(): Promise<void> {
       }
     }
 
-    // Gate 2, Gate 3 & Gate 4 Telemetry Invariants & Schema Verification
+    // Gate 2, Gate 3, Gate 4 & Gate 5 Telemetry Invariants & Schema Verification
     console.log(`[test:snmp] Total telemetry.v1 events generated: ${telemetryEvents.length}`);
-    if (telemetryEvents.length < 9) {
-      throw new Error(`Expected at least 9 telemetry events, got ${telemetryEvents.length}`);
+    if (telemetryEvents.length < 11) {
+      throw new Error(`Expected at least 11 telemetry events, got ${telemetryEvents.length}`);
     }
 
     for (const event of telemetryEvents) {
@@ -292,7 +339,41 @@ async function run(): Promise<void> {
       throw new Error(`Invalid FiberHome GPON hierarchy: onuId=${fiberhomeOntEvent.metrics['onuId']}, slot=${fiberhomeOntEvent.metrics['slot']}, port=${fiberhomeOntEvent.metrics['port']}`);
     }
 
-    console.log('[test:snmp] ✅ Gate 0, Gate 2, Gate 3 & Gate 4 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei, ZTE, Nokia & FiberHome adapters 100% OK.');
+    // Validate Calix Adapter normalization (Fase 5)
+    const calixOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'calix' && e.metrics['trapName'] === 'e7TrapAlarm',
+    );
+    if (!calixOntEvent) {
+      throw new Error('Expected Calix normalized telemetry event from CalixOltAdapter');
+    }
+    if (calixOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected Calix event deviceKind 'ONU', got '${calixOntEvent.deviceKind}'`);
+    }
+    if (calixOntEvent.deviceId !== 'CXNK00123456') {
+      throw new Error(`Expected Calix deviceId 'CXNK00123456', got '${calixOntEvent.deviceId}'`);
+    }
+    if (calixOntEvent.metrics['onuId'] !== 4 || calixOntEvent.metrics['slot'] !== 1 || calixOntEvent.metrics['port'] !== 2) {
+      throw new Error(`Invalid Calix optical hierarchy: onuId=${calixOntEvent.metrics['onuId']}, slot=${calixOntEvent.metrics['slot']}, port=${calixOntEvent.metrics['port']}`);
+    }
+
+    // Validate Adtran Adapter normalization (Fase 5)
+    const adtranOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'adtran' && e.metrics['trapName'] === 'adGenGponOntDyingGaspAlarm',
+    );
+    if (!adtranOntEvent) {
+      throw new Error('Expected Adtran normalized telemetry event from AdtranOltAdapter');
+    }
+    if (adtranOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected Adtran event deviceKind 'ONU', got '${adtranOntEvent.deviceKind}'`);
+    }
+    if (adtranOntEvent.deviceId !== 'ADTN12345678') {
+      throw new Error(`Expected Adtran deviceId 'ADTN12345678', got '${adtranOntEvent.deviceId}'`);
+    }
+    if (adtranOntEvent.metrics['onuId'] !== 8 || adtranOntEvent.metrics['slot'] !== 1 || adtranOntEvent.metrics['port'] !== 2) {
+      throw new Error(`Invalid Adtran GPON hierarchy: onuId=${adtranOntEvent.metrics['onuId']}, slot=${adtranOntEvent.metrics['slot']}, port=${adtranOntEvent.metrics['port']}`);
+    }
+
+    console.log('[test:snmp] ✅ Gate 0, Gate 2, Gate 3, Gate 4 & Gate 5 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei, ZTE, Nokia, FiberHome, Calix & Adtran adapters 100% OK.');
   } finally {
     receiver.close();
   }

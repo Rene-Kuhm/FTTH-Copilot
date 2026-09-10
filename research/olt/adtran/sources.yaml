@@ -10,7 +10,42 @@
   retrieved_at: 2026-09-10
   license: review-required
   sha256: null
-  facts: []
+  facts:
+    - notification_name: adGenGponOntAlarmSlotLosLevel
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1
+      status: recognized
+      severity: critical
+      category: los
+    - notification_name: adGenGponOntOMCICommFailAlarmSet
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.25
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: adGenGponOntDyingGaspAlarm
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38
+      status: recognized
+      severity: critical
+      category: dying_gasp
+    - notification_name: adGenGponPonDown
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: adGenGponPonUp
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.6
+      status: recognized
+      severity: info
+      category: pon_up
+    - notification_name: adGenGponOntOnline
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.26
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: adGenGponOntLosClear
+      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2
+      status: recognized
+      severity: info
+      category: los_clear
 - source_id: adtran-sdx-6000-portal-001
   vendor: Adtran
   families:

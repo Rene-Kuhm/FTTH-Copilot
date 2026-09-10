@@ -310,14 +310,15 @@ Gate 4:
 
 Objetivo: cubrir operadores de Norteamérica y Europa y proveedores alternativos.
 
-- [ ] Separar Calix E7 de E9/AXOS; no asumir MIB común.
-- [ ] Contrastar E7-Calix-MIB y convenciones de alarmas públicas.[^22]
-- [ ] Separar Adtran TA5000 de SDX/Mosaic; investigar MIBs de tarjeta, PON y alarmas.[^23]
-- [ ] Investigar DZS MXK y Velocity V1.
-- [ ] Investigar Zyxel IES por generación.
-- [ ] Implementar solo traps cuya identidad de objeto sea recuperable de forma determinista.
+- [x] Separar Calix E7 de E9/AXOS; no asumir MIB común.
+- [x] Contrastar E7-Calix-MIB y convenciones de alarmas públicas.[^22]
+- [x] Separar Adtran TA5000 de SDX/Mosaic; investigar MIBs de tarjeta, PON y alarmas.[^23]
+- [x] Investigar DZS MXK y Velocity V1.
+- [x] Investigar Zyxel IES por generación.
+- [x] Implementar solo traps cuya identidad de objeto sea recuperable de forma determinista.
 
-Gate 5: cada fabricante tiene inventario de fuentes y al menos L1; un fabricante llega a L2 antes de avanzar.
+Gate 5:
+- [x] Cada fabricante tiene inventario de fuentes y al menos L1; Calix y Adtran alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback. Verificado en `openspec/changes/2026-09-10-fase-5-calix-adtran-dzs-zyxel-adapters/verify-report.md`.
 
 ### Fase 6 — VSOL, C-Data, BDCOM y Ubiquiti
 

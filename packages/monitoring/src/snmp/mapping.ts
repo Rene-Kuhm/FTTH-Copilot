@@ -15,6 +15,8 @@ export interface SnmpSenderContext {
   connectionId: string;
   oltId: string;
   vendor?: string;
+  model?: string;
+  hardwareModel?: string;
   managementNetwork?: string;
 }
 

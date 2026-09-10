@@ -1,13 +1,19 @@
 vendor: Calix
 priority: P1
 iana_pens:
+  - 6321
   - 1264
 families:
   - family: E7
-    level: L1
+    level: L2
     confidence_grade: B
     firmware: unknown
-    supported_traps: []
+    supported_traps:
+      - e7TrapAlarm
+      - e7TrapEvent
+      - e7TrapDbChange
+      - e7TrapSecurity
+      - e7TrapAlarmClear
     sources:
       - calix-e7-librenms-mib-001
   - family: E9

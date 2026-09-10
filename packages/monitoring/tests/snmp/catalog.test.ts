@@ -135,6 +135,51 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     expect(lightspanPortDown.vendor).toBe('Nokia');
   });
 
+  it('recognizes Calix E7 alarm, system, and recovery traps', () => {
+    const calixAlarm = lookupTrapDefinition('1.3.6.1.4.1.6321.1.2.2.4.2.1');
+    expect(calixAlarm.vendor).toBe('Calix');
+    expect(calixAlarm.name).toBe('e7TrapAlarm');
+    expect(calixAlarm.severity).toBe('critical');
+
+    const calixClear = lookupTrapDefinition('1.3.6.1.4.1.6321.1.2.2.4.2.10');
+    expect(calixClear.category).toBe('los_clear');
+    expect(calixClear.is_clear).toBe(true);
+    expect(calixClear.clears_trap_oid).toBe('1.3.6.1.4.1.6321.1.2.2.4.2.1');
+
+    const calixDb = lookupTrapDefinition('1.3.6.1.4.1.6321.1.2.2.4.2.3');
+    expect(calixDb.category).toBe('config_change');
+  });
+
+  it('recognizes Adtran TA5000 GPON ONT, PON, and recovery traps', () => {
+    const adtranLos = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1');
+    expect(adtranLos.vendor).toBe('Adtran');
+    expect(adtranLos.category).toBe('los');
+    expect(adtranLos.severity).toBe('critical');
+
+    const adtranDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38');
+    expect(adtranDyingGasp.category).toBe('dying_gasp');
+    expect(adtranDyingGasp.severity).toBe('critical');
+
+    const adtranOmciFail = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.25');
+    expect(adtranOmciFail.category).toBe('onu_offline');
+    expect(adtranOmciFail.severity).toBe('warning');
+
+    const adtranPonDown = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5');
+    expect(adtranPonDown.category).toBe('pon_down');
+
+    const adtranPonUp = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.6');
+    expect(adtranPonUp.category).toBe('pon_up');
+    expect(adtranPonUp.is_clear).toBe(true);
+
+    const adtranOnline = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.26');
+    expect(adtranOnline.category).toBe('onu_online');
+    expect(adtranOnline.is_clear).toBe(true);
+
+    const adtranLosClear = lookupTrapDefinition('1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2');
+    expect(adtranLosClear.category).toBe('los_clear');
+    expect(adtranLosClear.is_clear).toBe(true);
+  });
+
   it('safely handles unknown OIDs without fabricating diagnoses (6.4)', () => {
     const unknownOid = '1.3.6.1.4.1.99999.1.2.3.4';
     expect(isKnownTrapOid(unknownOid)).toBe(false);
