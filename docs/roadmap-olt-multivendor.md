@@ -252,15 +252,16 @@ Gate 0:
 
 Objetivo: hacer auditable cada OID antes de ampliar el catálogo.
 
-- [ ] Crear `research/olt/<vendor>/sources.yaml`, `compatibility.yaml` y `fixtures/`.
-- [ ] Definir schemas para fuente, modelo, firmware, trap, varbind e identidad.
-- [ ] Implementar validación de URLs, duplicados, Enterprise OID y estado de licencia.
-- [ ] Añadir compilación aislada de MIBs mediante `snmptranslate` sin requerir redistribuirlas.
-- [ ] Registrar IANA Private Enterprise Numbers como raíz, evitando identificar fabricante por texto libre.[^21]
-- [ ] Crear un comando que genere la matriz de compatibilidad desde datos, sin editar tablas a mano.
-- [ ] Documentar cómo reportar una fuente retirada o una MIB reemplazada.
+- [x] Crear `research/olt/<vendor>/sources.yaml`, `compatibility.yaml` y `fixtures/`.
+- [x] Definir schemas para fuente, modelo, firmware, trap, varbind e identidad.
+- [x] Implementar validación de URLs, duplicados, Enterprise OID y estado de licencia.
+- [x] Añadir compilación aislada de MIBs mediante `snmptranslate` sin requerir redistribuirlas.
+- [x] Registrar IANA Private Enterprise Numbers como raíz, evitando identificar fabricante por texto libre.[^21]
+- [x] Crear un comando que genere la matriz de compatibilidad desde datos, sin editar tablas a mano.
+- [x] Documentar cómo reportar una fuente retirada o una MIB reemplazada.
 
-Gate 1: ninguna definición entra al catálogo sin `source_id`, grado, modelos, firmware conocido o explícitamente desconocido y estado de licencia.
+Gate 1:
+- [x] Ninguna definición entra al catálogo sin `source_id`, grado, modelos, firmware conocido o explícitamente desconocido y estado de licencia. Verificado en PR #147 y archivado en `openspec/changes/archive/2026-09-10-fase-1-research-sources-and-mib-tools/`.
 
 ### Fase 2 — Base estándar y contrato de adaptadores
 
