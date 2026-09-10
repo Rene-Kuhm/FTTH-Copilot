@@ -18,8 +18,46 @@ export interface TopologyHop {
   id: string;
 }
 
-function isActive(edge: TopologyEdge): boolean {
-  return edge.validTo === null || edge.validTo === undefined;
+/**
+ * Determines whether a TopologyEdge is valid at a given point in time (asOf).
+ *
+ * If asOf is provided:
+ *   An edge is valid at instant T if validFrom <= T and (validTo === null || validTo > T).
+ * If asOf is omitted or null/undefined:
+ *   Maintains backward compatibility by returning true only for currently active edges (validTo === null).
+ */
+export function isEdgeValidAt(
+  edge: TopologyEdge,
+  asOf?: string | Date | number | null,
+): boolean {
+  if (asOf === undefined || asOf === null) {
+    return edge.validTo === null || edge.validTo === undefined;
+  }
+
+  const asOfMs =
+    typeof asOf === 'number'
+      ? asOf
+      : typeof asOf === 'string'
+        ? new Date(asOf).getTime()
+        : asOf.getTime();
+
+  if (Number.isNaN(asOfMs)) {
+    return edge.validTo === null || edge.validTo === undefined;
+  }
+
+  const validFromMs = new Date(edge.validFrom).getTime();
+  if (!Number.isNaN(validFromMs) && validFromMs > asOfMs) {
+    return false;
+  }
+
+  if (edge.validTo !== null && edge.validTo !== undefined) {
+    const validToMs = new Date(edge.validTo).getTime();
+    if (!Number.isNaN(validToMs) && validToMs <= asOfMs) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function hopKey(kind: TopologyNodeKind, id: string): string {
@@ -31,6 +69,9 @@ function hopKey(kind: TopologyNodeKind, id: string): string {
  * childIds of every reachable `ONU` node (terminal leaves). The root node
  * itself is never in the result.
  *
+ * Scoped by point-in-time validity via `asOf` when specified, or active edges
+ * (`validTo: null`) when omitted.
+ *
  * Duplicate child IDs that appear behind distinct paths collapse to a
  * single entry (Set guard keyed on the *node*, not on the edge).
  */
@@ -38,8 +79,9 @@ export function bfsDownstream(
   edges: ReadonlyArray<TopologyEdge>,
   rootKind: TopologyNodeKind,
   rootId: string,
+  asOf?: string | Date | number | null,
 ): string[] {
-  const active = edges.filter(isActive);
+  const active = edges.filter((e) => isEdgeValidAt(e, asOf));
   const visited = new Set<string>([hopKey(rootKind, rootId)]);
   const onuIds = new Set<string>();
   let frontier: TopologyHop[] = [{ kind: rootKind, id: rootId }];
@@ -67,6 +109,9 @@ export function bfsDownstream(
  * chain root-first (e.g. `[{OLT, OLT-1}, {PON_PORT, PON-1}, …]`). The leaf
  * itself is not in the result. If the leaf is unreachable, returns `[]`.
  *
+ * Scoped by point-in-time validity via `asOf` when specified, or active edges
+ * (`validTo: null`) when omitted.
+ *
  * BFS explores by levels from the leaf, so the immediate parent is pushed
  * first; the helper returns the *reversed* path so the root of the chain
  * (typically an OLT) is the first element. The cycle guard is keyed on the
@@ -76,8 +121,9 @@ export function bfsAncestors(
   edges: ReadonlyArray<TopologyEdge>,
   leafKind: TopologyNodeKind,
   leafId: string,
+  asOf?: string | Date | number | null,
 ): TopologyHop[] {
-  const active = edges.filter(isActive);
+  const active = edges.filter((e) => isEdgeValidAt(e, asOf));
   const visited = new Set<string>([hopKey(leafKind, leafId)]);
   const pathLeafFirst: TopologyHop[] = [];
   let frontier: TopologyHop[] = [{ kind: leafKind, id: leafId }];
@@ -110,8 +156,9 @@ export function topologyPath(
   edges: ReadonlyArray<TopologyEdge>,
   leafKind: TopologyNodeKind,
   leafId: string,
+  asOf?: string | Date | number | null,
 ): TopologyHop[] {
-  const ancestorsRootFirst = bfsAncestors(edges, leafKind, leafId);
+  const ancestorsRootFirst = bfsAncestors(edges, leafKind, leafId, asOf);
   if (ancestorsRootFirst.length === 0) return [];
   // Reverse so the leaf is first; the root OLT (or highest reachable node)
   // ends up last.

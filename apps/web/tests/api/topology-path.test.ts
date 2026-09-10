@@ -213,4 +213,50 @@ describe('GET /api/topology/path — happy path', () => {
     };
     expect(args.where.validTo).toBeNull();
   });
+
+  it('returns 400 when asOf format is invalid', async () => {
+    const res = await callRoute({ kind: 'ONU', id: 'ONU-1', asOf: 'not-a-date' });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('Invalid asOf format');
+  });
+
+  it('queries point-in-time bounds when asOf is provided', async () => {
+    const asOfStr = '2026-09-01T12:00:00.000Z';
+    const asOfDate = new Date(asOfStr);
+
+    mocks.prismaTopologyEdgeFindMany.mockResolvedValue([
+      edge({
+        id: 'te-hist-1',
+        tenantId: 'tenant-1',
+        parentKind: 'CTO',
+        parentId: 'CTO-OLD',
+        childKind: 'ONU',
+        childId: 'ONU-1',
+        validFrom: '2026-08-01T00:00:00.000Z',
+        validTo: '2026-09-05T00:00:00.000Z',
+      }),
+    ]);
+    mocks.prismaTopologyEdgeFindFirst.mockResolvedValue({ tenantId: 'tenant-1' });
+
+    const res = await callRoute({ kind: 'ONU', id: 'ONU-1', asOf: asOfStr });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { path: Array<{ kind: string; id: string }>; asOf?: string };
+    expect(body.path).toEqual([
+      { kind: 'ONU', id: 'ONU-1' },
+      { kind: 'CTO', id: 'CTO-OLD' },
+    ]);
+    expect(body.asOf).toBe(asOfStr);
+
+    const args = mocks.prismaTopologyEdgeFindMany.mock.calls[0]?.[0] as {
+      where: {
+        tenantId: string;
+        validFrom: { lte: Date };
+        OR: Array<{ validTo: null } | { validTo: { gt: Date } }>;
+      };
+    };
+    expect(args.where.tenantId).toBe('tenant-1');
+    expect(args.where.validFrom).toEqual({ lte: asOfDate });
+    expect(args.where.OR).toEqual([{ validTo: null }, { validTo: { gt: asOfDate } }]);
+  });
 });

@@ -79,11 +79,14 @@ function correlateTenantEvents(
   const groups: TopologyCorrelationGroup[] = [];
 
   for (const cluster of clusters) {
-    // 1. Identify all candidate ancestors for devices in this cluster
+    // Determine the historical reference point from the cluster's earliest event
+    const asOf = cluster[0]!.timestamp;
+
+    // 1. Identify all candidate ancestors for devices in this cluster valid at incident time
     const candidateMap = new Map<string, CandidateAncestor>();
 
     for (const ev of cluster) {
-      const ancestors = bfsAncestors(edges, ev.deviceKind, ev.deviceId);
+      const ancestors = bfsAncestors(edges, ev.deviceKind, ev.deviceId, asOf);
       for (const anc of ancestors) {
         const rank = targetKinds.indexOf(anc.kind);
         if (rank >= 0) {
@@ -111,8 +114,8 @@ function correlateTenantEvents(
     const coveredDeviceIds = new Set<string>();
 
     for (const candidate of candidates) {
-      // Downstream population under this ancestor
-      const downstreamOnus = bfsDownstream(edges, candidate.kind, candidate.id);
+      // Downstream population under this ancestor at incident time
+      const downstreamOnus = bfsDownstream(edges, candidate.kind, candidate.id, asOf);
       const totalPopulation = downstreamOnus.length;
       if (totalPopulation === 0) continue;
 

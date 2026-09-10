@@ -13,7 +13,7 @@ export { classifyEnvelope, classifyUnwrapped } from './truth-gate';
 
 // ── Fase E — temporal topology BFS helpers (pure TS, Prisma-free) ────────────
 export type { TopologyHop } from './topology';
-export { bfsAncestors, bfsDownstream, topologyPath } from './topology';
+export { bfsAncestors, bfsDownstream, isEdgeValidAt, topologyPath } from './topology';
 
 // ── Fase C — strict-mode abstention policy ──────────────────────────────────
 export type { Abstention } from '@ftth-copilot/shared';
