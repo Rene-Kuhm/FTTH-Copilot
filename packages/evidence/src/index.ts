@@ -154,3 +154,10 @@ export {
   type DedupArgs,
   type ReconciledGroup,
 } from './groups-reconciler';
+
+export {
+  enrichInvestigation,
+  type EnrichedInvestigation,
+  type EnrichInvestigationArgs,
+  type SharedInfrastructureRef,
+} from './investigation-enrichment';
