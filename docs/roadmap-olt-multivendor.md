@@ -296,14 +296,15 @@ Gate 3:
 
 Objetivo: completar el núcleo global.
 
-- [ ] Investigar Nokia 7360 ISAM y Lightspan como perfiles separados.
-- [ ] Catalogar ASAM-SYSTEM, ASAM-EQUIP y ASAM-ALARM cuando sean obtenibles y redistribuibles.
-- [ ] Investigar FiberHome AN5516 y AN6000 por separado; no trasladar automáticamente índices entre generaciones.
-- [ ] Contrastar el manual MIB de AN6000 con `snmp-fiberhome`, LibreNMS y capturas públicas.[^6][^17][^18]
-- [ ] Cubrir identidad ONU, LOS, dying gasp, estado PON, tarjeta, energía y recuperación.
-- [ ] Documentar huecos donde Nokia requiera acceso de soporte.
+- [x] Investigar Nokia 7360 ISAM y Lightspan como perfiles separados.
+- [x] Catalogar ASAM-SYSTEM, ASAM-EQUIP y ASAM-ALARM cuando sean obtenibles y redistribuibles.
+- [x] Investigar FiberHome AN5516 y AN6000 por separado; no trasladar automáticamente índices entre generaciones.
+- [x] Contrastar el manual MIB de AN6000 con `snmp-fiberhome`, LibreNMS y capturas públicas.[^6][^17][^18]
+- [x] Cubrir identidad ONU, LOS, dying gasp, estado PON, tarjeta, energía y recuperación.
+- [x] Documentar huecos donde Nokia requiera acceso de soporte.
 
-Gate 4: Nokia y FiberHome alcanzan L2 o quedan marcados L1 con bloqueos concretos por familia, sin OIDs inventados.
+Gate 4:
+- [x] Nokia y FiberHome alcanzan L2 para 7360-ISAM-FX, Lightspan-MF, AN5516 y AN6000 con pruebas simuladas y suites unitarias/e2e. Verificado en `openspec/changes/2026-09-10-fase-4-nokia-fiberhome-adapters/verify-report.md`.
 
 ### Fase 5 — Calix, Adtran, DZS y Zyxel
 

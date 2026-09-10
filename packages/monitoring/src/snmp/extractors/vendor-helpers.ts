@@ -254,3 +254,164 @@ export function extractZteGponHierarchy(
 
   return hierarchy;
 }
+
+/**
+ * Extracts Nokia / Alcatel ISAM & Lightspan hierarchy and serial from notification trap OID and varbinds.
+ */
+export function extractNokiaHierarchy(
+  notification: DecodedSnmpNotification,
+  baseTrapOid?: string,
+): GponOpticalHierarchy {
+  const hierarchy: GponOpticalHierarchy = {};
+
+  // 1. Check trap OID suffix if provided
+  if (baseTrapOid && notification.trapOid.startsWith(`${baseTrapOid}.`)) {
+    const suffix = notification.trapOid.slice(baseTrapOid.length + 1);
+    const parts = suffix
+      .split('.')
+      .map((p) => parseInt(p, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 0);
+
+    const isOntScope =
+      baseTrapOid.includes('.36.1.1.') ||
+      notification.trapOid.includes('Ont') ||
+      notification.varbinds.some((vb) => {
+        const s = decodeVendorSerialNumber(vb.value, vb.rawHex);
+        return s !== undefined;
+      });
+
+    if (parts.length >= 5) {
+      const [r, sh, sl, p, o] = parts.slice(-5);
+      hierarchy.rack = r;
+      hierarchy.shelf = sh;
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+      hierarchy.onuId = o;
+    } else if (parts.length === 4) {
+      if (isOntScope) {
+        const [sh, sl, p, o] = parts;
+        hierarchy.shelf = sh;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+        hierarchy.onuId = o;
+      } else {
+        const [r, sh, sl, p] = parts;
+        hierarchy.rack = r;
+        hierarchy.shelf = sh;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+      }
+    } else if (parts.length === 3) {
+      if (isOntScope) {
+        const [sl, p, o] = parts;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+        hierarchy.onuId = o;
+      } else {
+        const [sh, sl, p] = parts;
+        hierarchy.shelf = sh;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+      }
+    } else if (parts.length === 2) {
+      const [sl, p] = parts;
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+    } else if (parts.length === 1) {
+      if (baseTrapOid.includes('.3.1.1.1')) {
+        // Line card equipment trap
+        hierarchy.slot = parts[0];
+      } else {
+        hierarchy.port = parts[0];
+      }
+    }
+  }
+
+  // 2. Scan varbinds for serial number (ALCL..., NOKT..., etc.)
+  for (const vb of notification.varbinds) {
+    if (!hierarchy.serial) {
+      const serial = decodeVendorSerialNumber(vb.value, vb.rawHex);
+      if (serial) {
+        hierarchy.serial = serial;
+      }
+    }
+  }
+
+  return hierarchy;
+}
+
+/**
+ * Extracts FiberHome GPON hierarchy and serial from notification trap OID and varbinds.
+ */
+export function extractFiberhomeGponHierarchy(
+  notification: DecodedSnmpNotification,
+  baseTrapOid?: string,
+): GponOpticalHierarchy {
+  const hierarchy: GponOpticalHierarchy = {};
+
+  // 1. Check trap OID suffix if provided
+  if (baseTrapOid && notification.trapOid.startsWith(`${baseTrapOid}.`)) {
+    const suffix = notification.trapOid.slice(baseTrapOid.length + 1);
+    const parts = suffix
+      .split('.')
+      .map((p) => parseInt(p, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 0);
+
+    const isOntScope =
+      baseTrapOid.includes('.1.3.1.1.') ||
+      notification.trapOid.includes('Ont') ||
+      notification.varbinds.some((vb) => {
+        const s = decodeVendorSerialNumber(vb.value, vb.rawHex);
+        return s !== undefined;
+      });
+
+    if (parts.length >= 4) {
+      const [subrack, sl, p, o] = parts.slice(-4);
+      hierarchy.shelf = subrack;
+      hierarchy.slot = sl;
+      hierarchy.port = p;
+      hierarchy.onuId = o;
+    } else if (parts.length === 3) {
+      if (isOntScope) {
+        const [sl, p, o] = parts;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+        hierarchy.onuId = o;
+      } else {
+        const [subrack, sl, p] = parts;
+        hierarchy.shelf = subrack;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+      }
+    } else if (parts.length === 2) {
+      if (baseTrapOid.includes('.1.1.1.1')) {
+        // Card failure: subrack.slot
+        const [subrack, sl] = parts;
+        hierarchy.shelf = subrack;
+        hierarchy.slot = sl;
+      } else {
+        const [sl, p] = parts;
+        hierarchy.slot = sl;
+        hierarchy.port = p;
+      }
+    } else if (parts.length === 1) {
+      if (baseTrapOid.includes('.1.1.1.1')) {
+        hierarchy.slot = parts[0];
+      } else {
+        hierarchy.port = parts[0];
+      }
+    }
+  }
+
+  // 2. Scan varbinds for serial number (FHTT...)
+  for (const vb of notification.varbinds) {
+    if (!hierarchy.serial) {
+      const serial = decodeVendorSerialNumber(vb.value, vb.rawHex);
+      if (serial) {
+        hierarchy.serial = serial;
+      }
+    }
+  }
+
+  return hierarchy;
+}

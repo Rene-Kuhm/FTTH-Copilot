@@ -1,0 +1,34 @@
+# Tasks: Fase 4 — Adaptadores de Fabricante OLT: Nokia y FiberHome
+
+- [x] 1. Catalog Updates & Audit Metadata (`packages/monitoring/src/snmp/catalog.ts`)
+  - [x] 1.1 Add Nokia ISAM & Lightspan traps (`nokiaOntLossOfSignal`, `nokiaOntDyingGasp`, `nokiaOntOffline`, `nokiaOntOnline`, `nokiaOntLosClear`, `nokiaPonPortDown`, `nokiaPonPortUp`, `nokiaCardFailure`)
+  - [x] 1.2 Add FiberHome AN5516 & AN6000 traps (`fhGponOntLossOfSignal`, `fhGponOntDyingGasp`, `fhGponOntOffline`, `fhGponOntOnline`, `fhGponOntLosClear`, `fhGponPortDown`, `fhGponPortUp`, `fhCardFailure`)
+  - [x] 1.3 Audit all Nokia and FiberHome definitions with source IDs and Gate 1 compliance
+- [x] 2. Serial & Hierarchy Helpers (`packages/monitoring/src/snmp/extractors/vendor-helpers.ts`)
+  - [x] 2.1 Enhance serial decoder for Nokia (`ALCL...`, `NOKT...`) and FiberHome (`FHTT...`)
+  - [x] 2.2 Implement `extractNokiaHierarchy` for rack/shelf/slot/port/ontId
+  - [x] 2.3 Implement `extractFiberhomeGponHierarchy` for slot/port/onuId (and subrack/slot/port/onuId)
+- [x] 3. Nokia OLT Adapter (`packages/monitoring/src/snmp/adapter/nokia.ts`)
+  - [x] 3.1 Implement `NokiaOltAdapter` with PENs 637, 6527, 28458 and `7360-ISAM-FX`, `Lightspan-MF` families
+  - [x] 3.2 Extract rack/shelf/slot/port/ontId and serial from varbinds and instance OIDs
+  - [x] 3.3 Set `deviceKind: 'ONU'` with `deviceId: serial` (or synthesized fallback) when ONT is present
+  - [x] 3.4 Support clear pairs (`nokiaOntOnline`, `nokiaOntLosClear`, `nokiaPonPortUp`)
+- [x] 4. FiberHome OLT Adapter (`packages/monitoring/src/snmp/adapter/fiberhome.ts`)
+  - [x] 4.1 Implement `FiberhomeOltAdapter` with PEN 3807 and `AN5516`, `AN6000` families
+  - [x] 4.2 Extract slot/port/onuId and serial from varbinds and instance OIDs
+  - [x] 4.3 Set `deviceKind: 'ONU'` with `deviceId: serial` (or synthesized fallback) when ONU is present
+  - [x] 4.4 Support clear pairs (`fhGponOntOnline`, `fhGponOntLosClear`, `fhGponPortUp`)
+- [x] 5. Adapter Registry Integration & Exports
+  - [x] 5.1 Register `NokiaOltAdapter` and `FiberhomeOltAdapter` in `defaultAdapterRegistry`
+  - [x] 5.2 Export new adapters and helpers from `packages/monitoring/src/index.ts`
+- [x] 6. Research Registries & Fixtures (Level L2)
+  - [x] 6.1 Update `research/olt/nokia/sources.yaml` and `compatibility.yaml` to L2
+  - [x] 6.2 Update `research/olt/fiberhome/sources.yaml` and `compatibility.yaml` to L2
+  - [x] 6.3 Add test fixture files in `research/olt/nokia/fixtures/7360-isam-traps.json` and `research/olt/fiberhome/fixtures/an5516-traps.json`
+  - [x] 6.4 Verify `pnpm check:sources` and `pnpm generate:matrix`
+- [x] 7. Test Suites & Gate 4 Verification
+  - [x] 7.1 Unit tests for Nokia adapter (`tests/snmp/nokia-adapter.test.ts`)
+  - [x] 7.2 Unit tests for FiberHome adapter (`tests/snmp/fiberhome-adapter.test.ts`)
+  - [x] 7.3 End-to-end binary test for Nokia and FiberHome traps (`scripts/test-snmp.ts`)
+  - [x] 7.4 Monorepo validation (`pnpm turbo run lint typecheck test`)
+  - [x] 7.5 Create `verify-report.md`

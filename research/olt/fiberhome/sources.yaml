@@ -2,6 +2,7 @@
   vendor: FiberHome
   families:
     - AN5516
+    - AN6000
   firmware: unknown
   title: Community SNMP Driver for FiberHome AN5516 OLT
   publisher: Community / ISP Lab
@@ -11,6 +12,41 @@
   license: permissive
   sha256: null
   facts:
+    - notification_name: fhGponOntLossOfSignal
+      oid: 1.3.6.1.4.1.3807.1.3.1.1.1
+      status: recognized
+      severity: critical
+      category: los
+    - notification_name: fhGponOntDyingGasp
+      oid: 1.3.6.1.4.1.3807.1.3.1.1.2
+      status: recognized
+      severity: critical
+      category: dying_gasp
+    - notification_name: fhGponOntOffline
+      oid: 1.3.6.1.4.1.3807.1.3.1.1.3
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: fhGponOntOnline
+      oid: 1.3.6.1.4.1.3807.1.3.1.1.4
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: fhGponOntLosClear
+      oid: 1.3.6.1.4.1.3807.1.3.1.1.5
+      status: recognized
+      severity: info
+      category: los_clear
+    - notification_name: fhGponPortDown
+      oid: 1.3.6.1.4.1.3807.1.3.1.2.1
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: fhGponPortUp
+      oid: 1.3.6.1.4.1.3807.1.3.1.2.2
+      status: recognized
+      severity: info
+      category: pon_up
     - notification_name: fhOnuDyingGasp
       oid: 1.3.6.1.4.1.3807.1.3.1.2.2
       status: provisional
@@ -23,6 +59,7 @@
   vendor: FiberHome
   families:
     - AN5516
+    - AN6000
   firmware: unknown
   title: FiberHome OLT Common MIB in LibreNMS
   publisher: LibreNMS Project
@@ -31,7 +68,12 @@
   retrieved_at: 2026-09-10
   license: review-required
   sha256: null
-  facts: []
+  facts:
+    - notification_name: fhCardFailure
+      oid: 1.3.6.1.4.1.3807.1.1.1.1
+      status: recognized
+      severity: critical
+      category: card_failure
 - source_id: fiberhome-an6000-official-portal-001
   vendor: FiberHome
   families:

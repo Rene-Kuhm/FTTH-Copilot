@@ -1,0 +1,127 @@
+[
+  {
+    "description": "FiberHome AN5516 GPON ONT Loss of Signal alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.1.3.1.8",
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 412000
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.3807.1.3.1.1.1.3.1.8"
+      },
+      {
+        "oid": "1.3.6.1.4.1.3807.1.3.1.1.2.1",
+        "type": "OctetString",
+        "value": "FHTT87654321",
+        "rawHex": "464854543837363534333231"
+      }
+    ],
+    "expected": {
+      "vendor": "FiberHome",
+      "deviceKind": "ONU",
+      "deviceId": "FHTT87654321",
+      "severity": "critical",
+      "slot": 3,
+      "port": 1,
+      "onuId": 8
+    }
+  },
+  {
+    "description": "FiberHome AN5516 GPON ONT Dying Gasp alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12",
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 412500
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12"
+      },
+      {
+        "oid": "1.3.6.1.4.1.3807.1.3.1.1.2.1",
+        "type": "OctetString",
+        "value": "FHTT12345678"
+      }
+    ],
+    "expected": {
+      "vendor": "FiberHome",
+      "deviceKind": "ONU",
+      "deviceId": "FHTT12345678",
+      "severity": "critical",
+      "slot": 2,
+      "port": 4,
+      "onuId": 12
+    }
+  },
+  {
+    "description": "FiberHome AN5516 GPON ONT Online recovery clear",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.4.3.1.8",
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 413000
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.3807.1.3.1.1.4.3.1.8"
+      },
+      {
+        "oid": "1.3.6.1.4.1.3807.1.3.1.1.2.1",
+        "type": "OctetString",
+        "value": "FHTT87654321"
+      }
+    ],
+    "expected": {
+      "vendor": "FiberHome",
+      "deviceKind": "ONU",
+      "deviceId": "FHTT87654321",
+      "severity": "info",
+      "isClear": true,
+      "clearsCategory": "onu_offline"
+    }
+  },
+  {
+    "description": "FiberHome AN5516 GPON Port Down alarm",
+    "version": "v2c",
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.2.1.3.1",
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.1.3.0",
+        "type": "TimeTicks",
+        "value": 413500
+      },
+      {
+        "oid": "1.3.6.1.6.3.1.1.4.1.0",
+        "type": "OID",
+        "value": "1.3.6.1.4.1.3807.1.3.1.2.1.3.1"
+      }
+    ],
+    "expected": {
+      "vendor": "FiberHome",
+      "deviceKind": "OLT",
+      "severity": "critical",
+      "port": 1,
+      "slot": 3
+    }
+  }
+]

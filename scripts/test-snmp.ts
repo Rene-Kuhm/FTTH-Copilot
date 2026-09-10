@@ -153,10 +153,42 @@ async function run(): Promise<void> {
     });
     await new Promise((r) => setTimeout(r, 200));
 
+    // 8. Send Nokia 7360 ISAM GPON ONT LOS Trap (Fase 4)
+    console.log('[test:snmp] Sending Nokia 7360 ISAM GPON ONT LOS Trap (nokiaOntLossOfSignal)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.637.61.1.36.1.1.1.1.1.2.4.10', // rack 1, shelf 1, slot 2, port 4, onu 10
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.637.61.1.36.1.2.1',
+          type: 'OctetString',
+          value: 'ALCL12345678',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // 9. Send FiberHome AN5516 GPON ONT Dying Gasp Trap (Fase 4)
+    console.log('[test:snmp] Sending FiberHome AN5516 GPON ONT Dying Gasp Trap (fhGponOntDyingGasp)...');
+    await sendSnmpTestTrap({
+      port: testPort,
+      version: 'v2c',
+      trapOid: '1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12', // slot 2, port 4, onu 12
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.3807.1.3.1.1.2.1',
+          type: 'OctetString',
+          value: 'FHTT12345678',
+        },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
     // Validations
     console.log(`[test:snmp] Total notifications received: ${received.length}`);
-    if (received.length < 7) {
-      throw new Error(`Expected 7 notifications, but received ${received.length}`);
+    if (received.length < 9) {
+      throw new Error(`Expected 9 notifications, but received ${received.length}`);
     }
 
     const versions = received.map((r) => r.notif.version);
@@ -176,10 +208,10 @@ async function run(): Promise<void> {
       }
     }
 
-    // Gate 2 & Gate 3 Telemetry Invariants & Schema Verification
+    // Gate 2, Gate 3 & Gate 4 Telemetry Invariants & Schema Verification
     console.log(`[test:snmp] Total telemetry.v1 events generated: ${telemetryEvents.length}`);
-    if (telemetryEvents.length < 7) {
-      throw new Error(`Expected at least 7 telemetry events, got ${telemetryEvents.length}`);
+    if (telemetryEvents.length < 9) {
+      throw new Error(`Expected at least 9 telemetry events, got ${telemetryEvents.length}`);
     }
 
     for (const event of telemetryEvents) {
@@ -226,7 +258,41 @@ async function run(): Promise<void> {
       throw new Error(`Invalid ZTE GPON hierarchy: onuId=${zteOntEvent.metrics['onuId']}, slot=${zteOntEvent.metrics['slot']}`);
     }
 
-    console.log('[test:snmp] ✅ Gate 0, Gate 2 & Gate 3 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei & ZTE adapters 100% OK.');
+    // Validate Nokia Adapter normalization (Fase 4)
+    const nokiaOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'nokia' && e.metrics['trapName'] === 'nokiaOntLossOfSignal',
+    );
+    if (!nokiaOntEvent) {
+      throw new Error('Expected Nokia normalized telemetry event from NokiaOltAdapter');
+    }
+    if (nokiaOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected Nokia event deviceKind 'ONU', got '${nokiaOntEvent.deviceKind}'`);
+    }
+    if (nokiaOntEvent.deviceId !== 'ALCL12345678') {
+      throw new Error(`Expected Nokia deviceId 'ALCL12345678', got '${nokiaOntEvent.deviceId}'`);
+    }
+    if (nokiaOntEvent.metrics['onuId'] !== 10 || nokiaOntEvent.metrics['slot'] !== 2 || nokiaOntEvent.metrics['port'] !== 4) {
+      throw new Error(`Invalid Nokia optical hierarchy: onuId=${nokiaOntEvent.metrics['onuId']}, slot=${nokiaOntEvent.metrics['slot']}, port=${nokiaOntEvent.metrics['port']}`);
+    }
+
+    // Validate FiberHome Adapter normalization (Fase 4)
+    const fiberhomeOntEvent = telemetryEvents.find(
+      (e) => e.tags?.['adapter'] === 'fiberhome' && e.metrics['trapName'] === 'fhGponOntDyingGasp',
+    );
+    if (!fiberhomeOntEvent) {
+      throw new Error('Expected FiberHome normalized telemetry event from FiberhomeOltAdapter');
+    }
+    if (fiberhomeOntEvent.deviceKind !== 'ONU') {
+      throw new Error(`Expected FiberHome event deviceKind 'ONU', got '${fiberhomeOntEvent.deviceKind}'`);
+    }
+    if (fiberhomeOntEvent.deviceId !== 'FHTT12345678') {
+      throw new Error(`Expected FiberHome deviceId 'FHTT12345678', got '${fiberhomeOntEvent.deviceId}'`);
+    }
+    if (fiberhomeOntEvent.metrics['onuId'] !== 12 || fiberhomeOntEvent.metrics['slot'] !== 2 || fiberhomeOntEvent.metrics['port'] !== 4) {
+      throw new Error(`Invalid FiberHome GPON hierarchy: onuId=${fiberhomeOntEvent.metrics['onuId']}, slot=${fiberhomeOntEvent.metrics['slot']}, port=${fiberhomeOntEvent.metrics['port']}`);
+    }
+
+    console.log('[test:snmp] ✅ Gate 0, Gate 2, Gate 3 & Gate 4 SNMP verification passed: standard traps, IF-MIB metrics, USM authPriv, Huawei, ZTE, Nokia & FiberHome adapters 100% OK.');
   } finally {
     receiver.close();
   }

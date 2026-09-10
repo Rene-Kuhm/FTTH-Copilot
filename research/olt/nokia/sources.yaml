@@ -11,4 +11,54 @@
   retrieved_at: 2026-09-10
   license: restricted
   sha256: null
-  facts: []
+  facts:
+    - notification_name: nokiaOntLossOfSignal
+      oid: 1.3.6.1.4.1.637.61.1.36.1.1.1
+      status: recognized
+      severity: critical
+      category: los
+    - notification_name: nokiaOntDyingGasp
+      oid: 1.3.6.1.4.1.637.61.1.36.1.1.2
+      status: recognized
+      severity: critical
+      category: dying_gasp
+    - notification_name: nokiaOntOffline
+      oid: 1.3.6.1.4.1.637.61.1.36.1.1.3
+      status: recognized
+      severity: warning
+      category: onu_offline
+    - notification_name: nokiaOntOnline
+      oid: 1.3.6.1.4.1.637.61.1.36.1.1.4
+      status: recognized
+      severity: info
+      category: onu_online
+    - notification_name: nokiaOntLosClear
+      oid: 1.3.6.1.4.1.637.61.1.36.1.1.5
+      status: recognized
+      severity: info
+      category: los_clear
+    - notification_name: nokiaPonPortDown
+      oid: 1.3.6.1.4.1.637.61.1.36.2.1.1
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: nokiaPonPortUp
+      oid: 1.3.6.1.4.1.637.61.1.36.2.1.2
+      status: recognized
+      severity: info
+      category: pon_up
+    - notification_name: nokiaCardFailure
+      oid: 1.3.6.1.4.1.637.61.1.3.1.1.1
+      status: recognized
+      severity: critical
+      category: card_failure
+    - notification_name: nokiaLightspanPortDown
+      oid: 1.3.6.1.4.1.6527.3.1.2.2.4.3
+      status: recognized
+      severity: critical
+      category: pon_down
+    - notification_name: nokiaLightspanPortUp
+      oid: 1.3.6.1.4.1.6527.3.1.2.2.4.4
+      status: recognized
+      severity: info
+      category: pon_up
