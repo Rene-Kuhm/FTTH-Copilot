@@ -128,3 +128,18 @@ export {
   topologyCorrelationGroupSchema,
 } from '@ftth-copilot/shared';
 
+
+export {
+  composeEdgeIdentityKey,
+  detectEdgeCollisions,
+  planBackfill,
+  planMigration,
+  projectEdgeIdentity,
+  type BackfillOp,
+  type BackfillPlan,
+  type CollisionDetectionArgs,
+  type CollisionDetectionResult,
+  type CollisionKind,
+  type CollisionReport,
+  type EdgeIdentity,
+} from './edge-identity';
