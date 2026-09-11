@@ -2,7 +2,7 @@
 
 > **Qué es este documento:** el plan priorizado de TODO lo que falta integrar/implementar en FTTH-Copilot, ordenado por valor y por dependencias. Pensado para retomarlo día a día (cada item es accionable).
 >
-> **Estado (al 2026-09-06, actualizado):** las fases A–F del roadmap *evidence-first* **y los P1.2/P1.3/P1.4 + P2.1 + P2.2 de este roadmap** están **completos y mergeados a main** (CI 14/14 verde). Este documento empieza donde quedó: la deuda restante (P1.1) y los siguientes pasos de ingesta (P2.3+). Baseline verificada en a010593, hasta PR #92.
+> **Estado (al 2026-09-11, actualizado):** las fases A–F del roadmap *evidence-first*, los items P1.2/P1.3/P1.4 + P2.1 + P2.2 **y el colector SNMP multi-fabricante (P2.3, Fases 0–8 de laboratorio)** están **completos y mergeados a main** (CI 14/14 verde). Este documento mantiene la deuda restante (P1.1), los conectores bloqueados (P2.5) y las expansiones push futuras (P2.4). Baseline verificada en af2172d, hasta PR #163.
 >
 > **Fuente real de este roadmap:** `docs/aiops-roadmap.md`, `docs/evidence-first-roadmap.md`, deuda documentada de Fase F (`packages/eval`, `packages/security`, `packages/connectors`) y el estado verificado del repo (baseline verificada en a010593, hasta PR #92).
 
@@ -92,7 +92,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 - **Estado (Fases 0–8 completadas en laboratorio):**
   - Receptor SNMP nativo gestionado (`createManagedSnmpReceiver`) con socket UDP, decodificación completa ASN.1/BER, soporte v1, v2c y v3 USM (`authNoPriv`, `authPriv`, MD5/SHA, DES/AES) con aislamiento multi-tenant.
   - Catálogo canónico multi-fabricante con 64 definiciones y trazabilidad total a hechos en `sources.yaml`.
-  - Adaptadores OLT normalizados para 12 fabricantes con pruebas sintéticas y de conformidad Net-SNMP.
+  - 8 adaptadores de fabricante implementados (Huawei, ZTE, Nokia, FiberHome, Calix, Adtran, VSOL, BDCOM) más adaptador fallback `generic_xpon` (L2 simulado), y 4 fabricantes catalogados con restricciones y límites documentados en L1 (C-Data, DZS, Ubiquiti, Zyxel).
   - Guardia de deduplicación criptográfica, correlación con incidentes y preservación de evidencia cruda sanitizada.
   - Matriz de compatibilidad autogenerada (`docs/compatibility-matrix.md`) con verificación anti-drift en CI.
   - Fase 9 (certificación de campo en vivo contra hardware físico L3/L4) diferida a despliegue con ISP asociado.
@@ -152,7 +152,7 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 | 🟠 P1.4 | Backfill `verdict_log` | Medio | auditoría | ✅ shipped (#82) |
 | 🟡 P2.1 | FEC errors (BIP-8) | Medio | telemetría | ✅ shipped (#83/#86) |
 | 🟡 P2.2 | Ópticas completas por ONT | Medio | telemetría | ✅ shipped (#88/#89) |
-| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | 🟡 laboratorio; expansión multi-fabricante planificada |
+| 🟡 P2.3 | Colector SNMP traps | Medio–Alto | ingesta | ✅ shipped (#139, #140, #147–#163) |
 | 🟡 P2.4 | Streaming gNMI/NETCONF | Alto (futuro) | ingesta | 🔵 pendiente |
 | 🟡 P2.5 | NetSense | Medio | conector | 🔵 bloqueado (NMS) |
 | 🔵 P3.x | Collector Go / Polars / Python / Bus | — | gated | 🔵 SOLO con gates |
@@ -162,9 +162,9 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 ## Recomendación de arranque (próxima sesión)
 
 1. **P1.1 — Precision real (corpus etiquetado)** — arrancar en paralelo, depende del tech lead NOC etiquetando `docs/validation/labels.csv`.
-2. **P2.3 — OLT multi-fabricante** — ejecutar `docs/roadmap-olt-multivendor.md`, comenzando por el decoder SNMP binario real.
+2. **P2.3 — Certificación de campo (Fase 9)** — coordinar acceso a OLTs físicas en producción con operadores asociados para validar en vivo y elevar de L2 a L3/L4.
 3. **P2.5 — NetSense** — solo cuando haya NMS real disponible.
 
 ---
 
-*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-06 (actualizado tras PR #93 docs(reconciliation)) · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md`*
+*Roadmap de integraciones pendientes · FTTH-Copilot · 2026-09-11 (actualizado tras cierre de Fases 0–8 SNMP en PR #163) · Ubicación en repo: `docs/roadmap-integraciones-pendientes.md`*

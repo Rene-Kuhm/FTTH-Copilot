@@ -189,12 +189,46 @@ export function validateCatalogFactsTraceability(
       continue;
     }
 
-    const hasOidInFacts = entry.source.facts.some((f) => f.oid === def.oid);
-    if (!hasOidInFacts) {
+    const matchingFact = entry.source.facts.find((f) => f.oid === def.oid);
+    if (!matchingFact) {
       issues.push({
         type: 'error',
         sourceId: def.source_id,
         message: `Catalog trap '${def.name}' (${def.oid}) cites source_id '${def.source_id}', but OID is missing from source facts in research/olt/${entry.vendorId}/sources.yaml`,
+      });
+      continue;
+    }
+
+    // Cross-validate semantic alignment
+    if (matchingFact.notification_name !== def.name) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) name mismatch with source fact '${matchingFact.notification_name}' in '${def.source_id}'`,
+      });
+    }
+
+    if (matchingFact.category && matchingFact.category !== def.category) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) category '${def.category}' does not match source fact category '${matchingFact.category}' in '${def.source_id}'`,
+      });
+    }
+
+    if (matchingFact.severity && matchingFact.severity !== def.severity) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) severity '${def.severity}' does not match source fact severity '${matchingFact.severity}' in '${def.source_id}'`,
+      });
+    }
+
+    if (def.status && matchingFact.status !== def.status) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) status '${def.status}' does not match source fact status '${matchingFact.status}' in '${def.source_id}'`,
       });
     }
   }
@@ -204,4 +238,3 @@ export function validateCatalogFactsTraceability(
     issues,
   };
 }
-
