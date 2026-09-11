@@ -3,7 +3,9 @@ import {
   validateSourcesList,
   validateCompatibilityRecord,
   validateCrossVendorRegistry,
+  validateCatalogFactsTraceability,
 } from '../../src/snmp/research/validator';
+import type { SnmpTrapDefinition } from '../../src/snmp/catalog';
 
 describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () => {
   const validSource = {
@@ -147,5 +149,90 @@ describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () =
     expect(crossResult.valid).toBe(false);
     expect(crossResult.issues.some((i) => i.message.includes('Cross-vendor duplicate'))).toBe(true);
     expect(crossResult.issues.some((i) => i.message.includes('nonexistent-source-ref'))).toBe(true);
+  });
+
+  describe('validateCatalogFactsTraceability', () => {
+    const mockPackages = [
+      {
+        vendorId: 'huawei',
+        sources: [validSource],
+        compatibility: {
+          vendor: 'Huawei',
+          priority: 'P0' as const,
+          iana_pens: [2011],
+          families: [],
+        },
+      },
+    ];
+
+    it('passes when non-standard catalog trap matches source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+          name: 'hwGponOntDyingGasp',
+          category: 'dying_gasp',
+          severity: 'critical',
+          vendor: 'Huawei',
+          description: 'Dying gasp',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(true);
+      expect(result.issues).toHaveLength(0);
+    });
+
+    it('skips standard RFC traps without requiring source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.6.3.1.1.5.1',
+          name: 'coldStart',
+          category: 'restart',
+          severity: 'info',
+          vendor: 'Standard',
+          description: 'Cold start',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(true);
+    });
+
+    it('detects catalog traps citing nonexistent source_id', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.99',
+          name: 'hwUnknownAlarm',
+          category: 'unknown_trap',
+          severity: 'warning',
+          vendor: 'Huawei',
+          description: 'Unknown alarm',
+          source_id: 'nonexistent-source-id',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('not registered in any vendor package'))).toBe(true);
+    });
+
+    it('detects catalog traps citing source_id that lacks the OID in its facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.99', // OID not in validSource facts
+          name: 'hwMissingFactAlarm',
+          category: 'los',
+          severity: 'critical',
+          vendor: 'Huawei',
+          description: 'Alarm with missing fact',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('OID is missing from source facts'))).toBe(true);
+    });
   });
 });

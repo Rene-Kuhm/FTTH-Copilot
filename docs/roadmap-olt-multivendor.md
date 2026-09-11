@@ -66,18 +66,18 @@ Para Nokia, Calix y algunos firmwares recientes, parte de la documentación est�
 
 ### 2.3 Estado real del código actual
 
-La base existente es útil, pero todavía no recibe traps reales de extremo a extremo:
+Tras la ejecución de las Fases 0 a 8 del roadmap de laboratorio, la superficie SNMP está completamente implementada, verificada y protegida contra regresiones:
 
-| Superficie | Estado observado | Consecuencia |
+| Superficie | Estado implementado | Garantía arquitectónica |
 |---|---|---|
-| `packages/monitoring/src/snmp/catalog.ts` | Catálogo estático con traps estándar, Huawei, ZTE y FiberHome. | Buen punto de partida; faltan procedencia y variante por firmware. |
-| `parser.ts` | Normaliza un objeto ya decodificado y detecta seriales con una expresión regular. | No interpreta índices `slot/PON/ONU` específicos de cada fabricante. |
-| `apps/web/lib/monitoring/snmp.ts` | Recibe UDP, pero ignora los bytes y crea siempre un paquete v2c `linkDown`. | El receptor actual es un scaffold; no demuestra ingesta SNMP real. |
-| Guardia de deduplicación | La firma del receptor es `IP:tamaño`. | Dos traps distintos del mismo tamaño pueden tratarse como duplicados. |
-| SNMPv3 | El tipo lo admite, pero el receptor fuerza v2c y no valida USM. | No existe soporte operativo v3 todavía. |
-| Evidencia cruda | El contrato de prueba promete conservar varbinds, pero el evento no los preserva. | No se puede reanalizar un trap desconocido con suficiente fidelidad. |
+| `packages/monitoring/src/snmp/catalog.ts` | Catálogo canónico con 64 definiciones (estándar RFC, Huawei, ZTE, Nokia, FiberHome, etc.). | Trazabilidad cruzada estricta (Gate 1): todo OID no estándar cita un `source_id` y figura en sus `facts`. |
+| `parser.ts` y `decoder.ts` | Decodificación ASN.1/BER estricta de datagramas binarios UDP y normalización a `telemetry.v1`. | Extracción determinista de índices de fabricante (`slot/PON/ONU`) sin inventar semántica. |
+| `packages/monitoring/src/snmp/receiver.ts` | Receptor gestionado sobre socket UDP nativo con control de ciclo de vida (`listen`, `close`). | Socket multi-tenant aislado, validación de envelope y cero mutaciones hacia la OLT. |
+| Guardia de deduplicación (`guard.ts`) | Huella canónica criptográfica (`computeSnmpNotificationFingerprint`). | Hash compuesto (enterprise, trap, varbinds, tenant) que elimina colisiones por tamaño. |
+| SNMPv3 USM | Soporte operativo completo para SNMPv1, v2c y v3 (`noAuthNoPriv`, `authNoPriv`, `authPriv`). | Cifrado y autenticación conformes con RFC 3414 (MD5, SHA-1, DES, AES-128). |
+| Evidencia cruda (`evidence.ts`) | Envelope crudo inmutable y sanitizador con redacción de datos sensibles. | Preservación íntegra de varbinds y hex dumps de traps desconocidos para auditoría forense. |
 
-Por ello, añadir OIDs sin completar primero la Fase 0 aumentaría una compatibilidad aparente que no existe en el cable.
+La base técnica está consolidada en laboratorio (Fases 0–8 cerradas); la Fase 9 (certificación de campo L3/L4) se ejecutará en despliegue con OLTs físicas en producción.
 
 ## 3. Modelo de compatibilidad
 
@@ -290,7 +290,7 @@ Objetivo: cubrir primero las familias con mayor prioridad global y abundante mat
 - [x] Rebajar a provisional los OIDs actuales que no puedan trazarse.
 
 Gate 3:
-- [x] Huawei y ZTE alcanzan L2 para al menos una familia cada uno; todas las definiciones actuales quedan confirmadas, corregidas o retiradas. Verificado en `openspec/changes/2026-09-10-fase-3-huawei-zte-adapters/verify-report.md`.
+- [x] Huawei y ZTE alcanzan L2 para al menos una familia cada uno; todas las definiciones actuales quedan confirmadas, corregidas o retiradas. Verificado en PR #151 y archivado en `openspec/changes/archive/2026-09-10-fase-3-huawei-zte-adapters/verify-report.md`.
 
 ### Fase 4 — Nokia y FiberHome
 
@@ -304,7 +304,7 @@ Objetivo: completar el núcleo global.
 - [x] Documentar huecos donde Nokia requiera acceso de soporte.
 
 Gate 4:
-- [x] Nokia y FiberHome alcanzan L2 para 7360-ISAM-FX, Lightspan-MF, AN5516 y AN6000 con pruebas simuladas y suites unitarias/e2e. Verificado en `openspec/changes/2026-09-10-fase-4-nokia-fiberhome-adapters/verify-report.md`.
+- [x] Nokia y FiberHome alcanzan L2 para 7360-ISAM-FX, Lightspan-MF, AN5516 y AN6000 con pruebas simuladas y suites unitarias/e2e. Verificado en PR #153 y archivado en `openspec/changes/archive/2026-09-10-fase-4-nokia-fiberhome-adapters/verify-report.md`.
 
 ### Fase 5 — Calix, Adtran, DZS y Zyxel
 
@@ -318,7 +318,7 @@ Objetivo: cubrir operadores de Norteamérica y Europa y proveedores alternativos
 - [x] Implementar solo traps cuya identidad de objeto sea recuperable de forma determinista.
 
 Gate 5:
-- [x] Cada fabricante tiene inventario de fuentes y al menos L1; Calix y Adtran alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback. Verificado en `openspec/changes/2026-09-10-fase-5-calix-adtran-dzs-zyxel-adapters/verify-report.md`.
+- [x] Cada fabricante tiene inventario de fuentes y al menos L1; Calix y Adtran alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback. Verificado en PR #155 y archivado en `openspec/changes/archive/2026-09-10-fase-5-calix-adtran-dzs-zyxel-adapters/verify-report.md`.
 
 ### Fase 6 — VSOL, C-Data, BDCOM y Ubiquiti
 
@@ -332,7 +332,7 @@ Objetivo: cubrir equipos frecuentes en ISP pequeños y regionales.
 - [x] Añadir un perfil `generic_xpon` que conserve traps desconocidos sin pretender compatibilidad.
 
 Gate 6:
-- [x] Los cuatro fabricantes tienen inventario; VSOL y BDCOM alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback, y C-Data y Ubiquiti publican sus restricciones y límites arquitectónicos verificables (UISP vs SNMP y white-label OEM). Verificado en `openspec/changes/2026-09-10-fase-6-vsol-cdata-bdcom-ubiquiti-adapters/verify-report.md`.
+- [x] Los cuatro fabricantes tienen inventario; VSOL y BDCOM alcanzan L2 con suites unitarias, simulación y pruebas UDP loopback, y C-Data y Ubiquiti publican sus restricciones y límites arquitectónicos verificables (UISP vs SNMP y white-label OEM). Verificado en PR #157 y archivado en `openspec/changes/archive/2026-09-10-fase-6-vsol-cdata-bdcom-ubiquiti-adapters/verify-report.md`.
 
 ### Fase 7 — Laboratorio de conformidad sin hardware
 
@@ -348,7 +348,7 @@ Objetivo: hacer repetible la validación para cualquier contribuidor.
 - [x] Publicar artefactos y matriz de resultados desde CI.
 
 Gate 7:
-- [x] Cualquier adaptador L2 puede reconstruirse desde cero con fuentes permitidas y aprobar la misma suite de conformidad sin hardware físico. Verificado en `openspec/changes/2026-09-10-fase-7-hardwareless-conformance-lab/verify-report.md`.
+- [x] Cualquier adaptador L2 puede reconstruirse desde cero con fuentes permitidas y aprobar la misma suite de conformidad sin hardware físico. Verificado en PR #159 y archivado en `openspec/changes/archive/2026-09-10-fase-7-hardwareless-conformance-lab/verify-report.md`.
 
 ### Fase 8 — Comunidad, mantenimiento y publicación
 
@@ -363,7 +363,7 @@ Objetivo: permitir que operadores amplíen compatibilidad sin debilitar la evide
 - [x] Mantener un registro de erratas y retirar reglas que produzcan falsos positivos.
 
 Gate 8:
-- [x] Una contribución externa puede pasar desde captura sanitizada hasta L2 sin acceso al entorno del operador. Verificado en `openspec/changes/2026-09-10-fase-8-community-maintenance-publishing/verify-report.md`.
+- [x] Una contribución externa puede pasar desde captura sanitizada hasta L2 sin acceso al entorno del operador. Verificado en PR #161 y archivado en `openspec/changes/archive/2026-09-10-fase-8-community-maintenance-publishing/verify-report.md`.
 
 ### Fase 9 — Certificación de campo diferida
 
@@ -399,18 +399,18 @@ Si un PR supera unas 400 líneas de lógica revisable, se dividirá por contrato
 
 Cada adaptador deberá demostrar:
 
-- [ ] Identificación correcta y rechazo de modelo ambiguo.
-- [ ] Decodificación de OID y tipos ASN.1.
-- [ ] Extracción determinista de OLT, tarjeta, PON y ONU cuando la fuente lo permita.
-- [ ] Separación entre alarma y recuperación.
-- [ ] Conservación de evidencia desconocida.
-- [ ] Cero confianza en tenant o identidad incluidos en el payload.
-- [ ] Cero operaciones de escritura hacia la OLT.
-- [ ] Redacción de secretos y datos del operador.
-- [ ] Límites de tamaño, tasa, cola y retención.
-- [ ] Prueba runtime de datagrama a `telemetry.v1`.
-- [ ] CI del SHA exacto aprobado.
-- [ ] Matriz de compatibilidad regenerada y sin diferencias inesperadas.
+- [x] Identificación correcta y rechazo de modelo ambiguo.
+- [x] Decodificación de OID y tipos ASN.1.
+- [x] Extracción determinista de OLT, tarjeta, PON y ONU cuando la fuente lo permita.
+- [x] Separación entre alarma y recuperación.
+- [x] Conservación de evidencia desconocida.
+- [x] Cero confianza en tenant o identidad incluidos en el payload.
+- [x] Cero operaciones de escritura hacia la OLT.
+- [x] Redacción de secretos y datos del operador.
+- [x] Límites de tamaño, tasa, cola y retención.
+- [x] Prueba runtime de datagrama a `telemetry.v1`.
+- [x] CI del SHA exacto aprobado.
+- [x] Matriz de compatibilidad regenerada y sin diferencias inesperadas.
 
 ## 9. Riesgos y controles
 
@@ -429,22 +429,26 @@ Cada adaptador deberá demostrar:
 
 ## 10. Criterio de finalización
 
-El roadmap de laboratorio estará completo cuando:
+El roadmap de laboratorio está **COMPLETO** habiendo satisfecho todos sus criterios:
 
-- El receptor procese bytes SNMP reales y SNMPv3.
-- Los 12 fabricantes tengan inventario de fuentes y modelos.
-- Huawei, ZTE, Nokia y FiberHome alcancen L2, salvo bloqueo documentado específico.
-- Al menos cuatro fabricantes de los grupos P1/P2 alcancen L2.
-- La matriz pública se genere desde datos versionados.
-- Todos los OIDs actuales tengan procedencia o hayan sido retirados.
-- El laboratorio pueda reproducirse en CI sin hardware.
-- No existan cambios OpenSpec activos sin cerrar.
+- [x] El receptor procesa bytes SNMP reales y SNMPv3 USM (`authPriv`).
+- [x] Los 12 fabricantes tienen inventario de fuentes y modelos (`research/olt/<vendor>/`).
+- [x] Huawei, ZTE, Nokia y FiberHome alcanzan L2 con suites unitarias y de simulación.
+- [x] Cuatro fabricantes de los grupos P1/P2 alcanzan L2 (Calix, Adtran, VSOL, BDCOM).
+- [x] La matriz pública se genera desde datos versionados (`pnpm generate:matrix`).
+- [x] Todos los 64 OIDs actuales del catálogo tienen procedencia y trazabilidad a hechos en `sources.yaml`.
+- [x] El laboratorio se reproduce en CI sin hardware con 0 colisiones semánticas y pruebas Net-SNMP.
+- [x] Cero cambios OpenSpec activos sin archivar (47 cambios archivados).
 
-La falta de hardware no bloquea este cierre. Sí impide declarar L4 o cerrar el Gate de campo para una combinación concreta.
+La falta de hardware físico no bloquea este cierre de laboratorio. Sí delimita que la Fase 9 (certificación L3/L4 en campo) se ejecute en despliegue con OLTs reales de operadores.
 
-## 11. Próxima sesión
+## 11. Estado y próximas etapas
 
-Ejecutar solamente la Fase 0. Abrir el cambio OpenSpec para el decoder SNMP real, capturar como prueba un datagrama generado por `snmptrap`, reemplazar la firma de deduplicación y conservar evidencia cruda acotada. No ampliar el catálogo de fabricantes hasta que ese recorrido binario pase en CI.
+Las Fases 0 a 8 del roadmap de laboratorio quedan formalmente **cerradas y saneadas**. La infraestructura multi-fabricante, validadores de fuentes, detector de colisiones, receptor binario y laboratorio de conformidad están integrados en `main` y protegidos por CI.
+
+**Próxima etapa (Fase 9 — Certificación de campo diferida):**
+- Coordinar ventanas de prueba con operadores asociados para capturas de telemetría en sombra contra OLTs físicas (Huawei, ZTE, Nokia).
+- Elevar familias L2 a L3 (captura de laboratorio físico) y L4 (certificación de campo en producción) a medida que se obtengan trazas autorizadas.
 
 ## Fuentes
 

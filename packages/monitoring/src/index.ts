@@ -109,6 +109,7 @@ export {
   validateSourcesList,
   validateCompatibilityRecord,
   validateCrossVendorRegistry,
+  validateCatalogFactsTraceability,
   type ValidationIssue,
   type ValidationResult,
   type VendorPackageContent,

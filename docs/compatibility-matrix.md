@@ -7,7 +7,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 - **Total Vendors Registered**: 12
 - **Total Hardware Families**: 19
 - **Documented Sources**: 23
-- **Verified OID Facts**: 59
+- **Verified OID Facts**: 64
 
 | Support Level | Hardware Families | Status |
 |---|---|---|

@@ -70,59 +70,88 @@ function extractSourceUrls(): Array<{ vendorId: string; sourceId: string; url: s
   return list;
 }
 
-function checkUrlLive(
+async function checkUrlLive(
   urlStr: string,
   timeoutMs: number,
 ): Promise<{ status: 'OK' | 'REDIRECT' | 'BROKEN' | 'INVALID_SYNTAX'; statusCode?: number; message?: string }> {
-  return new Promise((resolve) => {
-    let parsed: URL;
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return { status: 'INVALID_SYNTAX', message: 'Invalid URL syntax' };
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { status: 'INVALID_SYNTAX', message: `Unsupported protocol: ${parsed.protocol}` };
+  }
+
+  const defaultHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 (FTTH-Copilot Link Auditor)',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    Cookie: 'adtran#lang=en',
+  };
+
+  try {
+    let res: Response;
     try {
-      parsed = new URL(urlStr);
-    } catch {
-      return resolve({ status: 'INVALID_SYNTAX', message: 'Invalid URL syntax' });
-    }
-
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return resolve({ status: 'INVALID_SYNTAX', message: `Unsupported protocol: ${parsed.protocol}` });
-    }
-
-    const client = parsed.protocol === 'https:' ? https : http;
-    const req = client.request(
-      parsed,
-      {
+      res = await fetch(parsed, {
         method: 'HEAD',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (FTTH-Copilot Link Auditor; +https://github.com/Rene-Kuhm/FTTH-Copilot)',
-          Accept: '*/*',
-        },
-        timeout: timeoutMs,
-      },
-      (res) => {
-        const code = res.statusCode ?? 0;
-        if (code >= 200 && code < 300) {
-          resolve({ status: 'OK', statusCode: code });
-        } else if (code >= 300 && code < 400) {
-          resolve({ status: 'REDIRECT', statusCode: code, message: `Redirects to: ${res.headers.location ?? 'unknown'}` });
-        } else if (code === 403 || code === 401) {
-          // Some sites block automated HEAD requests (e.g. cloudflare/waf) but URL exists
-          resolve({ status: 'OK', statusCode: code, message: 'Protected by WAF/Auth but domain resolves' });
-        } else {
-          resolve({ status: 'BROKEN', statusCode: code, message: `HTTP ${code}` });
+        headers: defaultHeaders,
+        signal: AbortSignal.timeout(timeoutMs),
+        redirect: 'manual',
+      });
+    } catch {
+      // If HEAD throws (e.g. server drops connection on HEAD), retry with GET
+      res = await fetch(parsed, {
+        method: 'GET',
+        headers: defaultHeaders,
+        signal: AbortSignal.timeout(timeoutMs),
+        redirect: 'manual',
+      });
+    }
+
+    // If server rejects HEAD with 405 (Method Not Allowed) or 501, retry with GET
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(parsed, {
+        method: 'GET',
+        headers: defaultHeaders,
+        signal: AbortSignal.timeout(timeoutMs),
+        redirect: 'manual',
+      });
+    }
+
+    // Some servers (e.g. Cloudflare-backed portals like Adtran) return 301 on HEAD to enforce GET / set session cookies
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (loc === parsed.pathname || loc === parsed.pathname + '/' || loc === parsed.href) {
+        const getRes = await fetch(parsed, {
+          method: 'GET',
+          headers: defaultHeaders,
+          signal: AbortSignal.timeout(timeoutMs),
+          redirect: 'manual',
+        });
+        if (getRes.status >= 200 && getRes.status < 300) {
+          return { status: 'OK', statusCode: getRes.status };
         }
-      },
-    );
+      }
+    }
 
-    req.on('timeout', () => {
-      req.destroy();
-      resolve({ status: 'BROKEN', message: `Request timed out after ${timeoutMs}ms` });
-    });
-
-    req.on('error', (err) => {
-      resolve({ status: 'BROKEN', message: err.message });
-    });
-
-    req.end();
-  });
+    const code = res.status;
+    if (code >= 200 && code < 300) {
+      return { status: 'OK', statusCode: code };
+    } else if (code >= 300 && code < 400) {
+      const location = res.headers.get('location') ?? 'unknown';
+      return { status: 'REDIRECT', statusCode: code, message: `Redirects to: ${location}` };
+    } else if (code === 403 || code === 401) {
+      return { status: 'OK', statusCode: code, message: 'Protected by WAF/Auth but domain resolves' };
+    } else {
+      return { status: 'BROKEN', statusCode: code, message: `HTTP ${code}` };
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: 'BROKEN', message };
+  }
 }
 
 async function main(): Promise<void> {

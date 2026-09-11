@@ -12,6 +12,7 @@ import {
   type VendorCompatibilityRecord,
 } from './schema';
 import { resolveVendorByOid } from '../iana-pen';
+import type { SnmpTrapDefinition } from '../catalog';
 
 export interface ValidationIssue {
   type: 'error' | 'warning';
@@ -147,3 +148,60 @@ export function validateCrossVendorRegistry(packages: VendorPackageContent[]): V
     issues,
   };
 }
+
+/**
+ * Cross-validates that every non-standard catalog entry citing a source_id
+ * has its OID present in that source's registered facts within the vendor packages.
+ */
+export function validateCatalogFactsTraceability(
+  packages: VendorPackageContent[],
+  catalog: ReadonlyArray<SnmpTrapDefinition>
+): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  const sourceMap = new Map<string, { source: SourceRecord; vendorId: string }>();
+
+  for (const pkg of packages) {
+    for (const src of pkg.sources) {
+      sourceMap.set(src.source_id, { source: src, vendorId: pkg.vendorId });
+    }
+  }
+
+  for (const def of catalog) {
+    if (def.vendor === 'Standard') {
+      continue;
+    }
+
+    if (!def.source_id) {
+      issues.push({
+        type: 'error',
+        message: `Catalog trap '${def.name}' (${def.oid}) has no source_id declared`,
+      });
+      continue;
+    }
+
+    const entry = sourceMap.get(def.source_id);
+    if (!entry) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) cites source_id '${def.source_id}', but source is not registered in any vendor package`,
+      });
+      continue;
+    }
+
+    const hasOidInFacts = entry.source.facts.some((f) => f.oid === def.oid);
+    if (!hasOidInFacts) {
+      issues.push({
+        type: 'error',
+        sourceId: def.source_id,
+        message: `Catalog trap '${def.name}' (${def.oid}) cites source_id '${def.source_id}', but OID is missing from source facts in research/olt/${entry.vendorId}/sources.yaml`,
+      });
+    }
+  }
+
+  return {
+    valid: issues.every((i) => i.type !== 'error'),
+    issues,
+  };
+}
+
