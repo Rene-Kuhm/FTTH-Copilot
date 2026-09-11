@@ -354,15 +354,16 @@ Gate 7:
 
 Objetivo: permitir que operadores amplíen compatibilidad sin debilitar la evidencia.
 
-- [ ] Crear plantilla de contribución para MIB, manual, `snmpwalk` o captura sanitizada.
-- [ ] Añadir sanitizador que elimine community, IP, hostname, serial y datos de cliente.
-- [ ] Exigir modelo, firmware, fuente, licencia y reproducción mínima en cada PR.
-- [ ] Automatizar detección de OIDs duplicados y conflictos semánticos.
-- [ ] Publicar tabla generada por modelo/firmware/nivel.
-- [ ] Programar revisión trimestral de enlaces rotos, firmwares y fuentes reemplazadas.
-- [ ] Mantener un registro de erratas y retirar reglas que produzcan falsos positivos.
+- [x] Crear plantilla de contribución para MIB, manual, `snmpwalk` o captura sanitizada.
+- [x] Añadir sanitizador que elimine community, IP, hostname, serial y datos de cliente.
+- [x] Exigir modelo, firmware, fuente, licencia y reproducción mínima en cada PR.
+- [x] Automatizar detección de OIDs duplicados y conflictos semánticos.
+- [x] Publicar tabla generada por modelo/firmware/nivel.
+- [x] Programar revisión trimestral de enlaces rotos, firmwares y fuentes reemplazadas.
+- [x] Mantener un registro de erratas y retirar reglas que produzcan falsos positivos.
 
-Gate 8: una contribución externa puede pasar desde captura sanitizada hasta L2 sin acceso al entorno del operador.
+Gate 8:
+- [x] Una contribución externa puede pasar desde captura sanitizada hasta L2 sin acceso al entorno del operador. Verificado en `openspec/changes/2026-09-10-fase-8-community-maintenance-publishing/verify-report.md`.
 
 ### Fase 9 — Certificación de campo diferida
 

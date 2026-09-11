@@ -48,8 +48,8 @@ export function decodeVendorSerialNumber(value: unknown, rawHex?: string): strin
 
   for (const cand of candidates) {
     // 1. Direct ASCII representation matching standard 4-char prefix + 4..16 alphanumeric without spaces
-    // e.g. HWTC12345678, ZTEGC8765432, CXNK00123456, ADTN12345678
-    if (/^[A-Za-z]{4}[A-Za-z0-9_-]{4,16}$/.test(cand)) {
+    // e.g. HWTC12345678, ZTEGC8765432, CXNK00123456, ADTN12345678, or sanitized HWTC********
+    if (/^[A-Za-z]{4}[A-Za-z0-9_*#-]{4,16}$/.test(cand)) {
       const prefix = cand.slice(0, 4).toUpperCase();
       if (!NON_SERIAL_PREFIXES.has(prefix)) {
         return cand.toUpperCase();

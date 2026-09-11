@@ -14,9 +14,11 @@ import { defaultAdapterRegistry, OltAdapterRegistry } from './adapter/registry';
 import { resolveDeviceIdentity, type ResolvedDeviceIdentity } from './identity';
 import type { SnmpSenderContext } from './mapping';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from './types';
+import { evaluateSnmpErrata, type SnmpErrataRecord, type SnmpErrataEvaluation } from './research/errata';
 
 export interface SnmpPipelineOptions {
   adapterRegistry?: OltAdapterRegistry;
+  errataRules?: SnmpErrataRecord[];
   onTelemetryEvent?: (
     event: TelemetryEvent,
     evidence: RawSnmpEvidenceEnvelope,
@@ -28,6 +30,7 @@ export interface SnmpPipelineResult {
   event: TelemetryEvent;
   evidence: RawSnmpEvidenceEnvelope;
   identity: ResolvedDeviceIdentity;
+  errata?: SnmpErrataEvaluation;
 }
 
 /**
@@ -50,8 +53,41 @@ export function processSnmpNotification(
   // 3. Safely normalize to TelemetryEvent with strict invariants
   const event = executeAdapterSafe(adapter, notification, identity, evidence);
 
-  // 4. Trigger telemetry listener if configured
+  // 4. Evaluate errata rules if provided
+  let errata: SnmpErrataEvaluation | undefined;
+  if (options.errataRules && options.errataRules.length > 0) {
+    errata = evaluateSnmpErrata(
+      {
+        oid: notification.trapOid,
+        vendor: identity.vendor,
+        model: identity.model ?? identity.hardwareModel,
+      },
+      options.errataRules,
+    );
+
+    if (errata.matched) {
+      if (errata.action === 'suppress') {
+        event.tags = {
+          ...event.tags,
+          errata_action: 'suppressed',
+          errata_id: errata.errata?.errata_id ?? 'unknown',
+          errata_reason: errata.errata?.reason ?? '',
+        };
+      } else if (errata.action === 'remap') {
+        event.tags = {
+          ...event.tags,
+          errata_action: 'remapped',
+          errata_id: errata.errata?.errata_id ?? 'unknown',
+          ...(errata.remappedCategory ? { category: errata.remappedCategory } : {}),
+          ...(errata.remappedSeverity ? { severity: errata.remappedSeverity } : {}),
+        };
+      }
+    }
+  }
+
+  // 5. Trigger telemetry listener if configured
   options.onTelemetryEvent?.(event, evidence, identity);
 
-  return { event, evidence, identity };
+  return { event, evidence, identity, errata };
 }
+

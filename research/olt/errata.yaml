@@ -1,0 +1,52 @@
+# FTTH-Copilot Multi-Vendor OLT Errata & False-Positive Registry (Roadmap Fase 8)
+#
+# Documents verified vendor firmware bugs, transient test traps, and deprecated
+# notifications to prevent false-positive incident creation and ensure clean telemetry.
+
+- errata_id: ERR-HW-001
+  vendor: Huawei
+  target_models:
+    - MA5600
+    - MA5800
+  firmware_versions:
+    - V800R018
+  oid: "1.3.6.1.4.1.2011.6.128.1.1.2.99.1"
+  action: suppress
+  reason: "Spurious keepalive pulse emitted as test trap in early V800R018 builds causing false alarms"
+  source_reference: "Huawei Security Advisory & Field Bulletin 2024-MA5600-09"
+
+- errata_id: ERR-ZTE-001
+  vendor: ZTE
+  target_models:
+    - C300
+    - C600
+  firmware_versions:
+    - V1.2.5P3
+  oid: "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1.99.9"
+  action: suppress
+  reason: "Diagnostic loopback self-test frame incorrectly transmitted to external trap receiver"
+  source_reference: "didikw/zte_c320_monitoring errata notes"
+
+- errata_id: ERR-NOK-001
+  vendor: Nokia
+  target_models:
+    - 7360-ISAM-FX
+  firmware_versions:
+    - R5.6
+  oid: "1.3.6.1.4.1.637.61.1.36.1.1.1.1.1.99.1"
+  action: remap
+  remap_severity: info
+  remap_category: config_change
+  reason: "Sub-rack card power-cycle diagnostic emitted with critical severity instead of informational maintenance"
+  source_reference: "Nokia 7360 ISAM Maintenance Errata 2023"
+
+- errata_id: ERR-CALIX-001
+  vendor: Calix
+  target_models:
+    - E7
+  firmware_versions:
+    - AXOS-21.4
+  oid: "1.3.6.1.4.1.6321.1.2.2.4.99.1"
+  action: suppress
+  reason: "Shadow mode optical transceiver calibration emits transient optical power loss during bootup"
+  source_reference: "Calix TAC Field Note 2022"
