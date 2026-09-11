@@ -95,6 +95,15 @@ export function executeAdapterSafe(
     enforcedTags['catalogStatus'] = catalogStatus;
   }
 
+  if (catalogDef.candidateTrapName) {
+    if (!event.metrics) event.metrics = {};
+    event.metrics['candidateTrapName'] = catalogDef.candidateTrapName;
+  }
+  if (catalogDef.candidateDescription) {
+    if (!event.metrics) event.metrics = {};
+    event.metrics['candidateDescription'] = catalogDef.candidateDescription;
+  }
+
   if (identity.isAmbiguous) {
     enforcedTags['ambiguity_detected'] = 'true';
     if (identity.ambiguityReason) {

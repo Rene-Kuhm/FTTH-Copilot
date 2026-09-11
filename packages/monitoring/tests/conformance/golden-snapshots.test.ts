@@ -25,9 +25,11 @@ describe('Conformance Lab: Golden File Snapshots (Roadmap Fase 7)', () => {
   it('suppresses provisional traps by default outside simulator mode', () => {
     setSimulatorProvisionalTraps(false);
     const def = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1');
+    expect(def.name).toBe('provisionalTrap');
     expect(def.category).toBe('unknown_trap');
     expect(def.severity).toBe('info');
     expect(def.catalogStatus).toBe('provisional');
+    expect(def.candidateTrapName).toBe('hwGponOntLossOfSignal');
     setSimulatorProvisionalTraps(true);
   });
   const goldenFiles = fs

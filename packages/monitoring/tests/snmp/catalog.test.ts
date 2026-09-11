@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   lookupTrapDefinition,
   isKnownTrapOid,
+  isProvisionalTrapOid,
+  setSimulatorProvisionalTraps,
+  isSimulatorProvisionalTrapsEnabled,
   KNOWN_TRAP_DEFINITIONS,
   validateCatalogAdmission,
   type SnmpTrapCategory,
@@ -58,17 +61,27 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
   it('treats provisional Huawei traps as unknown_trap by default and recognizes when provisional allowed', () => {
     // Default mode: suppressed to unknown_trap (info) with catalogStatus provisional
     const huaweiLosDefault = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1');
+    expect(huaweiLosDefault.name).toBe('provisionalTrap');
     expect(huaweiLosDefault.category).toBe('unknown_trap');
     expect(huaweiLosDefault.severity).toBe('info');
+    expect(huaweiLosDefault.description).toBe(
+      'Provisional unverified SNMP trap OID awaiting physical lab confirmation',
+    );
     expect(huaweiLosDefault.catalogStatus).toBe('provisional');
+    expect(huaweiLosDefault.candidateTrapName).toBe('hwGponOntLossOfSignal');
+    expect(huaweiLosDefault.candidateDescription).toBe('Loss of optical signal detected on GPON ONT');
 
     const huaweiDyingGaspDefault = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.2');
+    expect(huaweiDyingGaspDefault.name).toBe('provisionalTrap');
     expect(huaweiDyingGaspDefault.category).toBe('unknown_trap');
     expect(huaweiDyingGaspDefault.severity).toBe('info');
     expect(huaweiDyingGaspDefault.catalogStatus).toBe('provisional');
+    expect(huaweiDyingGaspDefault.candidateTrapName).toBe('hwGponOntDyingGasp');
+    expect(huaweiDyingGaspDefault.candidateDescription).toBe('Power failure / dying gasp alarm sent by GPON ONT');
 
     // Simulator / explicit mode: reveals provisional category/severity with catalogStatus provisional
     const huaweiLosSim = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1', { allowProvisional: true });
+    expect(huaweiLosSim.name).toBe('hwGponOntLossOfSignal');
     expect(huaweiLosSim.category).toBe('los');
     expect(huaweiLosSim.severity).toBe('critical');
     expect(huaweiLosSim.catalogStatus).toBe('provisional');
@@ -83,17 +96,27 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
   it('treats provisional ZTE traps as unknown_trap by default and recognizes when provisional allowed', () => {
     // Default mode: suppressed to unknown_trap (info) with catalogStatus provisional
     const zteLosDefault = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.1');
+    expect(zteLosDefault.name).toBe('provisionalTrap');
     expect(zteLosDefault.category).toBe('unknown_trap');
     expect(zteLosDefault.severity).toBe('info');
+    expect(zteLosDefault.description).toBe(
+      'Provisional unverified SNMP trap OID awaiting physical lab confirmation',
+    );
     expect(zteLosDefault.catalogStatus).toBe('provisional');
+    expect(zteLosDefault.candidateTrapName).toBe('zxGponOntLossOfSignal');
+    expect(zteLosDefault.candidateDescription).toBe('Loss of optical signal on ZTE GPON ONT');
 
     const zteDyingGaspDefault = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.2');
+    expect(zteDyingGaspDefault.name).toBe('provisionalTrap');
     expect(zteDyingGaspDefault.category).toBe('unknown_trap');
     expect(zteDyingGaspDefault.severity).toBe('info');
     expect(zteDyingGaspDefault.catalogStatus).toBe('provisional');
+    expect(zteDyingGaspDefault.candidateTrapName).toBe('zxGponOntDyingGasp');
+    expect(zteDyingGaspDefault.candidateDescription).toBe('Dying gasp power cut alarm on ZTE GPON ONT');
 
     // Simulator / explicit mode: reveals provisional category/severity with catalogStatus provisional
     const zteLosSim = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.1', { allowProvisional: true });
+    expect(zteLosSim.name).toBe('zxGponOntLossOfSignal');
     expect(zteLosSim.category).toBe('los');
     expect(zteLosSim.severity).toBe('critical');
     expect(zteLosSim.catalogStatus).toBe('provisional');
@@ -259,5 +282,44 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     expect(def.severity).toBe('info');
     expect(def.oid).toBe(unknownOid);
     expect(def.name).toBe('unknownTrap');
+  });
+
+  it('distinguishes known, provisional, and unknown OIDs accurately via isKnownTrapOid and isProvisionalTrapOid', () => {
+    const provisionalOid = '1.3.6.1.4.1.2011.6.128.1.1.2.43.1';
+    const provisionalSuffixedOid = '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.0.1';
+    const recognizedOid = '1.3.6.1.4.1.2011.6.128.1.1.2.43.10';
+    const unknownOid = '1.3.6.1.4.1.99999.1.2.3';
+
+    // By default, provisional OIDs are not considered "known" (avoids unverified promotion)
+    expect(isKnownTrapOid(provisionalOid)).toBe(false);
+    expect(isKnownTrapOid(provisionalSuffixedOid)).toBe(false);
+    expect(isKnownTrapOid(provisionalOid, { allowProvisional: true })).toBe(true);
+    expect(isKnownTrapOid(provisionalSuffixedOid, { allowProvisional: true })).toBe(true);
+
+    // Recognized OIDs are always known
+    expect(isKnownTrapOid(recognizedOid)).toBe(true);
+
+    // Unknown OIDs are never known
+    expect(isKnownTrapOid(unknownOid)).toBe(false);
+
+    // isProvisionalTrapOid correctly flags provisional OIDs (both exact and suffixed)
+    expect(isProvisionalTrapOid(provisionalOid)).toBe(true);
+    expect(isProvisionalTrapOid(provisionalSuffixedOid)).toBe(true);
+    expect(isProvisionalTrapOid(recognizedOid)).toBe(false);
+    expect(isProvisionalTrapOid(unknownOid)).toBe(false);
+  });
+
+  it('strictly prohibits enabling simulator provisional mode in production environment', () => {
+    const originalEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(isSimulatorProvisionalTrapsEnabled()).toBe(false);
+      expect(() => setSimulatorProvisionalTraps(true)).toThrow(
+        'Cannot enable simulator provisional traps when NODE_ENV is production',
+      );
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      setSimulatorProvisionalTraps(false);
+    }
   });
 });

@@ -116,6 +116,14 @@ describe('ZTE OLT Adapter (Roadmap Fase 3)', () => {
     const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
     expect(event.metrics.severity).toBe('info');
     expect(event.metrics.trapCategory).toBe('unknown_trap');
+    expect(event.metrics.trapName).toBe('provisionalTrap');
+    expect(event.metrics.candidateTrapName).toBe('zxGponOntLossOfSignal');
+    expect(event.metrics.candidateDescription).toBe(
+      'Loss of optical signal on ZTE GPON ONT',
+    );
+    expect(event.metrics.description).toBe(
+      'Provisional unverified SNMP trap OID awaiting physical lab confirmation',
+    );
     expect(event.metrics.catalogStatus).toBe('provisional');
     expect(event.tags?.['catalogStatus']).toBe('provisional');
     setSimulatorProvisionalTraps(true);

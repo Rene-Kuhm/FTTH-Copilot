@@ -11,6 +11,7 @@ export {
 export {
   lookupTrapDefinition,
   isKnownTrapOid,
+  isProvisionalTrapOid,
   validateCatalogAdmission,
   KNOWN_TRAP_DEFINITIONS,
   setSimulatorProvisionalTraps,

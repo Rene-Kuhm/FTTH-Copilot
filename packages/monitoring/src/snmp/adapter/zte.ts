@@ -71,7 +71,9 @@ export class ZteOltAdapter implements OltVendorAdapter {
       catalogDef.category === 'onu_offline' ||
       catalogDef.category === 'onu_online' ||
       catalogDef.name.toLowerCase().includes('ont') ||
-      catalogDef.name.toLowerCase().includes('onu');
+      catalogDef.name.toLowerCase().includes('onu') ||
+      (catalogDef.candidateTrapName?.toLowerCase().includes('ont') ?? false) ||
+      (catalogDef.candidateTrapName?.toLowerCase().includes('onu') ?? false);
 
     const deviceKind = isOntScope ? 'ONU' : 'OLT';
     let deviceId: string;
@@ -129,6 +131,13 @@ export class ZteOltAdapter implements OltVendorAdapter {
     if (catalogDef.catalogStatus) {
       metrics['catalogStatus'] = catalogDef.catalogStatus;
       tags['catalogStatus'] = catalogDef.catalogStatus;
+    }
+
+    if (catalogDef.candidateTrapName) {
+      metrics['candidateTrapName'] = catalogDef.candidateTrapName;
+    }
+    if (catalogDef.candidateDescription) {
+      metrics['candidateDescription'] = catalogDef.candidateDescription;
     }
 
     if (hierarchy.serial) tags['serial'] = hierarchy.serial;

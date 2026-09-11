@@ -39,6 +39,8 @@ export interface SnmpTrapDefinition {
   clears_trap_oid?: string;
   status?: 'recognized' | 'provisional' | 'deprecated';
   catalogStatus?: 'recognized' | 'provisional' | 'deprecated' | 'unregistered';
+  candidateTrapName?: string;
+  candidateDescription?: string;
 }
 
 export interface LookupTrapOptions {
@@ -50,12 +52,19 @@ let simulatorProvisionalTrapsEnabled = false;
 /**
  * Explicitly enables or disables provisional trap definitions in simulator / lab testing.
  * In production, provisional traps remain disabled by default and degrade to unknown_trap (info).
+ * Throws if attempting to enable when NODE_ENV is production.
  */
 export function setSimulatorProvisionalTraps(enabled = true): void {
+  if (process.env.NODE_ENV === 'production' && enabled) {
+    throw new Error('Cannot enable simulator provisional traps when NODE_ENV is production');
+  }
   simulatorProvisionalTrapsEnabled = enabled;
 }
 
 export function isSimulatorProvisionalTrapsEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
   return (
     simulatorProvisionalTrapsEnabled ||
     process.env.FTTH_SIMULATOR_ALLOW_PROVISIONAL === 'true'
@@ -971,10 +980,39 @@ const TRAP_MAP = new Map<string, SnmpTrapDefinition>(
   KNOWN_TRAP_DEFINITIONS.map((def) => [def.oid, def]),
 );
 
-export function isKnownTrapOid(oid: string): boolean {
+export function isKnownTrapOid(oid: string, options?: LookupTrapOptions): boolean {
   const clean = oid.trim();
-  if (TRAP_MAP.has(clean)) return true;
-  return KNOWN_TRAP_DEFINITIONS.some((def) => clean.startsWith(`${def.oid}.`));
+  const allowProvisional =
+    options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled();
+
+  const exact = TRAP_MAP.get(clean);
+  if (exact) {
+    return exact.status !== 'provisional' || allowProvisional;
+  }
+
+  for (const def of KNOWN_TRAP_DEFINITIONS) {
+    if (clean.startsWith(`${def.oid}.`)) {
+      return def.status !== 'provisional' || allowProvisional;
+    }
+  }
+
+  return false;
+}
+
+export function isProvisionalTrapOid(oid: string): boolean {
+  const clean = oid.trim();
+  const exact = TRAP_MAP.get(clean);
+  if (exact) {
+    return exact.status === 'provisional';
+  }
+
+  for (const def of KNOWN_TRAP_DEFINITIONS) {
+    if (clean.startsWith(`${def.oid}.`)) {
+      return def.status === 'provisional';
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -1016,12 +1054,15 @@ export function lookupTrapDefinition(
       }
       return {
         oid: def.oid,
-        name: def.name,
+        name: 'provisionalTrap',
         category: 'unknown_trap',
         severity: 'info',
-        description: `${def.description} [PROVISIONAL - Suppressed pending physical confirmation]`,
+        description:
+          'Provisional unverified SNMP trap OID awaiting physical lab confirmation',
         status: 'provisional',
         catalogStatus: 'provisional',
+        candidateTrapName: def.name,
+        candidateDescription: def.description,
       };
     }
 

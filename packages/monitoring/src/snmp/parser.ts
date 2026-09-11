@@ -77,6 +77,12 @@ export function parseAndNormalizeSnmpTrap(
   if (trapDef.catalogStatus) {
     metrics['catalogStatus'] = trapDef.catalogStatus;
   }
+  if (trapDef.candidateTrapName) {
+    metrics['candidateTrapName'] = trapDef.candidateTrapName;
+  }
+  if (trapDef.candidateDescription) {
+    metrics['candidateDescription'] = trapDef.candidateDescription;
+  }
 
   if (packet.sysUpTime !== undefined) {
     metrics['sysUpTime'] = packet.sysUpTime;
