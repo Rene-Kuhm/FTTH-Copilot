@@ -36,6 +36,14 @@ describe('SNMP Trap Parser & Normalizer (Roadmap Fase 6 — 6.3 + 6.4)', () => {
 
     expect(event.metrics.snmpTrapOid).toBe('1.3.6.1.4.1.2011.6.128.1.1.2.43.2');
     expect(event.metrics.trapCategory).toBe('unknown_trap');
+    expect(event.metrics.trapName).toBe('provisionalTrap');
+    expect(event.metrics.candidateTrapName).toBe('hwGponOntDyingGasp');
+    expect(event.metrics.candidateDescription).toBe(
+      'Power failure / dying gasp alarm sent by GPON ONT',
+    );
+    expect(event.metrics.description).toBe(
+      'Provisional unverified SNMP trap OID awaiting physical lab confirmation',
+    );
     expect(event.metrics.severity).toBe('info');
     expect(event.metrics.catalogStatus).toBe('provisional');
     expect(event.tags?.['catalogStatus']).toBe('provisional');
