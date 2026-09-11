@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests",
     "clean": "rm -rf dist",
     "test:unit": "vitest run --passWithNoTests",
+    "test:conformance": "vitest run tests/conformance",
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^3.2.6",
     "eslint": "^9.18.0",
+    "fast-check": "^4.9.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.6"
   }

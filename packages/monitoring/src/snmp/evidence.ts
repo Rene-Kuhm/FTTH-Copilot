@@ -23,10 +23,20 @@ export function createRawEvidenceEnvelope(
       const isAscii = /^[\x20-\x7E]*$/.test(value.toString('binary'));
       value = isAscii ? value.toString('utf8') : value.toString('hex');
     }
+    let stringifiedValue: string | number | boolean = '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      stringifiedValue = value;
+    } else {
+      try {
+        stringifiedValue = String(value);
+      } catch {
+        stringifiedValue = Object.prototype.toString.call(value);
+      }
+    }
     return {
       oid: vb.oid,
       type: vb.type ?? 'Unknown',
-      value: (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') ? value : String(value),
+      value: stringifiedValue,
       rawHex: vb.rawHex,
     };
   });

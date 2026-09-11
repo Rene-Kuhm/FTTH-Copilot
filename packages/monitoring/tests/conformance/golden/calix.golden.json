@@ -1,0 +1,94 @@
+{
+  "vendor": "Calix",
+  "trapOid": "1.3.6.1.4.1.6321.1.2.2.4.2.1",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-calix-1",
+    "oltId": "CALIX-E7-01",
+    "vendor": "Calix",
+    "pen": 6321,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.6321.1.2.2.4.2.1",
+    "sysUpTime": 998000,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.6",
+        "type": "OctetString",
+        "value": "ont 1/1/2/4"
+      },
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.1",
+        "type": "OctetString",
+        "value": "loss-of-signal"
+      },
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.2",
+        "type": "OctetString",
+        "value": "CXNK00123456"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.5.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.6321.1.2.2.4.2.1",
+    "sysUpTime": 998000,
+    "credentialsRedacted": true,
+    "varbindCount": 3,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.6",
+        "type": "OctetString",
+        "value": "ont 1/1/2/4"
+      },
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.1",
+        "type": "OctetString",
+        "value": "loss-of-signal"
+      },
+      {
+        "oid": "1.3.6.1.4.1.6321.1.2.2.4.1.1.2",
+        "type": "OctetString",
+        "value": "CXNK00123456"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "CXNK00123456",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.6321.1.2.2.4.2.1",
+      "trapCategory": "los",
+      "trapName": "e7TrapAlarm",
+      "severity": "critical",
+      "vendor": "Calix",
+      "description": "Calix E7 alarm event notification (LOS, dying gasp, ONT offline/online, card or port status)",
+      "fingerprint": "e78ca809e6986040ad1570d6cb9acab0bf3dfceec5dd526e688e4722c967ede4",
+      "shelf": 1,
+      "slot": 1,
+      "port": 2,
+      "onuId": 4,
+      "serial": "CXNK00123456",
+      "cliObject": "ont 1/1/2/4"
+    },
+    "tags": {
+      "adapter": "calix",
+      "vendor": "Calix",
+      "trapCategory": "los",
+      "severity": "critical",
+      "serial": "CXNK00123456",
+      "onuId": "4",
+      "port": "2",
+      "slot": "1",
+      "shelf": "1"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+# Tasks: Fase 7 — Laboratorio de Conformidad sin Hardware
+
+- [x] 1. Containerized Net-SNMP Environment (`docker/snmp-lab/`)
+  - [x] 1.1 Create `docker/snmp-lab/Dockerfile` based on Alpine with `net-snmp-tools` and isolated `MIBDIR`
+  - [x] 1.2 Create `docker/snmp-lab/entrypoint.sh` providing trap emission and translation commands
+  - [x] 1.3 Create `scripts/run-conformance-lab.sh` or compose configuration for isolated runner
+- [x] 2. Binary Packet Generator & Replay Runner (`packages/monitoring/src/snmp/conformance/`)
+  - [x] 2.1 Implement `packet-generator.ts` to build wire-format binary packets (v1, v2c, v3 authPriv) from fixtures
+  - [x] 2.2 Implement `replay-runner.ts` to replay recorded fixture datagrams over UDP socket to receiver
+  - [x] 2.3 Export conformance utilities from monitoring package
+- [x] 3. Golden Files for Evidence & Telemetry (`tests/conformance/golden/`)
+  - [x] 3.1 Generate golden snapshots for all 8 L2 vendors (Huawei, ZTE, Nokia, FiberHome, Calix, Adtran, VSOL, BDCOM) and RFC Standard
+  - [x] 3.2 Implement golden snapshot test suite (`tests/conformance/golden-snapshots.test.ts`)
+- [x] 4. Fault & Resilience Test Suite (`tests/conformance/fault-scenarios.test.ts`)
+  - [x] 4.1 Test alarm / clear pair correlation
+  - [x] 4.2 Test duplicate trap suppression window
+  - [x] 4.3 Test replay protection & duplicate fingerprint suppression
+  - [x] 4.4 Test out-of-order trap delivery
+  - [x] 4.5 Test clock skew / sysUpTime anomaly resilience
+  - [x] 4.6 Test burst trap storm (500+ packets), drop counting, and queue boundedness
+- [x] 5. Property-Based Testing for ASN.1 & Varbinds (`tests/conformance/property-asn1.test.ts`)
+  - [x] 5.1 Add `fast-check` to `@ftth-copilot/monitoring` devDependencies
+  - [x] 5.2 Implement property tests fuzzing malformed lengths, truncated tags, and oversized OIDs
+  - [x] 5.3 Assert parser cleanly rejects without unhandled crashes and zero credential leakage
+- [x] 6. Multi-Tenant Isolation Behind Shared Relay / NAT (`tests/conformance/tenant-isolation.test.ts`)
+  - [x] 6.1 Implement multi-tenant test scenario with multiple OLT registrations sharing a single proxy/relay IP
+  - [x] 6.2 Assert strict tenant isolation, no metric misattribution, and correct reject behavior for unmapped traffic
+- [x] 7. Performance Benchmark & Reporting
+  - [x] 7.1 Implement `scripts/snmp-benchmark.ts` measuring events/sec, memory delta, drops, and p95/p99 latency
+  - [x] 7.2 Run benchmarks and generate `research/olt/conformance-report.json`
+  - [x] 7.3 Document benchmark methodology and results in `docs/conformance-benchmark.md`
+- [x] 8. CI, Verification & Gate 7 Validation
+  - [x] 8.1 Add `"test:conformance"` and `"benchmark:snmp"` to `package.json`
+  - [x] 8.2 Run full monorepo validation (`pnpm turbo run lint typecheck test`)
+  - [x] 8.3 Generate `verify-report.md`
+  - [x] 8.4 Update `docs/roadmap-olt-multivendor.md`

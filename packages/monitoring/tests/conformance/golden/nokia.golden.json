@@ -1,0 +1,76 @@
+{
+  "vendor": "Nokia",
+  "trapOid": "1.3.6.1.4.1.637.61.1.36.1.1.1.1.1.2.4.10",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-nokia-1",
+    "oltId": "NOKIA-ISAM-01",
+    "vendor": "Nokia",
+    "pen": 637,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.3.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.637.61.1.36.1.1.1.1.1.2.4.10",
+    "sysUpTime": 120000,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.637.61.1.36.1.2.1",
+        "type": "OctetString",
+        "value": "ALCL12345678"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.3.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.637.61.1.36.1.1.1.1.1.2.4.10",
+    "sysUpTime": 120000,
+    "credentialsRedacted": true,
+    "varbindCount": 1,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.637.61.1.36.1.2.1",
+        "type": "OctetString",
+        "value": "ALCL12345678"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "ALCL12345678",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.637.61.1.36.1.1.1",
+      "trapCategory": "los",
+      "trapName": "nokiaOntLossOfSignal",
+      "severity": "critical",
+      "vendor": "Nokia",
+      "description": "Loss of optical signal on Nokia 7360 ISAM ONT",
+      "fingerprint": "25c604148119bc20326046fc0949cff06305382e3532e319da777ee683dfff7a",
+      "rack": 1,
+      "shelf": 1,
+      "slot": 2,
+      "port": 4,
+      "onuId": 10,
+      "serial": "ALCL12345678",
+      "sysUpTime": 120000
+    },
+    "tags": {
+      "connectionId": "conn-nokia-1",
+      "oltId": "NOKIA-ISAM-01",
+      "vendor": "Nokia",
+      "trapCategory": "los",
+      "snmpVersion": "v2c",
+      "pduType": "TrapV2",
+      "serial": "ALCL12345678",
+      "port": "4",
+      "slot": "2",
+      "shelf": "1"
+    }
+  }
+}

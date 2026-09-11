@@ -1,0 +1,75 @@
+{
+  "vendor": "Adtran",
+  "trapOid": "1.3.6.1.4.1.664.5.53.1.4.1",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-adtran-1",
+    "oltId": "ADTRAN-TA5000-01",
+    "vendor": "Adtran",
+    "pen": 664,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.6.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.664.5.53.1.4.1",
+    "sysUpTime": 654000,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.664.5.53.1.1.1.1",
+        "type": "OctetString",
+        "value": "1.2.8"
+      },
+      {
+        "oid": "1.3.6.1.4.1.664.5.53.1.1.1.2",
+        "type": "OctetString",
+        "value": "ADTN12345678"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.6.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.664.5.53.1.4.1",
+    "sysUpTime": 654000,
+    "credentialsRedacted": true,
+    "varbindCount": 2,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.664.5.53.1.1.1.1",
+        "type": "OctetString",
+        "value": "1.2.8"
+      },
+      {
+        "oid": "1.3.6.1.4.1.664.5.53.1.1.1.2",
+        "type": "OctetString",
+        "value": "ADTN12345678"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "ADTN12345678",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.664.5.53.1.4.1",
+      "trapCategory": "unknown_trap",
+      "trapName": "unknownTrap",
+      "severity": "info",
+      "vendor": "Adtran",
+      "description": "Unregistered SNMP trap OID",
+      "fingerprint": "41336601fb0e5b1fc08c23b3e03fbeffbde370809cf4005978f06bd3e06b49f7",
+      "serial": "ADTN12345678"
+    },
+    "tags": {
+      "adapter": "adtran",
+      "vendor": "Adtran",
+      "trapCategory": "unknown_trap",
+      "severity": "info",
+      "serial": "ADTN12345678"
+    }
+  }
+}

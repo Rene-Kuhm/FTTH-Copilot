@@ -1,0 +1,77 @@
+{
+  "vendor": "ZTE",
+  "trapOid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1.3.2.5",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-zte-1",
+    "oltId": "ZTE-OLT-01",
+    "vendor": "ZTE",
+    "pen": 3902,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.2.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1.3.2.5",
+    "sysUpTime": 500120,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1",
+        "type": "OctetString",
+        "value": "ZTEGC8765432"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.2.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1.3.2.5",
+    "sysUpTime": 500120,
+    "credentialsRedacted": true,
+    "varbindCount": 1,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.1",
+        "type": "OctetString",
+        "value": "ZTEGC8765432"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "ZTEGC8765432",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.3902.1082.500.10.2.2.1",
+      "trapCategory": "los",
+      "trapName": "zxGponOntLossOfSignal",
+      "severity": "critical",
+      "vendor": "ZTE",
+      "description": "Loss of optical signal on ZTE GPON ONT",
+      "fingerprint": "f3b7506dc65836e737793c4cdd4601a1e627035306556c2417d2abbb44ff2b22",
+      "rack": 1,
+      "shelf": 1,
+      "slot": 3,
+      "port": 2,
+      "onuId": 5,
+      "serial": "ZTEGC8765432",
+      "sysUpTime": 500120
+    },
+    "tags": {
+      "connectionId": "conn-zte-1",
+      "oltId": "ZTE-OLT-01",
+      "vendor": "ZTE",
+      "trapCategory": "los",
+      "snmpVersion": "v2c",
+      "pduType": "TrapV2",
+      "serial": "ZTEGC8765432",
+      "port": "2",
+      "slot": "3",
+      "rack": "1",
+      "shelf": "1"
+    }
+  }
+}
