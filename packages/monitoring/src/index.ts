@@ -114,6 +114,12 @@ export {
   type VendorPackageContent,
 } from './snmp/research/validator';
 
+export {
+  detectOidConflicts,
+  type OidConflictIssue,
+  type OidConflictReport,
+} from './snmp/research/oid-conflicts';
+
 export type {
   SnmpVersion,
   SnmpPduType,
@@ -196,4 +202,22 @@ export {
   type BurstOptions,
   type ReplaySummary,
 } from './snmp/conformance/replay-runner';
+
+export {
+  sanitizeSnmpText,
+  sanitizeSnmpObject,
+  sanitizeSnmpCapture,
+  type SnmpSanitizerOptions,
+  type SanitizerReport,
+} from './snmp/sanitizer';
+
+export {
+  loadErrataRegistry,
+  evaluateSnmpErrata,
+  SnmpErrataRecordSchema,
+  ErrataFileSchema,
+  type SnmpErrataRecord,
+  type SnmpErrataAction,
+  type SnmpErrataEvaluation,
+} from './snmp/research/errata';
 

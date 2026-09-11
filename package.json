@@ -29,7 +29,12 @@
     "test:conformance": "pnpm --filter @ftth-copilot/monitoring test:conformance",
     "benchmark:snmp": "tsx scripts/snmp-benchmark.ts",
     "check:sources": "tsx scripts/generate-compatibility-matrix.ts --check",
-    "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts"
+    "check:sources:health": "tsx scripts/check-research-sources-health.ts",
+    "check:contribution": "tsx scripts/validate-contribution.ts",
+    "check:conflicts": "tsx scripts/check-oid-conflicts.ts",
+    "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts",
+    "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
+    "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts"
   },
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",

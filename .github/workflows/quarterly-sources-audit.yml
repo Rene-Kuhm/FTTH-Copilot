@@ -1,0 +1,46 @@
+name: Quarterly Research Sources & Link Audit
+
+on:
+  schedule:
+    # Run at 00:00 UTC on the 1st day of every 3rd month (Jan, Apr, Jul, Oct)
+    - cron: '0 0 1 */3 *'
+  workflow_dispatch:
+
+jobs:
+  sources-audit:
+    name: Audit OLT Research Sources, Errata, & Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Source Registry Schema
+        run: pnpm check:sources
+
+      - name: Check OID Collisions & Semantic Conflicts
+        run: pnpm check:conflicts
+
+      - name: Validate Vendor Contributions
+        run: pnpm check:contribution
+
+      - name: Verify Link Integrity & Source URL Reachability
+        run: pnpm check:sources:health --timeout=8000
+
+      - name: Verify Compatibility Matrix Freshness
+        run: |
+          pnpm generate:matrix:write
+          git diff --exit-code docs/compatibility-matrix.md || (echo "Compatibility matrix out of date. Run 'pnpm generate:matrix:write' and commit." && exit 1)
