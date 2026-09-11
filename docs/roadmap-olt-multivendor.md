@@ -338,16 +338,17 @@ Gate 6:
 
 Objetivo: hacer repetible la validación para cualquier contribuidor.
 
-- [ ] Crear contenedor Net-SNMP con MIBDIR aislado.
-- [ ] Generar paquetes binarios v1/v2c/v3 desde fixtures y reproducirlos sobre UDP.
-- [ ] Mantener golden files del envelope crudo y del evento normalizado.
-- [ ] Probar alarm/clear, duplicado, replay, reorder, clock skew y storm.
-- [ ] Añadir property tests para ASN.1 y varbinds sin datos sensibles.
-- [ ] Ejecutar pruebas de aislamiento entre tenants y remitentes con IP compartida detrás de relay.
-- [ ] Medir eventos/segundo, memoria, drops y latencia p95 antes de considerar un proceso separado.
-- [ ] Publicar artefactos y matriz de resultados desde CI.
+- [x] Crear contenedor Net-SNMP con MIBDIR aislado.
+- [x] Generar paquetes binarios v1/v2c/v3 desde fixtures y reproducirlos sobre UDP.
+- [x] Mantener golden files del envelope crudo y del evento normalizado.
+- [x] Probar alarm/clear, duplicado, replay, reorder, clock skew y storm.
+- [x] Añadir property tests para ASN.1 y varbinds sin datos sensibles.
+- [x] Ejecutar pruebas de aislamiento entre tenants y remitentes con IP compartida detrás de relay.
+- [x] Medir eventos/segundo, memoria, drops y latencia p95 antes de considerar un proceso separado.
+- [x] Publicar artefactos y matriz de resultados desde CI.
 
-Gate 7: cualquier adaptador L2 puede reconstruirse desde cero con fuentes permitidas y aprobar la misma suite.
+Gate 7:
+- [x] Cualquier adaptador L2 puede reconstruirse desde cero con fuentes permitidas y aprobar la misma suite de conformidad sin hardware físico. Verificado en `openspec/changes/2026-09-10-fase-7-hardwareless-conformance-lab/verify-report.md`.
 
 ### Fase 8 — Comunidad, mantenimiento y publicación
 

@@ -27,8 +27,6 @@ export interface SnmpSenderRegistration extends SnmpSenderContext {
   v3User?: SnmpV3UserConfig;
 }
 
-export type SnmpSenderRegistry = Map<string, SnmpSenderRegistration>;
-
 /**
  * Checks security parameters for a registration and returns operational warnings.
  */
@@ -51,17 +49,48 @@ export function checkSenderSecurity(registration: SnmpSenderRegistration): strin
   return warnings;
 }
 
+export class SnmpSenderRegistry extends Map<string, SnmpSenderRegistration> {
+  private readonly multiRegistrations: SnmpSenderRegistration[];
+
+  constructor(registrations: ReadonlyArray<SnmpSenderRegistration>) {
+    super();
+    this.multiRegistrations = [...registrations];
+    for (const reg of registrations) {
+      this.set(reg.senderIp.trim(), reg);
+    }
+  }
+
+  public resolveMulti(
+    senderIp: string,
+    authContext?: { community?: string; v3User?: string },
+  ): SnmpSenderRegistration | undefined {
+    const cleanIp = senderIp.trim();
+    const matching = this.multiRegistrations.filter((r) => r.senderIp.trim() === cleanIp);
+    if (matching.length === 0) return undefined;
+    if (matching.length === 1) return matching[0];
+
+    // Disambiguate by community string or v3 user
+    if (authContext?.community) {
+      const byComm = matching.find((r) => r.community === authContext.community);
+      if (byComm) return byComm;
+    }
+    if (authContext?.v3User) {
+      const byUser = matching.find((r) => r.v3User?.name === authContext.v3User);
+      if (byUser) return byUser;
+    }
+
+    // If ambiguous and no auth match, return undefined to prevent cross-tenant leak
+    return undefined;
+  }
+}
+
 /**
  * Creates an immutable sender lookup map from registrations.
  */
 export function createSenderRegistry(
   registrations: ReadonlyArray<SnmpSenderRegistration>,
 ): SnmpSenderRegistry {
-  const map = new Map<string, SnmpSenderRegistration>();
-  for (const reg of registrations) {
-    map.set(reg.senderIp.trim(), { ...reg });
-  }
-  return map;
+  return new SnmpSenderRegistry(registrations);
 }
 
 /**
@@ -73,10 +102,17 @@ export function createSenderRegistry(
 export function resolveTrapSender(
   senderIp: string,
   registry: SnmpSenderRegistry,
-  _payloadTenantClaim?: string,
+  authOrPayloadClaim?: string | { community?: string; v3User?: string },
 ): SnmpSenderContext | null {
   const cleanIp = senderIp.trim();
-  const context = registry.get(cleanIp);
+
+  let context: SnmpSenderRegistration | undefined;
+  if (typeof authOrPayloadClaim === 'object' && authOrPayloadClaim !== null && typeof registry.resolveMulti === 'function') {
+    context = registry.resolveMulti(cleanIp, authOrPayloadClaim);
+  } else {
+    context = registry.get(cleanIp);
+  }
+
   if (!context) return null;
 
   return {

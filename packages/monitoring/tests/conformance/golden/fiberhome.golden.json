@@ -1,0 +1,73 @@
+{
+  "vendor": "FiberHome",
+  "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-fh-1",
+    "oltId": "FH-AN5516-01",
+    "vendor": "FiberHome",
+    "pen": 3807,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12",
+    "sysUpTime": 789000,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3807.1.3.1.1.2.1",
+        "type": "OctetString",
+        "value": "FHTT12345678"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.4.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.3807.1.3.1.1.2.2.4.12",
+    "sysUpTime": 789000,
+    "credentialsRedacted": true,
+    "varbindCount": 1,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.3807.1.3.1.1.2.1",
+        "type": "OctetString",
+        "value": "FHTT12345678"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "FHTT12345678",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.3807.1.3.1.1.2",
+      "trapCategory": "dying_gasp",
+      "trapName": "fhGponOntDyingGasp",
+      "severity": "critical",
+      "vendor": "FiberHome",
+      "description": "Dying gasp alarm on Fiberhome GPON ONT",
+      "fingerprint": "321cdc0525cb4dbe0819d0e28ce158ca06ba6252adcbee8293debf41ecc09d33",
+      "slot": 2,
+      "port": 4,
+      "onuId": 12,
+      "serial": "FHTT12345678",
+      "sysUpTime": 789000
+    },
+    "tags": {
+      "connectionId": "conn-fh-1",
+      "oltId": "FH-AN5516-01",
+      "vendor": "FiberHome",
+      "trapCategory": "dying_gasp",
+      "snmpVersion": "v2c",
+      "pduType": "TrapV2",
+      "serial": "FHTT12345678",
+      "port": "4",
+      "slot": "2"
+    }
+  }
+}

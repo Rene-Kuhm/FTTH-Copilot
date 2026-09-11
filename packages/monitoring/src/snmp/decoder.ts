@@ -33,7 +33,11 @@ export function formatVarbindValue(value: unknown): string | number | boolean | 
     const isAscii = /^[\x20-\x7E]*$/.test(value.toString('binary'));
     return isAscii ? value.toString('utf8') : value.toString('hex');
   }
-  return String(value);
+  try {
+    return String(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
 }
 
 interface RawTrapPayload {

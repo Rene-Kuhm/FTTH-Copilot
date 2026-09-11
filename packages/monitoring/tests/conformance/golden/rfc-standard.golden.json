@@ -1,0 +1,78 @@
+{
+  "vendor": "Standard RFC",
+  "trapOid": "1.3.6.1.6.3.1.1.5.3",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-rfc-1",
+    "oltId": "RFC-OLT-01",
+    "vendor": "RFC",
+    "pen": null,
+    "isStandardTrap": true,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.9.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.6.3.1.1.5.3",
+    "sysUpTime": 112233,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.1",
+        "type": "OctetString",
+        "value": "ge-0/0/1"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.9.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.6.3.1.1.5.3",
+    "sysUpTime": 112233,
+    "credentialsRedacted": true,
+    "varbindCount": 2,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.1.1",
+        "type": "Integer",
+        "value": 1
+      },
+      {
+        "oid": "1.3.6.1.2.1.2.2.1.2.1",
+        "type": "OctetString",
+        "value": "ge-0/0/1"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "OLT",
+    "deviceId": "RFC-OLT-01",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.6.3.1.1.5.3",
+      "trapCategory": "link_down",
+      "trapName": "linkDown",
+      "severity": "warning",
+      "vendor": "RFC",
+      "description": "Communication link transition from up to down",
+      "fingerprint": "1a8b5bb7a898cda74c0299f6b6f6982f7bac738e2d9255f65108faf1b0a571d9",
+      "sysUpTime": 112233,
+      "ifIndex": 1,
+      "ifDescr": "ge-0/0/1"
+    },
+    "tags": {
+      "connectionId": "conn-rfc-1",
+      "oltId": "RFC-OLT-01",
+      "vendor": "RFC",
+      "trapCategory": "link_down",
+      "snmpVersion": "v2c",
+      "pduType": "TrapV2"
+    }
+  }
+}

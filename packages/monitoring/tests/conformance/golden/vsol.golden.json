@@ -1,0 +1,68 @@
+{
+  "vendor": "VSOL",
+  "trapOid": "1.3.6.1.4.1.37950.1.1.5.10.1.2.1.2.5",
+  "identity": {
+    "tenantId": "tenant-test",
+    "connectionId": "conn-vsol-1",
+    "oltId": "VSOL-V1600-01",
+    "vendor": "VSOL",
+    "pen": 37950,
+    "isStandardTrap": false,
+    "isAmbiguous": false
+  },
+  "input": {
+    "version": "v2c",
+    "senderIp": "10.100.7.10",
+    "senderPort": 162,
+    "trapOid": "1.3.6.1.4.1.37950.1.1.5.10.1.2.1.2.5",
+    "sysUpTime": 432100,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.37950.1.1.5.10.1.1.1",
+        "type": "OctetString",
+        "value": "VSOL12345678"
+      }
+    ]
+  },
+  "rawEvidence": {
+    "senderIp": "10.100.7.10",
+    "senderPort": 162,
+    "snmpVersion": "v2c",
+    "pduType": "TrapV2",
+    "trapOid": "1.3.6.1.4.1.37950.1.1.5.10.1.2.1.2.5",
+    "sysUpTime": 432100,
+    "credentialsRedacted": true,
+    "varbindCount": 1,
+    "varbinds": [
+      {
+        "oid": "1.3.6.1.4.1.37950.1.1.5.10.1.1.1",
+        "type": "OctetString",
+        "value": "VSOL12345678"
+      }
+    ]
+  },
+  "expectedTelemetry": {
+    "deviceKind": "ONU",
+    "deviceId": "VSOL12345678",
+    "metrics": {
+      "snmpTrapOid": "1.3.6.1.4.1.37950.1.1.5.10.1.2.1.2.5",
+      "trapCategory": "unknown_trap",
+      "trapName": "unknownTrap",
+      "severity": "info",
+      "vendor": "VSOL",
+      "description": "Unregistered SNMP trap OID",
+      "fingerprint": "7531625f94671420e683ad5e33673ba687b7431821f5ec39af843a5e9c538e07",
+      "serial": "VSOL12345678"
+    },
+    "tags": {
+      "adapter": "vsol",
+      "vendor": "VSOL",
+      "trapCategory": "unknown_trap",
+      "severity": "info",
+      "serial": "VSOL12345678",
+      "tenantId": "tenant-test",
+      "connectionId": "conn-vsol-1",
+      "oltId": "VSOL-V1600-01"
+    }
+  }
+}

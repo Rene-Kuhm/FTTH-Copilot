@@ -26,6 +26,8 @@
     "test:syslog": "tsx scripts/send-syslog.ts",
     "test:mock-nms": "tsx scripts/mock-nms.ts",
     "test:snmp": "tsx scripts/test-snmp.ts",
+    "test:conformance": "pnpm --filter @ftth-copilot/monitoring test:conformance",
+    "benchmark:snmp": "tsx scripts/snmp-benchmark.ts",
     "check:sources": "tsx scripts/generate-compatibility-matrix.ts --check",
     "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts"
   },

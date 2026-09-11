@@ -183,3 +183,17 @@ export {
   type SnmpPipelineResult,
 } from './snmp/pipeline';
 
+export {
+  fixtureTrapToSendOptions,
+  generateSyntheticMalformedBytes,
+  type FixtureTrapItem,
+  type FixtureVarbind,
+} from './snmp/conformance/packet-generator';
+
+export {
+  SnmpReplayRunner,
+  type ReplayOptions,
+  type BurstOptions,
+  type ReplaySummary,
+} from './snmp/conformance/replay-runner';
+

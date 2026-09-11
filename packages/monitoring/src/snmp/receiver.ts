@@ -86,6 +86,24 @@ type CreateReceiverFn = (
   callback: (error: Error | null, trap: unknown) => void,
 ) => NetSnmpReceiverInstance;
 
+function extractCommunityFromSnmpBuffer(buf: Buffer): string | undefined {
+  if (buf.length < 6 || buf[0] !== 0x30) return undefined;
+  let offset = 1;
+  if (buf[offset]! & 0x80) {
+    offset += (buf[offset]! & 0x7f) + 1;
+  } else {
+    offset += 1;
+  }
+  if (offset >= buf.length || buf[offset] !== 0x02) return undefined;
+  const verLen = buf[offset + 1] ?? 0;
+  offset += 2 + verLen;
+  if (offset >= buf.length || buf[offset] !== 0x04) return undefined;
+  const commLen = buf[offset + 1] ?? 0;
+  offset += 2;
+  if (buf.length < offset + commLen) return undefined;
+  return buf.toString('utf8', offset, offset + commLen);
+}
+
 export function createManagedSnmpReceiver(
   options: ManagedSnmpReceiverOptions = {},
 ): ManagedSnmpReceiverHandle {
@@ -94,6 +112,7 @@ export function createManagedSnmpReceiver(
   const registrations = options.registrations ?? [];
   const senderRegistry = createSenderRegistry(registrations);
   const guard: SnmpIngestionGuard = createSnmpIngestionGuard(options.guardOptions);
+  const clientCommunityMap = new Map<string, string>();
 
   // Emit security warnings for registrations using plaintext v1/v2c or weak v3
   for (const reg of registrations) {
@@ -131,13 +150,19 @@ export function createManagedSnmpReceiver(
           return;
         }
 
-        // 2. Sender registry lookup: drop unregistered IPs before BER parsing
+        // 2. Track extracted community from raw bytes if present
+        const comm = extractCommunityFromSnmpBuffer(msg);
+        if (comm) {
+          clientCommunityMap.set(`${rinfo.address}:${rinfo.port}`, comm);
+        }
+
+        // 3. Sender registry lookup: drop unregistered IPs before BER parsing
         const sender = resolveTrapSender(rinfo.address, senderRegistry);
         if (!sender) {
           return;
         }
 
-        // 3. Delegate to Net-SNMP listener for ASN.1/BER decoding & USM auth
+        // 4. Delegate to Net-SNMP listener for ASN.1/BER decoding & USM auth
         proxySocket.emit('message', msg, rinfo);
       });
 
@@ -155,7 +180,7 @@ export function createManagedSnmpReceiver(
       dgramModule: customDgramModule,
     },
     (error: Error | null, trap: unknown) => {
-      const rawTrap = trap as { rinfo?: { address?: string } } | undefined;
+      const rawTrap = trap as { rinfo?: { address?: string; port?: number } } | undefined;
       if (error) {
         options.onError?.(error, rawTrap?.rinfo?.address);
         return;
@@ -164,9 +189,23 @@ export function createManagedSnmpReceiver(
       try {
         const receivedAtMs = Date.now();
         const senderIp = rawTrap?.rinfo?.address ?? '127.0.0.1';
-        const senderReg = senderRegistry.get(senderIp.trim());
+        const clientKey = rawTrap?.rinfo?.address && rawTrap?.rinfo?.port
+          ? `${rawTrap.rinfo.address}:${rawTrap.rinfo.port}`
+          : undefined;
+        const rawPdu = (trap as { pdu?: { community?: string; user?: { name?: string } }; user?: { name?: string } })?.pdu;
+        const community = (clientKey ? clientCommunityMap.get(clientKey) : undefined) ?? rawPdu?.community;
+        if (clientKey) {
+          clientCommunityMap.delete(clientKey);
+        }
+        const v3User = rawPdu?.user?.name ?? (trap as { user?: { name?: string } })?.user?.name;
+        const authContext = community || v3User ? { community, v3User } : undefined;
+
+        const senderReg = typeof senderRegistry.resolveMulti === 'function'
+          ? senderRegistry.resolveMulti(senderIp, authContext)
+          : senderRegistry.get(senderIp.trim());
+
         const decoded = decodeSnmpTrap(trap, { receivedAtMs, versionHint: senderReg?.version });
-        const senderContext = resolveTrapSender(decoded.senderIp, senderRegistry);
+        const senderContext = resolveTrapSender(decoded.senderIp, senderRegistry, authContext);
         if (!senderContext) {
           return;
         }
