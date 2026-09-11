@@ -84,13 +84,18 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 - **Criterio de hecho:** las métricas ópticas completas se recolectan y alimentan detectores + copiloto. ✅
 - **Estado (PRs cerrados, 2026-09-04 / 2026-09-05):** delivery `stacked-to-main` con PR #88 (`feat(optical): add LOS_SECONDS_TOTAL MetricKind + losSecondsTotal wiring`, merge `2d9f3ca`, helpers-slice ~150 LOC) y PR #89 (`feat(detection): add detectLosEvents + alert wiring`, merge `ae92dc6`, detector-slice ~150 LOC); CI 14/14 verde en ambos. Persiste 5 optical kinds por ONU cada tick del FEC scheduler (8 × 5 = 40 rows, REQ-5 escenario `persisted:40`). Detector `detectLosEvents` 24h-window, `minSamples:3`, warning Δ≥1s, critical Δ≥30s (REQ-6); wired en `runDetectors` con `optical_degradation` AlertKind (REQ-7). Mikrowisp graceful-degrade: undefined ⇒ sin filas, sin errores, sin findings (REQ-3, REQ-4). Veredicto verify PASS con 9/9 requirements, 13/13 scenarios; archive `openspec/changes/archive/2026-09-05-p2-2-optical-metrics/`.
 
-### 2.3 Colector SNMP traps — 🟡 IMPLEMENTADO EN LABORATORIO (PR #139 + #140)
+### 2.3 Colector SNMP traps — ✅ shipped (Fases 0–8 cerradas en laboratorio)
 - **Objetivo:** recibir traps SNMP de OLTs/ONTs (eventos que el polling HTTP no ve).
 - **Por qué importa:** los traps capturan eventos push en tiempo real.
 - **Escala:** si hay picos de traps que Node no absorbe → separar a collector (ver 3.1).
-- **Criterio de hecho:** receptor SNMP ingesta traps y los normaliza a `telemetry.v1`.
-- **Estado actual:** Implementado en TypeScript en `packages/monitoring/src/snmp/` y `apps/web/lib/monitoring/snmp.ts` (PR #139: catálogo MIB/OID, mapping por IP, parser, guardia de ingesta; PR #140: correlación con incidentes y recuperación tolerante a UDP fuera de orden). Validado en laboratorio con suites de prueba unitarias e integración; receptor en modo observación (`SNMP_RECEIVER_ENABLED=false`). Pendiente: validación de campo contra hardware OLT físico autorizado (Gate 6 abierto).
-- **Expansión multi-fabricante:** seguir `docs/roadmap-olt-multivendor.md`. Primero debe completarse el decoder de datagramas reales; luego se incorporan paquetes trazables para 12 fabricantes y validación reproducible sin hardware.
+- **Criterio de hecho:** receptor SNMP ingesta traps y los normaliza a `telemetry.v1`. ✅
+- **Estado (Fases 0–8 completadas en laboratorio):**
+  - Receptor SNMP nativo gestionado (`createManagedSnmpReceiver`) con socket UDP, decodificación completa ASN.1/BER, soporte v1, v2c y v3 USM (`authNoPriv`, `authPriv`, MD5/SHA, DES/AES) con aislamiento multi-tenant.
+  - Catálogo canónico multi-fabricante con 64 definiciones y trazabilidad total a hechos en `sources.yaml`.
+  - Adaptadores OLT normalizados para 12 fabricantes con pruebas sintéticas y de conformidad Net-SNMP.
+  - Guardia de deduplicación criptográfica, correlación con incidentes y preservación de evidencia cruda sanitizada.
+  - Matriz de compatibilidad autogenerada (`docs/compatibility-matrix.md`) con verificación anti-drift en CI.
+  - Fase 9 (certificación de campo en vivo contra hardware físico L3/L4) diferida a despliegue con ISP asociado.
 
 ### 2.4 Streaming gNMI/NETCONF (futuro) — 🔵 PENDIENTE
 - **Objetivo:** telemetría push estructurada desde el NMS.

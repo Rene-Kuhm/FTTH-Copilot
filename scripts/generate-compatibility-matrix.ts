@@ -12,6 +12,8 @@ import {
   validateSourcesList,
   validateCompatibilityRecord,
   validateCrossVendorRegistry,
+  validateCatalogFactsTraceability,
+  KNOWN_TRAP_DEFINITIONS,
   type VendorPackageContent,
   type SourceRecord,
   type VendorCompatibilityRecord,
@@ -102,6 +104,13 @@ function loadVendorPackages(): { packages: VendorPackageContent[]; errors: strin
   if (!crossResult.valid) {
     for (const iss of crossResult.issues) {
       errors.push(`[cross-vendor] ${iss.message}`);
+    }
+  }
+
+  const catalogResult = validateCatalogFactsTraceability(packages, KNOWN_TRAP_DEFINITIONS);
+  if (!catalogResult.valid) {
+    for (const iss of catalogResult.issues) {
+      errors.push(`[catalog-traceability] ${iss.message}`);
     }
   }
 
@@ -209,12 +218,25 @@ function main(): void {
 
   console.log(`\n✅ OLT Research Registry Validated: ${packages.length} vendor packages loaded without errors.`);
 
+  const documentContent = generateCompleteDocument(packages);
+
   if (isCheckMode) {
-    console.log(`Checked ${packages.length} vendors cleanly.`);
+    if (!fs.existsSync(outputPath)) {
+      console.error(`\n❌ Compatibility matrix file not found: ${outputPath}`);
+      process.exit(1);
+    }
+    const currentOnDisk = fs.readFileSync(outputPath, 'utf8');
+    if (currentOnDisk !== documentContent) {
+      console.error(
+        `\n❌ Drift detected in compatibility matrix (${outputPath}).\n` +
+          `   The matrix document does not match current research/olt definitions.\n` +
+          `   Run 'pnpm generate:matrix:write' to regenerate it.`
+      );
+      process.exit(1);
+    }
+    console.log(`Checked ${packages.length} vendors cleanly and verified no drift in ${outputPath}.`);
     return;
   }
-
-  const documentContent = generateCompleteDocument(packages);
 
   if (isWriteMode) {
     fs.writeFileSync(outputPath, documentContent, 'utf8');

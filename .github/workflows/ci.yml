@@ -65,6 +65,18 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Validate OLT research sources and matrix drift
+        run: |
+          pnpm check:sources
+          pnpm generate:matrix:write
+          git diff --exit-code docs/compatibility-matrix.md
+
+      - name: Check OID semantic conflicts
+        run: pnpm check:conflicts
+
+      - name: Validate contribution templates
+        run: pnpm check:contribution
+
   # ────────────────────────────────────────────────────────────
   # 2) Tests unitarios — rápidos, sin dependencias externas.
   #    Cubre packages/connectors, packages/agent-core, etc.
