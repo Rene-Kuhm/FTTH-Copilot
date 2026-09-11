@@ -13,8 +13,11 @@ export {
   isKnownTrapOid,
   validateCatalogAdmission,
   KNOWN_TRAP_DEFINITIONS,
+  setSimulatorProvisionalTraps,
+  isSimulatorProvisionalTrapsEnabled,
   type SnmpTrapDefinition,
   type SnmpTrapCategory,
+  type LookupTrapOptions,
 } from './snmp/catalog';
 
 export {

@@ -52,7 +52,9 @@ export class ZteOltAdapter implements OltVendorAdapter {
     const isClear = catalogDef.is_clear ?? false;
     let clearsCategory: string | undefined;
     if (catalogDef.clears_trap_oid) {
-      const clearedDef = lookupTrapDefinition(catalogDef.clears_trap_oid);
+      const clearedDef = lookupTrapDefinition(catalogDef.clears_trap_oid, {
+        allowProvisional: true,
+      });
       clearsCategory = clearedDef.category;
     } else if (catalogDef.name === 'zxGponOntOnline') {
       clearsCategory = 'onu_offline';
@@ -123,6 +125,11 @@ export class ZteOltAdapter implements OltVendorAdapter {
       snmpVersion: notification.version,
       pduType: notification.pduType,
     };
+
+    if (catalogDef.catalogStatus) {
+      metrics['catalogStatus'] = catalogDef.catalogStatus;
+      tags['catalogStatus'] = catalogDef.catalogStatus;
+    }
 
     if (hierarchy.serial) tags['serial'] = hierarchy.serial;
     if (hierarchy.port !== undefined) tags['port'] = String(hierarchy.port);

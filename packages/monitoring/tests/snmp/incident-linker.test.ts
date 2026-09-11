@@ -140,4 +140,37 @@ describe('SNMP Incident Linker & Recovery (Roadmap Fase 6 — 6.6)', () => {
 
     expect(outcome.action).toBe('no_match');
   });
+
+  it('rejects correlation for provisional traps and unknown_trap (Rule: no false diagnoses or incident updates)', () => {
+    // 1. Trap with catalogStatus provisional
+    const provisionalTrap = makeTrap({
+      ts: '2026-09-10T10:07:00.000Z',
+      metrics: {
+        trapCategory: 'dying_gasp',
+        catalogStatus: 'provisional',
+        snmpTrapOid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2',
+      },
+    });
+    const outcomeProvisional = correlateTrapWithIncidents({
+      event: provisionalTrap,
+      activeIncidents: [openIncident],
+    });
+    expect(outcomeProvisional.action).toBe('no_match');
+    expect(outcomeProvisional.reason).toMatch(/Provisional or unknown traps/i);
+
+    // 2. Trap with unknown_trap category
+    const unknownTrap = makeTrap({
+      ts: '2026-09-10T10:07:00.000Z',
+      metrics: {
+        trapCategory: 'unknown_trap',
+        snmpTrapOid: '1.3.6.1.4.1.99999.1.1',
+      },
+    });
+    const outcomeUnknown = correlateTrapWithIncidents({
+      event: unknownTrap,
+      activeIncidents: [openIncident],
+    });
+    expect(outcomeUnknown.action).toBe('no_match');
+    expect(outcomeUnknown.reason).toMatch(/Provisional or unknown traps/i);
+  });
 });

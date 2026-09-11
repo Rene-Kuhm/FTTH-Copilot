@@ -70,7 +70,7 @@ Tras la ejecución de las Fases 0 a 8 del roadmap de laboratorio, la superficie 
 
 | Superficie | Estado implementado | Garantía arquitectónica |
 |---|---|---|
-| `packages/monitoring/src/snmp/catalog.ts` | Catálogo canónico con 64 definiciones (estándar RFC, Huawei, ZTE, Nokia, FiberHome, etc.). | Trazabilidad cruzada estricta (Gate 1): todo OID no estándar cita un `source_id` y figura en sus `facts`. |
+| `packages/monitoring/src/snmp/catalog.ts` | Catálogo canónico con 64 definiciones (59 reconocidos + 5 provisionales: estándar RFC, Huawei, ZTE, Nokia, FiberHome, etc.). | Trazabilidad cruzada estricta (Gate 1): todo OID no estándar cita un `source_id` y figura en sus `facts`. |
 | `parser.ts` y `decoder.ts` | Decodificación ASN.1/BER estricta de datagramas binarios UDP y normalización a `telemetry.v1`. | Extracción determinista de índices de fabricante (`slot/PON/ONU`) sin inventar semántica. |
 | `packages/monitoring/src/snmp/receiver.ts` | Receptor gestionado sobre socket UDP nativo con control de ciclo de vida (`listen`, `close`). | Socket multi-tenant aislado, validación de envelope y cero mutaciones hacia la OLT. |
 | Guardia de deduplicación (`guard.ts`) | Huella canónica criptográfica (`computeSnmpNotificationFingerprint`). | Hash compuesto (enterprise, trap, varbinds, tenant) que elimina colisiones por tamaño. |
@@ -436,7 +436,7 @@ El roadmap de laboratorio está **COMPLETO** habiendo satisfecho todos sus crite
 - [x] Huawei, ZTE, Nokia y FiberHome alcanzan L2 con suites unitarias y de simulación.
 - [x] Cuatro fabricantes de los grupos P1/P2 alcanzan L2 (Calix, Adtran, VSOL, BDCOM).
 - [x] La matriz pública se genera desde datos versionados (`pnpm generate:matrix`).
-- [x] Todos los 64 OIDs actuales del catálogo tienen procedencia y trazabilidad a hechos en `sources.yaml`.
+- [x] Todos los 64 OIDs actuales del catálogo tienen procedencia y trazabilidad a hechos en `sources.yaml` (59 reconocidos respaldados por MIBs oficiales y 5 provisionales documentados con discrepancias operativas para validación física en Fase 9).
 - [x] El laboratorio se reproduce en CI sin hardware con 0 colisiones semánticas y pruebas Net-SNMP.
 - [x] Cero cambios OpenSpec activos sin archivar (47 cambios archivados).
 

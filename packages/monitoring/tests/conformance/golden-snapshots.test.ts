@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import {
   createRawEvidenceEnvelope,
   defaultAdapterRegistry,
+  setSimulatorProvisionalTraps,
+  lookupTrapDefinition,
   type DecodedSnmpNotification,
   type ResolvedDeviceIdentity,
 } from '../../src';
@@ -12,6 +14,22 @@ import { telemetryEventSchema } from '@ftth-copilot/shared';
 const GOLDEN_DIR = path.resolve(__dirname, './golden');
 
 describe('Conformance Lab: Golden File Snapshots (Roadmap Fase 7)', () => {
+  beforeAll(() => {
+    setSimulatorProvisionalTraps(true);
+  });
+
+  afterAll(() => {
+    setSimulatorProvisionalTraps(false);
+  });
+
+  it('suppresses provisional traps by default outside simulator mode', () => {
+    setSimulatorProvisionalTraps(false);
+    const def = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1');
+    expect(def.category).toBe('unknown_trap');
+    expect(def.severity).toBe('info');
+    expect(def.catalogStatus).toBe('provisional');
+    setSimulatorProvisionalTraps(true);
+  });
   const goldenFiles = fs
     .readdirSync(GOLDEN_DIR)
     .filter((file) => file.endsWith('.golden.json'));

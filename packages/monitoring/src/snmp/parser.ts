@@ -74,6 +74,10 @@ export function parseAndNormalizeSnmpTrap(
     description: trapDef.description,
   };
 
+  if (trapDef.catalogStatus) {
+    metrics['catalogStatus'] = trapDef.catalogStatus;
+  }
+
   if (packet.sysUpTime !== undefined) {
     metrics['sysUpTime'] = packet.sysUpTime;
   }
@@ -96,6 +100,7 @@ export function parseAndNormalizeSnmpTrap(
       trapCategory: trapDef.category,
       snmpVersion: packet.version,
       pduType: packet.pduType ?? 'TrapV2',
+      ...(trapDef.catalogStatus ? { catalogStatus: trapDef.catalogStatus } : {}),
     },
   };
 }

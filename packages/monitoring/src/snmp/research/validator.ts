@@ -208,27 +208,29 @@ export function validateCatalogFactsTraceability(
       });
     }
 
-    if (matchingFact.category && matchingFact.category !== def.category) {
+    if (!matchingFact.category || matchingFact.category !== def.category) {
       issues.push({
         type: 'error',
         sourceId: def.source_id,
-        message: `Catalog trap '${def.name}' (${def.oid}) category '${def.category}' does not match source fact category '${matchingFact.category}' in '${def.source_id}'`,
+        message: `Catalog trap '${def.name}' (${def.oid}) category '${def.category}' does not match source fact category '${matchingFact.category ?? 'undefined'}' in '${def.source_id}'`,
       });
     }
 
-    if (matchingFact.severity && matchingFact.severity !== def.severity) {
+    if (!matchingFact.severity || matchingFact.severity !== def.severity) {
       issues.push({
         type: 'error',
         sourceId: def.source_id,
-        message: `Catalog trap '${def.name}' (${def.oid}) severity '${def.severity}' does not match source fact severity '${matchingFact.severity}' in '${def.source_id}'`,
+        message: `Catalog trap '${def.name}' (${def.oid}) severity '${def.severity}' does not match source fact severity '${matchingFact.severity ?? 'undefined'}' in '${def.source_id}'`,
       });
     }
 
-    if (def.status && matchingFact.status !== def.status) {
+    const effectiveCatalogStatus = def.status ?? 'recognized';
+    const effectiveFactStatus = matchingFact.status ?? 'recognized';
+    if (effectiveCatalogStatus !== effectiveFactStatus) {
       issues.push({
         type: 'error',
         sourceId: def.source_id,
-        message: `Catalog trap '${def.name}' (${def.oid}) status '${def.status}' does not match source fact status '${matchingFact.status}' in '${def.source_id}'`,
+        message: `Catalog trap '${def.name}' (${def.oid}) status '${effectiveCatalogStatus}' does not match source fact status '${effectiveFactStatus}' in '${def.source_id}'`,
       });
     }
   }

@@ -4,6 +4,7 @@ import {
   parseAndNormalizeSnmpTrap,
   type RawSnmpTrapPacket,
 } from '../../src/snmp/parser';
+import { setSimulatorProvisionalTraps } from '../../src/snmp/catalog';
 import type { SnmpSenderContext } from '../../src/snmp/mapping';
 
 describe('SNMP Trap Parser & Normalizer (Roadmap Fase 6 — 6.3 + 6.4)', () => {
@@ -14,7 +15,34 @@ describe('SNMP Trap Parser & Normalizer (Roadmap Fase 6 — 6.3 + 6.4)', () => {
     vendor: 'Huawei',
   };
 
-  it('normalizes a known Huawei Dying Gasp trap with ONU varbinds into TelemetryEvent', () => {
+  it('suppresses provisional Huawei Dying Gasp trap to unknown_trap (info) with catalogStatus provisional by default', () => {
+    setSimulatorProvisionalTraps(false);
+    const packet: RawSnmpTrapPacket = {
+      version: 'v2c',
+      community: 'public',
+      trapOid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2', // hwGponOntDyingGasp (provisional)
+      varbinds: [
+        { oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.1', value: 1 },
+        { oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.2', value: 3 },
+        { oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3', value: 15 },
+        { oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.4', value: 'HWTC12345678' },
+      ],
+      receivedAtMs: 1757500000000,
+    };
+
+    const event = parseAndNormalizeSnmpTrap(packet, senderContext);
+    const parseResult = telemetryEventSchema.safeParse(event);
+    expect(parseResult.success).toBe(true);
+
+    expect(event.metrics.snmpTrapOid).toBe('1.3.6.1.4.1.2011.6.128.1.1.2.43.2');
+    expect(event.metrics.trapCategory).toBe('unknown_trap');
+    expect(event.metrics.severity).toBe('info');
+    expect(event.metrics.catalogStatus).toBe('provisional');
+    expect(event.tags?.['catalogStatus']).toBe('provisional');
+  });
+
+  it('normalizes a provisional Huawei Dying Gasp trap with ONU varbinds into TelemetryEvent when simulator mode is enabled', () => {
+    setSimulatorProvisionalTraps(true);
     const packet: RawSnmpTrapPacket = {
       version: 'v2c',
       community: 'public',
@@ -43,6 +71,7 @@ describe('SNMP Trap Parser & Normalizer (Roadmap Fase 6 — 6.3 + 6.4)', () => {
     expect(event.metrics.trapCategory).toBe('dying_gasp');
     expect(event.metrics.severity).toBe('critical');
     expect(event.tags?.connectionId).toBe('conn-olt-1');
+    setSimulatorProvisionalTraps(false);
   });
 
   it('normalizes a standard RFC linkDown trap on an OLT port', () => {

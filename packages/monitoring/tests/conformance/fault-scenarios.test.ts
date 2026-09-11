@@ -1,15 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import {
   computeSnmpNotificationFingerprint,
   createRawEvidenceEnvelope,
   createSnmpIngestionGuard,
   defaultAdapterRegistry,
   isClearingTrap,
+  setSimulatorProvisionalTraps,
   type DecodedSnmpNotification,
   type ResolvedDeviceIdentity,
 } from '../../src';
 
 describe('Conformance Lab: Fault & Resilience Scenarios (Roadmap Fase 7)', () => {
+  beforeAll(() => {
+    setSimulatorProvisionalTraps(true);
+  });
+
+  afterAll(() => {
+    setSimulatorProvisionalTraps(false);
+  });
   const baseIdentity: ResolvedDeviceIdentity = {
     tenantId: 'tenant-test',
     connectionId: 'conn-lab-01',

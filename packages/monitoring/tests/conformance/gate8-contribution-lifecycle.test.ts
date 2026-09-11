@@ -1,14 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
   sanitizeSnmpCapture,
   createManagedSnmpReceiver,
   sendSnmpTestTrap,
+  setSimulatorProvisionalTraps,
   type SnmpSenderRegistration,
   type TelemetryEvent,
   type RawSnmpEvidenceEnvelope,
 } from '../../src';
 
 describe('Gate 8: External Contribution Lifecycle (Sanitized Capture to L2)', () => {
+  beforeAll(() => {
+    setSimulatorProvisionalTraps(true);
+  });
+
+  afterAll(() => {
+    setSimulatorProvisionalTraps(false);
+  });
   it('processes raw external capture through sanitization and normalizes to L2 telemetry without secrets', async () => {
     // 1. Raw contributed JSON capture with operator secrets
     const rawContributedCapture = JSON.stringify({

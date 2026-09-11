@@ -38,6 +38,28 @@ export interface SnmpTrapDefinition {
   is_clear?: boolean;
   clears_trap_oid?: string;
   status?: 'recognized' | 'provisional' | 'deprecated';
+  catalogStatus?: 'recognized' | 'provisional' | 'deprecated' | 'unregistered';
+}
+
+export interface LookupTrapOptions {
+  allowProvisional?: boolean;
+}
+
+let simulatorProvisionalTrapsEnabled = false;
+
+/**
+ * Explicitly enables or disables provisional trap definitions in simulator / lab testing.
+ * In production, provisional traps remain disabled by default and degrade to unknown_trap (info).
+ */
+export function setSimulatorProvisionalTraps(enabled = true): void {
+  simulatorProvisionalTrapsEnabled = enabled;
+}
+
+export function isSimulatorProvisionalTrapsEnabled(): boolean {
+  return (
+    simulatorProvisionalTrapsEnabled ||
+    process.env.FTTH_SIMULATOR_ALLOW_PROVISIONAL === 'true'
+  );
 }
 
 export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
@@ -963,22 +985,50 @@ export function isKnownTrapOid(oid: string): boolean {
  * For unknown OIDs, returns a safe fallback definition with `category: 'unknown_trap'`
  * and `severity: 'info'` (Rule 6.4: no fabricated diagnoses).
  */
-export function lookupTrapDefinition(oid: string): SnmpTrapDefinition {
+export function lookupTrapDefinition(
+  oid: string,
+  options?: LookupTrapOptions,
+): SnmpTrapDefinition {
   const clean = oid.trim();
-  const exact = TRAP_MAP.get(clean);
-  if (exact) return exact;
+  const allowProvisional =
+    options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled();
 
-  let longestMatch: SnmpTrapDefinition | undefined;
-  for (const def of KNOWN_TRAP_DEFINITIONS) {
-    if (clean.startsWith(`${def.oid}.`)) {
-      if (!longestMatch || def.oid.length > longestMatch.oid.length) {
-        longestMatch = def;
+  const exact = TRAP_MAP.get(clean);
+  let def = exact;
+
+  if (!def) {
+    for (const d of KNOWN_TRAP_DEFINITIONS) {
+      if (clean.startsWith(`${d.oid}.`)) {
+        if (!def || d.oid.length > def.oid.length) {
+          def = d;
+        }
       }
     }
   }
 
-  if (longestMatch) {
-    return longestMatch;
+  if (def) {
+    if (def.status === 'provisional') {
+      if (allowProvisional) {
+        return {
+          ...def,
+          catalogStatus: 'provisional',
+        };
+      }
+      return {
+        oid: def.oid,
+        name: def.name,
+        category: 'unknown_trap',
+        severity: 'info',
+        description: `${def.description} [PROVISIONAL - Suppressed pending physical confirmation]`,
+        status: 'provisional',
+        catalogStatus: 'provisional',
+      };
+    }
+
+    return {
+      ...def,
+      catalogStatus: def.status ?? 'recognized',
+    };
   }
 
   return {
@@ -987,6 +1037,8 @@ export function lookupTrapDefinition(oid: string): SnmpTrapDefinition {
     category: 'unknown_trap',
     severity: 'info',
     description: 'Unregistered SNMP trap OID',
+    status: 'deprecated',
+    catalogStatus: 'unregistered',
   };
 }
 

@@ -67,7 +67,6 @@ export function executeAdapterSafe(
   const normalizedSeverity = event.metrics?.['severity'] as string | undefined;
 
   if (
-    catalogDef.category !== 'unknown_trap' &&
     catalogDef.severity === 'info' &&
     normalizedSeverity === 'critical'
   ) {
@@ -85,6 +84,16 @@ export function executeAdapterSafe(
     vendor: identity.vendor,
     adapter: adapter.vendorId,
   };
+
+  const catalogStatus =
+    catalogDef.catalogStatus ??
+    (catalogDef.status === 'provisional' ? 'provisional' : 'recognized');
+
+  if (catalogStatus) {
+    if (!event.metrics) event.metrics = {};
+    event.metrics['catalogStatus'] = catalogStatus;
+    enforcedTags['catalogStatus'] = catalogStatus;
+  }
 
   if (identity.isAmbiguous) {
     enforcedTags['ambiguity_detected'] = 'true';

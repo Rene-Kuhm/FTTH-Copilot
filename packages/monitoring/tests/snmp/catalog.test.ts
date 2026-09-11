@@ -55,28 +55,54 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     expect(result.errors.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('recognizes Huawei GPON ONT Loss of Signal and Dying Gasp traps', () => {
-    const huaweiLos = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1');
-    expect(huaweiLos.category).toBe('los');
-    expect(huaweiLos.severity).toBe('critical');
-    expect(huaweiLos.vendor).toBe('Huawei');
+  it('treats provisional Huawei traps as unknown_trap by default and recognizes when provisional allowed', () => {
+    // Default mode: suppressed to unknown_trap (info) with catalogStatus provisional
+    const huaweiLosDefault = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1');
+    expect(huaweiLosDefault.category).toBe('unknown_trap');
+    expect(huaweiLosDefault.severity).toBe('info');
+    expect(huaweiLosDefault.catalogStatus).toBe('provisional');
 
-    const huaweiDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.2');
-    expect(huaweiDyingGasp.category).toBe('dying_gasp');
-    expect(huaweiDyingGasp.severity).toBe('critical');
-    expect(huaweiDyingGasp.vendor).toBe('Huawei');
+    const huaweiDyingGaspDefault = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.2');
+    expect(huaweiDyingGaspDefault.category).toBe('unknown_trap');
+    expect(huaweiDyingGaspDefault.severity).toBe('info');
+    expect(huaweiDyingGaspDefault.catalogStatus).toBe('provisional');
+
+    // Simulator / explicit mode: reveals provisional category/severity with catalogStatus provisional
+    const huaweiLosSim = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.1', { allowProvisional: true });
+    expect(huaweiLosSim.category).toBe('los');
+    expect(huaweiLosSim.severity).toBe('critical');
+    expect(huaweiLosSim.catalogStatus).toBe('provisional');
+
+    // Recognized Huawei traps are always recognized
+    const huaweiOffline = lookupTrapDefinition('1.3.6.1.4.1.2011.6.128.1.1.2.43.10');
+    expect(huaweiOffline.category).toBe('onu_offline');
+    expect(huaweiOffline.severity).toBe('warning');
+    expect(huaweiOffline.catalogStatus).toBe('recognized');
   });
 
-  it('recognizes ZTE GPON ONT Loss of Signal and Dying Gasp traps', () => {
-    const zteLos = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.1');
-    expect(zteLos.category).toBe('los');
-    expect(zteLos.severity).toBe('critical');
-    expect(zteLos.vendor).toBe('ZTE');
+  it('treats provisional ZTE traps as unknown_trap by default and recognizes when provisional allowed', () => {
+    // Default mode: suppressed to unknown_trap (info) with catalogStatus provisional
+    const zteLosDefault = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.1');
+    expect(zteLosDefault.category).toBe('unknown_trap');
+    expect(zteLosDefault.severity).toBe('info');
+    expect(zteLosDefault.catalogStatus).toBe('provisional');
 
-    const zteDyingGasp = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.2');
-    expect(zteDyingGasp.category).toBe('dying_gasp');
-    expect(zteDyingGasp.severity).toBe('critical');
-    expect(zteDyingGasp.vendor).toBe('ZTE');
+    const zteDyingGaspDefault = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.2');
+    expect(zteDyingGaspDefault.category).toBe('unknown_trap');
+    expect(zteDyingGaspDefault.severity).toBe('info');
+    expect(zteDyingGaspDefault.catalogStatus).toBe('provisional');
+
+    // Simulator / explicit mode: reveals provisional category/severity with catalogStatus provisional
+    const zteLosSim = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.1', { allowProvisional: true });
+    expect(zteLosSim.category).toBe('los');
+    expect(zteLosSim.severity).toBe('critical');
+    expect(zteLosSim.catalogStatus).toBe('provisional');
+
+    // Recognized ZTE traps are always recognized
+    const zteOffline = lookupTrapDefinition('1.3.6.1.4.1.3902.1082.500.10.2.2.10');
+    expect(zteOffline.category).toBe('onu_offline');
+    expect(zteOffline.severity).toBe('warning');
+    expect(zteOffline.catalogStatus).toBe('recognized');
   });
 
   it('recognizes FiberHome GPON ONT Loss of Signal, Dying Gasp, and recovery traps', () => {
