@@ -983,7 +983,8 @@ const TRAP_MAP = new Map<string, SnmpTrapDefinition>(
 export function isKnownTrapOid(oid: string, options?: LookupTrapOptions): boolean {
   const clean = oid.trim();
   const allowProvisional =
-    options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled();
+    process.env.NODE_ENV !== 'production' &&
+    (options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled());
 
   const exact = TRAP_MAP.get(clean);
   if (exact) {
@@ -1029,7 +1030,8 @@ export function lookupTrapDefinition(
 ): SnmpTrapDefinition {
   const clean = oid.trim();
   const allowProvisional =
-    options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled();
+    process.env.NODE_ENV !== 'production' &&
+    (options?.allowProvisional ?? isSimulatorProvisionalTrapsEnabled());
 
   const exact = TRAP_MAP.get(clean);
   let def = exact;

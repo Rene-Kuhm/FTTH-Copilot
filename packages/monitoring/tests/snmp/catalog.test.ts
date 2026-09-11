@@ -322,4 +322,21 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
       setSimulatorProvisionalTraps(false);
     }
   });
+
+  it('enforces production guard even when allowProvisional is explicitly passed in options', () => {
+    const originalEnv = process.env.NODE_ENV;
+    const provisionalOid = '1.3.6.1.4.1.2011.6.128.1.1.2.43.1';
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(isKnownTrapOid(provisionalOid, { allowProvisional: true })).toBe(false);
+
+      const def = lookupTrapDefinition(provisionalOid, { allowProvisional: true });
+      expect(def.name).toBe('provisionalTrap');
+      expect(def.category).toBe('unknown_trap');
+      expect(def.severity).toBe('info');
+      expect(def.candidateTrapName).toBe('hwGponOntLossOfSignal');
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
 });

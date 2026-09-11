@@ -98,6 +98,13 @@ export function executeAdapterSafe(
   if (catalogDef.candidateTrapName) {
     if (!event.metrics) event.metrics = {};
     event.metrics['candidateTrapName'] = catalogDef.candidateTrapName;
+    if (
+      !event.metrics['candidateDeviceKind'] &&
+      (catalogDef.candidateTrapName.toLowerCase().includes('ont') ||
+        catalogDef.candidateTrapName.toLowerCase().includes('onu'))
+    ) {
+      event.metrics['candidateDeviceKind'] = 'ONU';
+    }
   }
   if (catalogDef.candidateDescription) {
     if (!event.metrics) event.metrics = {};

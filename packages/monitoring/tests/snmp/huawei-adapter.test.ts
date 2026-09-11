@@ -128,6 +128,27 @@ describe('Huawei OLT Adapter (Roadmap Fase 3)', () => {
     setSimulatorProvisionalTraps(true);
   });
 
+  it('does not fabricate artificial ONU device ID when provisional trap lacks verifiable serial or hierarchy', () => {
+    setSimulatorProvisionalTraps(false);
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.1.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2',
+      receivedAtMs: 1773316800000,
+      varbinds: [],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+    expect(event.deviceKind).toBe('OLT');
+    expect(event.deviceId).toBe(mockIdentity.oltId);
+    expect(event.metrics.trapCategory).toBe('unknown_trap');
+    expect(event.metrics.candidateTrapName).toBe('hwGponOntDyingGasp');
+    expect(event.metrics.candidateDeviceKind).toBe('ONU');
+    setSimulatorProvisionalTraps(true);
+  });
+
   it('decodes hex-encoded serial number octet strings without mangling (Requirement 3)', () => {
     const notification: DecodedSnmpNotification = {
       version: 'v2c',

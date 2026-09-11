@@ -65,15 +65,16 @@ export class ZteOltAdapter implements OltVendorAdapter {
     }
 
     // Determine device scope: ONT vs OLT
-    const isOntScope =
+    const hasVerifiableOntData =
       hierarchy.onuId !== undefined ||
-      hierarchy.serial !== undefined ||
+      hierarchy.serial !== undefined;
+
+    const isOntScope =
+      hasVerifiableOntData ||
       catalogDef.category === 'onu_offline' ||
       catalogDef.category === 'onu_online' ||
       catalogDef.name.toLowerCase().includes('ont') ||
-      catalogDef.name.toLowerCase().includes('onu') ||
-      (catalogDef.candidateTrapName?.toLowerCase().includes('ont') ?? false) ||
-      (catalogDef.candidateTrapName?.toLowerCase().includes('onu') ?? false);
+      catalogDef.name.toLowerCase().includes('onu');
 
     const deviceKind = isOntScope ? 'ONU' : 'OLT';
     let deviceId: string;
@@ -135,6 +136,12 @@ export class ZteOltAdapter implements OltVendorAdapter {
 
     if (catalogDef.candidateTrapName) {
       metrics['candidateTrapName'] = catalogDef.candidateTrapName;
+      if (
+        catalogDef.candidateTrapName.toLowerCase().includes('ont') ||
+        catalogDef.candidateTrapName.toLowerCase().includes('onu')
+      ) {
+        metrics['candidateDeviceKind'] = 'ONU';
+      }
     }
     if (catalogDef.candidateDescription) {
       metrics['candidateDescription'] = catalogDef.candidateDescription;
