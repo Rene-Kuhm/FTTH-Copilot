@@ -71,6 +71,18 @@ export function correlateTrapWithIncidents(args: CorrelateTrapArgs): TrapCorrela
   }
 
   const trapCategory = String(event.metrics.trapCategory ?? 'unknown');
+  const isProvisional =
+    event.metrics?.['catalogStatus'] === 'provisional' ||
+    event.tags?.['catalogStatus'] === 'provisional';
+
+  // Rule: Provisional and unknown traps must never open, correlate, or resolve incidents
+  if (trapCategory === 'unknown_trap' || isProvisional) {
+    return {
+      action: 'no_match',
+      reason: 'Provisional or unknown traps do not trigger, correlate, or resolve incidents',
+    };
+  }
+
   const trapMs = new Date(event.ts).getTime();
   const lastSeenMs = new Date(matched.lastSeenAt).getTime();
 

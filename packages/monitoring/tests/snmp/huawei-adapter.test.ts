@@ -1,10 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { executeAdapterSafe } from '../../src/snmp/adapter/contract';
 import { HuaweiOltAdapter } from '../../src/snmp/adapter/huawei';
+import { setSimulatorProvisionalTraps } from '../../src/snmp/catalog';
 import type { ResolvedDeviceIdentity } from '../../src/snmp/identity';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from '../../src/snmp/types';
 
 describe('Huawei OLT Adapter (Roadmap Fase 3)', () => {
+  beforeAll(() => {
+    setSimulatorProvisionalTraps(true);
+  });
+
+  afterAll(() => {
+    setSimulatorProvisionalTraps(false);
+  });
   const mockIdentity: ResolvedDeviceIdentity = {
     tenantId: 'tenant-acme',
     connectionId: 'conn-huawei-01',
@@ -84,6 +92,32 @@ describe('Huawei OLT Adapter (Roadmap Fase 3)', () => {
     expect(event.metrics.severity).toBe('critical');
     expect(event.tags?.['serial']).toBe('HWTC12345678');
     expect(event.tags?.['adapter']).toBe('huawei');
+  });
+
+  it('suppresses provisional dying gasp to unknown_trap (info) with catalogStatus provisional by default', () => {
+    setSimulatorProvisionalTraps(false);
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.1.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2.0.2.1.14',
+      receivedAtMs: 1773316800000,
+      varbinds: [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.1',
+          type: 'OctetString',
+          value: 'HWTC12345678',
+        },
+      ],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+    expect(event.metrics.severity).toBe('info');
+    expect(event.metrics.trapCategory).toBe('unknown_trap');
+    expect(event.metrics.catalogStatus).toBe('provisional');
+    expect(event.tags?.['catalogStatus']).toBe('provisional');
+    setSimulatorProvisionalTraps(true);
   });
 
   it('decodes hex-encoded serial number octet strings without mangling (Requirement 3)', () => {

@@ -175,6 +175,7 @@ describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () =
           vendor: 'Huawei',
           description: 'Dying gasp',
           source_id: 'huawei-ma5800-gpon-alarm-001',
+          status: 'provisional',
         },
       ];
 
