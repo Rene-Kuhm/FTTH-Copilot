@@ -25,6 +25,7 @@ export const FactRecordSchema = z.object({
   severity: z.string().optional(),
   category: z.string().optional(),
   description: z.string().optional(),
+  reference: z.string().optional(),
 });
 export type FactRecord = z.infer<typeof FactRecordSchema>;
 

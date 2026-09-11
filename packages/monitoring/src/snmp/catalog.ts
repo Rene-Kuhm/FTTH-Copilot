@@ -37,6 +37,7 @@ export interface SnmpTrapDefinition {
   firmware?: string;
   is_clear?: boolean;
   clears_trap_oid?: string;
+  status?: 'recognized' | 'provisional' | 'deprecated';
 }
 
 export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
@@ -133,6 +134,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'restricted',
     target_models: ['MA5600', 'MA5800'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.2',
@@ -146,6 +148,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'restricted',
     target_models: ['MA5600', 'MA5800'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.3',
@@ -159,6 +162,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'restricted',
     target_models: ['MA5600', 'MA5800'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43.10',
@@ -245,6 +249,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'permissive',
     target_models: ['C300', 'C600'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.2',
@@ -258,6 +263,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'permissive',
     target_models: ['C300', 'C600'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.3902.1082.500.10.2.2.3',

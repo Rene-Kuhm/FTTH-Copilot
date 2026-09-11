@@ -171,7 +171,7 @@ describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () =
           oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
           name: 'hwGponOntDyingGasp',
           category: 'dying_gasp',
-          severity: 'critical',
+          severity: 'major',
           vendor: 'Huawei',
           description: 'Dying gasp',
           source_id: 'huawei-ma5800-gpon-alarm-001',
@@ -233,6 +233,79 @@ describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () =
       const result = validateCatalogFactsTraceability(mockPackages, catalog);
       expect(result.valid).toBe(false);
       expect(result.issues.some((i) => i.message.includes('OID is missing from source facts'))).toBe(true);
+    });
+
+    it('detects name mismatch between catalog and source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+          name: 'hwWrongName',
+          category: 'dying_gasp',
+          severity: 'major',
+          vendor: 'Huawei',
+          description: 'Dying gasp',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('name mismatch'))).toBe(true);
+    });
+
+    it('detects category mismatch between catalog and source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+          name: 'hwGponOntDyingGasp',
+          category: 'los', // Mismatch: fact is dying_gasp
+          severity: 'major',
+          vendor: 'Huawei',
+          description: 'Dying gasp',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('category'))).toBe(true);
+    });
+
+    it('detects severity mismatch between catalog and source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+          name: 'hwGponOntDyingGasp',
+          category: 'dying_gasp',
+          severity: 'critical', // Mismatch: fact is major
+          vendor: 'Huawei',
+          description: 'Dying gasp',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('severity'))).toBe(true);
+    });
+
+    it('detects status mismatch between catalog and source facts', () => {
+      const catalog: SnmpTrapDefinition[] = [
+        {
+          oid: '1.3.6.1.4.1.2011.6.128.1.1.2.43',
+          name: 'hwGponOntDyingGasp',
+          category: 'dying_gasp',
+          severity: 'major',
+          vendor: 'Huawei',
+          description: 'Dying gasp',
+          source_id: 'huawei-ma5800-gpon-alarm-001',
+          status: 'recognized', // Mismatch: validSource fact is provisional
+        },
+      ];
+
+      const result = validateCatalogFactsTraceability(mockPackages, catalog);
+      expect(result.valid).toBe(false);
+      expect(result.issues.some((i) => i.message.includes('status'))).toBe(true);
     });
   });
 });

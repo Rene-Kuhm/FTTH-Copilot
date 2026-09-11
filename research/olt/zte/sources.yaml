@@ -37,19 +37,21 @@
   facts:
     - notification_name: zxGponOntLossOfSignal
       oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.1
-      status: recognized
+      status: provisional
       severity: critical
       category: los
+      reference: "ZX-GPON-MIB community definition from LibreNMS; maintained as provisional until confirmed against physical ZXA10 capture in Fase 9."
     - notification_name: zxGponOntDyingGasp
       oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.2
-      status: recognized
+      status: provisional
       severity: critical
       category: dying_gasp
+      reference: "ZX-GPON-MIB community definition from LibreNMS; maintained as provisional until confirmed against physical ZXA10 capture in Fase 9."
     - notification_name: zxGponOntLossOfFrame
       oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.3
       status: recognized
       severity: critical
-      category: pon_los
+      category: los
     - notification_name: zxGponOntOffline
       oid: 1.3.6.1.4.1.3902.1082.500.10.2.2.10
       status: recognized
