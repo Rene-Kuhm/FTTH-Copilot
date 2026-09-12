@@ -32,6 +32,7 @@
     "next": "16.3.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-grid-layout": "^2.2.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
