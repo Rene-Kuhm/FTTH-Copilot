@@ -1,12 +1,81 @@
-# FTTH-Copilot — copiloto NOC/SOC y telemetría multi-fabricante para ISPs FTTH
+# FTTH-Copilot — Plataforma NOC/SOC y Telemetría OLT para ISPs FTTH
 
-> **Qué es:** una plataforma operativa multi-tenant que, sobre una misma infraestructura compartida (PostgreSQL, auth revocable y conectores NMS), unifica **cuatro planos de operación**: asistencia conversacional con IA, detección predictiva e investigación cognitiva de fallas (NOC / AIOps), vigilancia perimetral de seguridad (SOC) y recepción de telemetría SNMP en tiempo real compatible con **12 fabricantes de OLT**.
->
-> **Por qué existe:** los operadores de ISP no disponen de tiempo para correlacionar métricas crudas, trampas SNMP dispersas ni logs de auditoría. FTTH-Copilot transforma señales débiles (deriva de potencia óptica RX, caídas dying gasp, intentos de intrusión o firmwares vulnerables) en **unidades de trabajo accionables y priorizadas**.
+Plataforma operativa multi-tenant que unifica en una única base compartida (PostgreSQL 16+, auth revocable y conectores NMS) **cuatro planos de operación para redes de fibra óptica**: asistencia conversacional con IA, detección predictiva e investigación cognitiva de fallas (NOC / AIOps), vigilancia perimetral de seguridad (SOC) y recepción de telemetría SNMP en tiempo real compatible con **12 fabricantes de OLT**.
 
-## El modelo mental
+Transforma señales físicas débiles (deriva de potencia óptica RX, caídas dying gasp, intentos de intrusión o firmwares vulnerables) en **unidades de trabajo auditables y accionables**, reduciendo la carga cognitiva del operador del NOC.
 
-No pienses en FTTH-Copilot como una sola aplicación aislada. El sistema articula **cuatro planos cooperativos** sobre un núcleo multi-tenant seguro:
+---
+
+## Quick Path (Inicio Rápido)
+
+### 1. Entorno de Desarrollo (Local)
+
+**Requisitos previos:** Node.js 22+, pnpm 11+, PostgreSQL 16+ (o Docker para levantarlo automáticamente).
+
+```bash
+# 1. Instalar dependencias del monorepo
+pnpm install
+
+# 2. Asistente interactivo (configura .env, genera claves KMS/JWT, migra y siembra la base)
+pnpm setup
+
+# 3. Iniciar servidor de desarrollo en http://localhost:3001
+pnpm dev
+```
+
+> [!TIP]
+> Para entornos de integración continua o inicializaciones automatizadas sin terminal interactiva, ejecutá:
+> ```bash
+> pnpm setup --non-interactive # o pnpm setup -y
+> ```
+
+**Credenciales iniciales de desarrollo:**
+
+| Parámetro | Valor por defecto | Notas |
+|---|---|---|
+| **URL Acceso** | `http://localhost:3001` | Interfaz web de chat y tableros NOC/SOC |
+| **Organización (Tenant)** | `Demo ISP` (`demo-tenant`) | Entorno multi-tenant preconfigurado |
+| **Email Administrador** | `admin@ftth-copilot.local` | Usuario administrador inicial |
+| **Contraseña** | Generada en consola | Impresa durante `pnpm setup` (o variable `SEED_ADMIN_PASSWORD`) |
+
+---
+
+### 2. Despliegue en Producción (Servidor Limpio)
+
+**Requisitos previos:** Linux (Ubuntu, Debian, RHEL) o macOS con Docker y Docker Compose.
+
+```bash
+# Ejecutar instalador interactivo de producción
+./install.sh
+
+# Para aprovisionamiento desatendido (Cloud-Init, Ansible, CI):
+./install.sh --non-interactive # o ./install.sh -y
+```
+
+El instalador:
+1. **Verifica infraestructura:** valida conectividad con el daemon de Docker y disponibilidad de Docker Compose (ofreciendo instalar Docker y su plugin oficial en Linux si no se detectan).
+2. **Configura credenciales seguras:** genera `.env.prod` con permisos `0600`, codifica contraseñas de base de datos bajo RFC 3986 y genera claves maestras de 32 bytes (`JWT_SECRET`, `KMS_MASTER_KEY`).
+3. **Construye imagen Next.js standalone:** compilación multi-stage optimizada y ejecución con usuario no privilegiado (`non-root`).
+4. **Despliega con interpolación estricta:** orquesta `postgres`, migraciones automáticas (`db-migrate`) y `app` inyectando `--env-file .env.prod`.
+5. **Aplica fallo estricto (`fail-closed`):** valida `/api/health`, autoriza el sembrado inicial (`ALLOW_PRODUCTION_SEED=true`) y aborta con volcado de logs si ocurre cualquier anomalía.
+
+**Gestión operativa en producción:**
+```bash
+# Ver logs en tiempo real
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app
+
+# Reiniciar stack productivo
+docker compose --env-file .env.prod -f docker-compose.prod.yml restart
+
+# Detener servicios
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
+```
+
+---
+
+## El Modelo Mental: Los Cuatro Planos Operativos
+
+El sistema articula cuatro planos cooperativos sobre una base multi-tenant compartida:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────┐
@@ -16,113 +85,22 @@ No pienses en FTTH-Copilot como una sola aplicación aislada. El sistema articul
 └──────────────────────────────────────────────────────────────────────────────────┘
                                          │
                                          ▼
-                        Base Compartida Multi-Tenant
-         (Auth JWT + sesiones revocables en PG + cifrado KMS + conectores NMS)
+                         Base Compartida Multi-Tenant
+          (Auth JWT + sesiones revocables en PG + cifrado KMS + conectores NMS)
 ```
 
-| Plano | Qué resuelve | Señal que consume | Estado en runtime |
+| Plano | Qué resuelve | Señal que consume | Superficie operativa |
 |---|---|---|---|
-| **Copiloto** | "¿Cuántas ONUs están offline en esta OLT y qué causa predomina?" | Datos vivos del NMS (SmartOLT, Mikrowisp) | Activo en `/app` |
-| **NOC & AIOps** | "¿Qué enlace o puerto va a fallar y cuál es la hipótesis raíz?" | Series temporales de métricas (RX, temp) y topología | Poller en segundo plano |
-| **SOC** | "¿Hay ataques de fuerza bruta o equipos con firmware vulnerable?" | Syslog UDP y catálogo de CVEs | Receptor UDP 5514 |
-| **Telemetría SNMP** | "¿Qué alarmas físicas están emitiendo las OLTs de la red?" | Trampas SNMP binarias (v1, v2c, v3 authPriv) | Receptor UDP 162 |
+| **1. Copiloto Conversacional** | Diagnósticos interactivos sobre el estado de ONUs, causas de offline y consultas NMS. | APIs de SmartOLT y Mikrowisp | `/app` (Chat UI) y `/api/chat` |
+| **2. NOC & AIOps Cognitivo** | Predicción de derivas ópticas, cálculo de ETA a corte y formulación de hipótesis raíz. | Series temporales (potencia RX, temp) y topología | `/dashboard` (Fallas) y `/api/predictions` |
+| **3. SOC Seguridad Perimetral** | Detección de ataques de fuerza bruta, accesos tras fallos y auditoría de firmware con CVEs. | Receptor Syslog UDP (5514) e inventarios | `/dashboard` (Accesos) y `/api/security/access` |
+| **4. Telemetría SNMP** | Ingestión binaria de trampas físicas de OLTs con deduplicación y token bucket. | Receptor SNMP UDP (162/1162) v1/v2c/v3 | Ingesta de bajo nivel y catálogo OID |
 
-Los cuatro planos comparten los mismos principios de arquitectura: **cada conector y adaptador es tenant-aware, nunca cae silenciosamente a fixtures en producción, y toda acción sensible está respaldada por permisos en PostgreSQL y sanitización estricta de credenciales.**
+---
 
-## Quick path (Inicio local — Desarrollo)
+## Matriz de Compatibilidad OLT (12 Fabricantes)
 
-Requisitos: Node.js 22+, pnpm 11+ y PostgreSQL 16+ (o Docker / Docker Compose).
-
-```bash
-# 1. Instalar dependencias
-pnpm install
-
-# 2. Setup interactivo (guía la configuración de LLM, API keys, conectores y levanta Postgres)
-pnpm setup
-
-# 3. Iniciar entorno de desarrollo
-pnpm dev
-```
-
-Abrí `http://localhost:3001` en el navegador.
-
-El comando `pnpm setup` incluye un wizard interactivo (`--wizard`) que detecta o crea `.env`, genera secretos criptográficos para JWT y KMS, te permite seleccionar tu proveedor de IA (MiniMax, DeepSeek, Qwen o Mock/Demo), enmascara las API keys en terminal, comprueba la conectividad con PostgreSQL (iniciando el contenedor de Docker Compose automáticamente si Docker está presente), aplica las migraciones de Prisma, regenera el cliente tipado y siembra los datos iniciales de desarrollo.
-
-Para entornos desatendidos o CI, ejecutá `pnpm setup --non-interactive` (o `-y`).
-
-Credenciales iniciales (sembradas por `pnpm setup`):
-- **Email:** `admin@ftth-copilot.local`
-- **Contraseña:** se genera de forma aleatoria y se imprime en consola una única vez durante el seed (o puede especificarse mediante la variable de entorno `SEED_ADMIN_PASSWORD`).
-- **Organización (tenant):** `Demo ISP` (`demo-tenant`)
-
-Por seguridad, el sembrado (`seed`) rechaza ejecutarse en entornos de producción (`NODE_ENV=production`) salvo autorización explícita (`ALLOW_PRODUCTION_SEED=true` o flag `--force`, utilizado automáticamente por `./install.sh`).
-
-## Despliegue en Producción (Servidor Limpio)
-
-Para servidores limpios (Ubuntu, Debian, RHEL, macOS) con Docker:
-
-```bash
-# 1. Ejecutar el instalador de producción interactivo
-./install.sh
-
-# Para despliegues automatizados, headless o CI:
-./install.sh --non-interactive # o -y
-```
-
-El instalador:
-1. Verifica la infraestructura: valida conectividad con el daemon de Docker y disponibilidad de Docker Compose (ofreciendo instalar Docker y su plugin oficial en Linux si no se detectan).
-2. Configura el puerto, contraseñas de base de datos con codificación RFC 3986 y proveedor de IA en un `.env.prod` seguro con permisos `0600`.
-3. Construye la imagen multi-stage optimizada basada en Next.js standalone y usuario `non-root`.
-4. Levanta el stack (`postgres` + migraciones automáticas + `app`) e interpola variables mediante `--env-file .env.prod`.
-5. Valida salud con fallo estricto (`fail-closed`), siembra credenciales iniciales (autorizando el seed inicial) y muestra el resumen operativo.
-
-Para gestionar el stack en producción:
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app
-docker compose --env-file .env.prod -f docker-compose.prod.yml restart
-docker compose --env-file .env.prod -f docker-compose.prod.yml down
-```
-
-## Los cuatro planos en detalle
-
-### 1. Copiloto conversacional
-- **Qué es:** un agente conversacional en lenguaje natural dotado de herramientas NMS específicas para FTTH.
-- **Cómo funciona:** el ciclo de ejecución reside en `packages/agent-core`. Cada sesión está aislada por tenant y aplica límites atómicos de velocidad por usuario/minuto y cuota diaria compartida en PostgreSQL.
-- **Superficie de uso:** interfaz de chat en `/app`, tablero operativo en `/dashboard` y endpoints `/api/chat`, `/api/dashboard` y `/api/alerts`.
-
-### 2. NOC — detección proactiva & AIOps cognitivo
-- **Qué es:** un poller periódico de métricas ópticas sumado a un motor determinista y cognitivo de investigación de fallas.
-- **Detección continua:** evalúa series temporales contra algoritmos estadísticos robustos (mediana + MAD) para detectar:
-  - Deriva de potencia óptica RX hacia umbral crítico (−27 dBm) con cálculo de ETA de desconexión.
-  - Deriva de temperatura en chasis OLT/placas hacia 60 °C.
-  - Inestabilidad de enlace (flapping recurrente).
-  - Reinicios espurios de equipamiento.
-- **Investigación cognitiva:** motor en `packages/agent-core` que ante un incidente recolecta hechos verificables, descarta fallas correlacionadas en topología y formula hipótesis diagnósticas auditables bajo el contrato `ftth.investigation-result.v1`.
-- **Superficie de uso:** panel "Fallas pronosticadas" en el dashboard, tarjeta de investigación en incidentes y `GET /api/predictions`.
-
-### 3. SOC — seguridad perimetral
-- **Qué es:** receptor syslog UDP y analizadores que transforman eventos de red crudos en hallazgos de seguridad accionables.
-- **Detectores activos:**
-  - **Fuerza bruta:** ≥ 5 fallos de autenticación desde la misma IP en una ventana de 5 minutos.
-  - **Acceso tras fallos:** inicio de sesión exitoso posterior a ≥ 3 intentos fallidos inmediatos.
-  - **Cambio de configuración:** detección de eventos `config_change` para trazabilidad de cambios no autorizados.
-  - **Auditoría de firmware:** escaneo periódico contra inventario de versiones con CVEs documentadas.
-- **Superficie de uso:** panel "Accesos" en el dashboard y endpoint `GET /api/security/access`.
-
-### 4. Telemetría SNMP & Laboratorio Multi-Fabricante
-- **Qué es:** subsistema de recepción e interpretación de trampas SNMP de bajo nivel para OLTs de múltiples marcas.
-- **Capacidades clave:**
-  - Receptor binario UDP nativo (`createManagedSnmpReceiver`) con soporte para SNMPv1, SNMPv2c y **SNMPv3** con cifrado y autenticación completa (`authPriv` / `authNoPriv`, MD5, SHA, SHA-256, DES, AES-128, AES-256).
-  - Soporte de mensajes `InformRequest` con emisión de confirmaciones `InformResponse` (PDU ACK).
-  - Resolución canónica de identidad de dispositivo (`resolveDeviceIdentity`, PEN IANA) y detección de ambigüedad de remitentes.
-  - **Aislamiento multi-tenant:** arnés de seguridad `executeAdapterSafe` que impide que un adaptador modifique el `tenantId` o infle severidades unilateralmente.
-  - **Protección contra inundaciones:** guardia `createSnmpIngestionGuard` con token bucket y deduplicación basada en huella SHA-256.
-  - **Sanitización de evidencia:** redacción de credenciales, tokens y comunidades SNMP en crudo (`createRawEvidenceEnvelope`).
-  - **Aislamiento semántico provisional:** OIDs sin confirmación de laboratorio físico emiten `provisionalTrap` (info) y resguardan el diagnóstico candidato de manera pasiva en métricas, prohibiendo la activación en entornos de producción (`NODE_ENV === 'production'`).
-
-## Matriz de compatibilidad OLT (12 fabricantes)
-
-El catálogo incluye **64 definiciones auditadas** y **69 OIDs únicos** libres de colisiones semánticas, respaldados por manuales técnicos y MIBs en `packages/monitoring/src/snmp/research/sources.yaml`.
+El catálogo incluye **64 definiciones auditadas** y **69 OIDs únicos** libres de colisiones semánticas, documentados en [`packages/monitoring/src/snmp/research/sources.yaml`](packages/monitoring/src/snmp/research/sources.yaml).
 
 | Fabricante | PEN IANA | Nivel de Soporte | Familias Validadas en Laboratorio |
 |---|---|---|---|
@@ -141,93 +119,105 @@ El catálogo incluye **64 definiciones auditadas** y **69 OIDs únicos** libres 
 | **Standard RFC** | 0 | L2 Adapter | RFC 2863 IF-MIB (linkUp, linkDown) |
 | **Generic xPON** | 0 | L2 Adapter | Interfaz ITU-T G.984 / G.988 genérica |
 
-El detalle completo de OIDs, severidades y fuentes documentales se encuentra en [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
+> [!NOTE]
+> Podés consultar el catálogo exhaustivo de OIDs, niveles de severidad y MIBs de origen en [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
 
-## Conectores NMS soportados
+---
 
-- **SmartOLT:** conector HTTP de producción y fixtures de laboratorio.
-- **Mikrowisp:** conector HTTP de producción y fixtures de laboratorio.
-- **NetSense:** en roadmap; la API rechaza explícitamente la conexión sin sustituir datos con mocks.
+## Conectores NMS y Modo Demostración
 
-El modo demostración se habilita únicamente con `DEMO_MODE_ENABLED=true`. En este modo, la UI y el copiloto advierten explícitamente que los datos son sintéticos. En producción debe permanecer siempre en `false`.
+- **SmartOLT:** Conector HTTP nativo de producción y fixtures de laboratorio.
+- **Mikrowisp:** Conector HTTP nativo de producción y fixtures de laboratorio.
+- **NetSense:** En roadmap; la API rechaza explícitamente la conexión sin sustituir datos con mocks silenciosos.
 
-## Seguridad y políticas de red
+> [!IMPORTANT]
+> El modo demostración se habilita únicamente con `DEMO_MODE_ENABLED=true`. En este modo, la UI y el copiloto advierten explícitamente que los datos son sintéticos. En producción debe permanecer siempre en `false`.
 
-- **Protección SSRF en NMS:** las URLs NMS utilizan HTTPS y puerto 443 por defecto, resuelven vía DNS previo al socket, prohíben rangos privados/metadata cloud y pueden restringirse mediante `NMS_ALLOWED_HOSTS`. Las excepciones LAN requieren opt-in explícito (`NMS_ALLOW_PRIVATE_NETWORKS=true`).
-- **Autenticación:** sesiones JWT en cookies `HttpOnly`, revocables de forma inmediata en PostgreSQL.
-- **Protección de costos de LLM:** rate limiter atómico en PostgreSQL por usuario y minuto (`CHAT_RATE_LIMIT_PER_MINUTE`), con cuota diaria estricta (`CHAT_DAILY_QUOTA`).
-- **Cifrado en reposo:** claves de API y credenciales NMS protegidas con cifrado simétrico autenticado AES-256-GCM (`KMS_MASTER_KEY`).
+---
 
-## Variables de entorno clave
+## Seguridad y Políticas de Aislamiento
 
-Todas las opciones están tipadas y documentadas en [`.env.example`](.env.example):
+- **Cifrado en reposo (AES-256-GCM):** Claves de API y credenciales NMS protegidas con cifrado simétrico autenticado derivado de `KMS_MASTER_KEY`. En producción rechaza iniciar sin esta clave configurada (`fail-closed`).
+- **Autenticación revocable:** Sesiones JWT mediante cookies `HttpOnly`, con invalidación y revocación atómica en PostgreSQL.
+- **Protección de costos LLM:** Rate limiter atómico en PostgreSQL por usuario y minuto (`CHAT_RATE_LIMIT_PER_MINUTE`), con cuota diaria estricta compartida (`CHAT_DAILY_QUOTA`).
+- **Protección SSRF en NMS:** Conexiones con validación previa de DNS contra IPs privadas y metadatos de nube. Excepciones LAN requieren opt-in explícito (`NMS_ALLOW_PRIVATE_NETWORKS=true`).
+- **Protección de base de datos:** El sembrado (`seed`) rechaza ejecutarse en producción (`NODE_ENV=production`) salvo autorización explícita (`ALLOW_PRODUCTION_SEED=true` o flag `--force`).
 
-| Bloque | Variables principales | Propósito |
+---
+
+## Variables de Entorno Clave
+
+Configuradas y documentadas en [`.env.example`](.env.example):
+
+| Dominio | Variables principales | Propósito |
 |---|---|---|
-| **NOC Poller** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS` | Muestreo en background de métricas ópticas |
-| **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Despacho de incidentes proactivos |
-| **SOC Syslog** | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID` | Receptor y analizador de syslog |
-| **SOC Firmware** | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS` | Auditoría de versiones vulnerables de ONT/OLT |
-| **Red NMS** | `NMS_REQUEST_TIMEOUT_MS`, `NMS_ALLOWED_HOSTS`, `NMS_ALLOW_PRIVATE_NETWORKS` | Políticas de egreso y seguridad SSRF |
-| **Chat & LLM** | `MINIMAX_API_KEY`, `LLM_PROVIDER`, `CHAT_RATE_LIMIT_PER_MINUTE`, `CHAT_DAILY_QUOTA` | Proveedores y control de gasto de inferencia |
+| **NOC Poller** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS` | Intervalo y retención de series temporales de métricas ópticas |
+| **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Despacho de incidentes predictivos por Webhook o Telegram |
+| **SOC Syslog** | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID` | Receptor y analizador UDP de eventos de red |
+| **SOC Firmware** | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS` | Auditoría de versiones con vulnerabilidades y CVEs conocidas |
+| **Red NMS** | `NMS_REQUEST_TIMEOUT_MS`, `NMS_ALLOWED_HOSTS`, `NMS_ALLOW_PRIVATE_NETWORKS` | Políticas de egreso y seguridad perimetral |
+| **Inferencia LLM** | `LLM_PROVIDER`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y llaves de inferencia |
 
-## Comandos de desarrollo y verificación
+---
 
-### Validación estándar del monorepo
+## Comandos de Verificación y Testing
+
+### 1. Validación General del Monorepo
 ```bash
-pnpm lint                  # Análisis estático ESLint en todos los paquetes
-pnpm typecheck             # Comprobación estricta de tipos TypeScript
-pnpm test                  # Suite completa de pruebas unitarias
-pnpm test:coverage-check   # Verificación de umbrales mínimos de cobertura
-pnpm build                 # Compilación de todos los paquetes y apps
-pnpm test:e2e              # Pruebas end-to-end con Playwright
+pnpm lint                  # Análisis estático ESLint en los 15 paquetes
+pnpm typecheck             # Comprobación de tipos estricta con TypeScript
+pnpm test                  # Suite completa de pruebas unitarias (Vitest)
+pnpm test:coverage-check   # Control de umbrales mínimos de cobertura
+pnpm build                 # Compilación de paquetes y bundle Next.js standalone
+pnpm test:e2e              # Pruebas end-to-end completas (Playwright)
 ```
 
-### Gobernanza y laboratorio SNMP / Fabricantes
+### 2. Laboratorio y Gobernanza SNMP
 ```bash
-pnpm check:sources         # Verifica que no haya deriva entre el registro de fuentes y la matriz
-pnpm check:conflicts       # Escanea colisiones semánticas y solapamientos de OID
-pnpm check:contribution    # Valida admisión de paquetes de fabricantes (Gate 1 y Gate 8)
+pnpm check:sources         # Comprueba deriva entre el registro de fuentes y la matriz OLT
+pnpm check:conflicts       # Escanea colisiones semánticas y solapamientos de OIDs
+pnpm check:contribution    # Valida admisión de paquetes y MIBs de nuevos fabricantes
 pnpm test:conformance      # Ejecuta el laboratorio de conformidad y golden snapshots (31/31)
-pnpm benchmark:snmp        # Benchmark sintético de throughput de procesamiento SNMP
-pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fuentes
+pnpm benchmark:snmp        # Prueba sintética de throughput y rendimiento del receptor SNMP
+pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fuentes MIB
 ```
 
-## Estructura del monorepo
+---
 
-Organización por paquetes según su dominio de responsabilidad:
+## Estructura del Monorepo
 
-| Paquete | Responsabilidad principal |
+| Paquete / Aplicación | Responsabilidad Principal |
 |---|---|
-| `apps/web` | Aplicación Next.js App Router, tablero NOC/SOC, tarjeta de investigación y rutas API |
-| `packages/agent-core` | Bucle de razonamiento del agente, selección de tools y motor de investigación cognitiva |
-| `packages/alerts` | Deduplicación, agrupamiento, escalado y despacho de notificaciones (webhook/Telegram) |
-| `packages/analytics` | Recolección, agregación y persistencia de series temporales de métricas |
-| `packages/connectors/core` | Tipos comunes y política estricta de red para conectores externos |
-| `packages/connectors/smartolt` | Adaptador para la API de SmartOLT (HTTP real y fixtures de prueba) |
-| `packages/connectors/mikrowisp` | Adaptador para la API de Mikrowisp (HTTP real y fixtures de prueba) |
-| `packages/db` | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) |
-| `packages/detection` | Algoritmos estadísticos deterministas y detectores de derivas físicas |
-| `packages/eval` | Marco de evaluación estricto (attack-pass-rate 100%) y control de tenants piloto |
-| `packages/evidence` | Recolección de evidencia normalizada y fixtures de investigación |
-| `packages/monitoring` | Receptor binario SNMP, adaptadores multi-vendor OLT, catálogo y conformance lab |
-| `packages/security` | Analizador de paquetes syslog RFC 3164/5424 y clasificadores de eventos SOC |
-| `packages/shared` | Esquemas Zod y contratos canónicos de telemetría e incidentes compartidos |
-| `packages/soc` | Orquestación de la ingestión de seguridad, correlación y auditoría de firmware |
+| [`apps/web`](apps/web) | Next.js App Router, chat con IA, tableros NOC/SOC y endpoints REST |
+| [`packages/agent-core`](packages/agent-core) | Motor de razonamiento cognitivo, selección de herramientas y diagnóstico |
+| [`packages/alerts`](packages/alerts) | Deduplicación, agrupamiento y despacho de alertas a Webhooks y Telegram |
+| [`packages/analytics`](packages/analytics) | Ingesta, agregación y persistencia de métricas temporales de fibra |
+| [`packages/connectors/core`](packages/connectors/core) | Tipos canónicos y políticas estrictas de seguridad SSRF para NMS |
+| [`packages/connectors/smartolt`](packages/connectors/smartolt) | Adaptador para SmartOLT API (cliente HTTP y fixtures de laboratorio) |
+| [`packages/connectors/mikrowisp`](packages/connectors/mikrowisp) | Adaptador para Mikrowisp API (cliente HTTP y fixtures de laboratorio) |
+| [`packages/db`](packages/db) | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) |
+| [`packages/detection`](packages/detection) | Algoritmos estadísticos (mediana + MAD) para deriva óptica y térmica |
+| [`packages/eval`](packages/eval) | Arnés de evaluación estricto (attack-pass-rate 100%) y tenants piloto |
+| [`packages/evidence`](packages/evidence) | Normalización de evidencias crudas y sobres de investigación |
+| [`packages/monitoring`](packages/monitoring) | Receptor binario SNMP, adaptadores OLT de 12 fabricantes y laboratorio |
+| [`packages/security`](packages/security) | Analizador RFC 3164/5424 de paquetes syslog y clasificadores de ataques |
+| [`packages/shared`](packages/shared) | Contratos canónicos Zod, esquemas compartidos y tipos de telemetría |
+| [`packages/soc`](packages/soc) | Orquestación perimetral, correlación de accesos y auditoría de firmware |
 
-## Próximos pasos y documentación técnica
+---
 
-- [Arquitectura detallada del sistema](docs/architecture.md) — Modelo de datos, flujos entre paquetes y garantías de aislamiento.
-- [Matriz de compatibilidad OLT](docs/compatibility-matrix.md) — Catálogo de OIDs soportados, severidades y fuentes documentales.
-- [Pruebas de laboratorio sin hardware](docs/testing-without-hardware.md) — Guía para simular trampas SNMP y escenarios complejos de red.
-- [Evolución hacia AIOps cognitivo](docs/aiops-roadmap.md) — Hojas de ruta sobre análisis multivariado y correlación topológica.
+## Próximos Pasos y Documentación Técnica
 
-## Nota operativa sobre Cloudflare
+- **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
+- **[Matriz de compatibilidad OLT](docs/compatibility-matrix.md)** — Catálogo completo de OIDs, niveles de severidad y referencias técnicas.
+- **[Pruebas de laboratorio sin hardware](docs/testing-without-hardware.md)** — Guía para inyectar trampas SNMP y simular incidentes ópticos.
+- **[Procedimiento operativo de contingencia (SOP)](docs/operations/pilot-sop-and-fallback.md)** — Procedimientos manuales para el operador cuando el análisis cognitivo no está activo.
+- **[Evolución hacia AIOps cognitivo](docs/aiops-roadmap.md)** — Hoja de ruta sobre modelos multivariados y correlación topológica.
 
-Una credencial de Cloudflare Tunnel figuró en versiones anteriores del historial público. Fue rotada en Cloudflare Zero Trust y la credencial expuesta quedó invalidada.
+---
 
 ## Licencia
 
 Propietario — todos los derechos reservados. Copyright © 2026 TecnoDespegue / René Kuhm.
 
-Este repositorio **no** está bajo una licencia de código abierto. El acceso público se concede únicamente para su revisión y evaluación: no puede usarse, copiarse, modificarse ni redistribuirse (total o parcialmente) sin autorización expresa y por escrito del titular. Consultar [`LICENSE`](LICENSE).
+Este repositorio **no** está bajo una licencia de código abierto. El acceso público se concede exclusivamente para revisión técnica y evaluación. No puede ser copiado, modificado, comercializado ni redistribuido sin autorización previa y por escrito. Consultar [`LICENSE`](LICENSE).
