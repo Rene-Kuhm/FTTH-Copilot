@@ -109,6 +109,7 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
       const timer = setTimeout(() => {
         if (!settled) {
           settled = true;
+          recordSchedulerError('snmp', 'close timeout reached, forcing unbound state');
           recordSnmpBound(false);
           resolve();
         }

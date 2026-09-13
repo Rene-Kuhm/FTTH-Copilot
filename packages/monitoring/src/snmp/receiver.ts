@@ -55,6 +55,7 @@ export interface ManagedSnmpReceiverOptions {
 
 export interface ManagedSnmpReceiverHandle {
   close: (callback?: () => void) => void;
+  /** Resolves once the underlying UDP socket has emitted 'listening'. */
   ready: () => Promise<void>;
   getGuardMetrics: () => SnmpGuardMetrics;
   getRegistry: () => SnmpSenderRegistry;
