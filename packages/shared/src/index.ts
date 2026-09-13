@@ -82,38 +82,3 @@ export interface ChatResponse {
 }
 
 export * from './contracts';
-export type {
-  EvidenceProvenance,
-  Abstention,
-  ConfirmedIncident,
-  PendingIncidentCandidate,
-  RelevantIncidentResult,
-  TenantPolicy,
-  TopologyEdge,
-  TopologyNodeKind,
-  VerdictLog,
-  VerdictCode,
-  VerdictSeverity,
-} from './contracts';
-export {
-  EVIDENCE_PROVENANCE_SCHEMA,
-  evidenceProvenanceSchema,
-  ABSTENTION_SCHEMA,
-  abstentionSchema,
-  CONFIRMED_INCIDENT_SCHEMA,
-  PENDING_INCIDENT_CANDIDATE_SCHEMA,
-  confirmedIncidentSchema,
-  pendingIncidentCandidateSchema,
-  TENANT_POLICY_SCHEMA,
-  tenantPolicySchema,
-  TOPOLOGY_EDGE_SCHEMA,
-  topologyEdgeSchema,
-  topologyNodeKindSchema,
-  VERDICT_LOG_SCHEMA,
-  verdictLogSchema,
-  VerdictCodeSchema,
-  verdictCodesSchema,
-  VerdictSeveritySchema,
-  DEFAULT_TTL_MS,
-  DEMO_TTL_MS,
-} from './contracts';
