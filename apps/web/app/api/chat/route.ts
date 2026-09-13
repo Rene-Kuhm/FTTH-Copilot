@@ -266,10 +266,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error('[ftth-copilot/api/chat] agent error', error);
-    logRequest('POST', '/api/chat', 502, Date.now() - start);
+    const { classifyChatError } = await import('@/lib/chat/error-classifier');
+    const classification = classifyChatError(error);
+    logRequest('POST', '/api/chat', classification.status, Date.now() - start);
     return NextResponse.json(
-      { error: 'El proveedor de IA no pudo completar la consulta.' },
-      { status: 502 },
+      {
+        error: classification.userMessage,
+        kind: classification.kind,
+        hint: classification.hint,
+      },
+      { status: classification.status },
     );
   }
 
