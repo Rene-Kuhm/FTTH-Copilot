@@ -44,6 +44,7 @@
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",
     "@ftth-copilot/analytics": "workspace:*",
+    "@ftth-copilot/connectors-mikrotik": "workspace:*",
     "@ftth-copilot/connectors-mikrowisp": "workspace:*",
     "@ftth-copilot/connectors-smartolt": "workspace:*",
     "@ftth-copilot/db": "workspace:*",

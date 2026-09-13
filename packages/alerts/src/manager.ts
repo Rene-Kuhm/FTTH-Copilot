@@ -1,10 +1,17 @@
 import { prisma } from '@ftth-copilot/db';
+import type { AlertRecord, MetricRow } from './types';
 import { groupRows } from './group';
 import { runDetectors } from './runner';
 import { reconcile, findingKey } from './dedup';
 import { correlateAlerts } from './correlate';
-import { sendWebhook, buildAlertPayload, sendTelegram, buildAlertText } from './notify';
-import type { AlertRecord, MetricRow } from './types';
+import {
+  sendWebhook,
+  buildAlertPayload,
+  sendTelegram,
+  buildAlertText,
+  sendSlack,
+  sendWhatsApp,
+} from './notify';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -24,6 +31,10 @@ export interface RunDetectionOptions {
   webhookUrl?: string;
   /** Telegram bot config; when absent, no Telegram notification is sent. */
   telegram?: { botToken: string; chatId: string };
+  /** Slack incoming webhook config; when absent, no Slack notification is sent. */
+  slack?: { webhookUrl: string };
+  /** WhatsApp gateway config; when absent, no WhatsApp notification is sent. */
+  whatsapp?: { apiUrl: string; apiKey?: string; recipient: string };
   /** Injectable fetch for webhook delivery (defaults to global fetch). */
   fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
 }
@@ -33,10 +44,14 @@ export interface RunDetectionResult {
   upserted: number;
   notified: number;
   telegramNotified: number;
+  slackNotified: number;
+  whatsappNotified: number;
   correlated: number;
   resolved: number;
   notificationError?: string;
   telegramError?: string;
+  slackError?: string;
+  whatsappError?: string;
 }
 
 function toCreateData(r: AlertRecord) {
@@ -278,6 +293,28 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     else telegramError = result.error ?? `HTTP ${result.status}`;
   }
 
+  let slackNotified = 0;
+  let slackError: string | undefined;
+  if (opts.slack && toNotify.length > 0) {
+    const result = await sendSlack(opts.slack.webhookUrl, toNotify, opts.fetchImpl);
+    if (result.ok) slackNotified = toNotify.length;
+    else slackError = result.error ?? `HTTP ${result.status}`;
+  }
+
+  let whatsappNotified = 0;
+  let whatsappError: string | undefined;
+  if (opts.whatsapp && toNotify.length > 0) {
+    const result = await sendWhatsApp(
+      opts.whatsapp.apiUrl,
+      opts.whatsapp.recipient,
+      toNotify,
+      opts.whatsapp.apiKey,
+      opts.fetchImpl,
+    );
+    if (result.ok) whatsappNotified = toNotify.length;
+    else whatsappError = result.error ?? `HTTP ${result.status}`;
+  }
+
   const { correlated, resolved } = await correlateAndPersist(
     opts.tenantId,
     opts.connectionId,
@@ -289,9 +326,13 @@ export async function runDetection(opts: RunDetectionOptions): Promise<RunDetect
     upserted,
     notified,
     telegramNotified,
+    slackNotified,
+    whatsappNotified,
     correlated,
     resolved,
     notificationError,
     telegramError,
+    slackError,
+    whatsappError,
   };
 }

@@ -260,4 +260,55 @@ describe('runDetection', () => {
     expect(result.telegramNotified).toBe(0);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('sends Slack notifications when configured', async () => {
+    mocks.findManySamples.mockResolvedValue(rxSamples());
+    mocks.findManyAlerts.mockResolvedValue([]);
+    mocks.upsert.mockResolvedValue({});
+    const fetchImpl = vi.fn(async () => new Response('ok', { status: 200 }));
+
+    const result = await runDetection({
+      tenantId: 't1',
+      connectionId: 'c1',
+      now: NOW,
+      slack: { webhookUrl: 'https://hooks.slack.com/services/test' },
+      fetchImpl,
+    });
+
+    expect(result.slackNotified).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://hooks.slack.com/services/test',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('sends WhatsApp notifications when configured', async () => {
+    mocks.findManySamples.mockResolvedValue(rxSamples());
+    mocks.findManyAlerts.mockResolvedValue([]);
+    mocks.upsert.mockResolvedValue({});
+    const fetchImpl = vi.fn(async () => new Response('{"status":"ok"}', { status: 200 }));
+
+    const result = await runDetection({
+      tenantId: 't1',
+      connectionId: 'c1',
+      now: NOW,
+      whatsapp: {
+        apiUrl: 'https://wa.gateway.local/send',
+        recipient: '+5491112345678',
+        apiKey: 'key-123',
+      },
+      fetchImpl,
+    });
+
+    expect(result.whatsappNotified).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://wa.gateway.local/send',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ apikey: 'key-123' }),
+      }),
+    );
+  });
 });
