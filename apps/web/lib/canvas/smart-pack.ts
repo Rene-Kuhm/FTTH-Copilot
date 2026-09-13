@@ -51,7 +51,7 @@ export interface SmartPackOptions {
   cols?: number;
   /** Row height in grid units. Default 1. */
   rowHeight?: number;
-  /** Vertical gap between rows in grid units. Default 1. */
+  /** Vertical gap between rows in grid units. Default 0. */
   margin?: number;
 }
 

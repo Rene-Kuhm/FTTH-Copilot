@@ -26,6 +26,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactGridLayout, WidthProvider, type Layout } from 'react-grid-layout/legacy';
+import 'react-grid-layout/css/styles.css';
+import './canvas.css';
 
 const ResponsiveGrid = WidthProvider(ReactGridLayout);
 import { useViewportDensity } from './useViewportDensity';
@@ -135,19 +137,15 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
           importance,
         };
       });
-      queueMicrotask(() => {
-        setLiveLayout(mapped);
-        props.onLayoutChange?.(mapped);
-      });
+      setLiveLayout(mapped);
+      props.onLayoutChange?.(mapped);
     },
     [packInput, props],
   );
 
   const onLayoutCommit = useCallback(() => {
     // Persist the live layout as a new versioned snapshot.
-    queueMicrotask(() => {
-      applyRef.current(liveLayout);
-    });
+    applyRef.current(liveLayout);
   }, [liveLayout]);
 
   const isReadonly = props.mode === 'readonly';

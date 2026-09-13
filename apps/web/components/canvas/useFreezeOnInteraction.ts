@@ -28,7 +28,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface FreezeHandle {
   frozen: boolean;
-  /** Reset the timer manually — used by tests and by the layout editor's "Apply" button. */
+  /** Reset the timer manually — used by tests and programmatic interactions. */
   resetTimer: () => void;
 }
 

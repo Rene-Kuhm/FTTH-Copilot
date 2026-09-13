@@ -5,9 +5,8 @@
  *
  * Maps the current viewport width to a column count using
  * `densityForViewport` (lib/canvas/smart-pack). The hook listens
- * to `window.matchMedia` for the documented breakpoints so the
- * layout collapses cleanly when the operator resizes the window
- * or rotates a tablet.
+ * to window resize events so the layout collapses cleanly when
+ * the operator resizes the window or rotates a tablet.
  *
  * SSR-safe: returns the column count for the default breakpoint
  * (1 col) when `window` is undefined.

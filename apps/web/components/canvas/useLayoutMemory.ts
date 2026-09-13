@@ -49,8 +49,8 @@ export interface UseLayoutMemoryResult {
 }
 
 export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResult {
-  const nextId = useMemo(() => args.nextId ?? (() => nextLayoutId(Date.now())), [args]);
-  const now = useMemo(() => args.now ?? (() => new Date().toISOString()), [args]);
+  const nextId = useMemo(() => args.nextId ?? (() => nextLayoutId(Date.now())), [args.nextId]);
+  const now = useMemo(() => args.now ?? (() => new Date().toISOString()), [args.now]);
   // Initial mount: read the active layout from storage, or seed one
   // from the consumer's initialItems.
   const [activeId, setActiveId] = useState<string | null>(() => {
@@ -60,6 +60,14 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
     }
     if (args.initialItems.length === 0) {
       return null;
+    }
+    // Idempotency guard for StrictMode double-invocation:
+    // If a layout for this scope already exists, reuse it rather than creating a duplicate.
+    const existingList = args.storage.list(args.scope);
+    if (existingList.length > 0) {
+      const match = existingList.find((l) => l.name === (args.initialName ?? 'Default')) ?? existingList[0]!;
+      args.storage.setActive(args.scope, match.id);
+      return match.id;
     }
     const id = (args.nextId ?? (() => nextLayoutId(Date.now())))();
     const timestamp = (args.now ?? (() => new Date().toISOString()))();
@@ -97,7 +105,7 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
       setVersion((v) => v + 1);
       return layout;
     },
-    [args, nextId, now],
+    [args.storage, args.scope, nextId, now],
   );
 
   const switchTo = useCallback(
@@ -107,7 +115,7 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
       args.storage.setActive(args.scope, id);
       setActiveId(id);
     },
-    [args],
+    [args.storage, args.scope],
   );
 
   const rename = useCallback(
@@ -119,7 +127,7 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
       setLayouts(args.storage.list(args.scope));
       setVersion((v) => v + 1);
     },
-    [args],
+    [args.storage, args.scope],
   );
 
   const remove = useCallback(
@@ -138,7 +146,7 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
       setLayouts(args.storage.list(args.scope));
       setVersion((v) => v + 1);
     },
-    [activeId, args],
+    [activeId, args.storage, args.scope],
   );
 
   const active = activeId === null ? null : args.storage.get(activeId);
