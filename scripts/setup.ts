@@ -117,14 +117,42 @@ async function main(): Promise<void> {
     process.loadEnvFile(envPath);
   }
 
+  // Check LLM configuration
+  const llmProvider = process.env.LLM_PROVIDER?.trim();
+  const minimaxKey = process.env.MINIMAX_API_KEY?.trim();
+  const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const qwenKey = process.env.QWEN_API_KEY?.trim();
+
+  const isInvalidKey = (k: string | undefined) =>
+    !k || k === '' || k.includes('your-key-here') || k.includes('replace-with');
+
+  let llmStatusMessage = 'None configured (chat agent disabled)';
+  if (llmProvider) {
+    let keyValid = false;
+    if (llmProvider === 'minimax' && !isInvalidKey(minimaxKey)) keyValid = true;
+    if (llmProvider === 'deepseek' && !isInvalidKey(deepseekKey)) keyValid = true;
+    if (llmProvider === 'qwen' && !isInvalidKey(qwenKey)) keyValid = true;
+
+    if (!keyValid) {
+      console.log(`\n⚠️  Warning: LLM_PROVIDER='${llmProvider}' is set, but no valid API key was found.`);
+      console.log(`   Update ${llmProvider.toUpperCase()}_API_KEY in .env to enable the chat assistant.`);
+      llmStatusMessage = `${llmProvider} (API key missing or placeholder)`;
+    } else {
+      console.log(`\n🤖 LLM Provider configured: ${llmProvider}`);
+      llmStatusMessage = `${llmProvider} (active)`;
+    }
+  } else {
+    console.log('\nℹ️  Notice: No LLM_PROVIDER configured in .env. AI chat assistant will be inactive until you set one.');
+  }
+
   // 2. Check PostgreSQL availability
   const { host, port } = parseDbHostPort(process.env.DATABASE_URL);
   console.log(`\n🔍 Checking PostgreSQL at ${host}:${port}...`);
 
   let isReachable = await checkTcpPort(host, port);
+  const composeCmd = getDockerComposeCommand();
 
   if (!isReachable) {
-    const composeCmd = getDockerComposeCommand();
     if (composeCmd) {
       console.log(`📦 Docker Compose detected. Starting PostgreSQL container with '${composeCmd} up -d postgres'...`);
       execSync(`${composeCmd} up -d postgres`, { cwd: ROOT_DIR, stdio: 'inherit' });
@@ -150,11 +178,30 @@ async function main(): Promise<void> {
 
   // 3. Apply Prisma migrations
   console.log('\n📦 Applying database migrations...');
-  execSync('pnpm --filter @ftth-copilot/db db:deploy', {
-    cwd: ROOT_DIR,
-    stdio: 'inherit',
-    env: process.env,
-  });
+  try {
+    execSync('pnpm --filter @ftth-copilot/db db:deploy', {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+      env: process.env,
+    });
+  } catch {
+    console.error('\n❌ Database migration failed.');
+    console.error('\n💡 Troubleshooting:');
+    console.error('If you are using a native PostgreSQL installation (not Docker Compose):');
+    console.error('  1. Ensure the PostgreSQL user and database configured in DATABASE_URL exist.');
+    console.error('     To create the default development credentials, run:');
+    console.error("       sudo -u postgres psql -c \"CREATE USER ftth WITH PASSWORD 'change-me';\"");
+    console.error("       sudo -u postgres psql -c \"CREATE DATABASE ftth_copilot OWNER ftth;\"");
+    console.error("       sudo -u postgres psql -c \"GRANT ALL PRIVILEGES ON DATABASE ftth_copilot TO ftth;\"");
+    console.error('  2. Or update DATABASE_URL in your root .env file to match your existing PostgreSQL setup.');
+    if (composeCmd) {
+      console.error('\nIf you intended to use Docker Compose:');
+      console.error(`  A local PostgreSQL service on the host is occupying port ${port}, preventing Docker Compose.`);
+      console.error('  Stop the local PostgreSQL service (e.g. sudo systemctl stop postgresql) and re-run `pnpm setup`.');
+    }
+    console.error('');
+    process.exit(1);
+  }
 
   // 4. Generate Prisma Client
   console.log('\n📦 Generating Prisma client...');
@@ -176,8 +223,9 @@ async function main(): Promise<void> {
 ====================================================
 🎉 FTTH-Copilot bootstrap complete!
 ====================================================
-Database:   ${host}:${port}
-Migrations: Up to date
+Database:     ${host}:${port}
+Migrations:   Up to date
+LLM Provider: ${llmStatusMessage}
 Default credentials:
   Tenant:      Demo ISP (demo-tenant)
   Admin email: admin@ftth-copilot.local

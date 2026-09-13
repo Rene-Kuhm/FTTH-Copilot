@@ -134,6 +134,21 @@ describe('readLlmConfig', () => {
       if (prevFallback !== undefined) process.env['LLM_FALLBACK'] = prevFallback;
     }
   });
+
+  it('ignores placeholder API keys containing your-key-here or replace-with', () => {
+    const prev = process.env['LLM_PROVIDER'];
+    const prevKey = process.env['MINIMAX_API_KEY'];
+    process.env['LLM_PROVIDER'] = 'minimax';
+    process.env['MINIMAX_API_KEY'] = 'sk-cp-your-key-here';
+    try {
+      expect(readLlmConfig()).toEqual([]);
+    } finally {
+      if (prev === undefined) delete process.env['LLM_PROVIDER'];
+      else process.env['LLM_PROVIDER'] = prev;
+      if (prevKey === undefined) delete process.env['MINIMAX_API_KEY'];
+      else process.env['MINIMAX_API_KEY'] = prevKey;
+    }
+  });
 });
 
 describe('createLlmClient', () => {

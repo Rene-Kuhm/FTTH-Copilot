@@ -185,7 +185,7 @@ describe('GET /api/health — database connectivity', () => {
     const body = await res.json();
     expect(body.status).toBe('degraded');
     expect(body.database.status).toBe('error');
-    expect(body.database.error).toBe('Connection refused');
+    expect(body.database.error).toBe('Database connection error');
   });
 
   it('returns 503 degraded when database check times out', async () => {
@@ -197,7 +197,7 @@ describe('GET /api/health — database connectivity', () => {
     const body = await res.json();
     expect(body.status).toBe('degraded');
     expect(body.database.status).toBe('error');
-    expect(body.database.error).toContain('timed out');
+    expect(body.database.error).toBe('Database check timed out');
   }, 10000);
 
   it('includes database status and latency in response when healthy', async () => {
