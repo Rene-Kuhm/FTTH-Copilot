@@ -19,8 +19,17 @@ export async function seed(options?: {
   adminPassword?: string;
   forceAllowProduction?: boolean;
 }): Promise<SeedResult> {
-  if (process.env.NODE_ENV === 'production' && !options?.forceAllowProduction) {
-    throw new Error('Refusing to seed database in production environment (NODE_ENV=production).');
+  const allowProd =
+    Boolean(options?.forceAllowProduction) ||
+    process.env.ALLOW_PRODUCTION_SEED === 'true' ||
+    process.env.SEED_FORCE_ALLOW_PRODUCTION === 'true' ||
+    process.argv.includes('--force');
+
+  if (process.env.NODE_ENV === 'production' && !allowProd) {
+    throw new Error(
+      'Refusing to seed database in production environment (NODE_ENV=production). ' +
+      'To allow initial bootstrap, pass ALLOW_PRODUCTION_SEED=true or --force.'
+    );
   }
 
   const generatedPassword =
@@ -99,7 +108,11 @@ export async function seed(options?: {
 
 async function main(): Promise<void> {
   console.log('🌱 Starting database seed...');
-  const result = await seed();
+  const force =
+    process.argv.includes('--force') ||
+    process.env.ALLOW_PRODUCTION_SEED === 'true' ||
+    process.env.SEED_FORCE_ALLOW_PRODUCTION === 'true';
+  const result = await seed({ forceAllowProduction: force });
   console.log(`✓ Tenant ready: ${DEFAULT_TENANT_NAME} (${result.tenantId})`);
   console.log(`✓ Admin user ready: ${result.adminEmail}`);
   if (result.adminPassword) {
