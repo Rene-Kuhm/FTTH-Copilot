@@ -18,6 +18,9 @@ importers:
       '@ftth-copilot/analytics':
         specifier: workspace:*
         version: link:packages/analytics
+      '@ftth-copilot/connectors-mikrotik':
+        specifier: workspace:*
+        version: link:packages/connectors/mikrotik
       '@ftth-copilot/connectors-mikrowisp':
         specifier: workspace:*
         version: link:packages/connectors/mikrowisp
@@ -247,6 +250,34 @@ importers:
 
   packages/connectors/core:
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^3.2.6
+        version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@22.20.1)(happy-dom@20.14.5)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/node@22.20.1)(happy-dom@20.14.5)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)(tsx@4.23.12)(yaml@2.9.0)
+
+  packages/connectors/mikrotik:
+    dependencies:
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@ftth-copilot/security':
+        specifier: workspace:*
+        version: link:../../security
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1

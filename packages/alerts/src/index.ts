@@ -12,6 +12,11 @@ export {
   sendTelegram,
   buildAlertPayload,
   buildAlertText,
+  sendSlack,
+  buildSlackPayload,
+  sendWhatsApp,
+  buildWhatsAppText,
+  buildWhatsAppPayload,
   type WebhookResult,
 } from './notify';
 export { correlateAlerts, type CorrelateOptions } from './correlate';
