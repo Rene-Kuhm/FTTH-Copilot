@@ -121,4 +121,41 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
       await stop2();
     }
   });
+
+  it('handles immediate stop() before listening without reviving bound or leaving port in use', async () => {
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+    process.env['SNMP_UDP_PORT'] = '12196';
+
+    const stop1 = startSnmpReceiver({
+      address: '127.0.0.1',
+    });
+    // Immediately stop before ready() or listening
+    await stop1();
+
+    const boundAfterStop = snapshotHealth()['snmp']?.bound;
+
+    // Wait a brief tick to see if any late listening event revives bound
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const boundAfterLateTick = snapshotHealth()['snmp']?.bound;
+
+    let stop2Error: Error | null = null;
+    let stop2: ReturnType<typeof startSnmpReceiver> | null = null;
+    try {
+      stop2 = startSnmpReceiver({
+        address: '127.0.0.1',
+        onError: (err) => {
+          stop2Error = err;
+        },
+      });
+      await stop2.ready();
+    } catch (err: unknown) {
+      stop2Error = err instanceof Error ? err : new Error(String(err));
+    } finally {
+      if (stop2) await stop2();
+    }
+
+    expect(boundAfterStop).toBe(false);
+    expect(boundAfterLateTick).toBe(false);
+    expect(stop2Error).toBeNull();
+  });
 });

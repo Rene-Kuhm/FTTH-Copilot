@@ -120,12 +120,14 @@ export function createManagedSnmpReceiver(
   const guard: SnmpIngestionGuard = createSnmpIngestionGuard(options.guardOptions);
   const clientCommunityMap = new Map<string, string>();
   let isReady = false;
+  let isClosed = false;
   let bindError: Error | null = null;
+  let rawSocketRef: dgram.Socket | null = null;
   const readyResolveCallbacks: Array<() => void> = [];
   const readyRejectCallbacks: Array<(err: Error) => void> = [];
 
   const notifyReady = () => {
-    if (!isReady && !bindError) {
+    if (!isReady && !bindError && !isClosed) {
       isReady = true;
       options.onReady?.();
       for (const cb of readyResolveCallbacks) cb();
@@ -135,7 +137,7 @@ export function createManagedSnmpReceiver(
   };
 
   const notifyError = (err: Error) => {
-    if (!isReady && !bindError) {
+    if (!isReady && !bindError && !isClosed) {
       bindError = err;
       for (const cb of readyRejectCallbacks) cb(err);
       readyResolveCallbacks.length = 0;
@@ -155,17 +157,32 @@ export function createManagedSnmpReceiver(
   const customDgramModule = {
     createSocket: (transport: string) => {
       const rawSocket = dgram.createSocket(transport as dgram.SocketType);
+      rawSocketRef = rawSocket;
       const proxySocket = new EventEmitter();
 
       (proxySocket as unknown as Record<string, unknown>)['bind'] = (...args: unknown[]) =>
         (rawSocket.bind as (...a: unknown[]) => void)(...args);
       (proxySocket as unknown as Record<string, unknown>)['close'] = (...args: unknown[]) =>
         (rawSocket.close as (...a: unknown[]) => void)(...args);
-      (proxySocket as unknown as Record<string, unknown>)['address'] = () => rawSocket.address();
+      (proxySocket as unknown as Record<string, unknown>)['address'] = () => {
+        try {
+          return rawSocket.address();
+        } catch {
+          return { address, port, family: 'IPv4' };
+        }
+      };
       (proxySocket as unknown as Record<string, unknown>)['send'] = (...args: unknown[]) =>
         (rawSocket.send as (...a: unknown[]) => void)(...args);
 
       rawSocket.on('listening', () => {
+        if (isClosed) {
+          try {
+            rawSocket.close();
+          } catch {
+            // Socket may already be closed
+          }
+          return;
+        }
         notifyReady();
         proxySocket.emit('listening');
       });
@@ -176,11 +193,13 @@ export function createManagedSnmpReceiver(
       });
 
       rawSocket.on('error', (err: Error) => {
+        if (isClosed) return;
         notifyError(err);
         proxySocket.emit('error', err);
       });
 
       rawSocket.on('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+        if (isClosed) return;
         const nowMs = Date.now();
 
         // 1. Guard check on raw bytes (size & rate limits)
@@ -304,13 +323,44 @@ export function createManagedSnmpReceiver(
 
   return {
     close: (cb?: () => void) => {
-      try {
-        receiver.close(cb);
-      } catch {
+      if (isClosed) {
         cb?.();
+        return;
+      }
+      isClosed = true;
+      isReady = false;
+
+      const closeError = new Error('Receiver closed before becoming ready');
+      for (const rejectCb of readyRejectCallbacks) rejectCb(closeError);
+      readyResolveCallbacks.length = 0;
+      readyRejectCallbacks.length = 0;
+
+      let callbackInvoked = false;
+      const done = () => {
+        if (!callbackInvoked) {
+          callbackInvoked = true;
+          cb?.();
+        }
+      };
+
+      try {
+        receiver.close(done);
+      } catch {
+        // Net-SNMP close may throw if internal state is not ready
+      }
+
+      if (rawSocketRef) {
+        try {
+          rawSocketRef.close(() => done());
+        } catch {
+          done();
+        }
+      } else {
+        done();
       }
     },
     ready: () => {
+      if (isClosed) return Promise.reject(new Error('Receiver is already closed'));
       if (bindError) return Promise.reject(bindError);
       if (isReady) return Promise.resolve();
       return new Promise<void>((resolve, reject) => {
