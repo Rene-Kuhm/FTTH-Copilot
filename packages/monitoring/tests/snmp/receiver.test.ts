@@ -372,4 +372,33 @@ describe('Managed SNMP Receiver (Roadmap Fase 0)', () => {
     expect(notices[0]).toContain('[SECURITY] Sender 127.0.0.1 uses SNMP v2c');
     expect(notices[0]).toContain('segmentation is strongly required');
   });
+
+  it('rejects ready() and invokes onError exactly once when port is already in use (EADDRINUSE)', async () => {
+    const port = 12169;
+    const r1 = createManagedSnmpReceiver({
+      port,
+      address: '127.0.0.1',
+    });
+    await r1.ready();
+
+    let errorCount = 0;
+    let caughtError: Error | null = null;
+    const r2 = createManagedSnmpReceiver({
+      port,
+      address: '127.0.0.1',
+      onError: (err) => {
+        errorCount++;
+        caughtError = err;
+      },
+    });
+
+    try {
+      await expect(r2.ready()).rejects.toThrow(/EADDRINUSE/);
+      expect(errorCount).toBe(1);
+      expect(caughtError).not.toBeNull();
+    } finally {
+      await new Promise<void>((resolve) => r1.close(resolve));
+      await new Promise<void>((resolve) => r2.close(resolve));
+    }
+  });
 });

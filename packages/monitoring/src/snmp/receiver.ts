@@ -55,7 +55,10 @@ export interface ManagedSnmpReceiverOptions {
 
 export interface ManagedSnmpReceiverHandle {
   close: (callback?: () => void) => void;
-  /** Resolves once the underlying UDP socket has emitted 'listening'. */
+  /**
+   * Resolves once the underlying UDP socket has emitted 'listening',
+   * or rejects if socket binding fails (e.g. EADDRINUSE).
+   */
   ready: () => Promise<void>;
   getGuardMetrics: () => SnmpGuardMetrics;
   getRegistry: () => SnmpSenderRegistry;
@@ -117,13 +120,26 @@ export function createManagedSnmpReceiver(
   const guard: SnmpIngestionGuard = createSnmpIngestionGuard(options.guardOptions);
   const clientCommunityMap = new Map<string, string>();
   let isReady = false;
-  const readyCallbacks: Array<() => void> = [];
+  let bindError: Error | null = null;
+  const readyResolveCallbacks: Array<() => void> = [];
+  const readyRejectCallbacks: Array<(err: Error) => void> = [];
+
   const notifyReady = () => {
-    if (!isReady) {
+    if (!isReady && !bindError) {
       isReady = true;
       options.onReady?.();
-      for (const cb of readyCallbacks) cb();
-      readyCallbacks.length = 0;
+      for (const cb of readyResolveCallbacks) cb();
+      readyResolveCallbacks.length = 0;
+      readyRejectCallbacks.length = 0;
+    }
+  };
+
+  const notifyError = (err: Error) => {
+    if (!isReady && !bindError) {
+      bindError = err;
+      for (const cb of readyRejectCallbacks) cb(err);
+      readyResolveCallbacks.length = 0;
+      readyRejectCallbacks.length = 0;
     }
   };
 
@@ -155,11 +171,12 @@ export function createManagedSnmpReceiver(
       });
 
       rawSocket.on('close', () => {
+        isReady = false;
         proxySocket.emit('close');
       });
 
       rawSocket.on('error', (err: Error) => {
-        options.onError?.(err);
+        notifyError(err);
         proxySocket.emit('error', err);
       });
 
@@ -294,9 +311,11 @@ export function createManagedSnmpReceiver(
       }
     },
     ready: () => {
+      if (bindError) return Promise.reject(bindError);
       if (isReady) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        readyCallbacks.push(resolve);
+      return new Promise<void>((resolve, reject) => {
+        readyResolveCallbacks.push(resolve);
+        readyRejectCallbacks.push(reject);
       });
     },
     getGuardMetrics: () => guard.getMetrics(),
