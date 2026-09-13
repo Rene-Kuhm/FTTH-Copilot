@@ -18,11 +18,17 @@ function positiveInt(value: string | undefined, fallback: number): number {
 }
 
 export interface SnmpReceiverOptions {
+  address?: string;
   registrations?: SnmpSenderRegistration[];
   onEvent?: (event: unknown) => void;
   onEvidence?: (evidence: RawSnmpEvidenceEnvelope) => void;
   onError?: (error: Error) => void;
+  onReady?: () => void;
 }
+
+export type SnmpStopFn = (() => Promise<void>) & {
+  ready: () => Promise<void>;
+};
 
 /**
  * Starts an SNMP UDP trap receiver in observation mode (Roadmap Fase 6 & Fase 0).
@@ -30,11 +36,13 @@ export interface SnmpReceiverOptions {
  * Disabled unless SNMP_RECEIVER_ENABLED=true, so dev, test and default environments
  * never bind a socket without explicit intent (Roadmap Rule 10).
  */
-export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): () => void {
+export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
   if (process.env['SNMP_RECEIVER_ENABLED'] !== 'true') {
     markSchedulerNotExpected('snmp');
     recordSnmpBound(false);
-    return () => {};
+    const noop = (() => Promise.resolve()) as SnmpStopFn;
+    noop.ready = () => Promise.resolve();
+    return noop;
   }
 
   markSchedulerExpected('snmp');
@@ -51,9 +59,11 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): () => void {
   }
 
   const port = positiveInt(process.env['SNMP_UDP_PORT'], 1162);
+  const address = opts.address ?? process.env['SNMP_BIND_ADDRESS'] ?? '0.0.0.0';
 
   const receiverHandle = createManagedSnmpReceiver({
     port,
+    address,
     registrations: rawRegistrations,
     guardOptions: {
       maxPayloadBytes: positiveInt(process.env['SNMP_MAX_PAYLOAD_BYTES'], 2048),
@@ -62,6 +72,7 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): () => void {
       dedupWindowMs: positiveInt(process.env['SNMP_DEDUP_WINDOW_MS'], 5000),
     },
     disableAuthorization: process.env['SNMP_DISABLE_AUTH'] === 'true',
+    onReady: opts.onReady,
     onNotification: (notification, senderContext, evidence) => {
       try {
         const normalized = parseAndNormalizeSnmpTrap(
@@ -92,8 +103,29 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): () => void {
 
   recordSnmpBound(true);
 
-  return () => {
-    receiverHandle.close();
-    recordSnmpBound(false);
-  };
+  const stopFn = (() => {
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          recordSnmpBound(false);
+          resolve();
+        }
+      }, 500);
+
+      receiverHandle.close(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          recordSnmpBound(false);
+          resolve();
+        }
+      });
+    });
+  }) as SnmpStopFn;
+
+  stopFn.ready = () => receiverHandle.ready();
+
+  return stopFn;
 }
