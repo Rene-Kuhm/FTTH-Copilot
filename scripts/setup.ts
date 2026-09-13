@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Cross-platform bootstrap script for FTTH-Copilot (`pnpm setup`).
+ * Cross-platform bootstrap script for FTTH-Copilot (`pnpm run setup` or `pnpm bootstrap`).
  *
  * Ensures:
  * 1. .env exists (copies .env.example and populates secure keys if missing).
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
     if (composeCmd) {
       console.error('\nIf you intended to use Docker Compose:');
       console.error(`  A local PostgreSQL service on the host is occupying port ${port}, preventing Docker Compose.`);
-      console.error('  Stop the local PostgreSQL service (e.g. sudo systemctl stop postgresql) and re-run `pnpm setup`.');
+      console.error('  Stop the local PostgreSQL service (e.g. sudo systemctl stop postgresql) and re-run `pnpm run setup`.');
     }
     console.error('');
     process.exit(1);
