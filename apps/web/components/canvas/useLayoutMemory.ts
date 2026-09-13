@@ -51,8 +51,6 @@ export interface UseLayoutMemoryResult {
 export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResult {
   const nextId = useMemo(() => args.nextId ?? (() => nextLayoutId(Date.now())), [args]);
   const now = useMemo(() => args.now ?? (() => new Date().toISOString()), [args]);
-  const counterRef = useRef(0);
-
   // Initial mount: read the active layout from storage, or seed one
   // from the consumer's initialItems.
   const [activeId, setActiveId] = useState<string | null>(() => {
@@ -82,9 +80,8 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
 
   const apply = useCallback(
     (items: SmartPackLayoutItem[], name?: string): SavedLayout => {
-      counterRef.current += 1;
       const id = nextId();
-      const previous = activeId === null ? null : args.storage.get(activeId);
+      const previous = args.storage.getActive(args.scope);
       const layout = snapshotLayout({
         id,
         name: name ?? (previous?.name ?? 'Default'),
@@ -100,7 +97,7 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
       setVersion((v) => v + 1);
       return layout;
     },
-    [activeId, args, nextId, now],
+    [args, nextId, now],
   );
 
   const switchTo = useCallback(

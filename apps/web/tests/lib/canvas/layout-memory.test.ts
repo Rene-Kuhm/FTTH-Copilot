@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createLocalStorageLayoutStorage,
   MemoryLayoutStorage,
   nextLayoutId,
   snapshotLayout,
@@ -68,6 +69,47 @@ describe('MemoryLayoutStorage — remove', () => {
     s.setActive('s_1', 'a');
     s.remove('a');
     expect(s.getActive('s_1')).toBeNull();
+  });
+});
+
+describe('createLocalStorageLayoutStorage — remove', () => {
+  it('also clears the active pointer for any scope that pointed at it', () => {
+    const store = new Map<string, string>();
+    const mockStorage = {
+      get length() {
+        return store.size;
+      },
+      key(i: number) {
+        return Array.from(store.keys())[i] ?? null;
+      },
+      getItem(k: string) {
+        return store.get(k) ?? null;
+      },
+      setItem(k: string, v: string) {
+        store.set(k, v);
+      },
+      removeItem(k: string) {
+        store.delete(k);
+      },
+      clear() {
+        store.clear();
+      },
+    };
+    (globalThis as unknown as { window: { localStorage: typeof mockStorage } }).window = {
+      localStorage: mockStorage,
+    };
+
+    const s = createLocalStorageLayoutStorage();
+    s.save(layout({ id: 'a' }));
+    s.setActive('s_1', 'a');
+    expect(s.getActive('s_1')?.id).toBe('a');
+
+    s.remove('a');
+    expect(s.get('a')).toBeNull();
+    expect(s.getActive('s_1')).toBeNull();
+    expect(mockStorage.getItem('canvas_active_s_1')).toBeNull();
+
+    delete (globalThis as unknown as { window?: unknown }).window;
   });
 });
 

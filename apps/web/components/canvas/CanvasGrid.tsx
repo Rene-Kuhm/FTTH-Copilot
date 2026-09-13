@@ -93,20 +93,31 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
   const { onLayoutChange: onLayoutChangeProp } = props;
   const isFrozen = freeze.frozen;
 
+  const applyRef = useRef(memory.apply);
+  const onLayoutChangeRef = useRef(onLayoutChangeProp);
+  const prevColsRef = useRef(cols);
+
+  useEffect(() => {
+    applyRef.current = memory.apply;
+    onLayoutChangeRef.current = onLayoutChangeProp;
+  });
+
   // When the viewport density changes AND the operator is not
   // interacting, recompute the layout for the new column count.
   // The setState calls inside are deferred via queueMicrotask.
   useEffect(() => {
+    if (prevColsRef.current === cols) return;
     if (isFrozen) return;
+    prevColsRef.current = cols;
     const next = relayoutForColumns(packInput, cols);
     const validation = validateLayoutAgainstPanels(next, packInput, { cols });
     if (!validation.ok) return;
-    const saved = memory.apply(next);
+    const saved = applyRef.current(next);
     queueMicrotask(() => {
       setLiveLayout(saved.items);
-      onLayoutChangeProp?.(saved.items);
+      onLayoutChangeRef.current?.(saved.items);
     });
-  }, [cols, isFrozen, memory, packInput, onLayoutChangeProp]);
+  }, [cols, isFrozen, packInput]);
 
   const onLayoutChange = useCallback(
     (next: Layout) => {
@@ -135,9 +146,9 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
   const onLayoutCommit = useCallback(() => {
     // Persist the live layout as a new versioned snapshot.
     queueMicrotask(() => {
-      memory.apply(liveLayout);
+      applyRef.current(liveLayout);
     });
-  }, [memory, liveLayout]);
+  }, [liveLayout]);
 
   const isReadonly = props.mode === 'readonly';
   const editable = !isReadonly && !freeze.frozen;

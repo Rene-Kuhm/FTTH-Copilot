@@ -163,6 +163,18 @@ export function createLocalStorageLayoutStorage(
     },
     remove(id) {
       ls.removeItem(prefix + id);
+      const activeKeysToRemove: string[] = [];
+      for (let i = 0; i < ls.length; i += 1) {
+        const key = ls.key(i);
+        if (key !== null && key.startsWith(activePrefix)) {
+          if (ls.getItem(key) === id) {
+            activeKeysToRemove.push(key);
+          }
+        }
+      }
+      for (const key of activeKeysToRemove) {
+        ls.removeItem(key);
+      }
     },
   };
 }
