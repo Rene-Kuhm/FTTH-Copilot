@@ -39,7 +39,13 @@ export interface InvestigationCanvasProps {
   readOnly?: boolean;
   /** Optional render override for individual sections. */
   renderSection?: (
-    section: 'evidenceRefs' | 'hypotheses' | 'contradictions' | 'missing' | 'suggestedChecks',
+    section:
+      | 'sufficiency'
+      | 'evidenceRefs'
+      | 'hypotheses'
+      | 'contradictions'
+      | 'missing'
+      | 'suggestedChecks',
   ) => React.ReactNode;
 }
 
@@ -60,7 +66,7 @@ export function InvestigationCanvas(props: InvestigationCanvasProps): React.Reac
       desiredH: 2,
       minH: 2,
       content: props.renderSection ? (
-        props.renderSection('hypotheses')
+        props.renderSection('sufficiency')
       ) : (
         <SufficiencyPanel
           state={result.sufficiency}

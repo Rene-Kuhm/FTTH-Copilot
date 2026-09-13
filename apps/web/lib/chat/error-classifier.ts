@@ -86,11 +86,18 @@ export function classifyChatError(error: unknown): ChatErrorClassification {
     };
   }
   if (AGENT_ABORTED_HINTS.some((h) => lower.includes(h))) {
+    const isTruthGate = lower.includes('truthgate') || lower.includes('abstain');
+    const isBudget = lower.includes('budget') || lower.includes('iteration');
+    const userMessage = isTruthGate
+      ? 'El agente se interrumpió de forma controlada: el control de veracidad (TruthGate) detectó inconsistencias en la respuesta.'
+      : isBudget
+        ? 'El agente se interrumpió de forma controlada: se superó el límite de iteraciones permitidas para la consulta.'
+        : 'El agente se interrumpió de forma controlada.';
     return {
       kind: 'agent-aborted',
       status: 422,
-      userMessage: `El agente se interrumpió de forma controlada: ${message}`,
-      hint: 'The agent loop aborted — likely a TruthGate strict-mode trip or an iteration budget exhaustion. See the server logs for the trace.',
+      userMessage,
+      hint: 'The agent loop aborted — likely a TruthGate strict-mode trip or iteration budget exhaustion. See server logs for details.',
     };
   }
   if (LLM_UPSTREAM_HINTS.some((h) => lower.includes(h))) {
@@ -99,13 +106,13 @@ export function classifyChatError(error: unknown): ChatErrorClassification {
       status: 502,
       userMessage:
         'El proveedor de IA rechazó la consulta (límite de uso, autenticación o red). Reintentá en unos minutos o revisá la API key.',
-      hint: `LLM upstream failed: ${message}`,
+      hint: 'LLM upstream call failed (rate limit, invalid credentials, or network timeout). Check provider status and credentials in server logs.',
     };
   }
   return {
     kind: 'unexpected',
     status: 502,
-    userMessage: `El proveedor de IA no pudo completar la consulta. Detalle: ${message}`,
-    hint: 'Unclassified error from runAgent; see the server logs.',
+    userMessage: 'El proveedor de IA no pudo completar la consulta. Revisá los registros del servidor para más información.',
+    hint: 'Unclassified error from runAgent; see server logs.',
   };
 }
