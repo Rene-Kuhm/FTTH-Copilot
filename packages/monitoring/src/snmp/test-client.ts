@@ -63,8 +63,24 @@ export async function sendSnmpTestTrap(options: SendSnmpTrapOptions): Promise<vo
       engineID: '800000090300000000000001',
     });
     return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try {
+            session.close();
+          } catch {}
+          reject(new Error(`sendSnmpTestTrap timed out after 3000ms (${options.trapOid})`));
+        }
+      }, 3000);
+
       session.trap(options.trapOid, mappedVarbinds, (err: Error | null) => {
-        session.close();
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try {
+          session.close();
+        } catch {}
         if (err) reject(err);
         else resolve();
       });
@@ -83,8 +99,24 @@ export async function sendSnmpTestTrap(options: SendSnmpTrapOptions): Promise<vo
   };
 
   return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try {
+          session.close();
+        } catch {}
+        reject(new Error(`sendSnmpTestTrap timed out after 3000ms (${options.trapOid})`));
+      }
+    }, 3000);
+
     const cb = (err: Error | null) => {
-      session.close();
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        session.close();
+      } catch {}
       if (err) reject(err);
       else resolve();
     };

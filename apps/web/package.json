@@ -12,6 +12,7 @@
     "clean": "rm -rf .next",
     "test": "vitest run --passWithNoTests",
     "test:unit": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
