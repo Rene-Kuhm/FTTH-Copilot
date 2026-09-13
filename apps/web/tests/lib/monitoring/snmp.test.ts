@@ -29,7 +29,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
   it('marks service as expected when SNMP_RECEIVER_ENABLED is true and receives real binary traps', async () => {
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
-    process.env['SNMP_UDP_PORT'] = '12199';
+    process.env['SNMP_UDP_PORT'] = '12198';
 
     const receivedEvents: any[] = [];
     const receivedEvidences: RawSnmpEvidenceEnvelope[] = [];
@@ -57,9 +57,12 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
     expect(health['snmp']?.expected).toBe(true);
     expect(health['snmp']?.bound).toBe(true);
 
+    // Give the UDP socket a tick to bind to avoid dropped packets
+    await new Promise((r) => setTimeout(r, 50));
+
     try {
       await sendSnmpTestTrap({
-        port: 12199,
+        port: 12198,
         version: 'v2c',
         trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
         varbinds: [

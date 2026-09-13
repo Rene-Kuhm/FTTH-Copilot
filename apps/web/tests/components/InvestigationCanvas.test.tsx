@@ -1,11 +1,25 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import type { InvestigationResult } from '@ftth-copilot/shared';
+import { InvestigationCanvas } from '../../components/InvestigationCanvas';
 
-// We test by importing the type, not the React component (the test
-// runs under happy-dom, but the component depends on CanvasGrid +
-// react-grid-layout which requires real DOM measurement; the
-// component-level coverage lives in the Playwright suite). Here we
-// pin the section mapping the component relies on.
+vi.mock('../../components/canvas', () => ({
+  CanvasGrid: ({
+    panels,
+  }: {
+    panels: Array<{ id: string; title: string; content: React.ReactNode }>;
+  }) => (
+    <div data-testid="mock-canvas-grid">
+      {panels.map((p) => (
+        <div key={p.id} data-testid={`panel-${p.id}`}>
+          <h2>{p.title}</h2>
+          <div data-testid={`content-${p.id}`}>{p.content}</div>
+        </div>
+      ))}
+    </div>
+  ),
+}));
 
 function resultWith(overrides: Partial<InvestigationResult>): InvestigationResult {
   return {
@@ -97,5 +111,30 @@ describe('InvestigationCanvas section ordering — importance ranking', () => {
     expect(r.rulesetVersion).toBe('ruleset-2');
     expect(r.modelVersion).toBe('gpt-x');
     expect(r.promptVersion).toBe('prompt-2');
+  });
+
+  it('renders default panels including sufficiency when no renderSection is passed', () => {
+    const r = resultWith({ sufficiency: 'sufficient', sufficiencyReason: 'Todos los datos validados.' });
+    render(<InvestigationCanvas result={r} storageScope="test-scope" />);
+    expect(screen.getByTestId('panel-sufficiency')).toBeDefined();
+    expect(screen.getByText('Suficiencia')).toBeDefined();
+    expect(screen.getByText('Suficiente')).toBeDefined();
+    expect(screen.getByText('Todos los datos validados.')).toBeDefined();
+  });
+
+  it('renders custom section override specifically for sufficiency', () => {
+    const r = resultWith({ sufficiency: 'provisional' });
+    render(
+      <InvestigationCanvas
+        result={r}
+        storageScope="test-scope"
+        renderSection={(section) => (
+          <div data-testid={`custom-${section}`}>Custom override for {section}</div>
+        )}
+      />,
+    );
+    expect(screen.getByTestId('custom-sufficiency')).toBeDefined();
+    expect(screen.getByText('Custom override for sufficiency')).toBeDefined();
+    expect(screen.getByTestId('custom-hypotheses')).toBeDefined();
   });
 });
