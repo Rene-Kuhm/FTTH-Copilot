@@ -49,9 +49,9 @@ export function incidentImportance(
 ): 1 | 2 | 3 | 4 | 5 {
   if (incident.severity === 'critical' && incident.status === 'open') return 5;
   if (incident.severity === 'critical') return 4;
+  if (incident.status === 'resolved') return 1;
   if (incident.severity === 'warning' && incident.status === 'open') return 3;
-  if (incident.severity === 'warning') return 2;
-  return 1; // resolved
+  return 2;
 }
 
 export interface IncidentsCanvasProps {

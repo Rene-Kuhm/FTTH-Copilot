@@ -81,6 +81,12 @@ const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
   },
 ];
 
+export interface ChatErrorState {
+  message: string;
+  kind?: string;
+  hint?: string;
+}
+
 export default function ChatUI() {
   const auth = useAuth();
   const connectorState = useConnectors();
@@ -88,7 +94,7 @@ export default function ChatUI() {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatErrorState | null>(null);
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
@@ -152,8 +158,17 @@ export default function ChatUI() {
       });
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+        const errBody = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          kind?: string;
+          hint?: string;
+        };
+        setError({
+          message: errBody.error ?? `HTTP ${res.status}`,
+          kind: errBody.kind,
+          hint: errBody.hint,
+        });
+        return;
       }
 
       const data = (await res.json()) as {
@@ -176,7 +191,9 @@ export default function ChatUI() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setError({
+        message: err instanceof Error ? err.message : 'Error desconocido',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -211,16 +228,17 @@ export default function ChatUI() {
           const withSeq = result.messages.map((m, i) => ({ ...m, seq: i }));
           setMessages(withSeq);
           } else {
-            setError('No se pudo cargar la conversación.');
+            setError({ message: 'No se pudo cargar la conversación.' });
           }
         })
         .catch((caught) => {
           if (requestId === conversationRequestRef.current) {
-            setError(
-              caught instanceof Error
-                ? caught.message
-                : 'No se pudo cargar la conversación.',
-            );
+            setError({
+              message:
+                caught instanceof Error
+                  ? caught.message
+                  : 'No se pudo cargar la conversación.',
+            });
           }
         })
         .finally(() => {
@@ -320,8 +338,24 @@ export default function ChatUI() {
           )}
 
           {error && (
-            <div role="alert" aria-live="assertive" className="rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300">
-              {error}
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="flex flex-col gap-1.5 rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span>{error.message}</span>
+                {error.kind && (
+                  <span className="shrink-0 rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-red-400">
+                    {error.kind}
+                  </span>
+                )}
+              </div>
+              {error.hint && (
+                <p className="text-xs text-neutral-400">
+                  <span className="font-semibold text-neutral-300">Sugerencia:</span> {error.hint}
+                </p>
+              )}
             </div>
           )}
 
