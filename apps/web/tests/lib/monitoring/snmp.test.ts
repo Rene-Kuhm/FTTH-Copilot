@@ -56,10 +56,12 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
     const health = snapshotHealth();
     expect(health['snmp']?.expected).toBe(true);
-    expect(health['snmp']?.bound).toBe(true);
 
     // Wait deterministically for the UDP socket to be bound in the OS
     await stop.ready();
+
+    const healthBound = snapshotHealth();
+    expect(healthBound['snmp']?.bound).toBe(true);
 
     try {
       await sendSnmpTestTrap({
@@ -90,5 +92,33 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
     const healthAfter = snapshotHealth();
     expect(healthAfter['snmp']?.bound).toBe(false);
+  });
+
+  it('handles bind collision gracefully, marks bound as false, and rejects ready() without hanging', async () => {
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+    process.env['SNMP_UDP_PORT'] = '12197';
+
+    const stop1 = startSnmpReceiver({
+      address: '127.0.0.1',
+    });
+    await stop1.ready();
+
+    let errorCount = 0;
+    const stop2 = startSnmpReceiver({
+      address: '127.0.0.1',
+      onError: () => {
+        errorCount++;
+      },
+    });
+
+    try {
+      await expect(stop2.ready()).rejects.toThrow(/EADDRINUSE/);
+      expect(errorCount).toBe(1);
+      const health = snapshotHealth();
+      expect(health['snmp']?.bound).toBe(false);
+    } finally {
+      await stop1();
+      await stop2();
+    }
   });
 });

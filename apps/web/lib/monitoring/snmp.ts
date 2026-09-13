@@ -72,7 +72,6 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
       dedupWindowMs: positiveInt(process.env['SNMP_DEDUP_WINDOW_MS'], 5000),
     },
     disableAuthorization: process.env['SNMP_DISABLE_AUTH'] === 'true',
-    onReady: opts.onReady,
     onNotification: (notification, senderContext, evidence) => {
       try {
         const normalized = parseAndNormalizeSnmpTrap(
@@ -95,13 +94,16 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
         recordSchedulerError('snmp', `parse/normalize failed: ${msg}`);
       }
     },
+    onReady: () => {
+      recordSnmpBound(true);
+      opts.onReady?.();
+    },
     onError: (err, sourceIp) => {
+      recordSnmpBound(false);
       opts.onError?.(err);
       recordSchedulerError('snmp', `receiver error [${sourceIp ?? 'unknown'}]: ${err.message}`);
     },
   });
-
-  recordSnmpBound(true);
 
   const stopFn = (() => {
     return new Promise<void>((resolve) => {
