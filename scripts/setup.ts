@@ -89,16 +89,21 @@ async function main(): Promise<void> {
   let envContent = fs.readFileSync(envPath, 'utf8');
   let envUpdated = false;
 
-  if (envContent.includes('replace-with-a-random-32-byte-secret')) {
+  // Contract anchor strings from .env.example template:
+  // If .env.example changes these placeholders, update them here accordingly.
+  const JWT_SECRET_PLACEHOLDER = 'replace-with-a-random-32-byte-secret';
+  const KMS_MASTER_KEY_PLACEHOLDER = 'replace-with-a-different-random-32-byte-secret';
+
+  if (envContent.includes(JWT_SECRET_PLACEHOLDER)) {
     const secret = crypto.randomBytes(32).toString('hex');
-    envContent = envContent.replace('replace-with-a-random-32-byte-secret', secret);
+    envContent = envContent.replace(JWT_SECRET_PLACEHOLDER, secret);
     envUpdated = true;
     console.log('🔑 Generated secure JWT_SECRET in .env');
   }
 
-  if (envContent.includes('replace-with-a-different-random-32-byte-secret')) {
+  if (envContent.includes(KMS_MASTER_KEY_PLACEHOLDER)) {
     const secret = crypto.randomBytes(32).toString('hex');
-    envContent = envContent.replace('replace-with-a-different-random-32-byte-secret', secret);
+    envContent = envContent.replace(KMS_MASTER_KEY_PLACEHOLDER, secret);
     envUpdated = true;
     console.log('🔑 Generated secure KMS_MASTER_KEY in .env');
   }
@@ -176,7 +181,7 @@ Migrations: Up to date
 Default credentials:
   Tenant:      Demo ISP (demo-tenant)
   Admin email: admin@ftth-copilot.local
-  Password:    admin123456
+  Password:    (See one-time password in seed output above, or set SEED_ADMIN_PASSWORD)
 
 You can now start the development server with:
   pnpm dev

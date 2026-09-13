@@ -51,8 +51,10 @@ Abrí `http://localhost:3001` en el navegador.
 
 Credenciales iniciales (sembradas por `pnpm setup`):
 - **Email:** `admin@ftth-copilot.local`
-- **Contraseña:** `admin123456`
+- **Contraseña:** se genera de forma aleatoria y se imprime en consola una única vez durante el seed (o puede especificarse mediante la variable de entorno `SEED_ADMIN_PASSWORD`).
 - **Organización (tenant):** `Demo ISP` (`demo-tenant`)
+
+Por seguridad, el sembrado (`seed`) rechaza ejecutarse en entornos de producción (`NODE_ENV=production`).
 
 El comando `pnpm setup` es idempotente: verifica o crea `.env`, genera secretos criptográficos si detecta valores por defecto, comprueba la conectividad con PostgreSQL (iniciando el contenedor de Docker Compose automáticamente si Docker está presente), aplica las migraciones de Prisma, regenera el cliente tipado y siembra los datos iniciales de desarrollo.
 
