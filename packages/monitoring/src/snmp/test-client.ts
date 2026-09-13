@@ -70,7 +70,7 @@ export async function sendSnmpTestTrap(options: SendSnmpTrapOptions): Promise<vo
           try {
             session.close();
           } catch {}
-          resolve();
+          reject(new Error(`sendSnmpTestTrap timed out after 3000ms (${options.trapOid})`));
         }
       }, 3000);
 
@@ -106,7 +106,7 @@ export async function sendSnmpTestTrap(options: SendSnmpTrapOptions): Promise<vo
         try {
           session.close();
         } catch {}
-        resolve();
+        reject(new Error(`sendSnmpTestTrap timed out after 3000ms (${options.trapOid})`));
       }
     }, 3000);
 

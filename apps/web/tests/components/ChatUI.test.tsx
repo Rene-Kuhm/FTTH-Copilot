@@ -32,6 +32,7 @@ describe('ChatUI error handling & kind/hint rendering', () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('renders kind badge and actionable hint when API returns structured error', async () => {
