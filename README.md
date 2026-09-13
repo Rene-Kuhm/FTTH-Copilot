@@ -55,7 +55,7 @@ Credenciales iniciales (sembradas por `pnpm setup`):
 - **Contraseña:** se genera de forma aleatoria y se imprime en consola una única vez durante el seed (o puede especificarse mediante la variable de entorno `SEED_ADMIN_PASSWORD`).
 - **Organización (tenant):** `Demo ISP` (`demo-tenant`)
 
-Por seguridad, el sembrado (`seed`) rechaza ejecutarse en entornos de producción (`NODE_ENV=production`).
+Por seguridad, el sembrado (`seed`) rechaza ejecutarse en entornos de producción (`NODE_ENV=production`) salvo autorización explícita (`ALLOW_PRODUCTION_SEED=true` o flag `--force`, utilizado automáticamente por `./install.sh`).
 
 ## Despliegue en Producción (Servidor Limpio)
 
@@ -70,11 +70,11 @@ Para servidores limpios (Ubuntu, Debian, RHEL, macOS) con Docker:
 ```
 
 El instalador:
-1. Verifica o instala Docker y Docker Compose automáticamente, validando conectividad con el daemon.
+1. Verifica la infraestructura: valida conectividad con el daemon de Docker y disponibilidad de Docker Compose (ofreciendo instalar Docker y su plugin oficial en Linux si no se detectan).
 2. Configura el puerto, contraseñas de base de datos con codificación RFC 3986 y proveedor de IA en un `.env.prod` seguro con permisos `0600`.
 3. Construye la imagen multi-stage optimizada basada en Next.js standalone y usuario `non-root`.
 4. Levanta el stack (`postgres` + migraciones automáticas + `app`) e interpola variables mediante `--env-file .env.prod`.
-5. Valida salud con fallo estricto (`fail-closed`), siembra credenciales iniciales y muestra el resumen operativo.
+5. Valida salud con fallo estricto (`fail-closed`), siembra credenciales iniciales (autorizando el seed inicial) y muestra el resumen operativo.
 
 Para gestionar el stack en producción:
 ```bash

@@ -254,6 +254,24 @@ check_docker() {
   success "Docker daemon is active and accessible (v${docker_version})"
 
   # Check Docker Compose (v2 plugin or standalone)
+  if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+    if [ "$os_type" = "Linux" ] && [ "$NON_INTERACTIVE" = false ]; then
+      warn "Docker is installed, but Docker Compose was not found."
+      local install_compose="y"
+      read_input "Would you like to install the official docker-compose-plugin? [Y/n]" install_compose "y"
+      if [[ "$install_compose" =~ ^[Yy]$ ]]; then
+        info "Installing docker-compose-plugin..."
+        if command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update -qq && sudo apt-get install -y -qq docker-compose-plugin 2>/dev/null || true
+        elif command -v dnf >/dev/null 2>&1; then
+          sudo dnf install -y docker-compose-plugin 2>/dev/null || true
+        elif command -v yum >/dev/null 2>&1; then
+          sudo yum install -y docker-compose-plugin 2>/dev/null || true
+        fi
+      fi
+    fi
+  fi
+
   if docker compose version >/dev/null 2>&1; then
     local compose_version
     compose_version=$(docker compose version --short 2>/dev/null || echo "v2")
@@ -471,7 +489,7 @@ deploy_stack() {
 
   # Run initial seed
   info "Seeding initial database roles and demo ISP data..."
-  if ! $COMPOSE_CMD run --rm db-migrate pnpm --filter @ftth-copilot/db db:seed; then
+  if ! $COMPOSE_CMD run --rm -e ALLOW_PRODUCTION_SEED=true db-migrate pnpm --filter @ftth-copilot/db db:seed -- --force; then
     error "Database seeding failed. Services are running but seed data could not be populated."
     $COMPOSE_CMD logs --tail 30 postgres || true
     exit 1

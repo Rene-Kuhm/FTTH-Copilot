@@ -34,6 +34,28 @@ suite('database seed (seed.ts) idempotency and security', () => {
     }
   });
 
+  it('allows seeding in production when explicitly authorized via option or env var', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalAllow = process.env.ALLOW_PRODUCTION_SEED;
+    const originalKms = process.env.KMS_MASTER_KEY;
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.KMS_MASTER_KEY = 'test-kms-master-key-32-chars-long-hex';
+      // 1. Authorized via forceAllowProduction option
+      const res1 = await seed({ forceAllowProduction: true });
+      expect(res1.tenantId).toBe(DEFAULT_TENANT_ID);
+
+      // 2. Authorized via ALLOW_PRODUCTION_SEED environment variable
+      process.env.ALLOW_PRODUCTION_SEED = 'true';
+      const res2 = await seed();
+      expect(res2.tenantId).toBe(DEFAULT_TENANT_ID);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      process.env.ALLOW_PRODUCTION_SEED = originalAllow;
+      process.env.KMS_MASTER_KEY = originalKms;
+    }
+  });
+
   it('creates tenant, user with hashed password, and encrypted connection on first run', async () => {
     const res = await seed({ adminPassword: 'first-run-password' });
     expect(res.tenantId).toBe(DEFAULT_TENANT_ID);
