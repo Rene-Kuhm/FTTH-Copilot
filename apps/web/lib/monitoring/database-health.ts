@@ -33,10 +33,16 @@ export async function checkDatabaseHealth(timeoutMs = 2000): Promise<DatabaseHea
       latencyMs: Date.now() - start,
     };
   } catch (err: unknown) {
+    const isTimeout =
+      err instanceof Error && err.message.includes('timed out');
+    if (!isTimeout) {
+      console.error('[DatabaseHealth] check failed:', err);
+    }
+
     return {
       status: 'error',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Database check failed',
+      error: isTimeout ? 'Database check timed out' : 'Database connection error',
     };
   }
 }
