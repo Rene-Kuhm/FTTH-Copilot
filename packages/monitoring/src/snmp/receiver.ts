@@ -50,10 +50,13 @@ export interface ManagedSnmpReceiverOptions {
   ) => void;
   onError?: (error: Error, sourceIp?: string) => void;
   onSecurityNotice?: (notice: string) => void;
+  onReady?: () => void;
 }
 
 export interface ManagedSnmpReceiverHandle {
   close: (callback?: () => void) => void;
+  /** Resolves once the underlying UDP socket has emitted 'listening'. */
+  ready: () => Promise<void>;
   getGuardMetrics: () => SnmpGuardMetrics;
   getRegistry: () => SnmpSenderRegistry;
 }
@@ -113,6 +116,16 @@ export function createManagedSnmpReceiver(
   const senderRegistry = createSenderRegistry(registrations);
   const guard: SnmpIngestionGuard = createSnmpIngestionGuard(options.guardOptions);
   const clientCommunityMap = new Map<string, string>();
+  let isReady = false;
+  const readyCallbacks: Array<() => void> = [];
+  const notifyReady = () => {
+    if (!isReady) {
+      isReady = true;
+      options.onReady?.();
+      for (const cb of readyCallbacks) cb();
+      readyCallbacks.length = 0;
+    }
+  };
 
   // Emit security warnings for registrations using plaintext v1/v2c or weak v3
   for (const reg of registrations) {
@@ -135,6 +148,15 @@ export function createManagedSnmpReceiver(
       (proxySocket as unknown as Record<string, unknown>)['address'] = () => rawSocket.address();
       (proxySocket as unknown as Record<string, unknown>)['send'] = (...args: unknown[]) =>
         (rawSocket.send as (...a: unknown[]) => void)(...args);
+
+      rawSocket.on('listening', () => {
+        notifyReady();
+        proxySocket.emit('listening');
+      });
+
+      rawSocket.on('close', () => {
+        proxySocket.emit('close');
+      });
 
       rawSocket.on('error', (err: Error) => {
         options.onError?.(err);
@@ -270,6 +292,12 @@ export function createManagedSnmpReceiver(
       } catch {
         cb?.();
       }
+    },
+    ready: () => {
+      if (isReady) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        readyCallbacks.push(resolve);
+      });
     },
     getGuardMetrics: () => guard.getMetrics(),
     getRegistry: () => senderRegistry,

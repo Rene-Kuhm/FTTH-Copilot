@@ -12,6 +12,12 @@ export default defineConfig({
       reporter: ['text', 'html', 'json-summary'],
       include: ['app/**/*.ts', 'app/**/*.tsx', 'components/**/*.ts', 'components/**/*.tsx', 'lib/**/*.ts'],
       exclude: ['**/*.d.ts'],
+      thresholds: {
+        lines: 30,
+        statements: 30,
+        branches: 70,
+        functions: 60,
+      },
     },
     // The Next.js route imports server-only modules (next/headers, @ftth-copilot/db)
     // that should never execute during unit tests. They are replaced by `vi.mock`

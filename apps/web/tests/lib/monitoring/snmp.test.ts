@@ -19,12 +19,12 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
     process.env = originalEnv;
   });
 
-  it('is disabled by default and does not bind a socket (Rule 10)', () => {
+  it('is disabled by default and does not bind a socket (Rule 10)', async () => {
     const stop = startSnmpReceiver();
     const health = snapshotHealth();
     expect(health['snmp']?.expected).toBe(false);
     expect(health['snmp']?.bound).toBe(false);
-    stop();
+    await stop();
   });
 
   it('marks service as expected when SNMP_RECEIVER_ENABLED is true and receives real binary traps', async () => {
@@ -35,6 +35,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
     const receivedEvidences: RawSnmpEvidenceEnvelope[] = [];
 
     const stop = startSnmpReceiver({
+      address: '127.0.0.1',
       registrations: [
         {
           senderIp: '127.0.0.1',
@@ -57,12 +58,13 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
     expect(health['snmp']?.expected).toBe(true);
     expect(health['snmp']?.bound).toBe(true);
 
-    // Give the UDP socket a tick to bind to avoid dropped packets
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait deterministically for the UDP socket to be bound in the OS
+    await stop.ready();
 
     try {
       await sendSnmpTestTrap({
         port: 12198,
+        host: '127.0.0.1',
         version: 'v2c',
         trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
         varbinds: [
@@ -83,7 +85,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
       expect(receivedEvidences[0].credentialsRedacted).toBe(true);
       expect(receivedEvidences[0].fingerprint).toBeDefined();
     } finally {
-      stop();
+      await stop();
     }
 
     const healthAfter = snapshotHealth();
