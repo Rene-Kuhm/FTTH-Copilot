@@ -401,4 +401,34 @@ describe('Managed SNMP Receiver (Roadmap Fase 0)', () => {
       await new Promise<void>((resolve) => r2.close(resolve));
     }
   });
+
+  it('handles immediate close() before listening: rejects pending ready(), ignores late listening, and releases port', async () => {
+    const port = 12167;
+    let onReadyCalled = false;
+    const r1 = createManagedSnmpReceiver({
+      port,
+      address: '127.0.0.1',
+      onReady: () => {
+        onReadyCalled = true;
+      },
+    });
+
+    const readyPromise = r1.ready();
+    await new Promise<void>((resolve) => r1.close(resolve));
+
+    // Pending ready() must reject because receiver closed before becoming ready
+    await expect(readyPromise).rejects.toThrow(/closed before becoming ready/);
+
+    // Wait a tick to ensure no late listening event fires or triggers onReady
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onReadyCalled).toBe(false);
+
+    // A subsequent receiver on the same port should bind successfully without EADDRINUSE
+    const r2 = createManagedSnmpReceiver({
+      port,
+      address: '127.0.0.1',
+    });
+    await expect(r2.ready()).resolves.toBeUndefined();
+    await new Promise<void>((resolve) => r2.close(resolve));
+  });
 });

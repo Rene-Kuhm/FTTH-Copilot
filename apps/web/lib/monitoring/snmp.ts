@@ -61,6 +61,8 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
   const port = positiveInt(process.env['SNMP_UDP_PORT'], 1162);
   const address = opts.address ?? process.env['SNMP_BIND_ADDRESS'] ?? '0.0.0.0';
 
+  let isStopped = false;
+
   const receiverHandle = createManagedSnmpReceiver({
     port,
     address,
@@ -95,17 +97,21 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
       }
     },
     onReady: () => {
+      if (isStopped) return;
       recordSnmpBound(true);
       opts.onReady?.();
     },
     onError: (err, sourceIp) => {
       recordSnmpBound(false);
+      if (isStopped) return;
       opts.onError?.(err);
       recordSchedulerError('snmp', `receiver error [${sourceIp ?? 'unknown'}]: ${err.message}`);
     },
   });
 
   const stopFn = (() => {
+    isStopped = true;
+    recordSnmpBound(false);
     return new Promise<void>((resolve) => {
       let settled = false;
       const timer = setTimeout(() => {
