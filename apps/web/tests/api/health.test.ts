@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetSchedulerHealth,
   markExpected,
@@ -8,6 +8,13 @@ import {
   recordSyslogBound,
 } from '@/lib/monitoring/scheduler-health';
 import { GET } from '@/app/api/health/route';
+
+const mockQueryRaw = vi.fn();
+vi.mock('@ftth-copilot/db', () => ({
+  prisma: {
+    $queryRaw: (...args: unknown[]) => mockQueryRaw(...args),
+  },
+}));
 
 /**
  * Tests for `apps/web/app/api/health/route.ts`.
@@ -29,6 +36,8 @@ import { GET } from '@/app/api/health/route';
 
 beforeEach(() => {
   __resetSchedulerHealth();
+  mockQueryRaw.mockReset();
+  mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
 });
 
 afterEach(() => {
@@ -167,3 +176,40 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
     expect(body.hungLoops).toEqual([]);
   });
 });
+
+describe('GET /api/health — database connectivity', () => {
+  it('returns 503 degraded when database connection fails', async () => {
+    mockQueryRaw.mockRejectedValue(new Error('Connection refused'));
+    const res = await GET();
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.status).toBe('degraded');
+    expect(body.database.status).toBe('error');
+    expect(body.database.error).toBe('Connection refused');
+  });
+
+  it('returns 503 degraded when database check times out', async () => {
+    mockQueryRaw.mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 5000)),
+    );
+    const res = await GET();
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.status).toBe('degraded');
+    expect(body.database.status).toBe('error');
+    expect(body.database.error).toContain('timed out');
+  }, 10000);
+
+  it('includes database status and latency in response when healthy', async () => {
+    mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('ok');
+    expect(body.database).toMatchObject({
+      status: 'connected',
+      latencyMs: expect.any(Number),
+    });
+  });
+});
+

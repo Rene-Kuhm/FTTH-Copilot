@@ -31,24 +31,30 @@ Los cuatro planos comparten los mismos principios de arquitectura: **cada conect
 
 ## Quick path (Inicio local)
 
-Requisitos: Node.js 22+, pnpm 11+ y PostgreSQL 16+.
+Requisitos: Node.js 22+, pnpm 11+ y PostgreSQL 16+ (o Docker / Docker Compose).
 
 ```bash
 # 1. Preparar entorno y variables
 cp .env.example .env
-# Configurar DATABASE_URL, KMS_MASTER_KEY, JWT_SECRET y MINIMAX_API_KEY
 
-# 2. Instalar dependencias y migrar base de datos
+# 2. Instalar dependencias
 pnpm install
-pnpm --filter @ftth-copilot/db db:migrate
 
-# 3. Iniciar entorno de desarrollo
+# 3. Setup reproducible (levanta Postgres en Docker si está disponible, aplica migraciones y seed)
+pnpm setup
+
+# 4. Iniciar entorno de desarrollo
 pnpm dev
 ```
 
 Abrí `http://localhost:3001` en el navegador.
 
-`pnpm install` genera automáticamente el cliente Prisma mediante su hook `postinstall`. También podés regenerarlo manualmente con `pnpm db:generate`.
+Credenciales iniciales (sembradas por `pnpm setup`):
+- **Email:** `admin@ftth-copilot.local`
+- **Contraseña:** `admin123456`
+- **Organización (tenant):** `Demo ISP` (`demo-tenant`)
+
+El comando `pnpm setup` es idempotente: verifica o crea `.env`, genera secretos criptográficos si detecta valores por defecto, comprueba la conectividad con PostgreSQL (iniciando el contenedor de Docker Compose automáticamente si Docker está presente), aplica las migraciones de Prisma, regenera el cliente tipado y siembra los datos iniciales de desarrollo.
 
 ## Los cuatro planos en detalle
 

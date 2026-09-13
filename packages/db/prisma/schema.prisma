@@ -595,7 +595,7 @@ model InvestigationRun {
   // Opaque, application-controlled identifier exported via
   // packages/shared as `investigationRunIdSchema`. Never derived
   // from the Prisma id.
-  runId             String         @unique
+  runId             String
   // 'pending' | 'ready' | 'failed' | 'expired'. Phase 1 keeps this
   // constant 'pending' until Phase 3 starts producing versions.
   status            String         @default("pending")

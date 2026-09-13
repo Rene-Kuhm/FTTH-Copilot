@@ -11,7 +11,11 @@
   },
   "scripts": {
     "postinstall": "pnpm --filter @ftth-copilot/db db:generate",
+    "setup": "tsx scripts/setup.ts",
     "db:generate": "pnpm --filter @ftth-copilot/db db:generate",
+    "db:migrate": "pnpm --filter @ftth-copilot/db db:migrate",
+    "db:deploy": "pnpm --filter @ftth-copilot/db db:deploy",
+    "db:seed": "pnpm --filter @ftth-copilot/db db:seed",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
