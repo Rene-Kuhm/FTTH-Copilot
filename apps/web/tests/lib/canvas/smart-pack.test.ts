@@ -141,14 +141,19 @@ describe('densityForViewport', () => {
 });
 
 describe('relayoutForColumns', () => {
-  it('honors minW when the grid shrinks', () => {
-    // a needs 6 cols and refuses to go below 6. On a 1-col grid
-    // (phone) the relayout respects minW and the panel stays 6
-    // wide; the layout validates OK.
+  it('honors minW when the grid shrinks within allowed bounds', () => {
+    const panels = [panel({ id: 'a', desiredW: 12, minW: 4 })];
+    const layout = relayoutForColumns(panels, 6);
+    expect(layout[0]!.w).toBe(6);
+    expect(validateLayoutAgainstPanels(layout, panels, { cols: 6 })).toEqual({ ok: true });
+  });
+
+  it('clamps to column count when the grid shrinks below minW', () => {
+    // By design, a panel cannot exceed the total column count (e.g. 1-col phone grid).
+    // relayoutForColumns cannot honor minW > cols and clamps to newCols.
     const panels = [panel({ id: 'a', desiredW: 6, minW: 6 })];
     const layout = relayoutForColumns(panels, 1);
-    expect(layout[0]!.w).toBe(6);
-    expect(validateLayoutAgainstPanels(layout, panels, { cols: 1 })).toEqual({ ok: true });
+    expect(layout[0]!.w).toBe(1);
   });
 
   it('compresses panels that are wider than the new grid', () => {

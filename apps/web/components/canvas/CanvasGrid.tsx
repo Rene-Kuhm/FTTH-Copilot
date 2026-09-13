@@ -25,10 +25,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-// react-grid-layout@2.2.4 ships its own TypeScript types and
-// exports Layout + GridLayoutProps directly. We do NOT need the
-// old @types/react-grid-layout package — it conflicts with 2.x.
-import { GridLayout, type Layout, type GridLayoutProps } from 'react-grid-layout';
+import { ReactGridLayout, WidthProvider, type Layout } from 'react-grid-layout/legacy';
+
+const ResponsiveGrid = WidthProvider(ReactGridLayout);
 import { useViewportDensity } from './useViewportDensity';
 import { useLayoutMemory } from './useLayoutMemory';
 import { useFreezeOnInteraction, type FreezeHandle } from './useFreezeOnInteraction';
@@ -91,28 +90,26 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
     memory.active?.items ?? initialLayout,
   );
 
+  const { onLayoutChange: onLayoutChangeProp } = props;
+  const isFrozen = freeze.frozen;
+
   // When the viewport density changes AND the operator is not
   // interacting, recompute the layout for the new column count.
   // The setState calls inside are deferred via queueMicrotask.
   useEffect(() => {
-    if (freeze.frozen) return;
+    if (isFrozen) return;
     const next = relayoutForColumns(packInput, cols);
     const validation = validateLayoutAgainstPanels(next, packInput, { cols });
     if (!validation.ok) return;
     const saved = memory.apply(next);
     queueMicrotask(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      // react-grid-layout fires onLayoutChange from its own effects;
-      // we cannot avoid being inside another effect here.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLiveLayout(saved.items);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      props.onLayoutChange?.(saved.items);
+      onLayoutChangeProp?.(saved.items);
     });
-  }, [cols]);
+  }, [cols, isFrozen, memory, packInput, onLayoutChangeProp]);
 
   const onLayoutChange = useCallback(
-    (next: ReadonlyArray<Layout>) => {
+    (next: Layout) => {
       // Update the live layout immediately for visual feedback;
       // the consumer can persist via debouncing if needed.
       const mapped: SmartPackLayoutItem[] = next.map((it) => {
@@ -128,10 +125,7 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
         };
       });
       queueMicrotask(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        // setState from a callback invoked by an external effect.
         setLiveLayout(mapped);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         props.onLayoutChange?.(mapped);
       });
     },
@@ -141,8 +135,6 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
   const onLayoutCommit = useCallback(() => {
     // Persist the live layout as a new versioned snapshot.
     queueMicrotask(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      // setState from a callback invoked by an external effect.
       memory.apply(liveLayout);
     });
   }, [memory, liveLayout]);
@@ -158,7 +150,7 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
       data-canvas-frozen={freeze.frozen ? 'true' : 'false'}
       data-canvas-mode={props.mode ?? 'editable'}
     >
-      <GridLayout
+      <ResponsiveGrid
         className="layout"
         layout={liveLayout.map((it) => ({
           i: it.i,
@@ -201,7 +193,7 @@ export function CanvasGrid(props: CanvasGridProps): React.ReactElement {
             </div>
           </div>
         ))}
-      </GridLayout>
+      </ResponsiveGrid>
     </div>
   );
 }

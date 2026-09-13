@@ -19,7 +19,7 @@
  * React adapter.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   nextLayoutId,
   snapshotLayout,
@@ -56,8 +56,26 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
   // Initial mount: read the active layout from storage, or seed one
   // from the consumer's initialItems.
   const [activeId, setActiveId] = useState<string | null>(() => {
-    const a = args.storage.getActive(args.scope);
-    return a?.id ?? null;
+    const active = args.storage.getActive(args.scope);
+    if (active !== null) {
+      return active.id;
+    }
+    if (args.initialItems.length === 0) {
+      return null;
+    }
+    const id = (args.nextId ?? (() => nextLayoutId(Date.now())))();
+    const timestamp = (args.now ?? (() => new Date().toISOString()))();
+    const seeded = snapshotLayout({
+      id,
+      name: args.initialName ?? 'Default',
+      scope: args.scope,
+      previous: null,
+      items: args.initialItems,
+      now: timestamp,
+    });
+    args.storage.save(seeded);
+    args.storage.setActive(args.scope, id);
+    return id;
   });
   const [layouts, setLayouts] = useState<SavedLayout[]>(() => args.storage.list(args.scope));
   const [, setVersion] = useState(0);
@@ -128,16 +146,8 @@ export function useLayoutMemory(args: UseLayoutMemoryArgs): UseLayoutMemoryResul
 
   const active = activeId === null ? null : args.storage.get(activeId);
 
-  // Seed an active layout on first mount if none exists AND
-  // initialItems are provided.
-  useEffect(() => {
-    if (active !== null) return;
-    if (args.initialItems.length === 0) return;
-    apply(args.initialItems, args.initialName ?? 'Default');
-    // We intentionally only run on mount; the apply function is
-    // stable across renders via useCallback closure.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { layouts, active, apply, switchTo, rename, remove };
+  return useMemo(
+    () => ({ layouts, active, apply, switchTo, rename, remove }),
+    [layouts, active, apply, switchTo, rename, remove],
+  );
 }
