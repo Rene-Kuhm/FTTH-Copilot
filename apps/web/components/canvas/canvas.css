@@ -1,0 +1,56 @@
+/*
+ * Canvas grid system — minimal CSS.
+ *
+ * Layout / drag / resize come from react-grid-layout (which uses
+ * absolute positioning + transform). We only need to:
+ *   - give the panels a card-like shell,
+ *   - give the handle a draggable cursor,
+ *   - keep the body responsive (the panel has a fixed
+ *     width/height from the grid, but the content should fill).
+ *
+ * The CSS lives as global classes so consumers don't have to
+ * import a stylesheet. The Tailwind class `canvas-*` prefix is
+ * the project convention (see apps/web/components/*).
+ */
+
+.canvas-grid-root {
+  position: relative;
+  width: 100%;
+}
+
+.canvas-panel {
+  background: var(--canvas-panel-bg, #0f172a);
+  color: var(--canvas-panel-fg, #e2e8f0);
+  border: 1px solid var(--canvas-panel-border, #1e293b);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-panel-header {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--canvas-panel-border, #1e293b);
+  cursor: move;
+  background: rgba(255, 255, 255, 0.02);
+  user-select: none;
+}
+
+.canvas-grid-root[data-canvas-frozen='true'] .canvas-panel-header {
+  cursor: default;
+}
+
+.canvas-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px;
+}
+
+.canvas-grid-root[data-canvas-mode='readonly'] .canvas-panel {
+  cursor: default;
+}
