@@ -29,25 +29,26 @@ No pienses en FTTH-Copilot como una sola aplicación aislada. El sistema articul
 
 Los cuatro planos comparten los mismos principios de arquitectura: **cada conector y adaptador es tenant-aware, nunca cae silenciosamente a fixtures en producción, y toda acción sensible está respaldada por permisos en PostgreSQL y sanitización estricta de credenciales.**
 
-## Quick path (Inicio local)
+## Quick path (Inicio local — Desarrollo)
 
 Requisitos: Node.js 22+, pnpm 11+ y PostgreSQL 16+ (o Docker / Docker Compose).
 
 ```bash
-# 1. Preparar entorno y variables
-cp .env.example .env
-
-# 2. Instalar dependencias
+# 1. Instalar dependencias
 pnpm install
 
-# 3. Setup reproducible (levanta Postgres en Docker si está disponible, aplica migraciones y seed)
+# 2. Setup interactivo (guía la configuración de LLM, API keys, conectores y levanta Postgres)
 pnpm setup
 
-# 4. Iniciar entorno de desarrollo
+# 3. Iniciar entorno de desarrollo
 pnpm dev
 ```
 
 Abrí `http://localhost:3001` en el navegador.
+
+El comando `pnpm setup` incluye un wizard interactivo (`--wizard`) que detecta o crea `.env`, genera secretos criptográficos para JWT y KMS, te permite seleccionar tu proveedor de IA (MiniMax, DeepSeek, Qwen o Mock/Demo), enmascara las API keys en terminal, comprueba la conectividad con PostgreSQL (iniciando el contenedor de Docker Compose automáticamente si Docker está presente), aplica las migraciones de Prisma, regenera el cliente tipado y siembra los datos iniciales de desarrollo.
+
+Para entornos desatendidos o CI, ejecutá `pnpm setup --non-interactive` (o `-y`).
 
 Credenciales iniciales (sembradas por `pnpm setup`):
 - **Email:** `admin@ftth-copilot.local`
@@ -56,7 +57,28 @@ Credenciales iniciales (sembradas por `pnpm setup`):
 
 Por seguridad, el sembrado (`seed`) rechaza ejecutarse en entornos de producción (`NODE_ENV=production`).
 
-El comando `pnpm setup` es idempotente: verifica o crea `.env`, genera secretos criptográficos si detecta valores por defecto, comprueba la conectividad con PostgreSQL (iniciando el contenedor de Docker Compose automáticamente si Docker está presente), aplica las migraciones de Prisma, regenera el cliente tipado y siembra los datos iniciales de desarrollo.
+## Despliegue en Producción (Servidor Limpio)
+
+Para servidores limpios (Ubuntu, Debian, RHEL, macOS) con Docker:
+
+```bash
+# 1. Ejecutar el instalador de producción interactivo
+./install.sh
+```
+
+El instalador:
+1. Verifica o instala Docker y Docker Compose automáticamente.
+2. Configura el puerto, contraseñas de base de datos y proveedor de IA en un `.env.prod` seguro con permisos `0600`.
+3. Construye la imagen multi-stage optimizada basada en Next.js standalone y usuario `non-root`.
+4. Levanta el stack (`postgres` + migraciones automáticas + `app`) y aguarda el healthcheck de `/api/health`.
+5. Siembra las credenciales iniciales de administrador y muestra el resumen operativo.
+
+Para gestionar el stack en producción:
+```bash
+docker compose -f docker-compose.prod.yml logs -f app
+docker compose -f docker-compose.prod.yml restart
+docker compose -f docker-compose.prod.yml down
+```
 
 ## Los cuatro planos en detalle
 

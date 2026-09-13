@@ -15,6 +15,12 @@ import net from 'node:net';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  c,
+  runInteractiveWizard,
+  askConfirm,
+  type WizardConfig,
+} from './lib/setup-wizard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,14 +76,49 @@ function getDockerComposeCommand(): string | null {
   }
 }
 
-async function main(): Promise<void> {
-  console.log('🚀 Setting up FTTH-Copilot development environment...\n');
+function isInteractiveMode(): boolean {
+  if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) return false;
+  if (!process.stdin.isTTY) return false;
+  if (
+    process.argv.includes('--ci') ||
+    process.argv.includes('--non-interactive') ||
+    process.argv.includes('-y') ||
+    process.argv.includes('--yes')
+  ) {
+    return false;
+  }
+  return true;
+}
 
-  // 1. Check or initialize .env
+function setEnvVariable(content: string, key: string, value: string): string {
+  const regex = new RegExp(`^${key}=.*$`, 'm');
+  if (regex.test(content)) {
+    return content.replace(regex, `${key}=${value}`);
+  }
+  return `${content.trimEnd()}\n${key}=${value}\n`;
+}
+
+function parseEnvFile(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+      const idx = trimmed.indexOf('=');
+      const k = trimmed.slice(0, idx).trim();
+      const v = trimmed.slice(idx + 1).trim();
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+async function main(): Promise<void> {
   const envPath = path.join(ROOT_DIR, '.env');
   const envExamplePath = path.join(ROOT_DIR, '.env.example');
+  const isFreshEnv = !fs.existsSync(envPath);
 
-  if (!fs.existsSync(envPath)) {
+  // 1. Check or initialize .env
+  if (isFreshEnv) {
     if (!fs.existsSync(envExamplePath)) {
       console.error('❌ Neither .env nor .env.example found in repository root.');
       process.exit(1);
@@ -90,7 +131,6 @@ async function main(): Promise<void> {
   let envUpdated = false;
 
   // Contract anchor strings from .env.example template:
-  // If .env.example changes these placeholders, update them here accordingly.
   const JWT_SECRET_PLACEHOLDER = 'replace-with-a-random-32-byte-secret';
   const KMS_MASTER_KEY_PLACEHOLDER = 'replace-with-a-different-random-32-byte-secret';
 
@@ -112,16 +152,72 @@ async function main(): Promise<void> {
     fs.writeFileSync(envPath, envContent, 'utf8');
   }
 
+  // Check if interactive wizard should be launched
+  const interactive = isInteractiveMode();
+  const forceWizard = process.argv.includes('--wizard');
+
+  if (interactive) {
+    let shouldRunWizard = isFreshEnv || forceWizard;
+    if (!shouldRunWizard) {
+      console.log(`\n${c.bold}⚙ Existing .env configuration detected.${c.reset}`);
+      shouldRunWizard = await askConfirm('Would you like to run the interactive setup wizard?', false);
+    }
+
+    if (shouldRunWizard) {
+      const parsedEnv = parseEnvFile(envContent);
+      const wizardResult: WizardConfig = await runInteractiveWizard(parsedEnv);
+
+      // Apply wizard settings to .env
+      envContent = setEnvVariable(envContent, 'LLM_PROVIDER', wizardResult.llmProvider);
+      if (wizardResult.minimaxApiKey) {
+        envContent = setEnvVariable(envContent, 'MINIMAX_API_KEY', wizardResult.minimaxApiKey);
+      }
+      if (wizardResult.minimaxModel) {
+        envContent = setEnvVariable(envContent, 'MINIMAX_MODEL', wizardResult.minimaxModel);
+      }
+      if (wizardResult.deepseekApiKey) {
+        envContent = setEnvVariable(envContent, 'DEEPSEEK_API_KEY', wizardResult.deepseekApiKey);
+      }
+      if (wizardResult.deepseekModel) {
+        envContent = setEnvVariable(envContent, 'DEEPSEEK_MODEL', wizardResult.deepseekModel);
+      }
+      if (wizardResult.qwenApiKey) {
+        envContent = setEnvVariable(envContent, 'QWEN_API_KEY', wizardResult.qwenApiKey);
+      }
+      if (wizardResult.qwenModel) {
+        envContent = setEnvVariable(envContent, 'QWEN_MODEL', wizardResult.qwenModel);
+      }
+
+      envContent = setEnvVariable(
+        envContent,
+        'SMARTOLT_USE_MOCK',
+        wizardResult.smartoltUseMock ? 'true' : 'false',
+      );
+      if (wizardResult.smartoltBaseUrl) {
+        envContent = setEnvVariable(envContent, 'SMARTOLT_API_BASE_URL', wizardResult.smartoltBaseUrl);
+      }
+      if (wizardResult.smartoltApiKey) {
+        envContent = setEnvVariable(envContent, 'SMARTOLT_API_KEY', wizardResult.smartoltApiKey);
+      }
+      if (wizardResult.databaseUrl) {
+        envContent = setEnvVariable(envContent, 'DATABASE_URL', wizardResult.databaseUrl);
+      }
+
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      console.log(`\n${c.green}✓ .env successfully updated with your configuration.${c.reset}`);
+    }
+  }
+
   // Load environment
   if (typeof process.loadEnvFile === 'function') {
     process.loadEnvFile(envPath);
   }
 
   // Check LLM configuration
-  const llmProvider = process.env.LLM_PROVIDER?.trim();
-  const minimaxKey = process.env.MINIMAX_API_KEY?.trim();
-  const deepseekKey = process.env.DEEPSEEK_API_KEY?.trim();
-  const qwenKey = process.env.QWEN_API_KEY?.trim();
+  const llmProvider = process.env['LLM_PROVIDER']?.trim();
+  const minimaxKey = process.env['MINIMAX_API_KEY']?.trim();
+  const deepseekKey = process.env['DEEPSEEK_API_KEY']?.trim();
+  const qwenKey = process.env['QWEN_API_KEY']?.trim();
 
   const isInvalidKey = (k: string | undefined) =>
     !k || k === '' || k.includes('your-key-here') || k.includes('replace-with');
