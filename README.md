@@ -17,7 +17,7 @@ Transforma señales físicas débiles (deriva de potencia óptica RX, caídas dy
 pnpm install
 
 # 2. Asistente interactivo (configura .env, genera claves KMS/JWT, migra y siembra la base)
-pnpm setup
+pnpm run setup   # o también: pnpm bootstrap
 
 # 3. Iniciar servidor de desarrollo en http://localhost:3001
 pnpm dev
@@ -26,7 +26,7 @@ pnpm dev
 > [!TIP]
 > Para entornos de integración continua o inicializaciones automatizadas sin terminal interactiva, ejecutá:
 > ```bash
-> pnpm setup --non-interactive # o pnpm setup -y
+> pnpm run setup -- --non-interactive # o pnpm run setup -- -y
 > ```
 
 **Credenciales iniciales de desarrollo:**
@@ -36,7 +36,7 @@ pnpm dev
 | **URL Acceso** | `http://localhost:3001` | Interfaz web de chat y tableros NOC/SOC |
 | **Organización (Tenant)** | `Demo ISP` (`demo-tenant`) | Entorno multi-tenant preconfigurado |
 | **Email Administrador** | `admin@ftth-copilot.local` | Usuario administrador inicial |
-| **Contraseña** | Generada en consola | Impresa durante `pnpm setup` (o variable `SEED_ADMIN_PASSWORD`) |
+| **Contraseña** | Generada en consola | Impresa durante `pnpm run setup` (o variable `SEED_ADMIN_PASSWORD`) |
 
 ---
 

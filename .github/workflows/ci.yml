@@ -311,8 +311,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Bootstrap environment with setup script (pnpm setup)
-        run: pnpm setup
+      - name: Bootstrap environment with setup script (pnpm run setup)
+        run: pnpm run setup
 
       - name: Run database tests
         run: pnpm --filter @ftth-copilot/db test
