@@ -64,20 +64,23 @@ Para servidores limpios (Ubuntu, Debian, RHEL, macOS) con Docker:
 ```bash
 # 1. Ejecutar el instalador de producción interactivo
 ./install.sh
+
+# Para despliegues automatizados, headless o CI:
+./install.sh --non-interactive # o -y
 ```
 
 El instalador:
-1. Verifica o instala Docker y Docker Compose automáticamente.
-2. Configura el puerto, contraseñas de base de datos y proveedor de IA en un `.env.prod` seguro con permisos `0600`.
+1. Verifica o instala Docker y Docker Compose automáticamente, validando conectividad con el daemon.
+2. Configura el puerto, contraseñas de base de datos con codificación RFC 3986 y proveedor de IA en un `.env.prod` seguro con permisos `0600`.
 3. Construye la imagen multi-stage optimizada basada en Next.js standalone y usuario `non-root`.
-4. Levanta el stack (`postgres` + migraciones automáticas + `app`) y aguarda el healthcheck de `/api/health`.
-5. Siembra las credenciales iniciales de administrador y muestra el resumen operativo.
+4. Levanta el stack (`postgres` + migraciones automáticas + `app`) e interpola variables mediante `--env-file .env.prod`.
+5. Valida salud con fallo estricto (`fail-closed`), siembra credenciales iniciales y muestra el resumen operativo.
 
 Para gestionar el stack en producción:
 ```bash
-docker compose -f docker-compose.prod.yml logs -f app
-docker compose -f docker-compose.prod.yml restart
-docker compose -f docker-compose.prod.yml down
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f app
+docker compose --env-file .env.prod -f docker-compose.prod.yml restart
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
 ```
 
 ## Los cuatro planos en detalle
