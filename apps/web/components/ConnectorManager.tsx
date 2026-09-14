@@ -51,7 +51,7 @@ export function ConnectorManager() {
   const auth = useAuth();
   const connectorState = useConnectors();
   const [showForm, setShowForm] = useState(false);
-  const [provider, setProvider] = useState<'SMARTOLT' | 'MIKROWISP'>('SMARTOLT');
+  const [provider, setProvider] = useState<'SMARTOLT' | 'MIKROWISP' | 'MIKROTIK'>('SMARTOLT');
   const [label, setLabel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -212,7 +212,7 @@ export function ConnectorManager() {
             <ServerStackIcon className="h-8 w-8 text-neutral-500" />
             <p className="text-sm font-semibold text-white">No hay conectores</p>
             <p className="max-w-md text-xs leading-5 text-neutral-500">
-              Agregá SmartOLT o Mikrowisp y validá la conexión para consultar tu red real.
+              Agregá SmartOLT, Mikrowisp o MikroTik y validá la conexión para consultar tu red real.
             </p>
           </div>
         ) : (
@@ -318,6 +318,7 @@ export function ConnectorManager() {
               >
                 <option value="SMARTOLT">SmartOLT</option>
                 <option value="MIKROWISP">Mikrowisp</option>
+                <option value="MIKROTIK">MikroTik RouterOS v7</option>
               </select>
             </label>
             <label className="block space-y-1.5">
@@ -334,12 +335,14 @@ export function ConnectorManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-300">Clave de API</span>
+              <span className="text-xs font-medium text-neutral-300">
+                {provider === 'MIKROTIK' ? 'Credenciales (usuario:contraseña)' : 'Clave de API'}
+              </span>
               <input
                 type="password"
                 name="connector-api-key"
                 autoComplete="off"
-                placeholder="Se guarda cifrada"
+                placeholder={provider === 'MIKROTIK' ? 'admin:clave (se guarda cifrada)' : 'Se guarda cifrada'}
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 required
@@ -352,7 +355,13 @@ export function ConnectorManager() {
                 type="url"
                 name="connector-base-url"
                 autoComplete="url"
-                placeholder={provider === 'SMARTOLT' ? 'https://tu-cuenta.smartolt.com' : 'https://tu-mikrowisp.example.com/api/v1'}
+                placeholder={
+                  provider === 'SMARTOLT'
+                    ? 'https://tu-cuenta.smartolt.com'
+                    : provider === 'MIKROWISP'
+                      ? 'https://tu-mikrowisp.example.com/api/v1'
+                      : 'https://router.tu-dominio.com'
+                }
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
                 required

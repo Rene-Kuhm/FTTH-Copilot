@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth/client';
 
 export interface ClientConnector {
   id: string;
-  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE' | 'MIKROTIK';
   label: string;
   baseUrl: string | null;
   status: 'connected' | 'error' | 'pending';

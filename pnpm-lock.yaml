@@ -66,6 +66,9 @@ importers:
       '@ftth-copilot/connectors-core':
         specifier: workspace:*
         version: link:../../packages/connectors/core
+      '@ftth-copilot/connectors-mikrotik':
+        specifier: workspace:*
+        version: link:../../packages/connectors/mikrotik
       '@ftth-copilot/connectors-mikrowisp':
         specifier: workspace:*
         version: link:../../packages/connectors/mikrowisp

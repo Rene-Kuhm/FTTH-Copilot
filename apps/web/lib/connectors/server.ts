@@ -37,7 +37,7 @@ export async function listConnectors() {
 }
 
 export async function createConnector(input: {
-  provider: 'SMARTOLT' | 'MIKROWISP';
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'MIKROTIK';
   label: string;
   apiKey: string;
   baseUrl: string;
