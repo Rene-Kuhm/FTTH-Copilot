@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FTTH-Copilot — Project Architecture",
+    "output": "ftth-copilot-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Rene-Kuhm/FTTH-Copilot",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "57fafffaa6ced6fbf84dcdc3e1d5e2a6ac7ea710"
+    },
+    "views": [
+      {
+        "id": "request-path",
+        "label": "Request and diagnosis",
+        "focus": [
+          "operator",
+          "web",
+          "agent",
+          "connectors",
+          "db"
+        ],
+        "note": "Follow an operator query through the web app, agent runtime, network connectors, and durable state."
+      },
+      {
+        "id": "observability",
+        "label": "Telemetry and evidence",
+        "focus": [
+          "monitoring",
+          "evidence",
+          "phoenix",
+          "db"
+        ],
+        "note": "Trace how traps and telemetry become evidence and OpenInference spans."
+      },
+      {
+        "id": "operations",
+        "label": "Detection and response",
+        "focus": [
+          "detection",
+          "alerts",
+          "soc",
+          "llm",
+          "connectors"
+        ],
+        "note": "See the inference, alerting, and NOC/SOC notification path."
+      }
+    ],
+    "viewBox": [
+      1380,
+      760
+    ]
+  },
+  "components": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "ISP operator",
+      "sublabel": "Web / API",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Next.js web",
+      "sublabel": "apps/web · dashboard + API",
+      "pos": [
+        260,
+        320
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "Node 22+",
+      "sources": [
+        {
+          "path": "apps/web/package.json",
+          "label": "web package"
+        }
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "Agent runtime",
+      "sublabel": "agent-core · LLM orchestration",
+      "pos": [
+        490,
+        320
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "packages/agent-core/package.json",
+          "label": "agent core"
+        }
+      ]
+    },
+    {
+      "id": "connectors",
+      "type": "external",
+      "label": "NMS connectors",
+      "sublabel": "SmartOLT · MikroTik · MikroWisp",
+      "pos": [
+        740,
+        320
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "db · Prisma · multi-tenant",
+      "pos": [
+        990,
+        320
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "packages/db/package.json",
+          "label": "database package"
+        }
+      ]
+    },
+    {
+      "id": "monitoring",
+      "type": "backend",
+      "label": "Monitoring intake",
+      "sublabel": "SNMP traps · syslog · polling",
+      "pos": [
+        740,
+        120
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "backend",
+      "label": "Evidence + analytics",
+      "sublabel": "evidence · analytics · shared",
+      "pos": [
+        990,
+        120
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "detection",
+      "type": "backend",
+      "label": "Detection engine",
+      "sublabel": "rules + anomaly inference",
+      "pos": [
+        740,
+        520
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "alerts",
+      "type": "messagebus",
+      "label": "Alert management",
+      "sublabel": "severity · retries · channels",
+      "pos": [
+        990,
+        520
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "soc",
+      "type": "external",
+      "label": "NOC / SOC channels",
+      "sublabel": "Slack · WhatsApp",
+      "pos": [
+        1185,
+        520
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "LLM providers",
+      "sublabel": "OmniRoute · MiniMax + fallbacks",
+      "pos": [
+        480,
+        120
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "phoenix",
+      "type": "cloud",
+      "label": "Arize Phoenix",
+      "sublabel": "OpenInference traces + metrics",
+      "pos": [
+        260,
+        120
+      ],
+      "size": [
+        180,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "FTTH-Copilot monorepo · pnpm + Turborepo",
+      "wraps": [
+        "web",
+        "agent",
+        "db",
+        "monitoring",
+        "evidence",
+        "detection",
+        "alerts"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "External integrations and telemetry",
+      "wraps": [
+        "connectors",
+        "llm",
+        "phoenix",
+        "soc"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "operator-web",
+      "from": "operator",
+      "to": "web",
+      "label": "HTTPS"
+    },
+    {
+      "id": "web-agent",
+      "from": "web",
+      "to": "agent"
+    },
+    {
+      "id": "agent-connectors",
+      "from": "agent",
+      "to": "connectors"
+    },
+    {
+      "id": "connectors-db",
+      "from": "connectors",
+      "to": "db"
+    },
+    {
+      "id": "monitoring-connectors",
+      "from": "monitoring",
+      "to": "connectors",
+      "variant": "dashed"
+    },
+    {
+      "id": "monitoring-evidence",
+      "from": "monitoring",
+      "to": "evidence"
+    },
+    {
+      "id": "evidence-db",
+      "from": "evidence",
+      "to": "db"
+    },
+    {
+      "id": "detection-alerts",
+      "from": "detection",
+      "to": "alerts",
+      "label": "incidents + severity",
+      "labelDy": 52
+    },
+    {
+      "id": "alerts-soc",
+      "from": "alerts",
+      "to": "soc"
+    },
+    {
+      "id": "agent-llm",
+      "from": "agent",
+      "to": "llm",
+      "label": "inference",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "orthogonal-v"
+    },
+    {
+      "id": "agent-phoenix",
+      "from": "agent",
+      "to": "phoenix",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Product surface",
+      "items": [
+        "Next.js dashboard and API serve operator workflows",
+        "Agent runtime coordinates diagnosis across NMS and LLM providers"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Network intelligence",
+      "items": [
+        "SNMP, syslog, and NMS connectors feed normalized evidence",
+        "Detection and analytics correlate signals into incidents"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Operations and safety",
+      "items": [
+        "PostgreSQL enforces durable multi-tenant state",
+        "Alert channels and Phoenix provide operational feedback and traceability"
+      ]
+    }
+  ]
+}

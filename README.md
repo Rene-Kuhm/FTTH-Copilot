@@ -222,6 +222,20 @@ pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fue
 
 ---
 
+## Arquitectura Visual
+
+El flujo completo del sistema está disponible como un diagrama interactivo generado y validado con Archify:
+
+**[Abrir diagrama interactivo de arquitectura](docs/architecture/ftth-copilot-architecture.html)**
+
+El mapa muestra el recorrido desde el operador y el dashboard Next.js hasta el runtime cognitivo, los conectores NMS, PostgreSQL, la ingesta SNMP/syslog, evidencia y analítica, detección, alertas, canales NOC/SOC, proveedores LLM y trazas Phoenix. Incluye vistas enfocadas para:
+
+- **Request and diagnosis:** consulta del operador y diagnóstico contra la red.
+- **Telemetry and evidence:** ingreso de señales, normalización, persistencia y trazabilidad.
+- **Detection and response:** correlación, severidad y despacho operativo.
+
+La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML para permitir regeneración y revisión técnica.
+
 ## Próximos Pasos y Documentación Técnica
 
 - **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
