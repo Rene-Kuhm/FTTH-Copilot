@@ -1,0 +1,20 @@
+name: Maintenance
+description: Repository maintenance or tooling change
+title: "[Chore]: "
+labels:
+  - type:chore
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Purpose
+      description: Describe the maintenance change.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This change does not alter product behavior.
+          required: true
