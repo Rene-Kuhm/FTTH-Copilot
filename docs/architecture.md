@@ -106,10 +106,11 @@ Los paquetes están organizados por **responsabilidad**, no por capa técnica. L
 | `@ftth-copilot/shared` | tipos compartidos agente↔frontend | contrato único de tipos |
 | `@ftth-copilot/connectors/core` | interfaz de conector + política de red (HTTPS, DNS, allowlist) | una sola implementación de las reglas de seguridad de red |
 | `@ftth-copilot/connectors/smartolt` / `mikrowisp` | adaptadores HTTP de cada NMS | aislar las diferencias de cada proveedor |
+| `@ftth-copilot/connectors-mikrotik` | cliente REST y binario para MikroTik RouterOS v7 | integración directa con routers de borde y OLTs MikroTik (paquete listo; runtime en PR 2) |
 | `@ftth-copilot/analytics` | recolectar samples, persistirlos, retención y SLA (`computeUptime`) | el ciclo de vida de la materia prima del NOC |
 | `@ftth-copilot/detection` | estadística (mediana/MAD/ajuste de tendencia) y detectores deterministas | los detectores puros, sin dependencia de base |
-| `@ftth-copilot/alerts` | dedup (`reconcile`), correlación (`correlateAlerts`), notificación (`sendWebhook`/`sendTelegram`), orquestación (`runDetection`) | el cerebro NOC: convierte findings en alertas persistentes |
-| `@ftth-copilot/monitoring` | `pollConnections` / `runPollCycle` | el "latido" del poller: sample → detect → notify |
+| `@ftth-copilot/alerts` | dedup (`reconcile`), correlación (`correlateAlerts`), notificación (Webhook, Telegram, Slack Block Kit, WhatsApp), orquestación (`runDetection`) | el cerebro NOC: convierte findings en alertas persistentes |
+| `@ftth-copilot/monitoring` | `pollConnections` / `runPollCycle`, decodificadores SNMP multi-fabricante | el "latido" del poller: sample → detect → notify y telemetría binaria |
 | `@ftth-copilot/security` | parseo syslog, clasificación y detectores SOC (incl. firmware y tráfico) | los detectores puros de seguridad |
 | `@ftth-copilot/soc` | `ingestEvent` y `runSecurityDetection` | el cerebro SOC: convierte eventos en hallazgos |
 | `@ftth-copilot/agent-core` | loop del agente, prompt, tools (incl. `get_predicted_issues`) | el plano conversacional |
@@ -252,13 +253,17 @@ SYSLOG_UDP_PORT=5514
 
 Después reiniciar el proceso (PM2 `ftth-copilot`). Verificá que el NMS acepte el tráfico saliente y que el puerto UDP esté abierto para el syslog de los equipos.
 
-## 11. Gaps conocidos (honestos)
+## 11. Gaps conocidos (honestos) y Estado de Integración
 
-Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cableada**, o una decisión pendiente. No son bugs; son trabajo futuro.
+Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cableada**, o una decisión pendiente. No son bugs; son trabajo futuro organizado en el roadmap:
 
 1. **Tráfico (throughput) sin datos.** `detectTrafficAnomaly` está implementado y testeado, pero los conectores todavía no exponen throughput por ONU. Hay que agregar esa recolección (nuevo `MetricKind.THROUGHPUT_MBPS` + conector que lo exponga) antes de que corra en runtime.
 2. **Resolución SOC IP → dispositivo.** `DeviceEvent.deviceId` queda `null` hasta que exista un mapeo de IP/source a equipo del tenant.
 3. **Multi-tenant por fuente syslog.** El receptor hoy atribuye todos los eventos a un único `SYSLOG_TENANT_ID`. Soportar varias fuentes → varios tenants es un follow-up.
+4. **Conector MikroTik RouterOS v7.** Disponible como paquete `@ftth-copilot/connectors-mikrotik` (REST API y fallback binario 8728). Su conexión al flujo HTTP `/api/connectors`, persistencia cifrada en base de datos y UI está programada para el **PR 2**.
+5. **Canales de Alerta Slack y WhatsApp.** Disponibles como paquete en `@ftth-copilot/alerts` (Block Kit para Slack, Markdown/REST para WhatsApp). Su conexión al flujo real de alertas por tenant en Next.js está programada para el **PR 2**.
+6. **Observabilidad Prometheus (`/api/metrics`).** Integrado en runtime (`apps/web/app/api/metrics/route.ts`). Expone métricas de proceso, poller y telemetría en formato estándar Prometheus, con autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+7. **Observabilidad LLM con Phoenix.** Instrumentación OpenInference / OpenTelemetry para evaluar latencias, tokens y calidad de respuestas cognitivas programada para el **PR 3**.
 
 ### Cierre reciente (Fase 1 del AIOps roadmap)
 

@@ -98,37 +98,52 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
 
 ---
 
-## Matriz de Compatibilidad OLT (12 Fabricantes)
+## Matriz de Compatibilidad OLT (12 Fabricantes + Interfaces Estándar)
 
-El catálogo incluye **64 definiciones auditadas** y **69 OIDs únicos** libres de colisiones semánticas, documentados en [`packages/monitoring/src/snmp/research/sources.yaml`](packages/monitoring/src/snmp/research/sources.yaml).
+El catálogo unifica **12 fabricantes de OLT con PEN IANA** más **2 interfaces estándar** (Standard RFC 2863 IF-MIB y Generic ITU-T G.984/G.988 xPON), conformando **14 perfiles auditados**, **64 definiciones formales** y **69 OIDs únicos** libres de colisiones semánticas. Las fuentes autorizadas y licencias se gestionan individualmente en [`research/olt/<fabricante>/sources.yaml`](research/olt/).
 
-| Fabricante | PEN IANA | Nivel de Soporte | Familias Validadas en Laboratorio |
-|---|---|---|---|
-| **Huawei** | 2011 | L2 Adapter | MA5600, MA5800 |
-| **ZTE** | 3902 | L2 Adapter | C300, C600 |
-| **Nokia** | 637 / 6527 | L2 Adapter | 7360 ISAM, Lightspan FX |
-| **FiberHome** | 3807 | L2 Adapter | AN5516, AN6000 |
-| **Calix** | 1251 | L2 Adapter | E7-2, AXOS series |
-| **Adtran** | 664 | L2 Adapter | Total Access 5000 (TA5000) |
-| **VSOL** | 37950 | L2 Adapter | V1600G series |
-| **BDCOM** | 3320 | L2 Adapter | P3600, GP3600 |
-| **C-Data** | 34592 | L1 Definition | FD1100, FD1200, FD1600 |
-| **DZS** | 368 | L1 Definition | V5800, V8100 series |
-| **Ubiquiti** | 41112 | L1 Definition | UFiber OLT, UFiber OLT 4 |
-| **Zyxel** | 890 | L1 Definition | OLT1404A, OLT1408A, OLT2406 |
-| **Standard RFC** | 0 | L2 Adapter | RFC 2863 IF-MIB (linkUp, linkDown) |
-| **Generic xPON** | 0 | L2 Adapter | Interfaz ITU-T G.984 / G.988 genérica |
+| Fabricante / Perfil | PEN IANA | Nivel de Soporte | Estado Operativo | Familias Validadas en Laboratorio |
+|---|---|---|---|---|
+| **Huawei** | 2011 | L2 Adapter | Integrado en runtime | MA5600, MA5800 |
+| **ZTE** | 3902 | L2 Adapter | Integrado en runtime | C300, C600 |
+| **Nokia** | 637 / 6527 | L2 Adapter | Integrado en runtime | 7360 ISAM, Lightspan FX |
+| **FiberHome** | 3807 | L2 Adapter | Integrado en runtime | AN5516, AN6000 |
+| **Calix** | 1251 | L2 Adapter | Integrado en runtime | E7-2, AXOS series |
+| **Adtran** | 664 | L2 Adapter | Integrado en runtime | Total Access 5000 (TA5000) |
+| **VSOL** | 37950 | L2 Adapter | Integrado en runtime | V1600G series |
+| **BDCOM** | 3320 | L2 Adapter | Integrado en runtime | P3600, GP3600 |
+| **Standard RFC** | 0 | L2 Adapter | Integrado en runtime | RFC 2863 IF-MIB (linkUp, linkDown) |
+| **Generic xPON** | 0 | L2 Adapter | Integrado en runtime | Interfaz ITU-T G.984 / G.988 genérica |
+| **C-Data** | 34592 | L1 Definition | Bloqueado / Espera de hardware | FD1100, FD1200, FD1600 (MIB auditada) |
+| **DZS** | 368 | L1 Definition | Bloqueado / Espera de hardware | V5800, V8100 series (MIB auditada) |
+| **Ubiquiti** | 41112 | L1 Definition | Bloqueado / Espera de hardware | UFiber OLT, UFiber OLT 4 (MIB auditada) |
+| **Zyxel** | 890 | L1 Definition | Bloqueado / Espera de hardware | OLT1404A, OLT1408A, OLT2406 (MIB auditada) |
 
 > [!NOTE]
-> Podés consultar el catálogo exhaustivo de OIDs, niveles de severidad y MIBs de origen en [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
+> - **L2 Adapter**: decodificador activo en el receptor SNMP UDP (`packages/monitoring`), con suites de pruebas unitarias, simulación y golden snapshots.
+> - **L1 Definition**: fuentes y MIBs auditadas en [`research/olt/`](research/olt/), a la espera de hardware físico o capturas de laboratorio para elevación a L2.
+> - Podés consultar la matriz canónica y criterios de conformidad en [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
 
 ---
 
-## Conectores NMS y Modo Demostración
+## Conectores, Canales de Alerta y Estado de Integración
 
-- **SmartOLT:** Conector HTTP nativo de producción y fixtures de laboratorio.
-- **Mikrowisp:** Conector HTTP nativo de producción y fixtures de laboratorio.
-- **NetSense:** En roadmap; la API rechaza explícitamente la conexión sin sustituir datos con mocks silenciosos.
+Para evitar ambigüedades entre código empaquetado y capacidades activas en producción, el estado operativo de cada componente se define explícitamente:
+
+### 1. Conectores NMS y Red
+- **SmartOLT:** **Integrado en runtime.** Cliente HTTP nativo de producción (`packages/connectors/smartolt`), validado con fixtures y conectado a `/api/chat` y dashboards.
+- **Mikrowisp:** **Integrado en runtime.** Cliente HTTP nativo de producción (`packages/connectors/mikrowisp`), validado con fixtures y conectado a `/api/chat` y dashboards.
+- **MikroTik RouterOS v7:** **Disponible como paquete** (`@ftth-copilot/connectors-mikrotik` en `packages/connectors/mikrotik`). Implementa cliente REST API con fallback a API binaria (puerto 8728), pooling y tipado estricto. *Integración en API REST (`/api/connectors`), persistencia cifrada en base de datos y UI planificada en PR 2.*
+- **NetSense:** **Pendiente en roadmap.** La API rechaza explícitamente la conexión sin sustituir datos con mocks silenciosos.
+
+### 2. Canales de Notificación y Alertas
+- **Webhooks & Telegram:** **Integrados en runtime.** Despacho automático de alertas tempranas e incidentes cognitivos por tenant vía `packages/alerts`.
+- **Slack (Block Kit):** **Disponible como paquete** (`@ftth-copilot/alerts`). Incluye formateador de payloads con bloques enriquecidos, barras de color por severidad y despacho HTTP (`sendSlack`). *Conexión al runner de alertas por tenant en Next.js planificada en PR 2.*
+- **WhatsApp (Evolution / Z-API / Cloud API):** **Disponible como paquete** (`@ftth-copilot/alerts`). Incluye formateador de texto Markdown para mensajería y despacho HTTP autenticado (`sendWhatsApp`). *Conexión al runner de alertas por tenant en Next.js planificada en PR 2.*
+
+### 3. Observabilidad y Métricas
+- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **Phoenix LLM Tracing (OpenInference):** **Pendiente en roadmap (PR 3).** Instrumentación OpenTelemetry de cadenas cognitivas, spans RAG, latencias y token counts.
 
 > [!IMPORTANT]
 > El modo demostración se habilita únicamente con `DEMO_MODE_ENABLED=true`. En este modo, la UI y el copiloto advierten explícitamente que los datos son sintéticos. En producción debe permanecer siempre en `false`.
@@ -151,12 +166,13 @@ Configuradas y documentadas en [`.env.example`](.env.example):
 
 | Dominio | Variables principales | Propósito |
 |---|---|---|
-| **NOC Poller** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS` | Intervalo y retención de series temporales de métricas ópticas |
+| **NOC Poller & Métricas** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS`, `METRICS_BEARER_TOKEN` | Intervalo y retención de series temporales; autenticación Bearer para `/api/metrics` (Prometheus) |
 | **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Despacho de incidentes predictivos por Webhook o Telegram |
 | **SOC Syslog** | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID` | Receptor y analizador UDP de eventos de red |
 | **SOC Firmware** | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS` | Auditoría de versiones con vulnerabilidades y CVEs conocidas |
 | **Red NMS** | `NMS_REQUEST_TIMEOUT_MS`, `NMS_ALLOWED_HOSTS`, `NMS_ALLOW_PRIVATE_NETWORKS` | Políticas de egreso y seguridad perimetral |
 | **Inferencia LLM** | `LLM_PROVIDER`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y llaves de inferencia |
+
 
 ---
 
