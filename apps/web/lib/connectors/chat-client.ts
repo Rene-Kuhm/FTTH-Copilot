@@ -5,12 +5,13 @@
 import { prisma, decryptApiKey } from '@ftth-copilot/db';
 import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
 import { MikrowispClient } from '@ftth-copilot/connectors-mikrowisp';
+import { MikrotikNmsAdapter } from '@ftth-copilot/connectors-mikrotik';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 
 export interface ConnectorDataSource {
   mode: 'live' | 'demo';
   connectionId: string | null;
-  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE' | 'MIKROTIK';
   label: string;
 }
 
@@ -31,7 +32,7 @@ export class ConnectorResolutionError extends Error {
 
 interface ConnectionRecord {
   id: string;
-  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE';
+  provider: 'SMARTOLT' | 'MIKROWISP' | 'NETSENSE' | 'MIKROTIK';
   label: string;
   encryptedKey: string;
   baseUrl: string | null;
@@ -64,6 +65,43 @@ export function buildConnectorFromConnection(connection: ConnectionRecord): Reso
       useMock: false,
       token: secret,
       apiBaseUrl: connection.baseUrl,
+    });
+  } else if (connection.provider === 'MIKROTIK') {
+    let username = 'admin';
+    let password = '';
+    try {
+      if (secret.startsWith('{')) {
+        const parsed = JSON.parse(secret) as { username?: string; password?: string };
+        username = parsed.username ?? 'admin';
+        password = parsed.password ?? '';
+      } else if (secret.includes(':')) {
+        const colonIdx = secret.indexOf(':');
+        username = secret.slice(0, colonIdx);
+        password = secret.slice(colonIdx + 1);
+      } else {
+        password = secret;
+      }
+    } catch {
+      password = secret;
+    }
+
+    let url: URL;
+    try {
+      url = new URL(connection.baseUrl);
+    } catch {
+      throw new ConnectorResolutionError('URL base inválida para MikroTik.', 400);
+    }
+
+    const port = url.port ? parseInt(url.port, 10) : undefined;
+    const useTls = url.protocol === 'https:';
+
+    connector = new MikrotikNmsAdapter({
+      useMock: false,
+      host: url.hostname,
+      port,
+      useTls,
+      username,
+      password,
     });
   } else {
     throw new ConnectorResolutionError(

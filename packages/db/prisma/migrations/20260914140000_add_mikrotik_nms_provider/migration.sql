@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "NmsProvider" ADD VALUE IF NOT EXISTS 'MIKROTIK';

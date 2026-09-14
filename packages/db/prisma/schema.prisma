@@ -25,6 +25,7 @@ enum NmsProvider {
   SMARTOLT
   MIKROWISP
   NETSENSE
+  MIKROTIK
 }
 
 enum NmsConnectionStatus {

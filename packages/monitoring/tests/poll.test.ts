@@ -72,6 +72,38 @@ describe('runPollCycle', () => {
       expect.objectContaining({ webhookUrl: 'https://hook', cooldownMs: 1000, lookbackMs: 2000 }),
     );
   });
+
+  it('propagates slack and whatsapp options and returns their notification counts', async () => {
+    mocks.collectSamples.mockResolvedValue([]);
+    mocks.persistSamples.mockResolvedValue({ inserted: 0 });
+    mocks.runDetection.mockResolvedValue({
+      detected: 2,
+      upserted: 2,
+      notified: 0,
+      slackNotified: 2,
+      whatsappNotified: 2,
+    });
+
+    const slack = { webhookUrl: 'https://hooks.slack.com/services/T00/B00/X00' };
+    const whatsapp = { apiUrl: 'https://wa.gateway.com', apiKey: 'secret', recipient: '5491100000000' };
+
+    const result = await runPollCycle(connector, meta, {
+      now: NOW,
+      slack,
+      whatsapp,
+    });
+
+    expect(mocks.runDetection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 't1',
+        connectionId: 'c1',
+        slack,
+        whatsapp,
+      }),
+    );
+    expect(result.slackNotified).toBe(2);
+    expect(result.whatsappNotified).toBe(2);
+  });
 });
 
 describe('pollConnections', () => {

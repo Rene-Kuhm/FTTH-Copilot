@@ -20,6 +20,8 @@ export interface PollCycleOptions {
   retentionDays?: number;
   webhookUrl?: string;
   telegram?: { botToken: string; chatId: string };
+  slack?: { webhookUrl: string };
+  whatsapp?: { apiUrl: string; apiKey?: string; recipient: string };
   cooldownMs?: number;
   resolveAfterMs?: number;
   escalateAfterMs?: number;
@@ -34,6 +36,12 @@ export interface PollCycleResult {
   upserted: number;
   notified: number;
   notificationError?: string;
+  telegramNotified?: number;
+  telegramError?: string;
+  slackNotified?: number;
+  slackError?: string;
+  whatsappNotified?: number;
+  whatsappError?: string;
 }
 
 export interface PollAllResult {
@@ -65,6 +73,8 @@ export async function runPollCycle(
     now,
     webhookUrl: opts.webhookUrl,
     telegram: opts.telegram,
+    slack: opts.slack,
+    whatsapp: opts.whatsapp,
     cooldownMs: opts.cooldownMs,
     resolveAfterMs: opts.resolveAfterMs,
     escalateAfterMs: opts.escalateAfterMs,
@@ -79,6 +89,12 @@ export async function runPollCycle(
     upserted: detection.upserted,
     notified: detection.notified,
     notificationError: detection.notificationError,
+    telegramNotified: detection.telegramNotified,
+    telegramError: detection.telegramError,
+    slackNotified: detection.slackNotified,
+    slackError: detection.slackError,
+    whatsappNotified: detection.whatsappNotified,
+    whatsappError: detection.whatsappError,
   };
 }
 

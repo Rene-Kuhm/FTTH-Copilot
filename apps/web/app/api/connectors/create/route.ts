@@ -8,7 +8,7 @@ import { createConnector } from '@/lib/connectors/server';
 export const runtime = 'nodejs';
 
 const schema = z.object({
-  provider: z.enum(['SMARTOLT', 'MIKROWISP', 'NETSENSE']),
+  provider: z.enum(['SMARTOLT', 'MIKROWISP', 'NETSENSE', 'MIKROTIK']),
   label: z.string().trim().min(1).max(80),
   apiKey: z.string().trim().min(1).max(500),
   baseUrl: z.string().url(),
