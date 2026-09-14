@@ -241,6 +241,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       dataSource: resolved.dataSource,
       tenantId: user.tenantId,
       connectionId: resolved.dataSource.connectionId ?? undefined,
+      userId: user.id,
+      conversationId: conversation.id,
       mode: resolveTruthGateModeFromEnv(),
       // Fase E — per-tenant policy loaded parallel with connector
       // resolution above. Absent row → undefined → Fase C/D byte-identical.

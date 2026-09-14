@@ -133,17 +133,17 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 ### 1. Conectores NMS y Red
 - **SmartOLT:** **Integrado en runtime.** Cliente HTTP nativo de producción (`packages/connectors/smartolt`), validado con fixtures y conectado a `/api/chat` y dashboards.
 - **Mikrowisp:** **Integrado en runtime.** Cliente HTTP nativo de producción (`packages/connectors/mikrowisp`), validado con fixtures y conectado a `/api/chat` y dashboards.
-- **MikroTik RouterOS v7:** **Disponible como paquete** (`@ftth-copilot/connectors-mikrotik` en `packages/connectors/mikrotik`). Implementa cliente REST API con fallback a API binaria (puerto 8728), pooling y tipado estricto. *Integración en API REST (`/api/connectors`), persistencia cifrada en base de datos y UI planificada en PR 2.*
+- **MikroTik RouterOS v7:** **Integrado en runtime.** Cliente REST API con fallback a API binaria (puerto 8728), conectado a `/api/connectors`, persistencia cifrada en PostgreSQL (AES-256-GCM derivado de KMS), health check y UI de configuración (`@ftth-copilot/connectors-mikrotik`, PR #189).
 - **NetSense:** **Pendiente en roadmap.** La API rechaza explícitamente la conexión sin sustituir datos con mocks silenciosos.
 
 ### 2. Canales de Notificación y Alertas
 - **Webhooks & Telegram:** **Integrados en runtime.** Despacho automático de alertas tempranas e incidentes cognitivos por tenant vía `packages/alerts`.
-- **Slack (Block Kit):** **Disponible como paquete** (`@ftth-copilot/alerts`). Incluye formateador de payloads con bloques enriquecidos, barras de color por severidad y despacho HTTP (`sendSlack`). *Conexión al runner de alertas por tenant en Next.js planificada en PR 2.*
-- **WhatsApp (Evolution / Z-API / Cloud API):** **Disponible como paquete** (`@ftth-copilot/alerts`). Incluye formateador de texto Markdown para mensajería y despacho HTTP autenticado (`sendWhatsApp`). *Conexión al runner de alertas por tenant en Next.js planificada en PR 2.*
+- **Slack (Block Kit):** **Integrado en runtime.** Formateador de payloads con bloques enriquecidos, barras de color por severidad y despacho HTTP en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
+- **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 
 ### 3. Observabilidad y Métricas
-- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
-- **Phoenix LLM Tracing (OpenInference):** **Pendiente en roadmap (PR 3).** Instrumentación OpenTelemetry de cadenas cognitivas, spans RAG, latencias y token counts.
+- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores y latencia RAG en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
 
 > [!IMPORTANT]
 > El modo demostración se habilita únicamente con `DEMO_MODE_ENABLED=true`. En este modo, la UI y el copiloto advierten explícitamente que los datos son sintéticos. En producción debe permanecer siempre en `false`.

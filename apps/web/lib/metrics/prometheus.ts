@@ -8,6 +8,11 @@ interface MetricsState {
   llmRequestsTotal: Map<string, number>;
   llmLatencySumMs: Map<string, number>;
   llmLatencyCount: Map<string, number>;
+  llmTokensTotal: Map<string, number>;
+  llmFallbackEventsTotal: Map<string, number>;
+  ragRetrievalsTotal: Map<string, number>;
+  ragLatencySumMs: number;
+  ragLatencyCount: number;
 }
 
 const state: MetricsState = {
@@ -17,6 +22,11 @@ const state: MetricsState = {
   llmRequestsTotal: new Map(),
   llmLatencySumMs: new Map(),
   llmLatencyCount: new Map(),
+  llmTokensTotal: new Map(),
+  llmFallbackEventsTotal: new Map(),
+  ragRetrievalsTotal: new Map(),
+  ragLatencySumMs: 0,
+  ragLatencyCount: 0,
 };
 
 /**
@@ -42,6 +52,33 @@ export function recordLlmMetrics(provider: string, status: 'ok' | 'error', durat
 }
 
 /**
+ * Record token consumption for an LLM provider.
+ */
+export function recordLlmTokens(provider: string, type: 'prompt' | 'completion', count: number): void {
+  const sanitizedProvider = escapeLabel(provider || 'unknown');
+  const key = `provider="${sanitizedProvider}",type="${type}"`;
+  state.llmTokensTotal.set(key, (state.llmTokensTotal.get(key) ?? 0) + count);
+}
+
+/**
+ * Record a fallback event when an LLM provider fails and the next is selected.
+ */
+export function recordLlmFallback(primary: string, fallback: string): void {
+  const key = `primary="${escapeLabel(primary)}",fallback="${escapeLabel(fallback)}"`;
+  state.llmFallbackEventsTotal.set(key, (state.llmFallbackEventsTotal.get(key) ?? 0) + 1);
+}
+
+/**
+ * Record RAG context retrieval status and duration.
+ */
+export function recordRagMetrics(status: 'ok' | 'empty' | 'error', durationMs: number): void {
+  const key = `status="${status}"`;
+  state.ragRetrievalsTotal.set(key, (state.ragRetrievalsTotal.get(key) ?? 0) + 1);
+  state.ragLatencySumMs += durationMs;
+  state.ragLatencyCount++;
+}
+
+/**
  * Reset in-memory metrics (primarily used for unit testing).
  */
 export function __resetMetricsState(): void {
@@ -51,6 +88,11 @@ export function __resetMetricsState(): void {
   state.llmRequestsTotal.clear();
   state.llmLatencySumMs.clear();
   state.llmLatencyCount.clear();
+  state.llmTokensTotal.clear();
+  state.llmFallbackEventsTotal.clear();
+  state.ragRetrievalsTotal.clear();
+  state.ragLatencySumMs = 0;
+  state.ragLatencyCount = 0;
 }
 
 function escapeLabel(val: string): string {
@@ -125,7 +167,50 @@ export async function generatePrometheusMetrics(): Promise<string> {
   }
   lines.push('');
 
-  // 5. Database Operational Metrics
+  // 5. LLM Tokens & Fallback Counters
+  lines.push('# HELP ftth_copilot_llm_tokens_total Total tokens consumed in LLM inference requests.');
+  lines.push('# TYPE ftth_copilot_llm_tokens_total counter');
+  if (state.llmTokensTotal.size === 0) {
+    lines.push('ftth_copilot_llm_tokens_total{provider="none",type="total"} 0');
+  } else {
+    for (const [labels, count] of state.llmTokensTotal.entries()) {
+      lines.push(`ftth_copilot_llm_tokens_total{${labels}} ${count}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('# HELP ftth_copilot_llm_fallback_events_total Total LLM provider fallback occurrences.');
+  lines.push('# TYPE ftth_copilot_llm_fallback_events_total counter');
+  if (state.llmFallbackEventsTotal.size === 0) {
+    lines.push('ftth_copilot_llm_fallback_events_total{primary="none",fallback="none"} 0');
+  } else {
+    for (const [labels, count] of state.llmFallbackEventsTotal.entries()) {
+      lines.push(`ftth_copilot_llm_fallback_events_total{${labels}} ${count}`);
+    }
+  }
+  lines.push('');
+
+  // 6. RAG Retrieval Metrics
+  lines.push('# HELP ftth_copilot_rag_retrievals_total Total RAG incident retrievals.');
+  lines.push('# TYPE ftth_copilot_rag_retrievals_total counter');
+  if (state.ragRetrievalsTotal.size === 0) {
+    lines.push('ftth_copilot_rag_retrievals_total{status="ok"} 0');
+  } else {
+    for (const [labels, count] of state.ragRetrievalsTotal.entries()) {
+      lines.push(`ftth_copilot_rag_retrievals_total{${labels}} ${count}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('# HELP ftth_copilot_rag_latency_seconds_total Total duration of RAG incident retrievals in seconds.');
+  lines.push('# TYPE ftth_copilot_rag_latency_seconds_total counter');
+  lines.push('# HELP ftth_copilot_rag_latency_seconds_count Count of RAG incident retrievals.');
+  lines.push('# TYPE ftth_copilot_rag_latency_seconds_count counter');
+  lines.push(`ftth_copilot_rag_latency_seconds_total ${(state.ragLatencySumMs / 1000).toFixed(4)}`);
+  lines.push(`ftth_copilot_rag_latency_seconds_count ${state.ragLatencyCount}`);
+  lines.push('');
+
+  // 7. Database Operational Metrics
   try {
     const [alertGroups, activeIncidents, totalSamples, totalTenants, connections] = await Promise.all([
       prisma.detectedAlert.groupBy({

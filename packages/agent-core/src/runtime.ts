@@ -20,6 +20,11 @@ import {
   type TopologyProvider,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
+import {
+  getTracer,
+  OpenInferenceSpanKind,
+  SemanticAttributes,
+} from './telemetry/index';
 
 /**
  * Args passed to an injected `retrievalProvider`. The runtime extracts a
@@ -82,6 +87,10 @@ export interface RunAgentOptions {
   tenantId?: string;
   /** Identificador de conexión/conector (aditivo, provenance; no entra al envelope). */
   connectionId?: string;
+  /** Identificador de usuario para trazabilidad y observabilidad. */
+  userId?: string;
+  /** Identificador de conversación para correlación de trazas (session.id). */
+  conversationId?: string;
   /**
    * Modo del TruthGate para esta ejecución (Fase C). `'strict'` (default)
    * reemplaza el texto del LLM por una abstención cuando la evidencia es
@@ -231,13 +240,28 @@ export function formatAbstentionText(abstention: Abstention): string {
  * the data path to the LLM stays byte-identical in both modes.
  */
 export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
-  // Fase E — resolve the per-tenant policy once per invocation; the
-  // resolved knobs are threaded through `shouldAbstain` and the retrieval
-  // closure consumer. Absent tenantPolicy → all knobs are `undefined` and
-  // downstream callers fall through to env / module default. The
-  // resolved truthGateMode wins over `opts.mode` (per-tenant > caller
-  // explicit arg > env > module default).
-  const env = { TRUTH_GATE_MODE: process.env['TRUTH_GATE_MODE'] };
+  return getTracer().withSpan(
+    'agent.run',
+    {
+      kind: OpenInferenceSpanKind.AGENT,
+      attributes: {
+        [SemanticAttributes.USER_ID]: opts.userId ?? 'anonymous',
+        [SemanticAttributes.TENANT_ID]: opts.tenantId ?? 'unknown',
+        [SemanticAttributes.CONNECTION_ID]: opts.connectionId ?? 'none',
+        [SemanticAttributes.SESSION_ID]: opts.conversationId ?? 'none',
+        [SemanticAttributes.DATA_SOURCE_MODE]: opts.dataSource?.mode ?? 'none',
+        [SemanticAttributes.DATA_SOURCE_PROVIDER]: opts.dataSource?.provider ?? 'none',
+        [SemanticAttributes.INPUT_VALUE]: opts.userMessage,
+      },
+    },
+    async (agentSpan) => {
+      // Fase E — resolve the per-tenant policy once per invocation; the
+      // resolved knobs are threaded through `shouldAbstain` and the retrieval
+      // closure consumer. Absent tenantPolicy → all knobs are `undefined` and
+      // downstream callers fall through to env / module default. The
+      // resolved truthGateMode wins over `opts.mode` (per-tenant > caller
+      // explicit arg > env > module default).
+      const env = { TRUTH_GATE_MODE: process.env['TRUTH_GATE_MODE'] };
   const resolvedTenantPolicy = resolveTenantPolicy({ tenantPolicy: opts.tenantPolicy }, env);
   const mode = resolvedTenantPolicy.truthGateMode ?? resolveTruthGateMode(opts.mode);
   const llm = createLlmClient();
@@ -354,15 +378,21 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
         .filter((v) => v.code === 'stale' || v.code === 'low_confidence')
         .map((v) => v.code);
       const distinctWarnCodes = Array.from(new Set(warnCodes));
-      return {
+      const res = {
         text,
         toolCalls,
         verdicts,
         warnings: distinctWarnCodes,
       };
+      agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, res.text);
+      agentSpan.setAttribute('agent.tool_calls_count', toolCalls.length);
+      return res;
     }
     // decision === 'allow' → Fase C byte-identical (no warnings field).
-    return { text, toolCalls, verdicts };
+    const res = { text, toolCalls, verdicts };
+    agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, res.text);
+    agentSpan.setAttribute('agent.tool_calls_count', toolCalls.length);
+    return res;
   };
 
   const sourcePrompt = opts.dataSource?.mode === 'demo'
@@ -398,10 +428,31 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       return finalize(response.text || '(sin respuesta)');
     }
 
-    // Ejecutar todas las tool calls y收集 sus resultados.
+    // Ejecutar todas las tool calls y recolectar sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
-      const result = await executeToolCall(connector, call.name, call.arguments, opts.predictionProvider, provenance, opts.topologyProvider);
+      const result = await getTracer().withSpan(
+        `tool.${call.name}`,
+        {
+          kind: OpenInferenceSpanKind.TOOL,
+          attributes: {
+            [SemanticAttributes.TOOL_NAME]: call.name,
+          },
+        },
+        async (toolSpan) => {
+          toolSpan.setJsonAttribute(SemanticAttributes.TOOL_PARAMETERS, call.arguments);
+          const res = await executeToolCall(
+            connector,
+            call.name,
+            call.arguments,
+            opts.predictionProvider,
+            provenance,
+            opts.topologyProvider,
+          );
+          toolSpan.setAttribute(SemanticAttributes.TOOL_OUTPUT, res);
+          return res;
+        },
+      );
       verdicts.push(classifyToolResult(result, call.name));
       toolCalls.push({ name: call.name, arguments: call.arguments, result });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
@@ -414,6 +465,8 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   }
 
   return finalize('(el agente excedió el máximo de iteraciones de tool-calling)');
+    },
+  );
 }
 
 /**
@@ -438,20 +491,50 @@ async function loadRetrievalBlock(
 ): Promise<string> {
   if (!opts.retrievalProvider) return '';
   if (opts.dataSource?.mode !== 'live') return '';
-  let results: RelevantIncidentResult[];
-  try {
-    results = await opts.retrievalProvider({
-      tenantId: opts.tenantId ?? '',
-      query: opts.userMessage,
-      deviceHint: extractDeviceHintFromMessage(opts.userMessage),
-      ...(resolved.retrievalLimit !== undefined ? { limit: resolved.retrievalLimit } : {}),
-      ...(resolved.retrievalSinceDays !== undefined ? { sinceDays: resolved.retrievalSinceDays } : {}),
-      mode: 'live',
-    });
-  } catch {
-    // Fail-safe: retrieval is augmentation, never required.
-    return '';
-  }
-  if (!Array.isArray(results) || results.length === 0) return '';
-  return formatRelevantIncidentsBlock(results);
+
+  return getTracer().withSpan(
+    'retrieval.relevant_incidents',
+    {
+      kind: OpenInferenceSpanKind.RETRIEVER,
+      attributes: {
+        [SemanticAttributes.INPUT_VALUE]: opts.userMessage,
+        'retrieval.device_hint': extractDeviceHintFromMessage(opts.userMessage) ?? 'none',
+      },
+    },
+    async (retrievalSpan) => {
+      let results: RelevantIncidentResult[];
+      try {
+        results = await opts.retrievalProvider!({
+          tenantId: opts.tenantId ?? '',
+          query: opts.userMessage,
+          deviceHint: extractDeviceHintFromMessage(opts.userMessage),
+          ...(resolved.retrievalLimit !== undefined ? { limit: resolved.retrievalLimit } : {}),
+          ...(resolved.retrievalSinceDays !== undefined
+            ? { sinceDays: resolved.retrievalSinceDays }
+            : {}),
+          mode: 'live',
+        });
+      } catch (err) {
+        retrievalSpan.setStatus('ERROR', err instanceof Error ? err.message : String(err));
+        // Fail-safe: retrieval is augmentation, never required.
+        return '';
+      }
+      if (!Array.isArray(results) || results.length === 0) {
+        retrievalSpan.setAttribute('retrieval.documents_count', 0);
+        return '';
+      }
+
+      retrievalSpan.setAttribute('retrieval.documents_count', results.length);
+      retrievalSpan.setJsonAttribute(
+        SemanticAttributes.RETRIEVAL_DOCUMENTS,
+        results.map((r) => ({
+          id: (r as { id?: string }).id,
+          rootCause: (r as { rootCause?: string }).rootCause,
+          score: r.score,
+        })),
+      );
+
+      return formatRelevantIncidentsBlock(results);
+    },
+  );
 }

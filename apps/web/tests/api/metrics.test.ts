@@ -3,6 +3,9 @@ import { NextRequest } from 'next/server';
 import {
   __resetMetricsState,
   recordLlmMetrics,
+  recordLlmTokens,
+  recordLlmFallback,
+  recordRagMetrics,
   recordSnmpTrapMetrics,
 } from '@/lib/metrics/prometheus';
 import {
@@ -100,6 +103,23 @@ describe('GET /api/metrics', () => {
     expect(body).toContain('ftth_copilot_llm_requests_total{provider="minimax",status="ok"} 1');
     expect(body).toContain('ftth_copilot_llm_requests_total{provider="deepseek",status="error"} 1');
     expect(body).toContain('ftth_copilot_llm_latency_seconds_count{provider="minimax"} 1');
+  });
+
+  it('reflects LLM tokens, provider fallback, and RAG retrieval metrics', async () => {
+    recordLlmTokens('minimax', 'prompt', 1500);
+    recordLlmTokens('minimax', 'completion', 240);
+    recordLlmFallback('minimax', 'deepseek');
+    recordRagMetrics('ok', 45);
+
+    const req = new NextRequest('http://localhost:3001/api/metrics');
+    const res = await GET(req);
+    const body = await res.text();
+
+    expect(body).toContain('ftth_copilot_llm_tokens_total{provider="minimax",type="prompt"} 1500');
+    expect(body).toContain('ftth_copilot_llm_tokens_total{provider="minimax",type="completion"} 240');
+    expect(body).toContain('ftth_copilot_llm_fallback_events_total{primary="minimax",fallback="deepseek"} 1');
+    expect(body).toContain('ftth_copilot_rag_retrievals_total{status="ok"} 1');
+    expect(body).toContain('ftth_copilot_rag_latency_seconds_count 1');
   });
 
   it('reflects background scheduler service loops', async () => {

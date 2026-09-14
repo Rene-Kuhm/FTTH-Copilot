@@ -9,6 +9,11 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import {
+  getTracer,
+  OpenInferenceSpanKind,
+  SemanticAttributes,
+} from './telemetry/index';
 
 export interface LlmMessage {
   role: 'user' | 'assistant';
@@ -67,24 +72,58 @@ class AnthropicStyleClient implements LlmClient {
       input_schema: { ...t.inputSchema, type: 'object' as const },
     }));
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: req.maxTokens ?? 2048,
-      system: req.system,
-      tools,
-      messages,
-    });
+    return getTracer().withSpan(
+      `llm.${this.provider}`,
+      {
+        kind: OpenInferenceSpanKind.LLM,
+        attributes: {
+          [SemanticAttributes.LLM_PROVIDER_NAME]: this.provider,
+          [SemanticAttributes.LLM_MODEL_NAME]: this.model,
+          [SemanticAttributes.LLM_INVOCATION_PARAMETERS]: JSON.stringify({
+            max_tokens: req.maxTokens ?? 2048,
+          }),
+        },
+      },
+      async (span) => {
+        span.setJsonAttribute(SemanticAttributes.LLM_INPUT_MESSAGES, req.messages);
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n');
+        const response = await this.client.messages.create({
+          model: this.model,
+          max_tokens: req.maxTokens ?? 2048,
+          system: req.system,
+          tools,
+          messages,
+        });
 
-    const toolCalls: LlmToolCall[] = response.content
-      .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-      .map((b) => ({ name: b.name, arguments: (b.input ?? {}) as Record<string, unknown> }));
+        if (response.usage) {
+          span.setAttribute(SemanticAttributes.LLM_TOKEN_COUNT_PROMPT, response.usage.input_tokens);
+          span.setAttribute(
+            SemanticAttributes.LLM_TOKEN_COUNT_COMPLETION,
+            response.usage.output_tokens,
+          );
+          span.setAttribute(
+            SemanticAttributes.LLM_TOKEN_COUNT_TOTAL,
+            response.usage.input_tokens + response.usage.output_tokens,
+          );
+        }
 
-    return { text: text || '(sin respuesta)', toolCalls };
+        const text = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n');
+
+        const toolCalls: LlmToolCall[] = response.content
+          .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+          .map((b) => ({ name: b.name, arguments: (b.input ?? {}) as Record<string, unknown> }));
+
+        span.setAttribute(SemanticAttributes.OUTPUT_VALUE, text);
+        span.setJsonAttribute(SemanticAttributes.LLM_OUTPUT_MESSAGES, [
+          { role: 'assistant', content: text, toolCalls },
+        ]);
+
+        return { text: text || '(sin respuesta)', toolCalls };
+      },
+    );
   }
 }
 
@@ -116,23 +155,58 @@ class OpenAIStyleClient implements LlmClient {
       },
     }));
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: req.maxTokens ?? 2048,
-      messages,
-      tools,
-      tool_choice: 'auto',
-    });
+    return getTracer().withSpan(
+      `llm.${this.provider}`,
+      {
+        kind: OpenInferenceSpanKind.LLM,
+        attributes: {
+          [SemanticAttributes.LLM_PROVIDER_NAME]: this.provider,
+          [SemanticAttributes.LLM_MODEL_NAME]: this.model,
+          [SemanticAttributes.LLM_INVOCATION_PARAMETERS]: JSON.stringify({
+            max_tokens: req.maxTokens ?? 2048,
+          }),
+        },
+      },
+      async (span) => {
+        span.setJsonAttribute(SemanticAttributes.LLM_INPUT_MESSAGES, req.messages);
 
-    const choice = response.choices[0];
-    const message = choice?.message;
-    const text = message?.content ?? '';
-    const toolCalls: LlmToolCall[] = (message?.tool_calls ?? []).map((tc) => ({
-      name: tc.function.name,
-      arguments: parseJsonSafe(tc.function.arguments),
-    }));
+        const response = await this.client.chat.completions.create({
+          model: this.model,
+          max_tokens: req.maxTokens ?? 2048,
+          messages,
+          tools,
+          tool_choice: 'auto',
+        });
 
-    return { text, toolCalls };
+        if (response.usage) {
+          span.setAttribute(SemanticAttributes.LLM_TOKEN_COUNT_PROMPT, response.usage.prompt_tokens);
+          span.setAttribute(
+            SemanticAttributes.LLM_TOKEN_COUNT_COMPLETION,
+            response.usage.completion_tokens,
+          );
+          span.setAttribute(
+            SemanticAttributes.LLM_TOKEN_COUNT_TOTAL,
+            response.usage.total_tokens ??
+              response.usage.prompt_tokens + response.usage.completion_tokens,
+          );
+        }
+
+        const choice = response.choices[0];
+        const message = choice?.message;
+        const text = message?.content ?? '';
+        const toolCalls: LlmToolCall[] = (message?.tool_calls ?? []).map((tc) => ({
+          name: tc.function.name,
+          arguments: parseJsonSafe(tc.function.arguments),
+        }));
+
+        span.setAttribute(SemanticAttributes.OUTPUT_VALUE, text);
+        span.setJsonAttribute(SemanticAttributes.LLM_OUTPUT_MESSAGES, [
+          { role: 'assistant', content: text, toolCalls },
+        ]);
+
+        return { text, toolCalls };
+      },
+    );
   }
 }
 
@@ -167,18 +241,41 @@ export class FallbackLlmClient implements LlmClient {
   }
 
   async createMessage(req: LlmRequest): Promise<LlmResponse> {
-    const errors: unknown[] = [];
-    for (const client of this.clients) {
-      try {
-        return await client.createMessage(req);
-      } catch (err) {
-        if (!isTransientError(err)) throw err;
-        errors.push(err);
-      }
-    }
-    const messages = errors.map((e) => (e instanceof Error ? e.message : String(e)));
-    throw new Error(
-      `Todos los proveedores LLM fallaron (${this.clients.map((c) => c.provider).join(', ')}): ${messages.join(' | ')}`,
+    return getTracer().withSpan(
+      'llm.fallback_chain',
+      {
+        kind: OpenInferenceSpanKind.CHAIN,
+        attributes: {
+          'chain.providers': this.clients.map((c) => c.provider).join('→'),
+        },
+      },
+      async (chainSpan) => {
+        const errors: unknown[] = [];
+        for (let i = 0; i < this.clients.length; i++) {
+          const client = this.clients[i]!;
+          try {
+            const res = await client.createMessage(req);
+            chainSpan.setAttribute('chain.selected_provider', client.provider);
+            return res;
+          } catch (err) {
+            if (!isTransientError(err)) throw err;
+            errors.push(err);
+            chainSpan.events.push({
+              name: 'provider_fallback',
+              timestampMs: Date.now(),
+              attributes: {
+                from_provider: client.provider,
+                to_provider: this.clients[i + 1]?.provider ?? 'none',
+                error: err instanceof Error ? err.message : String(err),
+              },
+            });
+          }
+        }
+        const messages = errors.map((e) => (e instanceof Error ? e.message : String(e)));
+        throw new Error(
+          `Todos los proveedores LLM fallaron (${this.clients.map((c) => c.provider).join(', ')}): ${messages.join(' | ')}`,
+        );
+      },
     );
   }
 }
