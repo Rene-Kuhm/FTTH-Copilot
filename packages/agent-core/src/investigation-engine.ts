@@ -28,6 +28,11 @@ import {
   INVESTIGATION_RULESET_VERSION,
 } from './investigation-prompt';
 import type { LlmClient } from './llm';
+import {
+  getTracer,
+  OpenInferenceSpanKind,
+  SemanticAttributes,
+} from './telemetry/index';
 
 export interface InvestigationEngineArgs {
   tenantId: string;
@@ -150,8 +155,20 @@ function sanitizeChecks(rawChecks: unknown[]): InvestigationCheck[] {
 export async function investigateIncident(
   args: InvestigationEngineArgs,
 ): Promise<InvestigationResult> {
-  const startMs = new Date(args.windowStart).getTime();
-  const endMs = new Date(args.windowEnd).getTime();
+  return getTracer().withSpan(
+    'investigation.engine',
+    {
+      kind: OpenInferenceSpanKind.CHAIN,
+      attributes: {
+        [SemanticAttributes.TENANT_ID]: args.tenantId,
+        'investigation.run_id': args.runId,
+        'investigation.incident_id': args.incidentId ?? 'none',
+        'investigation.connection_id': args.connectionId ?? 'none',
+      },
+    },
+    async (span) => {
+      const startMs = new Date(args.windowStart).getTime();
+      const endMs = new Date(args.windowEnd).getTime();
 
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
     throw new Error('Invalid ISO date string for windowStart or windowEnd');
@@ -355,6 +372,20 @@ export async function investigateIncident(
     producedBy: ENGINE_PRODUCED_BY,
   };
 
+  span.setAttribute('investigation.hypotheses_count', hypotheses.length);
+  span.setAttribute('investigation.contradictions_count', contradictions.length);
+  span.setAttribute('investigation.sufficiency', sufficiency);
+  span.setJsonAttribute(
+    'investigation.hypotheses',
+    hypotheses.map((h) => ({
+      id: h.hypothesisId,
+      summary: h.summary,
+      supportLevel: h.supportLevel,
+    })),
+  );
+
   // Enforce runtime schema contract
   return investigationResultSchema.parse(result);
+    },
+  );
 }

@@ -260,10 +260,10 @@ Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cable
 1. **Tráfico (throughput) sin datos.** `detectTrafficAnomaly` está implementado y testeado, pero los conectores todavía no exponen throughput por ONU. Hay que agregar esa recolección (nuevo `MetricKind.THROUGHPUT_MBPS` + conector que lo exponga) antes de que corra en runtime.
 2. **Resolución SOC IP → dispositivo.** `DeviceEvent.deviceId` queda `null` hasta que exista un mapeo de IP/source a equipo del tenant.
 3. **Multi-tenant por fuente syslog.** El receptor hoy atribuye todos los eventos a un único `SYSLOG_TENANT_ID`. Soportar varias fuentes → varios tenants es un follow-up.
-4. **Conector MikroTik RouterOS v7.** Disponible como paquete `@ftth-copilot/connectors-mikrotik` (REST API y fallback binario 8728). Su conexión al flujo HTTP `/api/connectors`, persistencia cifrada en base de datos y UI está programada para el **PR 2**.
-5. **Canales de Alerta Slack y WhatsApp.** Disponibles como paquete en `@ftth-copilot/alerts` (Block Kit para Slack, Markdown/REST para WhatsApp). Su conexión al flujo real de alertas por tenant en Next.js está programada para el **PR 2**.
-6. **Observabilidad Prometheus (`/api/metrics`).** Integrado en runtime (`apps/web/app/api/metrics/route.ts`). Expone métricas de proceso, poller y telemetría en formato estándar Prometheus, con autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
-7. **Observabilidad LLM con Phoenix.** Instrumentación OpenInference / OpenTelemetry para evaluar latencias, tokens y calidad de respuestas cognitivas programada para el **PR 3**.
+4. **Conector MikroTik RouterOS v7.** Integrado en runtime (`/api/connectors` y UI de configuración). Cliente REST API con fallback binario 8728, pooling y persistencia cifrada en PostgreSQL (AES-256-GCM derivado de KMS) completado en el **PR 2**.
+5. **Canales de Alerta Slack y WhatsApp.** Integrados en runtime (`apps/web/lib/alerts/runner.ts`). Despacho automático por tenant vía Block Kit (Slack) y API de mensajería (WhatsApp) completado en el **PR 2**.
+6. **Observabilidad Prometheus (`/api/metrics`).** Integrado en runtime (`apps/web/app/api/metrics/route.ts`). Expone métricas de proceso, poller, telemetría, tokens LLM y latencia RAG en formato estándar Prometheus, con autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+7. **Observabilidad LLM con Phoenix.** Integrado en runtime (`packages/agent-core/src/telemetry`). Instrumentación OpenInference / OpenTelemetry para evaluar latencias, tokens, spans RAG, llamadas a herramientas e investigación cognitiva con exportador OTLP (`POST /v1/traces`) completado en el **PR 3**.
 
 ### Cierre reciente (Fase 1 del AIOps roadmap)
 

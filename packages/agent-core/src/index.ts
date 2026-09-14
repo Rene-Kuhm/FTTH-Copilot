@@ -62,3 +62,6 @@ export {
   type InvestigationValidationReport,
   type ValidateInvestigationResultContext,
 } from './investigation-validator';
+
+// ── PR 3 — OpenInference / Phoenix Observability ─────────────────────────────
+export * from './telemetry/index';
