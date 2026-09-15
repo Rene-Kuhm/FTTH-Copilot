@@ -52,6 +52,63 @@ describe('OpenInference & Phoenix Observability', () => {
       const input = 'Rx optical power is -24.5 dBm on interface gpon-olt_1/1/1:2';
       expect(redactString(input)).toBe(input);
     });
+
+    it('redacts HTTP header-style sensitive keys (x-api-key, x-auth-token, proxy-authorization, www-authenticate)', () => {
+      const input = {
+        'X-Api-Key': 'sk-live-abcdef1234567890',
+        x_auth_token: 'tok-1234567890abcdef',
+        'Proxy-Authorization': 'Bearer proxy-jwt-secret',
+        'WWW-Authenticate': 'Basic realm="api"',
+        deviceId: 'ONU-401',
+        status: 'online',
+      };
+
+      const redacted = redactSensitiveData(input) as typeof input;
+      expect(redacted['X-Api-Key']).toBe(REDACTED_MARKER);
+      expect(redacted.x_auth_token).toBe(REDACTED_MARKER);
+      expect(redacted['Proxy-Authorization']).toBe(REDACTED_MARKER);
+      expect(redacted['WWW-Authenticate']).toBe(REDACTED_MARKER);
+      expect(redacted.deviceId).toBe('ONU-401');
+      expect(redacted.status).toBe('online');
+    });
+
+    it('redacts header-style sensitive keys when nested inside other structures', () => {
+      const input = {
+        request: {
+          headers: {
+            'x-api-key': 'live-secret-1',
+            'X-Auth-Token': 'live-secret-2',
+          },
+        },
+        response: {
+          headers: {
+            'proxy-authorization': 'Bearer proxy-jwt',
+            'www-authenticate': 'Negotiate',
+          },
+        },
+      };
+
+      const redacted = redactSensitiveData(input) as typeof input;
+      expect(redacted.request.headers['x-api-key']).toBe(REDACTED_MARKER);
+      expect(redacted.request.headers['X-Auth-Token']).toBe(REDACTED_MARKER);
+      expect(redacted.response.headers['proxy-authorization']).toBe(REDACTED_MARKER);
+      expect(redacted.response.headers['www-authenticate']).toBe(REDACTED_MARKER);
+    });
+
+    it('redacts sensitive header keys inside OpenTelemetry span attributes', () => {
+      const tracer = new OpenInferenceTracer();
+      setGlobalTracer(tracer);
+      const span = tracer.startSpan('http.client.request');
+      span.setAttribute('x-api-key', 'plain-secret');
+      span.setAttribute('X-Auth-Token', 'plain-token');
+      span.setAttribute('proxy-authorization', 'Bearer proxy-jwt');
+      span.setAttribute('www-authenticate', 'Basic realm="api"');
+
+      expect(span.attributes['x-api-key']).toBe(REDACTED_MARKER);
+      expect(span.attributes['X-Auth-Token']).toBe(REDACTED_MARKER);
+      expect(span.attributes['proxy-authorization']).toBe(REDACTED_MARKER);
+      expect(span.attributes['www-authenticate']).toBe(REDACTED_MARKER);
+    });
   });
 
   describe('PhoenixOtlpExporter', () => {

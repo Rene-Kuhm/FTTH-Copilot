@@ -15,14 +15,18 @@ const SENSITIVE_KEYS = new Set([
   'encryptedkey',
   'encrypted_key',
   'key',
-  'password',
   'passwd',
+  'password',
   'private_key',
   'privatekey',
+  'proxyauthorization',
   'secret',
   'token',
   'webhookurl',
   'webhook_url',
+  'wwwauthenticate',
+  'xapikey',
+  'xauthtoken',
 ]);
 
 const BEARER_REGEX = /bearer\s+[a-zA-Z0-9_\-.~+/]+=*/gi;
