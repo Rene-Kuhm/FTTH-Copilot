@@ -469,6 +469,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     // Ejecutar todas las tool calls y recolectar sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
+      const toolStartMark = performance.now();
       const result = await getTracer().withSpan(
         `tool.${call.name}`,
         {
@@ -492,7 +493,8 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
         },
       );
       verdicts.push(classifyToolResult(result, call.name));
-      toolCalls.push({ name: call.name, arguments: call.arguments, result });
+      const toolElapsed = Math.round(performance.now() - toolStartMark);
+      toolCalls.push({ name: call.name, arguments: call.arguments, result, durationMs: toolElapsed });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
     }
 

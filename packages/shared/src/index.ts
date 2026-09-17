@@ -8,6 +8,14 @@ export interface ToolCallRecord {
   name: string;
   arguments: Record<string, unknown>;
   result?: unknown;
+  /**
+   * Block 1 (diagnostic-router) — wall-clock duration in milliseconds for
+   * the tool execution. Measured inside `@ftth-copilot/agent-core`'s
+   * `executeToolCall` wrapper so consumers (chat route audit log,
+   * Prometheus) see a real value, not the legacy `durationMs: 0`
+   * placeholder. Omitted when the runtime does not record it.
+   */
+  durationMs?: number;
 }
 
 /**

@@ -357,7 +357,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         toolName: toolCall.name,
         parameters: toolCall.arguments as unknown as object,
         result: (toolCall.result as unknown as object) ?? undefined,
-        durationMs: 0,
+        durationMs: toolCall.durationMs ?? 0,
       },
     });
   }

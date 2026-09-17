@@ -1230,3 +1230,69 @@ describe('extractDeviceHintFromMessage', () => {
     expect(extractDeviceHintFromMessage('ONU-3,')).toBe('ONU-3');
   });
 });
+
+// ── Block 1 (diagnostic-router) — per-tool-call durationMs ────────────────
+
+describe('runAgent — Block 1 (diagnostic-router) observability', () => {
+  it('populates durationMs on every tool call record (not 0)', async () => {
+    createMessage
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ name: 'list_olts', arguments: {} }],
+      })
+      .mockResolvedValueOnce({ text: 'final', toolCalls: [] });
+
+    const result = await runAgent({
+      userMessage: 'test',
+      connector,
+      dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
+      tenantId: 't1',
+      connectionId: 'conn-1',
+    });
+
+    expect(result.toolCalls).toHaveLength(1);
+    const call = result.toolCalls[0]!;
+    // Block 1 (diagnostic-router) — durationMs is populated as a real
+    // integer ≥ 0 (was hardcoded to 0 before this change).
+    expect(typeof call.durationMs).toBe('number');
+    expect(call.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('populates tokens and latencyMs when LlmResponse carries usage', async () => {
+    createMessage.mockResolvedValueOnce({
+      text: 'final',
+      toolCalls: [],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+
+    const result = await runAgent({
+      userMessage: 'test',
+      connector,
+      dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
+      tenantId: 't1',
+      connectionId: 'conn-1',
+    });
+
+    expect(result.tokens).toEqual({ prompt: 100, completion: 50, total: 150 });
+    expect(typeof result.latencyMs).toBe('number');
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+    // Cost approximation: 100/1e6 * 1.5 + 50/1e6 * 2 = 0.00025.
+    expect(result.costUsd).toBeCloseTo(0.00025);
+  });
+
+  it('does not populate observability fields when LlmResponse omits usage', async () => {
+    createMessage.mockResolvedValueOnce({ text: 'final', toolCalls: [] });
+
+    const result = await runAgent({
+      userMessage: 'test',
+      connector,
+      dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
+      tenantId: 't1',
+      connectionId: 'conn-1',
+    });
+
+    expect(result.tokens).toBeUndefined();
+    expect(result.costUsd).toBeUndefined();
+    expect(result.latencyMs).toBeUndefined();
+  });
+});
