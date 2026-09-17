@@ -68,7 +68,7 @@ Operators, partners, and prospective customers should understand the product's s
 
 ## Progress
 
-- Current task: remote code-review delivery.
+- Current task: maintainer review; automatic merge is explicitly disabled.
 - Completed: RP-1 through RP-6.
 - Evidence:
   - README now leads with enterprise positioning, a product hero, the operator problem, six capabilities, and the public naming “Organic Diagnostic Router — adaptive routing engine”.
@@ -86,4 +86,8 @@ Operators, partners, and prospective customers should understand the product's s
 - Delivery:
   - Issue [#202](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/202) was created from the Maintenance form.
   - The repository owner explicitly approved the issue; labels are `type:chore` and `status:approved`.
-- Next step: commit, push, open the PR against `main`, and wait for all CI checks without merging.
+  - Commit `24132ce` was pushed on `docs/enterprise-repository-presentation`.
+  - PR [#203](https://github.com/Rene-Kuhm/FTTH-Copilot/pull/203) targets `main`, closes issue #202, and carries exactly one type label: `type:docs`.
+  - The maintainer accepted a 504-line `size:exception`; the rationale is recorded in the PR because the repository does not currently define that protected label.
+  - Both CI workflow runs and CodeQL completed successfully, including lint/typecheck, unit tests, PostgreSQL integration tests, build, Playwright E2E, eval gate, and aggregate CI success jobs.
+- Next step: review the green PR and decide whether to merge it manually.
