@@ -65,3 +65,11 @@ export {
 
 // ── PR 3 — OpenInference / Phoenix Observability ─────────────────────────────
 export * from './telemetry/index';
+export {
+  route,
+  DEFAULT_ROUTER_CONFIG,
+  type IntentionLabel,
+  type RouterConfig,
+  type RoutingDestination,
+  type RoutingScores,
+} from './diagnostic-router';
