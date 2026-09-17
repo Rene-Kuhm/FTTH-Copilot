@@ -10,6 +10,17 @@ export interface ToolCallRecord {
   result?: unknown;
 }
 
+/**
+ * Block 1 (diagnostic-router) — aggregate token counts for one
+ * `AgentResult`. Sums across every `createMessage` call that produced
+ * the result so consumers see one number per request.
+ */
+export interface AgentResultTokens {
+  prompt: number;
+  completion: number;
+  total: number;
+}
+
 export interface AgentResult {
   text: string;
   toolCalls: ToolCallRecord[];
@@ -59,7 +70,26 @@ export interface AgentResult {
    *   strictly additive.
    */
   warnings?: VerdictCode[];
+  /**
+   * Optional token counts accumulated across all `createMessage` calls
+   * that produced this result. See `LlmResponse.usage` in
+   * `@ftth-copilot/agent-core` for the per-call surface.
+   */
+  tokens?: AgentResultTokens;
+  /**
+   * Optional estimated cost in USD. Approximation derived from
+   * `tokens` and provider pricing; not a billing-grade number.
+   */
+  costUsd?: number;
+  /**
+   * Optional wall-clock latency in milliseconds between the first
+   * `createMessage` call and the `finalize` step.
+   */
+  latencyMs?: number;
+
 }
+
+
 
 export interface ChatRequest {
   message: string;
