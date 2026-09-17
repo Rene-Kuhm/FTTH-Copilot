@@ -1,8 +1,50 @@
-# FTTH-Copilot — Plataforma NOC/SOC y Telemetría OLT para ISPs FTTH
+# FTTH-Copilot
 
-Plataforma operativa multi-tenant que unifica en una única base compartida (PostgreSQL 16+, auth revocable y conectores NMS) **cuatro planos de operación para redes de fibra óptica**: asistencia conversacional con IA, detección predictiva e investigación cognitiva de fallas (NOC / AIOps), vigilancia perimetral de seguridad (SOC) y recepción de telemetría SNMP en tiempo real compatible con **12 fabricantes de OLT**.
+## AI-powered NOC/SOC platform for FTTH ISPs
 
-Transforma señales físicas débiles (deriva de potencia óptica RX, caídas dying gasp, intentos de intrusión o firmwares vulnerables) en **unidades de trabajo auditables y accionables**, reduciendo la carga cognitiva del operador del NOC.
+**Organic Diagnostic Router · Telemetría OLT multi-vendor · AIOps predictivo · Diagnósticos basados en evidencia · Automatización de incidentes**
+
+![FTTH-Copilot convierte telemetría de red en evidencia operativa para equipos NOC y SOC](docs/assets/ftth-copilot-hero.png)
+
+> **From network data to operational evidence.**
+
+FTTH-Copilot es una plataforma operativa multi-tenant que reúne cuatro planos de trabajo para redes de fibra óptica: asistencia conversacional, detección predictiva e investigación cognitiva de fallas (NOC/AIOps), vigilancia perimetral (SOC) y telemetría SNMP en tiempo real para múltiples fabricantes de OLT.
+
+En lugar de reemplazar el NMS existente, conecta sus señales con contexto, reglas deterministas y evidencia trazable. Así convierte derivas de potencia óptica, eventos *dying gasp*, fallos compartidos, intentos de intrusión y firmware vulnerable en diagnósticos y unidades de trabajo accionables.
+
+## Por qué FTTH-Copilot
+
+En un NOC tradicional, la información necesaria para resolver un incidente suele quedar fragmentada entre el NMS, las series temporales, las alarmas, la topología y el conocimiento del operador. El problema no es la falta de datos: es el tiempo y la carga cognitiva necesarios para convertirlos en una decisión defendible.
+
+FTTH-Copilot preserva la evidencia original, separa los hechos de las hipótesis y aplica controles de calidad antes de presentar un diagnóstico. El operador obtiene una ruta de investigación auditable sin ceder el control de la red ni habilitar remediaciones opacas.
+
+## Capacidades principales
+
+| Capacidad | Valor operativo |
+|---|---|
+| **Organic Diagnostic Router — adaptive routing engine** | Selecciona el camino mínimo viable (`direct`, `assisted` o `investigation`) según la intención, el alcance y la evidencia necesaria. |
+| **NOC y AIOps predictivo** | Detecta deriva óptica y térmica, estima tiempo hasta degradación y correlaciona incidentes por topología y tiempo. |
+| **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante perfiles auditados para 12 fabricantes y dos interfaces estándar. |
+| **SOC perimetral** | Analiza syslog, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
+| **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; TruthGate rechaza afirmaciones que la evidencia no sostiene. |
+| **Automatización e integración** | Conecta SmartOLT, Mikrowisp y MikroTik, y entrega alertas mediante webhooks, Telegram, Slack y WhatsApp. |
+
+## Del dato a la decisión
+
+```text
+OLT / NMS / Syslog
+        │
+        ▼
+Telemetría y evidencia normalizada
+        │
+        ▼
+Detección NOC/SOC + Organic Diagnostic Router
+        │
+        ▼
+Diagnóstico verificable + siguiente acción para el operador
+```
+
+La plataforma mantiene a la persona en el circuito: investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura física. Consultá la [arquitectura completa](docs/architecture.md), la [matriz OLT](docs/compatibility-matrix.md) y el [roadmap público](ROADMAP.md) para conocer el alcance y los límites actuales.
 
 ---
 
@@ -98,7 +140,9 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
 
 ---
 
-## Copiloto Conversacional: Adaptive Router
+## Copiloto Conversacional: Organic Diagnostic Router
+
+El **Organic Diagnostic Router — adaptive routing engine** clasifica cada consulta del operador y elige el nivel de razonamiento necesario sin convertir una búsqueda puntual en una investigación costosa.
 
 Cada consulta del operador se clasifica en uno de tres modos de despacho. El modo determina **cuántas llamadas al LLM** se hacen y **qué subconjunto de herramientas** recibe el modelo.
 
@@ -158,7 +202,7 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 - **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 
 ### 3. Observabilidad y Métricas
-- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores, latencia RAG y dispatch del adaptive router (`ftth_copilot_router_dispatches_total{mode="..."}`) en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores, latencia RAG y dispatch del Organic Diagnostic Router (`ftth_copilot_router_dispatches_total{mode="..."}`) en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
 - **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
 
 > [!IMPORTANT]
@@ -196,7 +240,7 @@ Configuradas y documentadas en [`.env.example`](.env.example):
 
 ### 1. Validación General del Monorepo
 ```bash
-pnpm lint                  # Análisis estático ESLint en los 15 paquetes
+pnpm lint                  # Análisis estático ESLint en los 16 workspaces
 pnpm typecheck             # Comprobación de tipos estricta con TypeScript
 pnpm test                  # Suite completa de pruebas unitarias (Vitest)
 pnpm test:coverage-check   # Control de umbrales mínimos de cobertura
@@ -221,7 +265,7 @@ pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fue
 | Paquete / Aplicación | Responsabilidad Principal |
 |---|---|
 | [`apps/web`](apps/web) | Next.js App Router, chat con IA, tableros NOC/SOC y endpoints REST |
-| [`packages/agent-core`](packages/agent-core) | Motor cognitivo con adaptive router: clasifica la consulta en `direct` / `assisted` / `investigation`, despacha herramientas y decide cuándo llamar al LLM |
+| [`packages/agent-core`](packages/agent-core) | Motor cognitivo con Organic Diagnostic Router: clasifica la consulta en `direct` / `assisted` / `investigation`, despacha herramientas y decide cuándo llamar al LLM |
 | [`packages/alerts`](packages/alerts) | Deduplicación, agrupamiento y despacho de alertas a Webhooks y Telegram |
 | [`packages/analytics`](packages/analytics) | Ingesta, agregación y persistencia de métricas temporales de fibra |
 | [`packages/connectors/core`](packages/connectors/core) | Tipos canónicos y políticas estrictas de seguridad SSRF para NMS |
@@ -254,11 +298,17 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 
 ## Próximos Pasos y Documentación Técnica
 
+- **[Roadmap público](ROADMAP.md)** — Estado actual, validación pendiente y evolución prevista del producto.
 - **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
 - **[Matriz de compatibilidad OLT](docs/compatibility-matrix.md)** — Catálogo completo de OIDs, niveles de severidad y referencias técnicas.
 - **[Pruebas de laboratorio sin hardware](docs/testing-without-hardware.md)** — Guía para inyectar trampas SNMP y simular incidentes ópticos.
 - **[Procedimiento operativo de contingencia (SOP)](docs/operations/pilot-sop-and-fallback.md)** — Procedimientos manuales para el operador cuando el análisis cognitivo no está activo.
 - **[Evolución hacia AIOps cognitivo](docs/aiops-roadmap.md)** — Hoja de ruta sobre modelos multivariados y correlación topológica.
+
+## Contribuciones y Seguridad
+
+- Consultá [`CONTRIBUTING.md`](CONTRIBUTING.md) antes de proponer cambios. El repositorio es propietario y cualquier contribución requiere coordinación previa con el propietario.
+- Para reportar una vulnerabilidad, seguí el proceso de divulgación privada de [`SECURITY.md`](SECURITY.md). No publiques información sensible en un issue.
 
 ---
 
