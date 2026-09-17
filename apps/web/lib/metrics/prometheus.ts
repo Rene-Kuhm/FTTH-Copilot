@@ -13,6 +13,7 @@ interface MetricsState {
   ragRetrievalsTotal: Map<string, number>;
   ragLatencySumMs: number;
   ragLatencyCount: number;
+  routerDispatchesTotal: Map<string, number>;
 }
 
 const state: MetricsState = {
@@ -27,6 +28,7 @@ const state: MetricsState = {
   ragRetrievalsTotal: new Map(),
   ragLatencySumMs: 0,
   ragLatencyCount: 0,
+  routerDispatchesTotal: new Map(),
 };
 
 /**
@@ -79,6 +81,17 @@ export function recordRagMetrics(status: 'ok' | 'empty' | 'error', durationMs: n
 }
 
 /**
+ * Adaptive Router (Slice 3) — record a router dispatch decision. Emits
+ * `ftth_copilot_router_dispatches_total{mode="..."}` so the chat route's
+ * before/after measurement (Block 1's instrumentation) is consumable.
+ */
+export function recordRouterDispatch(mode: 'direct' | 'assisted' | 'investigation' | 'unknown'): void {
+  const sanitized = mode.replace(/[^a-z]/g, 'unknown');
+  const key = `mode="${sanitized}"`;
+  state.routerDispatchesTotal.set(key, (state.routerDispatchesTotal.get(key) ?? 0) + 1);
+}
+
+/**
  * Reset in-memory metrics (primarily used for unit testing).
  */
 export function __resetMetricsState(): void {
@@ -93,6 +106,7 @@ export function __resetMetricsState(): void {
   state.ragRetrievalsTotal.clear();
   state.ragLatencySumMs = 0;
   state.ragLatencyCount = 0;
+  state.routerDispatchesTotal.clear();
 }
 
 function escapeLabel(val: string): string {
@@ -208,6 +222,19 @@ export async function generatePrometheusMetrics(): Promise<string> {
   lines.push('# TYPE ftth_copilot_rag_latency_seconds_count counter');
   lines.push(`ftth_copilot_rag_latency_seconds_total ${(state.ragLatencySumMs / 1000).toFixed(4)}`);
   lines.push(`ftth_copilot_rag_latency_seconds_count ${state.ragLatencyCount}`);
+
+      // 6.5 Adaptive Router Dispatches (Slice 3 — adaptive-router change).
+      // Records how the runtime decided to handle each request:
+      // direct (no LLM), assisted (1 LLM call), or investigation (full loop).
+      lines.push('# HELP ftth_copilot_router_dispatches_total Total agent runs by adaptive-router mode.');
+      lines.push('# TYPE ftth_copilot_router_dispatches_total counter');
+      if (state.routerDispatchesTotal.size === 0) {
+        lines.push('ftth_copilot_router_dispatches_total{mode="unknown"} 0');
+      } else {
+        for (const [labels, count] of state.routerDispatchesTotal.entries()) {
+          lines.push(`ftth_copilot_router_dispatches_total{${labels}} ${count}`);
+        }
+      }
   lines.push('');
 
   // 7. Database Operational Metrics

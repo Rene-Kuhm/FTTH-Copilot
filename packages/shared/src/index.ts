@@ -94,6 +94,18 @@ export interface AgentResult {
    * `createMessage` call and the `finalize` step.
    */
   latencyMs?: number;
+  /**
+   * Optional adaptive-router decision (Slice 2). Records the mode
+   * (direct / assisted / investigation), the restricted tools passed
+   * to the LLM, and the per-mode maxIterations cap. Add-only: existing
+   * consumers that destructure the previous fields keep working.
+   */
+  route?: {
+    mode: 'direct' | 'assisted' | 'investigation';
+    tools: ReadonlyArray<string>;
+    maxIterations: number;
+    reason: string;
+  };
 
 }
 

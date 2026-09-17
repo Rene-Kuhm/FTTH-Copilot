@@ -20,6 +20,7 @@ import {
   type TopologyProvider,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
+import { planRoute, type DiagnosticRoute } from './adaptive-router';
 import {
   getTracer,
   OpenInferenceSpanKind,
@@ -267,12 +268,28 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const llm = createLlmClient();
   const connector = opts.connector ?? buildDefaultConnector();
   const anthropicTools = buildTools(connector);
-  const tools: LlmTool[] = anthropicTools.map((t) => ({
+
+  // Adaptive Router (Slice 2): compute the route decision BEFORE the
+  // cognitive loop. The router picks the minimum set of tools the
+  // selected mode needs and caps maxIterations per mode.
+  const route: DiagnosticRoute = planRoute({
+    userMessage: opts.userMessage,
+  });
+  agentSpan.setAttribute('router.mode', route.mode);
+  agentSpan.setAttribute('router.tools_count', route.tools.length);
+  agentSpan.setAttribute('router.label', route.label);
+
+  // Restrict the tools passed to the LLM based on the route.
+  const restrictedToolNames = new Set(route.tools);
+  const anthropicToolsFiltered = route.mode === 'investigation'
+    ? anthropicTools
+    : anthropicTools.filter((t) => restrictedToolNames.has(t.name));
+  const tools: LlmTool[] = anthropicToolsFiltered.map((t) => ({
     name: t.name,
     description: t.description ?? '',
     inputSchema: (t as unknown as { input_schema?: Record<string, unknown> }).input_schema ?? {},
   }));
-  const maxIterations = opts.maxIterations ?? 6;
+  const maxIterations = opts.maxIterations ?? route.maxIterations;
 
   const provenance: ProvenanceContext = {
     tenantId: opts.tenantId,
@@ -413,11 +430,25 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       text,
       toolCalls,
       verdicts,
+      route,
       ...(buildObservability() ?? {}),
     };
     agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, res.text);
     agentSpan.setAttribute('agent.tool_calls_count', toolCalls.length);
     return res;
+  };
+
+  /**
+   * Slice 2 — finalize wrapper that adds the adaptive-router route
+   * decision to the AgentResult. Used by the loop's early returns
+   * (no tool calls, max iterations reached) so every code path
+   * returns a result that carries the route telemetry.
+   */
+  const finalizeWithRoute = (text: string): AgentResult => {
+    return {
+      ...finalize(text),
+      route,
+    };
   };
 
   const sourcePrompt = opts.dataSource?.mode === 'demo'
@@ -463,7 +494,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     }
 
     if (response.toolCalls.length === 0) {
-      return finalize(response.text || '(sin respuesta)');
+      return finalizeWithRoute(response.text || '(sin respuesta)');
     }
 
     // Ejecutar todas las tool calls y recolectar sus resultados.
@@ -504,7 +535,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     messages.push({ role: 'user', content: toolResultLines.join('\n') });
   }
 
-  return finalize('(el agente excedió el máximo de iteraciones de tool-calling)');
+  return finalizeWithRoute('(el agente excedió el máximo de iteraciones de tool-calling)');
     },
   );
 }

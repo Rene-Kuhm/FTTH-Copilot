@@ -73,3 +73,14 @@ export {
   type RoutingDestination,
   type RoutingScores,
 } from './diagnostic-router';
+
+export {
+  planRoute,
+  selectMode,
+  selectTools,
+  extractSignals,
+  type DiagnosticMode,
+  type DiagnosticRoute,
+  type QuerySignals,
+  type PlanRouteOptions,
+} from './adaptive-router';

@@ -71,6 +71,11 @@ describe('runAgent', () => {
       dataSource: { mode: 'demo', provider: 'SMARTOLT', label: 'Demo' },
       tenantId: 't1',
       connectionId: 'conn-1',
+      // Slice 2: explicit maxIterations forces the investigation-mode
+      // loop so this test exercises the legacy multi-iteration
+      // behaviour. Without this override the adaptive router would
+      // pick 'direct' mode for "listar" and skip the LLM call.
+      maxIterations: 6,
     });
     expect(result.toolCalls).toHaveLength(1);
     expect(result.text).toContain('[DEMO]');
