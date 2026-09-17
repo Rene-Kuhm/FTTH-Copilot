@@ -38,6 +38,11 @@ projects:
     typecheck: tsc --noEmit
     lint: "eslint ."
     coverage: vitest run --coverage
+  - path: packages/connectors/mikrotik
+    test: vitest run
+    typecheck: tsc --noEmit
+    lint: "eslint ."
+    coverage: vitest run --coverage
   - path: packages/db
     test: vitest run
     typecheck: tsc --noEmit
@@ -45,6 +50,11 @@ projects:
     coverage: vitest run --coverage --passWithNoTests
   - path: packages/detection
     test: vitest run --passWithNoTests
+    typecheck: tsc --noEmit
+    lint: "eslint ."
+    coverage: vitest run --coverage --passWithNoTests
+  - path: packages/eval
+    test: vitest run
     typecheck: tsc --noEmit
     lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
@@ -74,7 +84,7 @@ projects:
     lint: "eslint ."
     coverage: vitest run --coverage --passWithNoTests
   - path: apps/web
-    test: "—"
+    test: vitest run --passWithNoTests
     test:e2e: playwright test
     test:e2e:ui: playwright test --ui
     typecheck: tsc --noEmit
