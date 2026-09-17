@@ -91,10 +91,26 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
 
 | Plano | Qué resuelve | Señal que consume | Superficie operativa |
 |---|---|---|---|
-| **1. Copiloto Conversacional** | Diagnósticos interactivos sobre el estado de ONUs, causas de offline y consultas NMS. | APIs de SmartOLT y Mikrowisp | `/app` (Chat UI) y `/api/chat` |
+| **1. Copiloto Conversacional** | Diagnósticos interactivos sobre el estado de ONUs, causas de offline y consultas NMS. Despacha cada consulta al modo mínimo viable (`direct` / `assisted` / `investigation`). | APIs de SmartOLT y Mikrowisp | `/app` (Chat UI) y `/api/chat` |
 | **2. NOC & AIOps Cognitivo** | Predicción de derivas ópticas, cálculo de ETA a corte y formulación de hipótesis raíz. | Series temporales (potencia RX, temp) y topología | `/dashboard` (Fallas) y `/api/predictions` |
 | **3. SOC Seguridad Perimetral** | Detección de ataques de fuerza bruta, accesos tras fallos y auditoría de firmware con CVEs. | Receptor Syslog UDP (5514) e inventarios | `/dashboard` (Accesos) y `/api/security/access` |
 | **4. Telemetría SNMP** | Ingestión binaria de trampas físicas de OLTs con deduplicación y token bucket. | Receptor SNMP UDP (162/1162) v1/v2c/v3 | Ingesta de bajo nivel y catálogo OID |
+
+---
+
+## Copiloto Conversacional: Adaptive Router
+
+Cada consulta del operador se clasifica en uno de tres modos de despacho. El modo determina **cuántas llamadas al LLM** se hacen y **qué subconjunto de herramientas** recibe el modelo.
+
+| Modo | Llamadas LLM | Iteraciones máx. | Herramientas | Cuándo se usa |
+|---|---|---|---|---|
+| `direct` | **0** | 0 | 1 (la más específica) | Una sola herramienta responde la consulta. Ej.: `estado de ONU-342`, `potencia RX de ONU-342` |
+| `assisted` | **1** (o 2 si la primera emite tool call) | 1 | 2–4 | Pregunta con device ID, o consulta histórica. Ej.: `qué pasó ayer con ONU-342?` |
+| `investigation` | **hasta 6** | 6 | todas | Multi-device, análisis de causa raíz, advisory. Ej.: `caída progresiva en 28 ONUs, cuál es la causa raíz?` |
+
+**Cómo se mide.** Cada `runAgent` expone un campo opcional `route` en `AgentResult` y un contador Prometheus `ftth_copilot_router_dispatches_total{mode="..."}` en `/api/metrics`. Esto permite comparar antes/después desde Grafana o cualquier scraper compatible.
+
+**Por qué importa.** Una consulta que antes hacía `LLM → tool → LLM → tool → respuesta` puede resolverse como `tool → formatter`, sin invocación al LLM. Para una flota de decenas de operadores preguntando por estado y potencia, el ahorro de tokens es medible desde el primer día.
 
 ---
 
@@ -142,7 +158,7 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 - **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 
 ### 3. Observabilidad y Métricas
-- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores y latencia RAG en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores, latencia RAG y dispatch del adaptive router (`ftth_copilot_router_dispatches_total{mode="..."}`) en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
 - **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
 
 > [!IMPORTANT]
@@ -205,7 +221,7 @@ pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fue
 | Paquete / Aplicación | Responsabilidad Principal |
 |---|---|
 | [`apps/web`](apps/web) | Next.js App Router, chat con IA, tableros NOC/SOC y endpoints REST |
-| [`packages/agent-core`](packages/agent-core) | Motor de razonamiento cognitivo, selección de herramientas y diagnóstico |
+| [`packages/agent-core`](packages/agent-core) | Motor cognitivo con adaptive router: clasifica la consulta en `direct` / `assisted` / `investigation`, despacha herramientas y decide cuándo llamar al LLM |
 | [`packages/alerts`](packages/alerts) | Deduplicación, agrupamiento y despacho de alertas a Webhooks y Telegram |
 | [`packages/analytics`](packages/analytics) | Ingesta, agregación y persistencia de métricas temporales de fibra |
 | [`packages/connectors/core`](packages/connectors/core) | Tipos canónicos y políticas estrictas de seguridad SSRF para NMS |
