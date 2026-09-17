@@ -1,0 +1,265 @@
+{
+  "schema": "ftth.intention-corpus.v1",
+  "version": 1,
+  "description": "Block 2 (diagnostic-router) — intention classification corpus. 30 realistic cases spanning 7 surfaces × 3 intentions (incident_diagnosis, routine_topology, advisory). Each case is a plausible Spanish-language operator message whose classification the deterministic keyword scorer can validate. Edge-case phrases (no keywords, ambiguous) are tested separately and intentionally default to 'advisory' (the conservative LLM path).",
+  "cases": [
+    {
+      "id": "inc-user-msg-001",
+      "surface": "user-message",
+      "userMessage": "La ONU del cliente Juan Pérez está en LOi hace 3 horas, revisala urgente",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-002",
+      "surface": "user-message",
+      "userMessage": "Varios clientes del OLT-Core-01 reportan cortes simultáneos, parece masivo",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-003",
+      "surface": "user-message",
+      "userMessage": "Tengo un cliente sin servicio desde anoche, no funciona nada, revisalo urgente",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-004",
+      "surface": "user-message",
+      "userMessage": "Power outage general, todos los clientes sin servicio urgente",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-005",
+      "surface": "user-message",
+      "userMessage": "Cliente reporta problema crítico con su ONU, cae la conexión cada 5 minutos",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-006",
+      "surface": "user-message",
+      "userMessage": "El puerto 1/1/3 del OLT-Sur falla intermitente, hay que investigar la causa",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-007",
+      "surface": "user-message",
+      "userMessage": "La ONU del OLT-01 está caída urgente, sin servicio desde esta mañana",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-user-msg-008",
+      "surface": "user-message",
+      "userMessage": "Resolver el caso del cliente sin señal en zona norte",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-tool-args-001",
+      "surface": "tool-args",
+      "userMessage": "Buscame el cliente Juan que está sin servicio urgente",
+      "toolMocks": [
+        {
+          "toolName": "search_by_customer_name",
+          "returns": {
+            "query": "Juan",
+            "matches": [
+              {
+                "customerId": "cust-1",
+                "customerName": "Juan Pérez"
+              }
+            ]
+          }
+        }
+      ],
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-connector-001",
+      "surface": "connector-payload",
+      "userMessage": "Tengo este trap del OLT-01 indicando ONU caída urgente",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-retrieval-001",
+      "surface": "retrieval-block",
+      "userMessage": "Analizá este caso histórico del cliente con problema crítico de conexión",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-system-001",
+      "surface": "system-assembly",
+      "userMessage": "Procesá el siguiente caso urgente: cliente sin servicio",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-pred-001",
+      "surface": "prediction-provider",
+      "userMessage": "Qué alertas críticas abiertas hay en OLT-02",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "inc-hist-001",
+      "surface": "conversation-history",
+      "userMessage": "Sí, dale, investigalo urgente, está caído",
+      "expectedIntention": "incident_diagnosis"
+    },
+    {
+      "id": "topo-user-msg-001",
+      "surface": "user-message",
+      "userMessage": "Mostrame el árbol de red del OLT-Core-01",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-user-msg-002",
+      "surface": "user-message",
+      "userMessage": "Cuántos puertos tiene el OLT-Sur-03 en total",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-user-msg-003",
+      "surface": "user-message",
+      "userMessage": "Listame todos los OLTs del sistema",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-user-msg-004",
+      "surface": "user-message",
+      "userMessage": "A qué puerto del OLT-Core-01 está conectada la ONU 00:25:90:FF:FF:FF",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-user-msg-005",
+      "surface": "user-message",
+      "userMessage": "Muéstrame el detalle de los puertos del OLT-Norte",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-user-msg-006",
+      "surface": "user-message",
+      "userMessage": "Cuántas ONUs activas hay en el OLT-Sur-03",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-tool-args-001",
+      "surface": "tool-args",
+      "userMessage": "Traé los detalles del puerto 1/1/3",
+      "toolMocks": [
+        {
+          "toolName": "get_port_detail",
+          "returns": {
+            "port": "1/1/3",
+            "onus": 8,
+            "status": "up"
+          }
+        }
+      ],
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-connector-001",
+      "surface": "connector-payload",
+      "userMessage": "Información de topología del OLT",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-retrieval-001",
+      "surface": "retrieval-block",
+      "userMessage": "Mostrame los detalles topológicos del OLT-Core-01",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-system-001",
+      "surface": "system-assembly",
+      "userMessage": "Topología del OLT-Sur",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-pred-001",
+      "surface": "prediction-provider",
+      "userMessage": "Conteo de puertos totales del sistema",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "topo-hist-001",
+      "surface": "conversation-history",
+      "userMessage": "Sí, los OLTs del listado",
+      "expectedIntention": "routine_topology"
+    },
+    {
+      "id": "adv-user-msg-001",
+      "surface": "user-message",
+      "userMessage": "Cuál es la mejor práctica para configurar SNMP v3 en un OLT Huawei",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-user-msg-002",
+      "surface": "user-message",
+      "userMessage": "Qué significa el FEC corrected counter y cuándo debería preocuparme",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-user-msg-003",
+      "surface": "user-message",
+      "userMessage": "Cómo funciona el algoritmo de DBA en GPON",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-user-msg-004",
+      "surface": "user-message",
+      "userMessage": "Recomiéndame un threshold razonable de rx_power_dbm para detectar problemas",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-user-msg-005",
+      "surface": "user-message",
+      "userMessage": "Explicame cómo configurar las comunidades SNMP",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-user-msg-006",
+      "surface": "user-message",
+      "userMessage": "Cuál es la diferencia entre FEC corrected y FEC uncorrected",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-tool-args-001",
+      "surface": "tool-args",
+      "userMessage": "Pasame los traps SNMP, sólo quiero entender qué son",
+      "toolMocks": [
+        {
+          "toolName": "list_traps",
+          "returns": []
+        }
+      ],
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-connector-001",
+      "surface": "connector-payload",
+      "userMessage": "Explicame estos datos del OLT, qué significa cada contador",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-retrieval-001",
+      "surface": "retrieval-block",
+      "userMessage": "Información general sobre configuración recomendada de GPON",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-system-001",
+      "surface": "system-assembly",
+      "userMessage": "Buenas prácticas de configuración del OLT",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-pred-001",
+      "surface": "prediction-provider",
+      "userMessage": "Recomiéndame cómo interpretar las alertas",
+      "expectedIntention": "advisory"
+    },
+    {
+      "id": "adv-hist-001",
+      "surface": "conversation-history",
+      "userMessage": "Sí, gracias por la explicación",
+      "expectedIntention": "advisory"
+    }
+  ]
+}
