@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runAgent, type TruthGateMode } from '@ftth-copilot/agent-core';
+import {
+  recordLlmMetrics,
+  recordLlmTokens,
+  recordRagMetrics,
+} from '@/lib/metrics/prometheus';
 import type { Abstention, ConfirmedIncident, TenantPolicy } from '@ftth-copilot/shared';
 import type { RelevantIncidentResult } from '@ftth-copilot/evidence';
 import { buildVerdictLogEntries } from '@ftth-copilot/eval';
@@ -233,6 +238,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   };
 
   let result;
+  const llmStartMark = Date.now();
   try {
     result = await runAgent({
       userMessage: message,
@@ -268,6 +274,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error('[ftth-copilot/api/chat] agent error', error);
+    // Block 1 (diagnostic-router) — record the failed LLM call.
+    recordLlmMetrics('agent-core', 'error', Date.now() - llmStartMark);
     const { classifyChatError } = await import('@/lib/chat/error-classifier');
     const classification = classifyChatError(error);
     logRequest('POST', '/api/chat', classification.status, Date.now() - start);
@@ -280,6 +288,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: classification.status },
     );
   }
+
+  // Block 1 (diagnostic-router) — record LLM metrics after a successful run.
+  const llmElapsed = Date.now() - llmStartMark;
+  recordLlmMetrics('agent-core', 'ok', llmElapsed);
+  if (result.tokens) {
+    recordLlmTokens('agent-core', 'prompt', result.tokens.prompt);
+    recordLlmTokens('agent-core', 'completion', result.tokens.completion);
+  }
+  recordRagMetrics('ok', 0);
 
   // Fase C: persist the abstention envelope as a synthetic `__abstention__`
   // tool-call row alongside any real tool calls the agent executed. The
@@ -357,7 +374,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         toolName: toolCall.name,
         parameters: toolCall.arguments as unknown as object,
         result: (toolCall.result as unknown as object) ?? undefined,
-        durationMs: 0,
+        durationMs: toolCall.durationMs ?? 0,
       },
     });
   }

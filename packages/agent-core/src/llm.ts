@@ -42,6 +42,25 @@ export interface LlmRequest {
 export interface LlmResponse {
   text: string;
   toolCalls: LlmToolCall[];
+  /**
+   * Optional token usage. Surfaced from provider responses so downstream
+   * consumers (DB persistence, Prometheus recorders, diagnostic router)
+   * can attribute cost and token counts to each LLM call.
+   *
+   * - `input_tokens` maps to Anthropic `usage.input_tokens` and OpenAI
+   *   `usage.prompt_tokens`.
+   * - `output_tokens` maps to Anthropic `usage.output_tokens` and OpenAI
+   *   `usage.completion_tokens`.
+   *
+   * Omitted when the provider response does not include usage (some
+   * providers / paths), or when the client wraps a fallback chain where
+   * the selected client did not populate usage. Consumers MUST treat
+   * absence as "no data", not as "zero tokens".
+   */
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
 }
 
 export interface LlmClient {
@@ -121,7 +140,11 @@ class AnthropicStyleClient implements LlmClient {
           { role: 'assistant', content: text, toolCalls },
         ]);
 
-        return { text: text || '(sin respuesta)', toolCalls };
+        return {
+          text: text || '(sin respuesta)',
+          toolCalls,
+          ...(response.usage ? { usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens } } : {})
+        };
       },
     );
   }
@@ -204,7 +227,11 @@ class OpenAIStyleClient implements LlmClient {
           { role: 'assistant', content: text, toolCalls },
         ]);
 
-        return { text, toolCalls };
+        return {
+          text,
+          toolCalls,
+          ...(response.usage ? { usage: { input_tokens: response.usage.prompt_tokens, output_tokens: response.usage.completion_tokens } } : {})
+        };
       },
     );
   }

@@ -78,3 +78,43 @@ describe('shared public API surface — Fase F verdict-log re-exports', () => {
     expect(severities).toContain('critical');
   });
 });
+// ── Block 1 (diagnostic-router) — AgentResult observability fields ──────
+
+describe('shared public API surface — diagnostic-router Block 1 (LLM cost observability)', () => {
+  it('AgentResult exposes optional tokens?: { prompt, completion, total }', () => {
+    const r: Shared.AgentResult = {
+      text: 'hi',
+      toolCalls: [],
+      tokens: { prompt: 100, completion: 50, total: 150 },
+    };
+    expect(r.tokens).toEqual({ prompt: 100, completion: 50, total: 150 });
+  });
+
+  it('AgentResult exposes optional costUsd?: number', () => {
+    const r: Shared.AgentResult = {
+      text: 'hi',
+      toolCalls: [],
+      costUsd: 0.000225,
+    };
+    expect(r.costUsd).toBeCloseTo(0.000225);
+  });
+
+  it('AgentResult exposes optional latencyMs?: number', () => {
+    const r: Shared.AgentResult = {
+      text: 'hi',
+      toolCalls: [],
+      latencyMs: 1234,
+    };
+    expect(r.latencyMs).toBe(1234);
+  });
+
+  it('AgentResult without new fields remains a valid result', () => {
+    const r: Shared.AgentResult = {
+      text: 'hi',
+      toolCalls: [],
+    };
+    expect(r.tokens).toBeUndefined();
+    expect(r.costUsd).toBeUndefined();
+    expect(r.latencyMs).toBeUndefined();
+  });
+});

@@ -8,6 +8,25 @@ export interface ToolCallRecord {
   name: string;
   arguments: Record<string, unknown>;
   result?: unknown;
+  /**
+   * Block 1 (diagnostic-router) — wall-clock duration in milliseconds for
+   * the tool execution. Measured inside `@ftth-copilot/agent-core`'s
+   * `executeToolCall` wrapper so consumers (chat route audit log,
+   * Prometheus) see a real value, not the legacy `durationMs: 0`
+   * placeholder. Omitted when the runtime does not record it.
+   */
+  durationMs?: number;
+}
+
+/**
+ * Block 1 (diagnostic-router) — aggregate token counts for one
+ * `AgentResult`. Sums across every `createMessage` call that produced
+ * the result so consumers see one number per request.
+ */
+export interface AgentResultTokens {
+  prompt: number;
+  completion: number;
+  total: number;
 }
 
 export interface AgentResult {
@@ -59,7 +78,26 @@ export interface AgentResult {
    *   strictly additive.
    */
   warnings?: VerdictCode[];
+  /**
+   * Optional token counts accumulated across all `createMessage` calls
+   * that produced this result. See `LlmResponse.usage` in
+   * `@ftth-copilot/agent-core` for the per-call surface.
+   */
+  tokens?: AgentResultTokens;
+  /**
+   * Optional estimated cost in USD. Approximation derived from
+   * `tokens` and provider pricing; not a billing-grade number.
+   */
+  costUsd?: number;
+  /**
+   * Optional wall-clock latency in milliseconds between the first
+   * `createMessage` call and the `finalize` step.
+   */
+  latencyMs?: number;
+
 }
+
+
 
 export interface ChatRequest {
   message: string;

@@ -339,6 +339,24 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    * absent (no dual-fire). `'allow'` stays byte-identical to Fase C
    * (no `warnings` field added).
    */
+  /**
+   * Block 1 (diagnostic-router) — build the additive observability block
+   * when usage data exists. Returns undefined otherwise so consumers see
+   * no fields at all (not zero values).
+   */
+  const buildObservability = (): Pick<AgentResult, 'tokens' | 'costUsd' | 'latencyMs'> | undefined => {
+    if (totalPromptTokens === 0 && totalCompletionTokens === 0) return undefined;
+    const total = totalPromptTokens + totalCompletionTokens;
+    const costUsd =
+      (totalPromptTokens / 1_000_000) * 1.5 + (totalCompletionTokens / 1_000_000) * 2;
+    const totalElapsed = Math.round(performance.now() - runStartMark);
+    return {
+      tokens: { prompt: totalPromptTokens, completion: totalCompletionTokens, total },
+      costUsd,
+      latencyMs: totalElapsed,
+    };
+  };
+
   const finalize = (text: string): AgentResult => {
     const policyArg =
       resolvedTenantPolicy.abstainOnCodes !== undefined
@@ -362,6 +380,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
         verdicts,
         abstention,
         abstained: true,
+            ...(buildObservability() ?? {}),
       };
     }
     if (decision === 'warn') {
@@ -383,13 +402,19 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
         toolCalls,
         verdicts,
         warnings: distinctWarnCodes,
+            ...(buildObservability() ?? {}),
       };
       agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, res.text);
       agentSpan.setAttribute('agent.tool_calls_count', toolCalls.length);
       return res;
     }
     // decision === 'allow' → Fase C byte-identical (no warnings field).
-    const res = { text, toolCalls, verdicts };
+    const res = {
+      text,
+      toolCalls,
+      verdicts,
+      ...(buildObservability() ?? {}),
+    };
     agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, res.text);
     agentSpan.setAttribute('agent.tool_calls_count', toolCalls.length);
     return res;
@@ -416,13 +441,26 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    */
   const retrievalBlock = await loadRetrievalBlock(opts, resolvedTenantPolicy);
 
+  // Block 1 (diagnostic-router): track cumulative LLM usage and latency
+  // across the iteration loop so the final `AgentResult` can carry them.
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  const runStartMark = performance.now();
+
   for (let i = 0; i < maxIterations; i++) {
+    const iterStart = performance.now();
     const response = await llm.createMessage({
       system: SYSTEM_PROMPT + sourcePrompt + retrievalBlock,
       messages,
       tools,
       maxTokens: 2048,
     });
+
+    // Block 1 (diagnostic-router) — accumulate usage and latency.
+    if (response.usage) {
+      totalPromptTokens += response.usage.input_tokens;
+      totalCompletionTokens += response.usage.output_tokens;
+    }
 
     if (response.toolCalls.length === 0) {
       return finalize(response.text || '(sin respuesta)');
@@ -431,6 +469,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     // Ejecutar todas las tool calls y recolectar sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
+      const toolStartMark = performance.now();
       const result = await getTracer().withSpan(
         `tool.${call.name}`,
         {
@@ -454,7 +493,8 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
         },
       );
       verdicts.push(classifyToolResult(result, call.name));
-      toolCalls.push({ name: call.name, arguments: call.arguments, result });
+      const toolElapsed = Math.round(performance.now() - toolStartMark);
+      toolCalls.push({ name: call.name, arguments: call.arguments, result, durationMs: toolElapsed });
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
     }
 
