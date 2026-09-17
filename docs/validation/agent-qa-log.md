@@ -6,7 +6,7 @@
 
 ## Quick path
 
-1. Run the suite (any future agent change): `python3 scripts/run-qa.py` (TODO: add this script)
+1. Run the suite (any future agent change): `python3 scripts/run-qa.py`
 2. Open this file, fill the **Score** column for each Q
 3. Calculate the **Pass rate** at the bottom
 4. If pass rate ≥ 80%, promote to Phase 2

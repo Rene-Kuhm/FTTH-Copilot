@@ -20,7 +20,7 @@ import {
   type TopologyProvider,
 } from './tools/index';
 import { createLlmClient, type LlmMessage, type LlmTool } from './llm';
-import { planRoute, type DiagnosticRoute } from './adaptive-router';
+import { extractSignals, planRoute, type DiagnosticRoute } from './adaptive-router';
 import {
   getTracer,
   OpenInferenceSpanKind,
@@ -224,6 +224,49 @@ export function formatAbstentionText(abstention: Abstention): string {
   return blocks.join('\n\n');
 }
 
+function directToolArguments(
+  toolName: string,
+  userMessage: string,
+): Record<string, unknown> {
+  const deviceId = extractSignals(userMessage).deviceIds[0];
+  if (!deviceId) return {};
+
+  switch (toolName) {
+    case 'get_onu_detail':
+      return { identifier: deviceId };
+    case 'get_olt_detail':
+      return { oltId: deviceId };
+    case 'get_topology_path':
+    case 'get_downstream_clients': {
+      const prefix = deviceId.split(/[- ]/, 1)[0];
+      const deviceKind = prefix === 'PON'
+        ? 'PON_PORT'
+        : prefix === 'SPL'
+          ? 'SPLITTER'
+          : prefix;
+      return { deviceKind, deviceId };
+    }
+    default:
+      return {};
+  }
+}
+
+function formatDirectToolResult(toolName: string, raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      if ('error' in parsed) {
+        return `No se pudo ejecutar ${toolName}: ${String(parsed.error)}`;
+      }
+      const payload = 'data' in parsed ? parsed.data : parsed;
+      return `Resultado de ${toolName}: ${JSON.stringify(payload)}`;
+    }
+  } catch {
+    // Plain-text tool failures already carry an operator-facing explanation.
+  }
+  return raw;
+}
+
 /**
  * Loop principal del agente: recibe el mensaje del usuario, le pide al LLM
  * (MiniMax/DeepSeek/Qwen vía `createLlmClient`) que responda (posiblemente
@@ -265,7 +308,6 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       const env = { TRUTH_GATE_MODE: process.env['TRUTH_GATE_MODE'] };
   const resolvedTenantPolicy = resolveTenantPolicy({ tenantPolicy: opts.tenantPolicy }, env);
   const mode = resolvedTenantPolicy.truthGateMode ?? resolveTruthGateMode(opts.mode);
-  const llm = createLlmClient();
   const connector = opts.connector ?? buildDefaultConnector();
   const anthropicTools = buildTools(connector);
 
@@ -289,7 +331,6 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     description: t.description ?? '',
     inputSchema: (t as unknown as { input_schema?: Record<string, unknown> }).input_schema ?? {},
   }));
-  const maxIterations = opts.maxIterations ?? route.maxIterations;
 
   const provenance: ProvenanceContext = {
     tenantId: opts.tenantId,
@@ -301,6 +342,9 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const toolCalls: ToolCallRecord[] = [];
   const verdicts: Verdict[] = [];
   const referenceNow = new Date();
+  const runStartMark = performance.now();
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
 
   /**
    * Classify a single tool result string. The data still flows to the LLM
@@ -322,6 +366,39 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       return classifyUnwrapped(toolName);
     }
     return classifyEnvelope(parsed, toolName, referenceNow);
+  };
+
+  const executeAndRecordTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<string> => {
+    const toolStartMark = performance.now();
+    const result = await getTracer().withSpan(
+      `tool.${name}`,
+      {
+        kind: OpenInferenceSpanKind.TOOL,
+        attributes: {
+          [SemanticAttributes.TOOL_NAME]: name,
+        },
+      },
+      async (toolSpan) => {
+        toolSpan.setJsonAttribute(SemanticAttributes.TOOL_PARAMETERS, args);
+        const res = await executeToolCall(
+          connector,
+          name,
+          args,
+          opts.predictionProvider,
+          provenance,
+          opts.topologyProvider,
+        );
+        toolSpan.setAttribute(SemanticAttributes.TOOL_OUTPUT, res);
+        return res;
+      },
+    );
+    verdicts.push(classifyToolResult(result, name));
+    const durationMs = Math.round(performance.now() - toolStartMark);
+    toolCalls.push({ name, arguments: args, result, durationMs });
+    return result;
   };
 
   const messages: LlmMessage[] = [
@@ -472,18 +549,34 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
    */
   const retrievalBlock = await loadRetrievalBlock(opts, resolvedTenantPolicy);
 
-  // Block 1 (diagnostic-router): track cumulative LLM usage and latency
-  // across the iteration loop so the final `AgentResult` can carry them.
-  let totalPromptTokens = 0;
-  let totalCompletionTokens = 0;
-  const runStartMark = performance.now();
+  if (route.mode === 'direct') {
+    const toolName = route.tools[0];
+    if (!toolName) {
+      return finalizeWithRoute('(no se seleccionó una herramienta para la ruta directa)');
+    }
+    const args = directToolArguments(toolName, opts.userMessage);
+    const result = await executeAndRecordTool(toolName, args);
+    const finalized = finalizeWithRoute(formatDirectToolResult(toolName, result));
+    if (opts.dataSource?.mode === 'demo' && !finalized.text.startsWith('[DEMO]')) {
+      const text = `[DEMO] ${finalized.text}`;
+      agentSpan.setAttribute(SemanticAttributes.OUTPUT_VALUE, text);
+      return { ...finalized, text };
+    }
+    return finalized;
+  }
 
-  for (let i = 0; i < maxIterations; i++) {
-    const iterStart = performance.now();
+  const llm = createLlmClient();
+  const assistedCallBudget = route.maxIterations + 1;
+  const llmCallBudget = route.mode === 'assisted'
+    ? Math.min(opts.maxIterations ?? assistedCallBudget, assistedCallBudget)
+    : opts.maxIterations ?? route.maxIterations;
+
+  for (let i = 0; i < llmCallBudget; i++) {
+    const isAssistedSynthesis = route.mode === 'assisted' && i > 0;
     const response = await llm.createMessage({
       system: SYSTEM_PROMPT + sourcePrompt + retrievalBlock,
       messages,
-      tools,
+      tools: isAssistedSynthesis ? [] : tools,
       maxTokens: 2048,
     });
 
@@ -497,35 +590,18 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       return finalizeWithRoute(response.text || '(sin respuesta)');
     }
 
+    // Assisted mode permits exactly one tool round. The second call is a
+    // bounded synthesis request with no tools; ignore a provider response
+    // that nevertheless attempts another tool call instead of widening the
+    // execution budget.
+    if (isAssistedSynthesis) {
+      return finalizeWithRoute(response.text || '(sin respuesta)');
+    }
+
     // Ejecutar todas las tool calls y recolectar sus resultados.
     const toolResultLines: string[] = [];
     for (const call of response.toolCalls) {
-      const toolStartMark = performance.now();
-      const result = await getTracer().withSpan(
-        `tool.${call.name}`,
-        {
-          kind: OpenInferenceSpanKind.TOOL,
-          attributes: {
-            [SemanticAttributes.TOOL_NAME]: call.name,
-          },
-        },
-        async (toolSpan) => {
-          toolSpan.setJsonAttribute(SemanticAttributes.TOOL_PARAMETERS, call.arguments);
-          const res = await executeToolCall(
-            connector,
-            call.name,
-            call.arguments,
-            opts.predictionProvider,
-            provenance,
-            opts.topologyProvider,
-          );
-          toolSpan.setAttribute(SemanticAttributes.TOOL_OUTPUT, res);
-          return res;
-        },
-      );
-      verdicts.push(classifyToolResult(result, call.name));
-      const toolElapsed = Math.round(performance.now() - toolStartMark);
-      toolCalls.push({ name: call.name, arguments: call.arguments, result, durationMs: toolElapsed });
+      const result = await executeAndRecordTool(call.name, call.arguments);
       toolResultLines.push(`[tool_result for ${call.name}] ${result}`);
     }
 
