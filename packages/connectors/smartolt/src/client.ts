@@ -120,10 +120,14 @@ export class SmartOltClient implements INmsConnector {
 
   async getOltDetail(oltId: string): Promise<OltSummary & { onusConnected: number }> {
     if (this.useMock) {
-      const olt = FIXTURE_OLTS.find((o) => o.id === oltId);
+      // Router-extracted identifiers may be normalized to uppercase. Resolve
+      // against the canonical fixture ID without changing the returned ID or
+      // the existing not-found contract.
+      const normalizedOltId = oltId.trim().toLowerCase();
+      const olt = FIXTURE_OLTS.find((o) => o.id.toLowerCase() === normalizedOltId);
       if (!olt) throw new Error(`OLT ${oltId} not found`);
       const onusConnected = FIXTURE_ONUS.filter(
-        (o) => o.oltId === oltId && o.status === 'online',
+        (o) => o.oltId === olt.id && o.status === 'online',
       ).length;
       return { ...olt, onusConnected };
     }

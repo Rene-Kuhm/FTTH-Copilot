@@ -73,4 +73,18 @@ describe('SmartOltClient (mock mode)', () => {
     expect(detail.id).toBe('OLT-Norte-01');
     expect(detail.onusConnected).toBeGreaterThanOrEqual(10);
   });
+
+  it('resolves OLT identifiers case-insensitively without changing the canonical ID', async () => {
+    const originalCase = await client.getOltDetail('OLT-Norte-01');
+    const differentCase = await client.getOltDetail('olt-nOrTe-01');
+
+    expect(differentCase).toEqual(originalCase);
+    expect(differentCase.id).toBe(originalCase.id);
+  });
+
+  it('still rejects an unknown OLT identifier', async () => {
+    await expect(client.getOltDetail('olt-does-not-exist')).rejects.toThrow(
+      'OLT olt-does-not-exist not found',
+    );
+  });
 });
