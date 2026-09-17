@@ -5,6 +5,7 @@ import {
   recordLlmMetrics,
   recordLlmTokens,
   recordRagMetrics,
+  recordRouterDispatch,
 } from '@/lib/metrics/prometheus';
 import type { Abstention, ConfirmedIncident, TenantPolicy } from '@ftth-copilot/shared';
 import type { RelevantIncidentResult } from '@ftth-copilot/evidence';
@@ -297,6 +298,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     recordLlmTokens('agent-core', 'completion', result.tokens.completion);
   }
   recordRagMetrics('ok', 0);
+  // Slice 3 — record the adaptive-router dispatch decision so the
+  // before/after measurement of the 3-mode hierarchy is observable.
+  recordRouterDispatch(result.route?.mode ?? 'unknown');
 
   // Fase C: persist the abstention envelope as a synthetic `__abstention__`
   // tool-call row alongside any real tool calls the agent executed. The

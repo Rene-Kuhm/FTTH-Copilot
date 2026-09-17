@@ -6,6 +6,7 @@ import {
   recordLlmTokens,
   recordLlmFallback,
   recordRagMetrics,
+  recordRouterDispatch,
   recordSnmpTrapMetrics,
 } from '@/lib/metrics/prometheus';
 import {
@@ -110,6 +111,9 @@ describe('GET /api/metrics', () => {
     recordLlmTokens('minimax', 'completion', 240);
     recordLlmFallback('minimax', 'deepseek');
     recordRagMetrics('ok', 45);
+    recordRouterDispatch('direct');
+    recordRouterDispatch('direct');
+    recordRouterDispatch('assisted');
 
     const req = new NextRequest('http://localhost:3001/api/metrics');
     const res = await GET(req);
@@ -165,5 +169,19 @@ describe('GET /api/metrics', () => {
 
     const body = await res.text();
     expect(body).toContain('ftth_copilot_database_scrape_error 1');
+  });
+
+  it('exposes adaptive-router dispatches counter when recordRouterDispatch is called', async () => {
+    __resetMetricsState();
+    recordRouterDispatch('direct');
+    recordRouterDispatch('direct');
+    recordRouterDispatch('assisted');
+    recordRouterDispatch('investigation');
+    const req = new NextRequest('http://localhost:3001/api/metrics');
+    const res = await GET(req);
+    const body = await res.text();
+    expect(body).toMatch(/ftth_copilot_router_dispatches_total\{mode="direct"\} 2/);
+    expect(body).toMatch(/ftth_copilot_router_dispatches_total\{mode="assisted"\} 1/);
+    expect(body).toMatch(/ftth_copilot_router_dispatches_total\{mode="investigation"\} 1/);
   });
 });
