@@ -283,6 +283,43 @@ describe('FallbackLlmClient', () => {
     const client = new FallbackLlmClient([a, b, c]);
     expect(client.provider).toBe('fallback(minimax→deepseek→qwen)');
   });
+
+  it('passes through usage from the selected client', async () => {
+    const a = fakeClient('a', async () => ({
+      text: 'A',
+      toolCalls: [],
+      usage: { input_tokens: 10, output_tokens: 20 },
+    }));
+    const b = fakeClient('b', async () => ({
+      text: 'B',
+      toolCalls: [],
+      usage: { input_tokens: 30, output_tokens: 40 },
+    }));
+    const client = new FallbackLlmClient([a, b]);
+    const result = await client.createMessage(SAMPLE_REQUEST);
+    expect(result.usage).toEqual({ input_tokens: 10, output_tokens: 20 });
+  });
+
+  it('returns undefined usage when the client does not produce usage', async () => {
+    const a = fakeClient('a', async () => ({ text: 'A', toolCalls: [] }));
+    const client = new FallbackLlmClient([a]);
+    const result = await client.createMessage(SAMPLE_REQUEST);
+    expect(result.usage).toBeUndefined();
+  });
+
+  it('passes through usage from a fallback client', async () => {
+    const a = fakeClient('a', async () => {
+      throw new Error('connect ETIMEDOUT');
+    });
+    const b = fakeClient('b', async () => ({
+      text: 'B',
+      toolCalls: [],
+      usage: { input_tokens: 50, output_tokens: 60 },
+    }));
+    const client = new FallbackLlmClient([a, b]);
+    const result = await client.createMessage(SAMPLE_REQUEST);
+    expect(result.usage).toEqual({ input_tokens: 50, output_tokens: 60 });
+  });
 });
 
 // Reference OpenAI import so it's not flagged as unused in case future tests
