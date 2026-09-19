@@ -1,3 +1,8 @@
+# FTTH-Copilot — Development Docker Compose (postgres only)
+# For a full demo with synthetic data and demo account, use:
+#   ./scripts/run-demo.sh
+#   # or: cp docs/demo-env-template.md .env && docker compose -f docker-compose.demo.yml up
+---
 services:
   postgres:
     image: postgres:16-alpine

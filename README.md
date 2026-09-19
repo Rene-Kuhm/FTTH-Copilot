@@ -1,16 +1,84 @@
 # FTTH-Copilot
 
-## AI-powered NOC/SOC platform for FTTH ISPs
+## Diagnóstico de fibra para ISPs — impulsado por IA
 
-**Organic Diagnostic Router · Telemetría OLT multi-vendor · AIOps predictivo · Diagnósticos basados en evidencia · Automatización de incidentes**
+**Diagnóstico offline-ONU · Deriva óptica predictiva · Conectores SmartOLT / Mikrowisp · Evidencia verificable**
 
-![FTTH-Copilot convierte telemetría de red en evidencia operativa para equipos NOC y SOC](docs/assets/ftth-copilot-hero.png)
+![FTTH-Copilot convierte telemetría de red en evidencia operativa para equipos NOC](docs/assets/ftth-copilot-hero.png)
 
 > **From network data to operational evidence.**
 
-FTTH-Copilot es una plataforma operativa multi-tenant que reúne cuatro planos de trabajo para redes de fibra óptica: asistencia conversacional, detección predictiva e investigación cognitiva de fallas (NOC/AIOps), vigilancia perimetral (SOC) y telemetría SNMP en tiempo real para múltiples fabricantes de OLT.
+FTTH-Copilot responde la pregunta que un operador NOC tiene cada noche a las 2 AM:
+*¿Cuáles ONUs se fueron offline, por qué, y qué hago ahora?*
 
-En lugar de reemplazar el NMS existente, conecta sus señales con contexto, reglas deterministas y evidencia trazable. Así convierte derivas de potencia óptica, eventos *dying gasp*, fallos compartidos, intentos de intrusión y firmware vulnerable en diagnósticos y unidades de trabajo accionables.
+Conecta SmartOLT o Mikrowisp, detecta ONUs offline y señales en degradación, y presenta
+un diagnóstico verificable — no una intuición. El operador mantiene el control: la plataforma
+investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura.
+
+## Promesa de producto (v0.1.0)
+
+**FTTH-Copilot le dice a un operador NOC cuáles ONUs están offline o degradándose,
+por qué, y cuál es el siguiente paso — verificado contra datos crudos de
+SmartOLT o Mikrowisp, no una suposición.**
+
+| | |
+|---|---|
+| **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT o Mikrowisp |
+| **Qué resuelve** | Identificación rápida de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
+| **Qué NO hace (v0.1.0)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
+| **Métrica de éxito** | Un evaluador configura el entorno demo y llega a un diagnóstico funcional en ≤ 5 minutos sin credenciales reales |
+
+> [!NOTE]
+> La plataforma incluye capacidades NOC/AIOps, SOC, SNMP multi-vendor y más
+> (ver secciones debajo). El primer mensaje público se enfoca en el diagnóstico
+> offline-ONU porque es lo que un ISP puede evaluar inmediatamente.
+> Consultá [`docs/product-wedge.md`](docs/product-wedge.md) para el alcance técnico completo.
+
+---
+
+## ¿Querés evaluar FTTH-Copilot en tu ISP?
+
+> **v0.1.0 es un lanzamiento de evaluación técnica.**
+> No requiere inversión en hardware, contratos ni integraciones complejas para comenzar.
+
+### Evaluadores ISP
+
+1. **Levantá el demo** → `./scripts/run-demo.sh` (sin credenciales, 3 min)
+2. **Viste el video** → [37s demo en video](docs/assets/ftth-copilot-demo-16x9.mp4)
+3. **Pedí una sesión técnica** → contactá al equipo para walkthrough guiado con tus escenarios
+
+### Para equipos de ingeniería que evaluan integración
+
+- [Documentación técnica completa](docs/architecture.md)
+- [Benchmarks reproducibles](docs/benchmarks.md)
+- [Guía de despliegue en producción](docs/production-deployment.md)
+- [Roadmap público](ROADMAP.md) con estado actual y siguientes pasos validados
+
+### Modelo de licenciamiento
+
+FTTH-Copilot es **software propietario**. El acceso público es para evaluación técnica;
+no otorga derecho a copiar, modificar o redistribuir sin autorización escrita.
+
+| Escenario | ¿Qué podés hacer? |
+|---|---|
+| Evaluar en tu entorno | ✅ Usar el demo, leer el código, correr los tests |
+| Integrar en tu ISP | ✅ Con licencia escrita de TecnoDespegue |
+| Forkear o modificar | ❌ Requiere autorización previa |
+| Reducir a producción | ❌ Requiere licencia comercial + validación de piloto |
+
+Consultá [`LICENSE`](LICENSE) para los términos completos.
+
+### Contacto y soporte
+
+| Canal | Uso |
+|---|---|
+| **Demo y evaluación** | Usá el demo público arriba |
+| **Sesión técnica guiada** | Abrí un issue con la etiqueta `evaluation` o contactá directamente |
+| **Bug report** | [`SECURITY.md`](SECURITY.md) para vulnerabilidades; issue normal para bugs |
+| **Roadmap y producto** | Issues con etiqueta `enhancement` |
+| **Contribuir código** | Leé [`CONTRIBUTING.md`](CONTRIBUTING.md) primero |
+
+---
 
 ## Por qué FTTH-Copilot
 
@@ -49,6 +117,48 @@ La plataforma mantiene a la persona en el circuito: investiga, explica y prioriz
 ---
 
 ## Quick Path (Inicio Rápido)
+
+### 0. Demo en 3 comandos (sin instalar nada)
+
+¿Querés evaluar FTTH-Copilot ahora mismo? Levantá un entorno completo con datos sintéticos y una cuenta demo en menos de un minuto:
+
+```bash
+# 1. Descargá y ejecutá el launcher (crea .env, compila, levanta todo)
+./scripts/run-demo.sh
+
+# 2. Esperá a que termine de compilar (~2 min la primera vez)
+#    Cuando veas " ✓ app", abrí http://localhost:3001
+
+# 3. Iniciá sesión con las credenciales de demo:
+#    Email:    admin@ftth-copilot.local
+#    Password: demo12345
+```
+
+El demo incluye:
+- **5 OLTs** con escenarios variados (1 con temperatura alta)
+- **~42 ONUs** (4 offline, 1 degradada, resto online)
+- **Alertas tempranas** en el dashboard
+- **NMS mock** de SmartOLT — sin credenciales reales
+
+Para detener: `./scripts/run-demo.sh down`. Para reiniciar desde cero: `./scripts/run-demo.sh reset`.
+
+### 0b. Ver el walkthrough en video (37 s)
+
+El video muestra dos casos del Organic Diagnostic Router funcionando contra datos sintéticos:
+
+**[▶ Ver demo (37 s, 16:9)](docs/assets/ftth-copilot-demo-16x9.mp4)**
+
+- **Caso 1 — DIRECT:** consulta de estado de OLT → 0 llamadas LLM, respuesta en 3 ms
+- **Caso 2 — INVESTIGATION:** diagnóstico de caída de RX → 4 tool calls, TruthGate activa la abstención
+
+Consultá [`docs/walkthrough.md`](docs/walkthrough.md) para el guion escrito con la evidencia capturada.
+
+> [!TIP]
+> Si preferís levantar los servicios manualmente:
+> ```bash
+> cp docs/demo-env-template.md .env  # luego copiá el bloque ```bash ``` a .env
+> docker compose -f docker-compose.demo.yml up
+> ```
 
 ### 1. Entorno de Desarrollo (Local)
 
@@ -298,6 +408,13 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 
 ## Próximos Pasos y Documentación Técnica
 
+- **[Guía de inicio rápido](docs/quickstart.md)** — Llegá a un diagnóstico funcional en 5 minutos o menos, con opciones de demo (Docker), desarrollo local (pnpm) y producción (install.sh).
+- **[Benchmarks documentados](docs/benchmarks.md)** — Latencia de diagnóstico, rendimiento SNMP, accuracy del classifier, y métricas de piloto.
+- **[Caso de estudio reproducible](docs/case-study-synthetic.md)** — 4 escenarios de diagnóstico reproducibles paso a paso con datos sintéticos y métricas observadas.
+- **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.1.0.
+- **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (Prometheus, Phoenix), seguridad y runbook de emergencia.
+- **[Secret scan y rotación de credenciales](docs/secret-scan.md)** — Hallazgos de auditoría, estado del `.gitignore`, procedimientos de rotación, y acciones pendientes.
+- **[Plan de distribución](docs/distribution.md)** — Comunidades objetivo, mensajes de outreach, checklist de launch, y tracking de conversión demo→contacto.
 - **[Roadmap público](ROADMAP.md)** — Estado actual, validación pendiente y evolución prevista del producto.
 - **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
 - **[Matriz de compatibilidad OLT](docs/compatibility-matrix.md)** — Catálogo completo de OIDs, niveles de severidad y referencias técnicas.
@@ -312,8 +429,19 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 
 ---
 
-## Licencia
+## Licencia y términos
 
-Propietario — todos los derechos reservados. Copyright © 2026 TecnoDespegue / René Kuhm.
+**Proprietario — todos los derechos reservados.** Copyright © 2026 TecnoDespegue / René Kuhm.
 
-Este repositorio **no** está bajo una licencia de código abierto. El acceso público se concede exclusivamente para revisión técnica y evaluación. No puede ser copiado, modificado, comercializado ni redistribuido sin autorización previa y por escrito. Consultar [`LICENSE`](LICENSE).
+| Uso | Permitido |
+|---|---|
+| Lectura y revisión técnica | ✅ Sí |
+| Evaluación con el demo público | ✅ Sí |
+| Fork para evaluación interna | ✅ Sí (revisión limitada) |
+| Uso en producción | ❌ Requiere licencia escrita |
+| Modificación o derivados | ❌ Requiere autorización previa |
+| Redistribución | ❌ Prohibido sin autorización |
+
+**Para solicitar una licencia de uso o una sesión técnica:** abrí un issue con la etiqueta `evaluation` o contactá directamente. El proceso de evaluación empieza con el demo público; no se requiere contacto previo para evaluar.
+
+Consultá [`LICENSE`](LICENSE) para los términos legales completos y [`CONTRIBUTING.md`](CONTRIBUTING.md) para el proceso de contribución.
