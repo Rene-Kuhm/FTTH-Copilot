@@ -34,9 +34,11 @@ case "${1:-start}" in
     if [[ ! -f "$ENV_FILE" ]]; then
       echo "📄 Creating .env from template..."
       # Extract the bash block from docs/demo-env-template.md
-      awk '/^```bash/,/^```/' "$ROOT_DIR/docs/demo-env-template.md" \
-        | sed '1d;$d' \
-        > "$ENV_FILE"
+      awk '
+        /^```bash$/ { in_block=1; next }
+        in_block && /^```$/ { exit }
+        in_block { print }
+      ' "$ROOT_DIR/docs/demo-env-template.md" > "$ENV_FILE"
       echo "✓ .env created at $ENV_FILE"
       echo "  Edit it to change the demo admin password (SEED_ADMIN_PASSWORD)"
     else
