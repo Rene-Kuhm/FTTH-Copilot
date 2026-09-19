@@ -1,0 +1,116 @@
+# FTTH-Copilot — Demo Docker Compose
+# One-command demo environment with synthetic FTTH data and demo account.
+#
+# Usage:
+#   cp .env.demo .env
+#   docker compose -f docker-compose.demo.yml up
+#
+# Or with the convenience wrapper:
+#   ./scripts/run-demo.sh
+#
+# What it starts:
+#   1. postgres  — persistent volume, survives restarts
+#   2. db-migrate — runs Prisma migrations, exits
+#   3. app      — Next.js on :3001 with DEMO_MODE_ENABLED=true
+#   4. db-seed  — seeds demo account + synthetic ONUs/alerts, exits
+#
+# Demo credentials:
+#   URL:     http://localhost:3001
+#   Email:   admin@ftth-copilot.local
+#   Password: demo12345  (set by SEED_ADMIN_PASSWORD=demo12345)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ftth_demo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ftth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-ftth_copilot}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_demo_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ftth} -d ${POSTGRES_DB:-ftth_copilot}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - ftth-demo
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: ftth_demo_migrate
+    restart: "no"
+    command: ["pnpm", "--filter", "@ftth-copilot/db", "db:deploy"]
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ftth-demo
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: ftth_demo_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DEMO_MODE_ENABLED: "true"
+    ports:
+      - "${PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - ftth-demo
+
+  # Seeds demo account + synthetic ONU metrics and alerts.
+  # Runs after app is reachable so the UI can show immediately.
+  db-seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: ftth_demo_seed
+    restart: "no"
+    command: ["node", "--input-type=module", "-e", "
+      import { seed } from './packages/db/src/seed.js';
+      const result = await seed({ adminPassword: process.env.SEED_ADMIN_PASSWORD ?? 'demo12345', forceAllowProduction: true });
+      console.log('demo seed complete:', JSON.stringify(result));
+    "]
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-demo12345}
+      ALLOW_PRODUCTION_SEED: "true"
+      DEMO_DATA_ENABLED: "true"
+    depends_on:
+      app:
+        condition: service_started
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - ftth-demo
+
+volumes:
+  postgres_demo_data:
+
+networks:
+  ftth-demo:
+    driver: bridge
