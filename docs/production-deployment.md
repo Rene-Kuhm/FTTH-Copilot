@@ -58,6 +58,28 @@ El instalador pregunta por:
 - Provider de IA (opcional)
 - Credenciales de PostgreSQL (o usa el generated)
 
+### 2.1b Configuración HTTPS con Caddy (opcional)
+
+Para producción pública se recomienda un reverse proxy con HTTPS. FTTH-Copilot
+incluye `docker-compose.https.yml` con Caddy 2 (certificados automáticos Let's Encrypt):
+
+```bash
+# 1. Agregar al .env.prod:
+CADDY_DOMAIN=ftth.tudominio.com
+CADDY_EMAIL=admin@tudominio.com
+CADDY_HTTP_PORT=80
+CADDY_HTTPS_PORT=443
+
+# 2. Usar el compose con HTTPS:
+docker compose -f docker-compose.https.yml up -d
+```
+
+Caddy provisiona automáticamente el certificado TLS. No requiere cronjobs de
+renovación ni configuración manual de certificados.
+
+> Si ya tenés nginx, Traefik o Cloudflare como reverse proxy, podés usar
+> `docker-compose.prod.yml` y terminate HTTPS en tu proxy existente.
+
 ### 2.2 Configuración mínima de `.env.prod`
 
 ```bash
@@ -283,6 +305,9 @@ Trazas exportadas: `agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation
 | `METRICS_BEARER_TOKEN` generado y almacenado de forma segura | ☐ | Rotar si se expone |
 | Conexión a PostgreSQL por red interna | ☐ | No exponer puerto 5432 a Internet |
 | Firewall: solo puertos 3001, 1162, 5514 разрешены | ☐ | Configurar según política de red |
+| HTTPS configurado con Caddy o reverse proxy propio | ☐ | Usar `docker-compose.https.yml` o terminación TLS propia |
+| `CADDY_EMAIL` configurado en `.env.prod` | ☐ | Para notificaciones de vencimiento de certificado |
+| Dominio apontado a DNS antes de levantar Caddy | ☐ | Caddy necesita DNS resuelto para generar certificados |
 
 ### 6.2 Rotación de credenciales
 

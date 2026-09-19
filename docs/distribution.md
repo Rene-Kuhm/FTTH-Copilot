@@ -196,18 +196,18 @@ body:
         - Nombre / empresa:
         - Rol: ISP owner / NOC lead / Ingeniero de red / Otro
         - País / región:
-        
+
         ## Entorno actual
         - NMS: SmartOLT / Mikrowisp / MikroTik / Otro
         - Flota: ~X OLTs, ~Y ONUs
         - Rol actual del diagnóstico: manual / semi-automatizado
-        
+
         ## Qué te gustaría evaluar
         - Diagnóstico offline-ONU
         - Degradación de señal
         - Correlación de incidentes
         - Otro:
-        
+
         ## Disponibilidad
         - Días / horarios disponibles para sesión técnica (30 min):
 ```

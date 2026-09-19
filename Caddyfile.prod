@@ -1,0 +1,45 @@
+# Caddyfile — FTTH-Copilot Production
+#
+# Replace ${CADDY_DOMAIN} with your domain (e.g. ftth.example.com).
+# Replace ${CADDY_EMAIL} with your email for Let's Encrypt certificate notifications.
+#
+# Variables are substituted from docker-compose.https.yml environment block.
+
+${CADDY_DOMAIN} {
+    # TLS: automatic HTTPS via Let's Encrypt
+    tls ${CADDY_EMAIL}
+
+    # Redirect HTTP → HTTPS (handled by Caddy's default behavior)
+
+    # Proxy to the FTTH-Copilot app
+    reverse_proxy app:3001 {
+        # Pass real client IP through
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {header.X-Forwarded-For}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security headers
+    header {
+        # Disable browser sniffing
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        # Referrer policy for sensitive deployments
+        Referrer-Strict-Origin-When-Cross-Origin
+        # Content Security Policy (adjust for your needs)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:"
+        # Remove server identification
+        -Server
+    }
+
+    # Access logs
+    log {
+        output file /var/log/caddy/access.log
+    }
+
+    # Error page customization
+    handle_errors {
+        respond "{err.status_code} {err.status_text}"
+    }
+}
