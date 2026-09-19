@@ -7,6 +7,21 @@ with semantic versioning and per-change author attribution from commit messages.
 
 ---
 
+## [0.1.1] — 2026-09-19 — Corrección del demo Docker
+
+> **Estado del producto:** patch release de v0.1.0. Mantiene el alcance de evaluación técnica.
+
+### Fixed
+
+- Corregido el build del runner al eliminar la copia de un directorio `public` inexistente.
+- Añadido pnpm al runner para ejecutar migraciones y seed dentro de Docker.
+- Corregido el launcher del demo para generar `.env` desde el template correctamente.
+- Corregidos los servicios de migración y seed para usar el workspace y el script oficial de base de datos.
+
+### Verification
+
+- Docker build, 21 migraciones, seed de 810 muestras y 4 alertas, health check HTTP y CI completo verificados.
+
 ## [0.1.0] — 2026-09-20 — Primer lanzamiento
 
 > **Estado del producto:** v0.1.0 es un lanzamiento de evaluación técnica.
