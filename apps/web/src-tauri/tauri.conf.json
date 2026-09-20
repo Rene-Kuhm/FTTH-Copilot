@@ -4,8 +4,8 @@
   "version": "0.2.1",
   "identifier": "com.ftthcopilot.desktop",
   "build": {
-    "frontendDist": "../.next",
-    "devUrl": "http://localhost:3000",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:3001",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
   },
