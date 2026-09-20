@@ -8,6 +8,10 @@
     "build": "next build --webpack",
     "build:pwa": "next build --webpack",
     "build:turbo": "next build",
+    "build:static": "NEXT_OUTPUT_MODE=export next build --webpack",
+    "build:android": "pnpm build:static && cap sync android && cap open android",
+    "cap:sync": "cap sync android",
+    "cap:build:android": "cap build android",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -20,6 +24,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/status-bar": "^8.0.3",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@ftth-copilot/agent-core": "workspace:*",
     "@ftth-copilot/analytics": "workspace:*",
@@ -41,6 +52,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/react": "^16.3.3",

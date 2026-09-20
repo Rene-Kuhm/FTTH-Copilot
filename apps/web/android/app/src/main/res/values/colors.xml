@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FTTH-Copilot brand palette -->
+    <color name="colorBg">#1a1218</color>
+    <color name="colorSurface">#20161e</color>
+    <color name="colorMuted">#7b4d68</color>
+    <color name="colorText">#f6eff3</color>
+    <color name="colorAccent">#f23077</color>
+
+    <!-- Legacy aliases -->
+    <color name="colorPrimary">#f23077</color>
+    <color name="colorPrimaryDark">#1a1218</color>
+    <color name="colorAccent">#f23077</color>
+
+    <!-- Splash screen background -->
+    <color name="splashBackground">#1a1218</color>
+</resources>
