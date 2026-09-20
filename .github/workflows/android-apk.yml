@@ -46,12 +46,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: '11.0'
+          cmdline-tools-version: '12.0'
           packages: |
             platform-tools
             platforms;android-34
             build-tools;34.0.0
-          cache: 'gradle'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
