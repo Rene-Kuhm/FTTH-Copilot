@@ -12,6 +12,7 @@
     "build:android": "pnpm build:static && cap sync android && cap open android",
     "cap:sync": "cap sync android",
     "cap:build:android": "cap build android",
+    "tauri:prepare": "node ../../scripts/prepare-tauri-webview.mjs",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:linux": "tauri build --bundles deb,appimage",

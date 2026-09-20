@@ -112,8 +112,8 @@ If unset, the app defaults to `https://demo.ftth-copilot.com`.
 
 Since Next.js apps with API routes can't be fully statically exported, the Tauri app needs a running backend to be functional. The recommended setup:
 
-1. **Build the Tauri app** with `frontendDist: "../dist"` (the redirect directory)
-2. **`apps/web/dist/index.html`** contains a meta-refresh redirect to the dev server
+1. **Build the Tauri app** with `frontendDist: "../dist"` (the generated redirect directory)
+2. **`pnpm tauri:prepare`** generates `apps/web/dist/index.html` with a meta-refresh redirect to the dev server
 3. **Start the Next.js dev server** on port 3001 (or any port matching your devUrl)
 4. **Run the AppImage**: the webview loads `dist/index.html`, then redirects to `http://localhost:3001`
 5. The web UI now renders with live data from the backend
@@ -126,10 +126,11 @@ Since Next.js apps with API routes can't be fully statically exported, the Tauri
 
 ### Build commands
 ```bash
-# 1. Make sure dist/ has the redirect HTML
-cat apps/web/dist/index.html  # exists in repo
+# 1. Generate and verify the ignored dist/ entrypoint
+pnpm tauri:prepare
+cat apps/web/dist/index.html
 
-# 2. Build the Tauri app
+# 2. Build the Tauri app (the prepare command also runs automatically)
 cd apps/web
 pnpm tauri:build:linux    # or :windows
 
