@@ -1,6 +1,6 @@
 {
   "name": "ftth-copilot",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "private": true,
   "license": "UNLICENSED",
   "description": "Agente de IA sobre SmartOLT/Mikrowisp que da diagn\u00f3stico en lenguaje natural y reportes autom\u00e1ticos para ISPs.",
@@ -34,6 +34,7 @@
     "test:conformance": "pnpm --filter @ftth-copilot/monitoring test:conformance",
     "benchmark:snmp": "tsx scripts/snmp-benchmark.ts",
     "check:sources": "tsx scripts/generate-compatibility-matrix.ts --check",
+    "check:version": "tsx scripts/check-release-version.ts",
     "check:sources:health": "tsx scripts/check-research-sources-health.ts",
     "check:contribution": "tsx scripts/validate-contribution.ts",
     "check:conflicts": "tsx scripts/check-oid-conflicts.ts",

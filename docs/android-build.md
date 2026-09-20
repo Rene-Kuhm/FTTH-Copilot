@@ -102,7 +102,7 @@ If unset, the APK defaults to `https://demo.ftth-copilot.com`.
 
 - **Static export only**: The current build uses `output: 'export'`, so API routes are not bundled. The APK must point at a remote backend via `NEXT_PUBLIC_API_URL`.
 - **No offline mode yet**: All `/api/*` calls require network connectivity. SQLite plugin is wired but offline-first caching is not implemented in the app yet.
-- **Unsigned release**: The release APK is unsigned by default. For Play Store distribution, configure a signing config in `apps/web/android/app/build.gradle`.
+- **Unsigned release**: The release APK is unsigned by default. For Play Store or managed enterprise distribution, configure a signing config in `apps/web/android/app/build.gradle` and publish the signed artifact separately.
 
 ## Roadmap
 
