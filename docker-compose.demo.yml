@@ -44,7 +44,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner
+      target: dependencies
     container_name: ftth_demo_migrate
     restart: "no"
     command: ["pnpm", "--filter", "@ftth-copilot/db", "db:deploy"]
@@ -85,14 +85,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner
+      target: dependencies
     container_name: ftth_demo_seed
     restart: "no"
-    command: ["node", "--input-type=module", "-e", "
-      import { seed } from './packages/db/src/seed.js';
-      const result = await seed({ adminPassword: process.env.SEED_ADMIN_PASSWORD ?? 'demo12345', forceAllowProduction: true });
-      console.log('demo seed complete:', JSON.stringify(result));
-    "]
+    command: ["pnpm", "--filter", "@ftth-copilot/db", "db:seed"]
     env_file:
       - .env
     environment:

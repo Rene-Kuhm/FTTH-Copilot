@@ -39,11 +39,14 @@ RUN pnpm --filter @ftth-copilot/web build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
 RUN apk add --no-cache libc6-compat openssl wget
+RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
@@ -54,7 +57,6 @@ COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 # Copy Next.js standalone bundle and static assets
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
