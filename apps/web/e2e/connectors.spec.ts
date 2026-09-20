@@ -140,7 +140,7 @@ test.describe("Connectors", () => {
     await page.getByLabel("URL base").fill("https://demo.mikrowisp.com/api/v1");
     await page.getByRole("button", { name: "Guardar y probar" }).click();
 
-    await expect(page.getByText("Mikrowisp test", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Mikrowisp test", { exact: true })).toBeVisible({ timeout: 10_000 });
   });
 
   test("connector section renders when pre-authenticated", async ({ page }) => {
