@@ -5,7 +5,6 @@
     <color name="colorSurface">#20161e</color>
     <color name="colorMuted">#7b4d68</color>
     <color name="colorText">#f6eff3</color>
-    <color name="colorAccent">#f23077</color>
 
     <!-- Legacy aliases -->
     <color name="colorPrimary">#f23077</color>
