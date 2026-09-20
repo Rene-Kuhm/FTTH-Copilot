@@ -15,7 +15,7 @@ Conecta SmartOLT o Mikrowisp, detecta ONUs offline y señales en degradación, y
 un diagnóstico verificable — no una intuición. El operador mantiene el control: la plataforma
 investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura.
 
-## Promesa de producto (v0.1.0)
+## Promesa de producto (v0.2.1)
 
 **FTTH-Copilot le dice a un operador NOC cuáles ONUs están offline o degradándose,
 por qué, y cuál es el siguiente paso — verificado contra datos crudos de
@@ -25,7 +25,7 @@ SmartOLT o Mikrowisp, no una suposición.**
 |---|---|
 | **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT o Mikrowisp |
 | **Qué resuelve** | Identificación rápida de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
-| **Qué NO hace (v0.1.0)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
+| **Qué NO hace (v0.2.1)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
 | **Métrica de éxito** | Un evaluador configura el entorno demo y llega a un diagnóstico funcional en ≤ 5 minutos sin credenciales reales |
 
 > [!NOTE]
@@ -38,8 +38,22 @@ SmartOLT o Mikrowisp, no una suposición.**
 
 ## ¿Querés evaluar FTTH-Copilot en tu ISP?
 
-> **v0.1.0 es un lanzamiento de evaluación técnica.**
+> **v0.2.1 es un lanzamiento de evaluación técnica.**
 > No requiere inversión en hardware, contratos ni integraciones complejas para comenzar.
+
+### Estado de distribución
+
+La versión `v0.2.1` valida la distribución multiplataforma:
+
+| Plataforma | Formato | Estado |
+|---|---|---|
+| Web / Docker | Demo y despliegue productivo | ✅ Disponible para evaluación |
+| Linux | `.deb` y AppImage | ✅ Generado y validado |
+| Windows | `.msi` y NSIS `.exe` | ✅ Generado y ejecutado bajo Wine/Proton |
+| Android | APK | ✅ Generado; unsigned, instalación manual |
+
+Los instaladores se publicarán en GitHub Releases cuando se cree el tag `v0.2.1`. Hasta entonces,
+la evaluación recomendada es mediante el demo Docker o los artefactos de CI.
 
 ### Evaluadores ISP
 
@@ -411,7 +425,7 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 - **[Guía de inicio rápido](docs/quickstart.md)** — Llegá a un diagnóstico funcional en 5 minutos o menos, con opciones de demo (Docker), desarrollo local (pnpm) y producción (install.sh).
 - **[Benchmarks documentados](docs/benchmarks.md)** — Latencia de diagnóstico, rendimiento SNMP, accuracy del classifier, y métricas de piloto.
 - **[Caso de estudio reproducible](docs/case-study-synthetic.md)** — 4 escenarios de diagnóstico reproducibles paso a paso con datos sintéticos y métricas observadas.
-- **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.1.0.
+- **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.2.1.
 - **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (Prometheus, Phoenix), seguridad y runbook de emergencia.
 - **[Secret scan y rotación de credenciales](docs/secret-scan.md)** — Hallazgos de auditoría, estado del `.gitignore`, procedimientos de rotación, y acciones pendientes.
 - **[Plan de distribución](docs/distribution.md)** — Comunidades objetivo, mensajes de outreach, checklist de launch, y tracking de conversión demo→contacto.
