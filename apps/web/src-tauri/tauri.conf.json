@@ -40,7 +40,7 @@
       "icons/icon.ico"
     ],
     "publisher": "FTTH-Copilot",
-    "category": "Network",
+    "category": "Utility",
     "shortDescription": "FTTH network diagnostics",
     "longDescription": "FTTH-Copilot is an AI-powered diagnostics assistant for FTTH (Fiber To The Home) networks and ISPs. Operate with context, without replacing your NMS.",
     "linux": {
