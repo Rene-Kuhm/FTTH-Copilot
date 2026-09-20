@@ -76,11 +76,12 @@ jobs:
         working-directory: apps/web
         run: pnpm exec tauri build --bundles deb,appimage
 
-      - name: Locate artifacts
+      - name: Locate artifacts (Linux)
         working-directory: apps/web
         run: |
           echo "=== Bundles ==="
           find src-tauri/target/release/bundle -type f 2>/dev/null || true
+        shell: bash
 
       - name: Upload Linux .deb
         uses: actions/upload-artifact@v4
@@ -140,11 +141,12 @@ jobs:
         working-directory: apps/web
         run: pnpm exec tauri build --bundles nsis,msi
 
-      - name: Locate artifacts
+      - name: Locate artifacts (Windows)
         working-directory: apps/web
         run: |
           echo "=== Bundles ==="
-          find src-tauri/target/release/bundle -type f 2>/dev/null || true
+          Get-ChildItem -Path src-tauri/target/release/bundle -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+        shell: pwsh
 
       - name: Upload Windows MSI
         uses: actions/upload-artifact@v4
