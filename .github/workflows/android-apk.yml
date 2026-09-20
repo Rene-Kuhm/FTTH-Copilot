@@ -84,6 +84,12 @@ jobs:
           cp -f public/sw.js out/ 2>/dev/null || true
           ls -la out/
 
+      - name: Create assets directory for Capacitor sync
+        working-directory: apps/web/android
+        run: |
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/xml
+
       - name: Capacitor sync
         working-directory: apps/web
         run: pnpm cap:sync
