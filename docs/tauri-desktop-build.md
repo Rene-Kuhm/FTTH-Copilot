@@ -105,13 +105,46 @@ If unset, the app defaults to `https://demo.ftth-copilot.com`.
 
 - **Code signing**: Both Linux and Windows builds are unsigned. SmartScreen will warn on Windows; users can dismiss.
 - **WebView runtime**: Windows uses WebView2 (downloaded via bootstrapper). Linux uses WebKit2GTK 4.1.
-- **Static export**: Same constraint as Capacitor — the app calls `/api/*` which requires a remote backend.
+- **Web assets loading**: Tauri requires a static `frontendDist` directory. Since Next.js apps with API routes can't be fully statically exported, use the **`apps/web/dist/` redirect** approach (see below).
 - **Distribution channels**: No app stores yet (Snap, Microsoft Store, etc.) — direct downloads via GitHub Releases only.
+
+## Local development (web assets loading)
+
+Since Next.js apps with API routes can't be fully statically exported, the Tauri app needs a running backend to be functional. The recommended setup:
+
+1. **Build the Tauri app** with `frontendDist: "../dist"` (the redirect directory)
+2. **`apps/web/dist/index.html`** contains a meta-refresh redirect to the dev server
+3. **Start the Next.js dev server** on port 3001 (or any port matching your devUrl)
+4. **Run the AppImage**: the webview loads `dist/index.html`, then redirects to `http://localhost:3001`
+5. The web UI now renders with live data from the backend
+
+### Why this works
+- Tauri only needs to bundle a single `index.html` file (the redirect)
+- The actual web UI loads from the local dev server
+- API calls work because the backend is running on localhost
+- The redirect is instant (0-second meta-refresh)
+
+### Build commands
+```bash
+# 1. Make sure dist/ has the redirect HTML
+cat apps/web/dist/index.html  # exists in repo
+
+# 2. Build the Tauri app
+cd apps/web
+pnpm tauri:build:linux    # or :windows
+
+# 3. Start the backend
+DATABASE_URL="..." pnpm exec next start -p 3001
+
+# 4. Run the AppImage
+./FTTH-Copilot_0.2.1_amd64.AppImage
+```
 
 ## Roadmap
 
 1. ✅ Project structure, brand alignment, basic config
 2. ✅ CI workflow for Linux + Windows builds
-3. ⏳ Code signing for production releases
-4. ⏳ System tray icon + global shortcuts
-5. ⏳ App menu with platform-specific shortcuts
+3. ✅ Web assets loading via dist/ redirect (works with Next.js + API routes)
+4. ⏳ Code signing for production releases
+5. ⏳ System tray icon + global shortcuts
+6. ⏳ App menu with platform-specific shortcuts
