@@ -183,6 +183,7 @@ jobs:
           </body>
           </html>
           EOF
+        shell: bash
 
       - name: Build Tauri (Windows)
         working-directory: apps/web
