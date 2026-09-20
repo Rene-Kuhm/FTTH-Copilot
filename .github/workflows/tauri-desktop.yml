@@ -72,30 +72,9 @@ jobs:
         working-directory: apps/web
         run: pnpm build
 
-      - name: Create Tauri webview redirect
+      - name: Prepare Tauri webview entrypoint
         working-directory: apps/web
-        run: |
-          # The dist/ directory is gitignored. Tauri uses it as the webview's
-          # initial HTML which then redirects to the running Next.js server.
-          # See docs/tauri-desktop-build.md for details.
-          mkdir -p dist
-          cat > dist/index.html <<'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>FTTH-Copilot</title>
-            <meta http-equiv="refresh" content="0; url=http://localhost:3001/">
-            <style>
-              body { background: #1a1218; color: #f6eff3; font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-              h1 { color: #f23077; }
-            </style>
-          </head>
-          <body>
-            <h1>FTTH-Copilot</h1>
-            <p>Redirecting to app...</p>
-          </body>
-          </html>
-          EOF
+        run: pnpm tauri:prepare
 
       - name: Build Tauri (Linux)
         working-directory: apps/web
@@ -162,28 +141,9 @@ jobs:
         working-directory: apps/web
         run: pnpm build
 
-      - name: Create Tauri webview redirect
+      - name: Prepare Tauri webview entrypoint
         working-directory: apps/web
-        run: |
-          mkdir -p dist
-          cat > dist/index.html <<'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>FTTH-Copilot</title>
-            <meta http-equiv="refresh" content="0; url=http://localhost:3001/">
-            <style>
-              body { background: #1a1218; color: #f6eff3; font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-              h1 { color: #f23077; }
-            </style>
-          </head>
-          <body>
-            <h1>FTTH-Copilot</h1>
-            <p>Redirecting to app...</p>
-          </body>
-          </html>
-          EOF
-        shell: bash
+        run: pnpm tauri:prepare
 
       - name: Build Tauri (Windows)
         working-directory: apps/web
