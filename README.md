@@ -15,7 +15,7 @@ Conecta SmartOLT o Mikrowisp, detecta ONUs offline y señales en degradación, y
 un diagnóstico verificable — no una intuición. El operador mantiene el control: la plataforma
 investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura.
 
-## Promesa de producto (v0.2.1)
+## Promesa de producto (v0.2.2)
 
 **FTTH-Copilot le dice a un operador NOC cuáles ONUs están offline o degradándose,
 por qué, y cuál es el siguiente paso — verificado contra datos crudos de
@@ -25,7 +25,7 @@ SmartOLT o Mikrowisp, no una suposición.**
 |---|---|
 | **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT o Mikrowisp |
 | **Qué resuelve** | Identificación rápida de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
-| **Qué NO hace (v0.2.1)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
+| **Qué NO hace (v0.2.2)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
 | **Métrica de éxito** | Un evaluador configura el entorno demo y llega a un diagnóstico funcional en ≤ 5 minutos sin credenciales reales |
 
 > [!NOTE]
@@ -38,12 +38,12 @@ SmartOLT o Mikrowisp, no una suposición.**
 
 ## ¿Querés evaluar FTTH-Copilot en tu ISP?
 
-> **v0.2.1 es un lanzamiento de evaluación técnica.**
+> **v0.2.2 es un lanzamiento de evaluación técnica.**
 > No requiere inversión en hardware, contratos ni integraciones complejas para comenzar.
 
 ### Estado de distribución
 
-La versión `v0.2.1` valida la distribución multiplataforma:
+La versión `v0.2.2` valida la distribución multiplataforma:
 
 | Plataforma | Formato | Estado |
 |---|---|---|
@@ -52,8 +52,7 @@ La versión `v0.2.1` valida la distribución multiplataforma:
 | Windows | `.msi` y NSIS `.exe` | ✅ Generado y ejecutado bajo Wine/Proton |
 | Android | APK | ✅ Generado; unsigned, instalación manual |
 
-Los instaladores se publicarán en GitHub Releases cuando se cree el tag `v0.2.1`. Hasta entonces,
-la evaluación recomendada es mediante el demo Docker o los artefactos de CI.
+Los instaladores están disponibles en [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.2.2).
 
 ### Evaluadores ISP
 

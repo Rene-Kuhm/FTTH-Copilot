@@ -1,13 +1,12 @@
-# Distribution Plan — FTTH-Copilot v0.2.1
+# Distribution Plan — FTTH-Copilot v0.2.2
 
 > **Propósito:** convertir interés técnico en conversaciones de piloto.
 > Este documento es el plan de outreach para equipos de ingeniería y producto.
 > No es marketing público — es una guía para contacto técnicamente cualificado.
 
-> **Estado de release:** `v0.2.1` es el patch release de distribución multiplataforma.
-> El código y la documentación están alineados; los instaladores se publicarán en GitHub
-> Releases cuando se cree el tag `v0.2.1`. Hasta entonces, usar el demo Docker o los
-> artefactos de CI para evaluación.
+> **Estado de release:** `v0.2.2` es el patch release de distribución multiplataforma.
+> El código y la documentación están alineados; los instaladores están disponibles en
+> [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.2.2).
 
 | Plataforma | Artefactos | Validación |
 |---|---|---|
@@ -267,7 +266,7 @@ Al contactar ISPs directamente, incluir:
 
 ---
 
-## 10. Acciones inmediatas post-v0.2.1
+## 10. Acciones inmediatas post-v0.2.2
 
 - [ ] Agregar GitHub issue template para `evaluation`
 - [ ] Agregar topics al repo: `ftth`, `noc`, `fiber`, `gpont`, `isp`

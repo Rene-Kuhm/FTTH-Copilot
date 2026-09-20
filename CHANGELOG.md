@@ -7,6 +7,14 @@ with semantic versioning and per-change author attribution from commit messages.
 
 ---
 
+## [0.2.2] — 2026-09-20 — Sesiones de escritorio sobre HTTP local
+
+### Fixed
+
+- Corregido el bucle de inicio de sesión del `.deb` cuando el backend local usa `http://localhost:3001`.
+- Añadido `SESSION_COOKIE_SECURE` para desactivar explícitamente `Secure` solo en el runtime HTTP local.
+- Conservadas las cookies `Secure` por defecto en producción y en despliegues HTTPS.
+
 ## [0.2.1] — 2026-09-20 — Corrección de distribución multiplataforma
 
 > **Estado del producto:** patch release de corrección para la distribución multiplataforma.

@@ -64,10 +64,10 @@ Outputs are placed in `apps/web/src-tauri/target/release/bundle/`:
 
 ```
 apps/web/src-tauri/target/release/bundle/
-├── deb/FTTH-Copilot_0.2.1_amd64.deb
-├── appimage/FTTH-Copilot_0.2.1_amd64.AppImage
-├── msi/FTTH-Copilot_0.2.1_x64_en-US.msi        (Windows)
-└── nsis/FTTH-Copilot_0.2.1_x64-setup.exe      (Windows)
+├── deb/FTTH-Copilot_0.2.2_amd64.deb
+├── appimage/FTTH-Copilot_0.2.2_amd64.AppImage
+├── msi/FTTH-Copilot_0.2.2_x64_en-US.msi        (Windows)
+└── nsis/FTTH-Copilot_0.2.2_x64-setup.exe      (Windows)
 ```
 
 ### CI build
@@ -114,7 +114,7 @@ Since Next.js apps with API routes can't be fully statically exported, the Tauri
 
 1. **Build the Tauri app** with `frontendDist: "../dist"` (the generated redirect directory)
 2. **`pnpm tauri:prepare`** generates `apps/web/dist/index.html` with a meta-refresh redirect to the dev server
-3. **Start the Next.js dev server** on port 3001 (or any port matching your devUrl)
+3. **Start the Next.js server** on port 3001 (or any port matching your devUrl) with `SESSION_COOKIE_SECURE=false` for local HTTP
 4. **Run the AppImage**: the webview loads `dist/index.html`, then redirects to `http://localhost:3001`
 5. The web UI now renders with live data from the backend
 
@@ -135,10 +135,10 @@ cd apps/web
 pnpm tauri:build:linux    # or :windows
 
 # 3. Start the backend
-DATABASE_URL="..." pnpm exec next start -p 3001
+SESSION_COOKIE_SECURE=false DATABASE_URL="..." pnpm exec next start -p 3001
 
 # 4. Run the AppImage
-./FTTH-Copilot_0.2.1_amd64.AppImage
+./FTTH-Copilot_0.2.2_amd64.AppImage
 ```
 
 ## Roadmap
