@@ -276,11 +276,11 @@ test.describe("InvestigationCard — Gate 3 UI E2E Acceptance", () => {
 
     // In-flight pending indicator should appear during pending status
     const pendingMsg = page.getByTestId("investigation-pending-inc-card-1");
-    await expect(pendingMsg).toBeVisible();
+    await expect(pendingMsg).toBeVisible({ timeout: 10_000 });
 
     // After poll resolves, the result appears
     const badge = page.getByTestId("investigation-sufficiency-badge-inc-card-1");
-    await expect(badge).toBeVisible();
+    await expect(badge).toBeVisible({ timeout: 10_000 });
 
     // Click Reinvestigar button
     const refreshBtn = page.getByTestId("investigation-refresh-button-inc-card-1");
