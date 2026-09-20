@@ -12,6 +12,8 @@ if (fs.existsSync(rootEnvPath) && typeof process.loadEnvFile === 'function') {
 }
 
 /** @type {import('next').NextConfig} */
+const isStaticExport = process.env.NEXT_OUTPUT_MODE === 'export';
+
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: [
@@ -31,6 +33,12 @@ const nextConfig = {
   // Allow requests from the Tailscale IP we expose to the user for the demo.
   // Without this, Next 16 logs a warning when the host header isn't localhost.
   allowedDevOrigins: ['100.69.81.48', 'localhost'],
+  // Static export for Capacitor / Tauri wrappers. Build with NEXT_OUTPUT_MODE=export.
+  ...(isStaticExport && {
+    output: 'export',
+    images: { unoptimized: true },
+    trailingSlash: false,
+  }),
   // Turbopack config — empty to silence the webpack/turbopack conflict warning.
   // @ducanh2912/next-pwa requires webpack, so we set an empty turbopack config
   // to tell Next.js to fall back to webpack for this build.
@@ -92,7 +100,7 @@ const pwaConfig = withPWA({
   ],
 });
 
-const pwaExport = process.env.NEXT_PUBLIC_DISABLE_PWA === 'true'
+const pwaExport = (process.env.NEXT_PUBLIC_DISABLE_PWA === 'true' || isStaticExport)
   ? nextConfig
   : pwaConfig(nextConfig);
 
