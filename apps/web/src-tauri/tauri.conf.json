@@ -4,7 +4,7 @@
   "version": "0.1.1",
   "identifier": "com.ftthcopilot.desktop",
   "build": {
-    "frontendDist": "../web/.next",
+    "frontendDist": "../.next",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
