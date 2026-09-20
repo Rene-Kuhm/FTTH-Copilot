@@ -1,0 +1,139 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - design-system-v1
+      - capacitor-android
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'apps/web/android/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Use preinstalled Android SDK
+        run: |
+          ls -la $ANDROID_HOME/cmdline-tools/
+          echo "Using cmdline-tools:"
+          cat $ANDROID_HOME/cmdline-tools/latest/source.properties
+
+      - name: Accept SDK licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
+
+      - name: Install SDK packages
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Capacitor requires a static webDir. We bundle the Next.js standalone
+      # server assets as a single-page shell that loads the deployed web app
+      # from NEXT_PUBLIC_API_URL. This means the APK needs a deployed backend
+      # to fully function; for a fully offline demo, see Phase 3 of the
+      # roadmap (SQLite caching + service worker offline mode).
+      - name: Bundle web assets for Capacitor
+        working-directory: apps/web
+        run: |
+          # Copy the static export marker so cap sync has a webDir.
+          # The actual web assets are served via the standalone server.
+          mkdir -p out
+          cp -f public/favicon.svg out/ 2>/dev/null || true
+          cp -f public/manifest.json out/ 2>/dev/null || true
+          cp -r public/icons out/ 2>/dev/null || true
+          cp -f public/sw.js out/ 2>/dev/null || true
+          ls -la out/
+
+      - name: Create assets directory for Capacitor sync
+        working-directory: apps/web/android
+        run: |
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/xml
+
+      - name: Capacitor sync
+        working-directory: apps/web
+        run: pnpm cap:sync
+
+      - name: Make gradlew executable
+        working-directory: apps/web/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: apps/web/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build release APK (unsigned)
+        working-directory: apps/web/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Locate APK files
+        working-directory: apps/web/android
+        run: |
+          echo "=== APKs ==="
+          find . -name "*.apk" -type f
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ftth-copilot-debug
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ftth-copilot-release
+          path: apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          fail_on_unmatched-files: false
+          generate_release_notes: true

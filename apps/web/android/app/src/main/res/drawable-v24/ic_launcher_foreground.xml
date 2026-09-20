@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportHeight="108"
+    android:viewportWidth="108">
+
+    <!-- Signal/network icon for FTTH-Copilot -->
+    <path
+        android:fillColor="#f23077"
+        android:pathData="M54,68m-10,0a10,10 0 1,0 20,0a10,10 0 1,0 -20,0" />
+
+    <path
+        android:fillColor="#f23077"
+        android:fillAlpha="0.7"
+        android:pathData="M54,52m-7,0a7,7 0 1,0 14,0a7,7 0 1,0 -14,0" />
+
+    <path
+        android:fillColor="#f23077"
+        android:fillAlpha="0.45"
+        android:pathData="M54,40m-5,0a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
+
+    <path
+        android:fillColor="#f23077"
+        android:fillAlpha="0.25"
+        android:pathData="M54,32m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0" />
+
+    <!-- Connection lines -->
+    <path
+        android:fillColor="#f23077"
+        android:pathData="M51,56h6v6h-6z" />
+
+    <path
+        android:fillColor="#f23077"
+        android:fillAlpha="0.7"
+        android:pathData="M51,46h6v6h-6z" />
+
+    <path
+        android:fillColor="#f23077"
+        android:fillAlpha="0.45"
+        android:pathData="M51,40h6v4h-6z" />
+</vector>
