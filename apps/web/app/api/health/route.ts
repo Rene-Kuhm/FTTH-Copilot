@@ -43,7 +43,7 @@ export async function GET(): Promise<NextResponse> {
         rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
         heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       },
-      version: process.env['npm_package_version'] ?? '0.1.1',
+      version: process.env['npm_package_version'] ?? '0.2.1',
       database,
       services,
       hungLoops,

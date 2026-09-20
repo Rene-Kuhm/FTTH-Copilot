@@ -64,10 +64,10 @@ Outputs are placed in `apps/web/src-tauri/target/release/bundle/`:
 
 ```
 apps/web/src-tauri/target/release/bundle/
-├── deb/FTTH-Copilot_0.1.1_amd64.deb
-├── appimage/FTTH-Copilot_0.1.1_amd64.AppImage
-├── msi/FTTH-Copilot_0.1.1_x64_en-US.msi        (Windows)
-└── nsis/FTTH-Copilot_0.1.1_x64-setup.exe      (Windows)
+├── deb/FTTH-Copilot_0.2.1_amd64.deb
+├── appimage/FTTH-Copilot_0.2.1_amd64.AppImage
+├── msi/FTTH-Copilot_0.2.1_x64_en-US.msi        (Windows)
+└── nsis/FTTH-Copilot_0.2.1_x64-setup.exe      (Windows)
 ```
 
 ### CI build

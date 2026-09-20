@@ -7,6 +7,27 @@ with semantic versioning and per-change author attribution from commit messages.
 
 ---
 
+## [0.2.1] — 2026-09-20 — Corrección de distribución multiplataforma
+
+> **Estado del producto:** patch release de corrección para la distribución multiplataforma.
+
+### Fixed
+
+- Alineadas las versiones de los paquetes, Tauri, Cargo, Android, health endpoint y telemetría a `0.2.1`.
+- Corregidos los nombres de los instaladores generados para que coincidan con el release.
+- Añadido un chequeo automático para detectar divergencias de versión antes de publicar.
+- Actualizada la documentación de distribución para Android, Linux y Windows.
+
+### Known limitations
+
+- El APK publicado continúa siendo unsigned y los instaladores de escritorio no tienen firma de código.
+- `v0.2.0` conserva sus assets históricos; este patch release entrega artefactos corregidos.
+
+### Verification
+
+- Check de versión, lint, typecheck, build web, 378 tests y `cargo check` verificados localmente.
+- Los builds Android y multiplataforma completos quedan sujetos al CI por requerir Java, SDK Android y runners nativos.
+
 ## [0.1.1] — 2026-09-19 — Corrección del demo Docker
 
 > **Estado del producto:** patch release de v0.1.0. Mantiene el alcance de evaluación técnica.
