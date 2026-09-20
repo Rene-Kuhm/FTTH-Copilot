@@ -22,36 +22,85 @@ interface Alert {
   detectedAt: string;
 }
 
-const SEVERITY_META: Record<
+const SEVERITY_STYLE: Record<
   Alert['severity'],
   {
     label: string;
-    chipClass: string;
-    rowClass: string;
+    chip: React.CSSProperties;
+    row: React.CSSProperties;
     Icon: React.ComponentType<{ className?: string }>;
   }
 > = {
   critical: {
     label: 'Crítica',
-    chipClass: 'bg-danger/15 text-red-300 ring-1 ring-inset ring-danger/30',
-    rowClass:
-      'border-danger/30 bg-danger/5 hover:border-danger/50 hover:bg-red-500/10',
+    chip: {
+      background: 'color-mix(in srgb, var(--color-danger) 15%, transparent)',
+      color: 'var(--color-danger)',
+      border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
+    row: {
+      background: 'color-mix(in srgb, var(--color-danger) 5%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--color-danger) 25%, transparent)',
+      borderRadius: 'var(--radius-card)',
+      padding: '0.875rem 0.875rem',
+      transition: 'all 180ms ease',
+    },
     Icon: XCircleIcon,
   },
   warning: {
     label: 'Advertencia',
-    chipClass:
-      'bg-warning/15 text-amber-300 ring-1 ring-inset ring-warning/30',
-    rowClass:
-      'border-warning/30 bg-warning/5 hover:border-warning/50 hover:bg-warning/10',
+    chip: {
+      background: 'color-mix(in srgb, var(--color-warning) 15%, transparent)',
+      color: 'var(--color-warning)',
+      border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
+    row: {
+      background: 'color-mix(in srgb, var(--color-warning) 5%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--color-warning) 25%, transparent)',
+      borderRadius: 'var(--radius-card)',
+      padding: '0.875rem 0.875rem',
+      transition: 'all 180ms ease',
+    },
     Icon: ExclamationTriangleIcon,
   },
   info: {
     label: 'Información',
-    chipClass:
-      'bg-blue-500/15 text-blue-300 ring-1 ring-inset ring-blue-500/30',
-    rowClass:
-      'border-blue-500/30 bg-blue-500/5 hover:border-blue-500/50 hover:bg-blue-500/10',
+    chip: {
+      background: 'rgb(242 48 119 / 0.12)',
+      color: 'var(--color-accent)',
+      border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
+    row: {
+      background: 'rgb(242 48 119 / 0.04)',
+      border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',
+      borderRadius: 'var(--radius-card)',
+      padding: '0.875rem 0.875rem',
+      transition: 'all 180ms ease',
+    },
     Icon: InformationCircleIcon,
   },
 };
@@ -78,9 +127,7 @@ function formatCategory(c: string): string {
     performance: 'Rendimiento',
   };
   if (translated[c.toLowerCase()]) return translated[c.toLowerCase()];
-  return c
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  return c.replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
 export function AlertsPanel() {
@@ -94,9 +141,7 @@ export function AlertsPanel() {
     label: string;
   } | null>(null);
   const [expanded, setExpanded] = useState(true);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async () => {
     if (!auth.user) return;
@@ -169,30 +214,67 @@ export function AlertsPanel() {
   }, [alerts]);
 
   if (auth.loading || !auth.user) return null;
-  if (loading) return <div role="status" aria-live="polite" className="card h-28 animate-pulse"><span className="sr-only">Cargando alertas…</span></div>;
-  if (error) {
+
+  if (loading) {
     return (
-      <div role="alert" aria-live="assertive" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/25 bg-danger/[0.07] px-4 py-3 text-sm text-red-200">
-        <span>{error}</span>
-        <button type="button" onClick={() => void load()} className="btn-outline">Reintentar</button>
+      <div role="status" aria-live="polite" className="card h-28 animate-pulse">
+        <span className="sr-only">Cargando alertas…</span>
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm"
+        style={{
+          border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+          background: 'color-mix(in srgb, var(--color-danger) 8%, transparent)',
+          color: 'var(--color-text)',
+        }}
+      >
+        <span>{error}</span>
+        <button type="button" onClick={() => void load()} className="btn-outline">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   if (alerts.length === 0) {
     return (
       <section className="card flex flex-col items-center px-5 py-8 text-center sm:px-6">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-300/15">
+        <span
+          className="flex h-12 w-12 items-center justify-center rounded-2xl"
+          style={{
+            background: 'color-mix(in srgb, var(--color-success) 10%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)',
+            color: 'var(--color-success)',
+          }}
+        >
           <BellIcon className="h-5 w-5" />
         </span>
-        <h2 className="mt-4 text-sm font-semibold text-white">
-          {connectorState.connectedConnectors.length === 0 && !dataSource ? 'Conectá tu primera red' : 'Sin alertas activas'}
+        <h2
+          className="mt-4 text-sm font-semibold"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+        >
+          {connectorState.connectedConnectors.length === 0 && !dataSource
+            ? 'Conectá tu primera red'
+            : 'Sin alertas activas'}
         </h2>
-        <p className="mt-1.5 max-w-sm text-xs leading-5 text-neutral-500">
+        <p
+          className="mt-1.5 max-w-sm text-xs leading-5"
+          style={{ color: 'var(--color-muted)' }}
+        >
           {connectorState.connectedConnectors.length === 0 && !dataSource
             ? 'Validá un NMS para empezar a consultar eventos operativos.'
             : `No hay eventos que requieran atención${dataSource ? ` en ${dataSource.label}` : ''}.`}
         </p>
-        <button type="button" onClick={() => void load()} className="btn-outline mt-4">Actualizar alertas</button>
+        <button type="button" onClick={() => void load()} className="btn-outline mt-4">
+          Actualizar alertas
+        </button>
       </section>
     );
   }
@@ -207,85 +289,118 @@ export function AlertsPanel() {
   }
 
   return (
-    <section className="card overflow-hidden">
+    <section className="card overflow-hidden" style={{ color: 'var(--color-text)' }}>
+      {/* Demo mode banner */}
       {dataSource?.mode === 'demo' && (
-        <div className="border-b border-warning/20 bg-warning/[0.07] px-5 py-2 text-xs text-amber-300">
+        <div
+          className="border-b px-5 py-2 text-xs"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--color-warning) 25%, transparent)',
+            background: 'color-mix(in srgb, var(--color-warning) 7%, transparent)',
+            color: 'var(--color-warning)',
+            fontFamily: 'var(--font-display)',
+          }}
+        >
           Datos simulados · {dataSource.label}
         </div>
       )}
+
+      {/* Header */}
       <div className="flex items-center gap-2 px-3 sm:px-5">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center justify-between gap-4 py-4 text-left transition-colors"
+          className="flex min-w-0 flex-1 items-center justify-between gap-4 py-4 text-left"
+          style={{ color: 'var(--color-text)' }}
         >
-        <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-amber-300 ring-1 ring-inset ring-warning/20">
-            <BellIcon className="h-5 w-5" />
-          </span>
-          <div>
-              <h2 className="text-sm font-semibold text-white">Alertas de red</h2>
-              <p className="mt-0.5 text-xs text-neutral-500">
-              {alerts.length} alerta{alerts.length === 1 ? '' : 's'} activa{alerts.length === 1 ? '' : 's'} · agrupadas por categoría
-            </p>
+          <div className="flex items-center gap-3">
+            <span
+              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{
+                background: 'color-mix(in srgb, var(--color-warning) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--color-warning) 25%, transparent)',
+                color: 'var(--color-warning)',
+              }}
+            >
+              <BellIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <h2
+                className="text-sm font-semibold"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+              >
+                Alertas de red
+              </h2>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+                {alerts.length} alerta{alerts.length === 1 ? '' : 's'} activa
+                {alerts.length === 1 ? '' : 's'} · agrupadas por categoría
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {counts.critical > 0 && (
-            <span className={SEVERITY_META.critical.chipClass + ' badge'}>
-              <XCircleIcon className="h-3.5 w-3.5" />
-              {counts.critical} crítica{counts.critical === 1 ? '' : 's'}
-            </span>
-          )}
-          {counts.warning > 0 && (
-            <span className={SEVERITY_META.warning.chipClass + ' badge'}>
-              <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-              {counts.warning} advertencia{counts.warning === 1 ? '' : 's'}
-            </span>
-          )}
-          <ChevronDownIcon
-            className={`h-4 w-4 text-neutral-500 transition-transform ${
-              expanded ? '' : '-rotate-90'
-            }`}
-          />
-        </div>
+          <div className="flex items-center gap-2">
+            {counts.critical > 0 && (
+              <span style={SEVERITY_STYLE.critical.chip}>
+                <XCircleIcon className="h-3.5 w-3.5" />
+                {counts.critical} crítica{counts.critical === 1 ? '' : 's'}
+              </span>
+            )}
+            {counts.warning > 0 && (
+              <span style={SEVERITY_STYLE.warning.chip}>
+                <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                {counts.warning} advertencia{counts.warning === 1 ? '' : 's'}
+              </span>
+            )}
+            <ChevronDownIcon
+              className="h-4 w-4 transition-transform"
+              style={{
+                color: 'var(--color-muted)',
+                transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+              }}
+            />
+          </div>
         </button>
         <button type="button" onClick={() => void load()} className="btn-outline">
           Actualizar
         </button>
       </div>
 
+      {/* Alert groups */}
       {expanded && (
-        <div className="divide-y divide-white/[0.05] border-t border-white/[0.06]">
+        <div
+          className="divide-y"
+          style={{ borderTop: '1px solid var(--border-divider)', borderColor: 'var(--border-divider)' }}
+        >
           {groups.map(({ category, items, topSeverity }) => {
             const collapsed = collapsedGroups.has(category);
-            const Icon = SEVERITY_META[topSeverity.severity].Icon;
+            const { Icon } = SEVERITY_STYLE[topSeverity.severity];
             return (
               <div key={category}>
                 <button
                   type="button"
                   onClick={() => void toggleGroup(category)}
                   aria-expanded={!collapsed}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-sm transition-colors hover:bg-white/[0.025]"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    transition: 'background-color 180ms ease',
+                  }}
                 >
                   <div className="flex items-center gap-2.5">
-                    {collapsed ? (
-                      <ChevronRightIcon className="h-4 w-4 text-neutral-500" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4 text-neutral-500" />
-                    )}
-                    <Icon
-                      className={`h-4 w-4 ${
-                        SEVERITY_META[topSeverity.severity].chipClass.split(
-                          ' ',
-                        )[1] ?? 'text-neutral-400'
-                      }`}
-                    />
-                    <span className="font-medium text-neutral-50">
+                    <span style={{ color: 'var(--color-muted)' }}>
+                      {collapsed ? (
+                        <ChevronRightIcon className="h-4 w-4" />
+                      ) : (
+                        <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </span>
+                    <span style={{ color: SEVERITY_STYLE[topSeverity.severity].chip.color as string }}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="font-medium" style={{ color: 'var(--color-text)' }}>
                       {formatCategory(category)}
                     </span>
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
                       ({items.length})
                     </span>
                   </div>
@@ -294,29 +409,34 @@ export function AlertsPanel() {
                 {!collapsed && (
                   <ul className="space-y-2 px-5 pb-4">
                     {items.map((alert) => {
-                      const meta = SEVERITY_META[alert.severity];
+                      const meta = SEVERITY_STYLE[alert.severity];
                       const AlertIcon = meta.Icon;
                       return (
-                        <li
-                          key={alert.id}
-                          className={`rounded-xl border px-3.5 py-3 transition-colors ${meta.rowClass}`}
-                        >
+                        <li key={alert.id} style={meta.row}>
                           <div className="flex items-start gap-3">
-                            <AlertIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                            <span className="mt-0.5 flex-shrink-0" style={{ color: meta.chip.color as string }}>
+                              <AlertIcon className="h-4 w-4" />
+                            </span>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <span className="text-sm font-medium text-neutral-50">
+                                <span
+                                  className="text-sm font-medium"
+                                  style={{ color: 'var(--color-text)' }}
+                                >
                                   {alert.title}
                                 </span>
-                                <span className="text-xs text-neutral-500">
+                                <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
                                   {alert.affectedEntity}
                                 </span>
                               </div>
-                              <p className="mt-0.5 text-xs leading-relaxed text-neutral-400">
+                              <p
+                                className="mt-0.5 text-xs leading-relaxed"
+                                style={{ color: 'var(--color-muted)' }}
+                              >
                                 {alert.description}
                               </p>
                             </div>
-                            <span className="flex-shrink-0 text-xs text-neutral-500">
+                            <span className="flex-shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
                               {timeAgo(alert.detectedAt)}
                             </span>
                           </div>

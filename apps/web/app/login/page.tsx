@@ -21,9 +21,12 @@ export default function LoginPage() {
   return (
     <AuthPageShell title="Iniciar sesión" description="Accedé al centro de operaciones de tu organización.">
       <AuthBar initialMode="login" />
-      <p className="mt-5 text-center text-xs text-neutral-500">
+      <p className="mt-5 text-center text-xs" style={{ color: 'var(--color-muted)' }}>
         ¿No tenés cuenta?{' '}
-        <Link href={'/signup' as Route} className="font-semibold text-cyan-300 hover:text-cyan-200">
+        <Link
+          href={'/signup' as Route}
+          style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-display)', fontWeight: 600 }}
+        >
           Crear cuenta
         </Link>
       </p>
