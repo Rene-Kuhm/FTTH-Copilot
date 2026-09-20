@@ -20,6 +20,7 @@ SEED_ADMIN_PASSWORD=demo12345
 # Server
 PORT=3001
 NODE_ENV=development
+SESSION_COOKIE_SECURE=false
 
 # ── Demo mode (must be false in production) ────────────────────────────────
 DEMO_MODE_ENABLED=true

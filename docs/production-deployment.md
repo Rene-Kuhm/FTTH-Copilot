@@ -1,4 +1,4 @@
-# Production Deployment Guide — FTTH-Copilot v0.2.1
+# Production Deployment Guide — FTTH-Copilot v0.2.2
 
 > **Alcance:** este documento cubre el despliegue de producción del stack Docker de FTTH-Copilot.
 > No cubre la configuración de red del ISP, el aprovisionamiento de OLTs ni la integración
