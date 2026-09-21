@@ -29,15 +29,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.22.0
 
@@ -88,7 +88,7 @@ jobs:
         shell: bash
 
       - name: Upload Linux .deb
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ftth-copilot-linux-deb
           path: apps/web/src-tauri/target/release/bundle/deb/*.deb
@@ -96,7 +96,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ftth-copilot-linux-appimage
           path: apps/web/src-tauri/target/release/bundle/appimage/*.AppImage
@@ -114,15 +114,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.22.0
 
@@ -157,7 +157,7 @@ jobs:
         shell: pwsh
 
       - name: Upload Windows MSI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ftth-copilot-windows-msi
           path: apps/web/src-tauri/target/release/bundle/msi/*.msi
@@ -165,7 +165,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Windows NSIS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ftth-copilot-windows-nsis
           path: apps/web/src-tauri/target/release/bundle/nsis/*.exe
@@ -182,12 +182,12 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
       - name: Attach binaries to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/**/*
           fail_on_unmatched_files: false
