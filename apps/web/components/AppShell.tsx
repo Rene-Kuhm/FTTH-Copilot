@@ -8,11 +8,12 @@ import {
   ChartBarSquareIcon,
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
+  MapPinIcon,
   ServerStackIcon,
   SignalIcon,
 } from './icons';
 
-type AppSection = 'chat' | 'dashboard' | 'alerts' | 'management';
+type AppSection = 'chat' | 'dashboard' | 'alerts' | 'plans' | 'management';
 
 interface AppShellProps {
   active: AppSection;
@@ -26,6 +27,7 @@ interface AppShellProps {
 const NAV_ITEMS = [
   { id: 'chat', label: 'Copilot', href: '/app', Icon: ChatBubbleLeftRightIcon },
   { id: 'dashboard', label: 'Tablero', href: '/dashboard', Icon: ChartBarSquareIcon },
+  { id: 'plans', label: 'Planos', href: '/plans', Icon: MapPinIcon },
   { id: 'alerts', label: 'Alertas', href: '/alerts', Icon: BellIcon },
 ] as const;
 
