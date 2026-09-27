@@ -132,3 +132,4 @@ export interface ChatResponse {
 }
 
 export * from './contracts';
+export * from './laya-expert-system';
