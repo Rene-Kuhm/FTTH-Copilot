@@ -371,31 +371,106 @@ const route = planRoute({ userMessage: 'OLT reports LOS...' });
 ### Feature Flags
 
 ```env
-LAYA_ENABLED=true
-LAYA_MODE=shadow
-LAYA_FAIL_OPEN=true
-LAYA_MIN_CONFIDENCE=0.75
-LAYA_SUGGEST_ROUTE=false  # aún no usado
+LAYA_ENABLED=true          # Enable/disable Laya
+LAYA_MODE=shadow            # disabled|shadow|assisted|automatic
+LAYA_FAIL_OPEN=true         # Continue when Laya unavailable
+LAYA_MIN_CONFIDENCE=0.75    # Threshold for routing decisions
+LAYA_SUGGEST_ROUTE=false    # Enable route suggestions
+LAYA_ALLOW_DIRECT_ROUTING=false  # Allow fast path in automatic mode
+LAYA_MODEL=ftth-expert-system-v1
+LAYA_MODEL_VERSION=1.0.0
+LAYA_LOG_LEVEL=debug        # debug|info|error
 ```
 
-### Archivos
+### Métricas Prometheus
 
-- `packages/shared/src/laya-expert-system.ts` - Classifier principal
-- `packages/shared/src/index.ts` - Exports del classifier
-- `packages/shared/tests/laya-expert-system.test.ts` - 12 tests passing
-- `packages/agent-core/src/adaptive-router.ts` - Integración con planRoute
-- `packages/db/prisma/schema.prisma` - DecisionEvaluation table
+```typescript
+import { recordLayaDecision, layaMetrics } from '@ftth-copilot/shared';
+
+recordLayaDecision('OPTICAL_FAULT', 0.87, 'shadow', 'success', 15, 'INVESTIGATION');
+
+// Get Prometheus format
+console.log(layaMetrics.toPrometheusFormat());
+// ftth_laya_requests_total{mode="shadow",event_class="OPTICAL_FAULT"} 1
+// ftth_laya_latency_ms{mode="shadow",quantile="p50"} 15
+```
+
+### Shadow Mode
+
+```typescript
+import { logLayaDecision, getLayaConfig, toDecisionLog } from '@ftth-copilot/shared';
+
+const config = getLayaConfig();
+if (shouldLogDecision(config)) {
+  const log = toDecisionLog(input, result, config, latencyMs);
+  await logLayaDecision(input, log);
+}
+```
+
+### Archivos Implementados
+
+```
+packages/shared/src/
+├── laya-expert-system.ts    # Classifier principal (94.4% accuracy)
+├── laya-metrics.ts          # Prometheus metrics
+├── laya-shadow.ts           # Shadow mode + feature flags
+├── laya-integration.ts      # Integration helpers
+├── laya-client.ts           # HTTP client (for ML service)
+└── contracts.ts             # Shared schemas
+
+packages/shared/tests/
+├── laya-expert-system.test.ts
+├── laya-metrics.test.ts
+├── laya-shadow.test.ts
+├── laya-integration.test.ts
+└── laya-client.test.ts
+
+services/laya/
+├── Dockerfile               # Docker deployment
+├── requirements.txt
+└── app.py                   # Python REST API (fallback)
+
+packages/agent-core/src/
+└── adaptive-router.ts       # Integration with planRoute()
+
+packages/db/prisma/
+└── schema.prisma            # DecisionEvaluation table
+```
 
 ### Tests
 
 ```bash
-# Shared tests
-npm run test -- packages/shared/tests/laya-expert-system.test.ts
-# 12 passed ✅
+# All shared tests
+npm run test -- packages/shared
+# 71 passed ✅
 
 # Agent-core tests
 npm run test -- packages/agent-core
 # 262 passed ✅
+
+# Run specific test file
+npx vitest run packages/shared/tests/laya-expert-system.test.ts
+```
+
+### Docker Deployment
+
+```bash
+# Start with Laya service
+docker compose --profile laya up -d
+
+# Check health
+curl http://localhost:8080/health
+{"status":"ok","modelLoaded":true,"model":"ftth-expert-system-v1"}
+
+# Single decision
+curl -X POST http://localhost:8080/v1/decide \
+  -H "Content-Type: application/json" \
+  -d '{"event":{"rawSummary":"OLT reports LOS alarm"}}'
+
+# Batch decisions
+curl -X POST http://localhost:8080/v1/batch \
+  -H "Content-Type: application/json" \
+  -d '{"events":[{"rawSummary":"OLT LOS"},{"rawSummary":"Multiple ONUs offline"}]}'
 ```
 
 ### Recomendación
