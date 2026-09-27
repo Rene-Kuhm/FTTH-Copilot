@@ -334,10 +334,35 @@ const result = classifier.classify('OLT reports LOS alarm...');
 console.log(result.eventClass); // "OPTICAL_FAULT"
 ```
 
+### Integración con Adaptive Router
+
+El Expert System está integrado en `planRoute()` de `adaptive-router.ts`:
+
+```typescript
+const route = planRoute({ userMessage: 'OLT reports LOS...' });
+// route.mode = 'direct'
+// route.eventClass = 'OPTICAL_FAULT'
+// route.eventConfidence = 0.87
+```
+
 ### Archivos
 
 - `packages/shared/src/laya-expert-system.ts` - Classifier principal
+- `packages/shared/src/index.ts` - Exports del classifier
 - `packages/shared/tests/laya-expert-system.test.ts` - 12 tests passing
+- `packages/agent-core/src/adaptive-router.ts` - Integración con planRoute
+
+### Tests
+
+```bash
+# Shared tests
+npm run test -- packages/shared/tests/laya-expert-system.test.ts
+# 12 passed ✅
+
+# Agent-core tests
+npm run test -- packages/agent-core
+# 262 passed ✅
+```
 
 ### Recomendación
 
