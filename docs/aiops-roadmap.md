@@ -126,6 +126,12 @@ Cada fase es **testeable, con CI verde y reversible** de forma independiente. Ni
 - Mapear el flujo interno actual a esos contratos (aunque sigan viviendo en el monorepo).
 - Agregar **FEC errors + óptica por ONT** al modelo `MetricSample` (nuevos `MetricKind`: `FEC_CORRECTED`, `FEC_UNCORRECTED`).
 
+### Fase 1b — Laya Decision Layer (ADR-042) — **Implementado**
+
+El layer cognitivo se complementa con **Laya Decision Layer** (ADR-042): un Expert System que clasifica eventos FTTH en <5ms con 94.4% de accuracy antes de invocar el LLM. Se activa en shadow mode por defecto y persiste decisiones en `decision_evaluations` para futura evaluación y fine-tuning.
+
+> **Estado: implementado.** PRs #226, #227, #228, #229 en `main`. Consultar [`ADR-042`](docs/engineering/ADR-042-laya-decision-layer.md) para el detalle completo.
+
 ### Fase 1 — Detectores de degradación microscópica (TS, sin cambiar de lenguaje)
 - Nuevos detectores puros en `@ftth-copilot/detection`:
   - `detectFecDegradation` — FEC corregido/no corregido creciendo sobre línea base → pre-alerta **antes** de que RX cruce −27 dBm.
