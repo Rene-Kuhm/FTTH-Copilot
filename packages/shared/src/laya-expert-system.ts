@@ -2,7 +2,7 @@
  * FTTH Expert System - Rule-based classifier
  * 
  * Based on keyword matching with priority ordering.
- * Achieves 94.4% accuracy on test set.
+ * Achieves 94.4% accuracy on eventClass classification.
  * 
  * Usage:
  *   const classifier = new FTTHExpertClassifier();
@@ -14,6 +14,12 @@ export interface ClassificationResult {
   eventClass: EventClass;
   confidence: number;
   matchedKeywords: string[];
+  /** Severity estimation based on event class */
+  severity: Severity;
+  /** Probable scope of the fault */
+  probableScope: ProbableScope;
+  /** Whether investigation is recommended */
+  requiresInvestigation: boolean;
 }
 
 export type EventClass =
@@ -25,6 +31,18 @@ export type EventClass =
   | 'UPLINK_FAULT'
   | 'CONGESTION'
   | 'MASS_OUTAGE'
+  | 'UNKNOWN';
+
+export type Severity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type ProbableScope =
+  | 'ONU'
+  | 'CTO'
+  | 'SPLITTER'
+  | 'PON'
+  | 'OLT'
+  | 'UPLINK'
+  | 'POWER'
   | 'UNKNOWN';
 
 interface ClassPatterns {
@@ -123,6 +141,45 @@ const CLASS_PATTERNS: Record<EventClass, ClassPatterns> = {
   },
 };
 
+// Severity mapping based on event class
+const EVENT_CLASS_SEVERITY: Record<EventClass, Severity> = {
+  NORMAL: 'INFO',
+  OPTICAL_DEGRADATION: 'MEDIUM',
+  CONGESTION: 'LOW',
+  DEVICE_FAULT: 'HIGH',
+  POWER_FAULT: 'CRITICAL',
+  OPTICAL_FAULT: 'HIGH',
+  UPLINK_FAULT: 'HIGH',
+  MASS_OUTAGE: 'CRITICAL',
+  UNKNOWN: 'MEDIUM',
+};
+
+// Scope inference based on event class and matched patterns
+const EVENT_CLASS_SCOPE: Record<EventClass, ProbableScope> = {
+  NORMAL: 'UNKNOWN',
+  OPTICAL_DEGRADATION: 'PON',
+  CONGESTION: 'UPLINK',
+  DEVICE_FAULT: 'OLT',
+  POWER_FAULT: 'ONU',
+  OPTICAL_FAULT: 'PON',
+  UPLINK_FAULT: 'UPLINK',
+  MASS_OUTAGE: 'PON',
+  UNKNOWN: 'UNKNOWN',
+};
+
+// Investigation required based on event class
+const EVENT_CLASS_REQUIRES_INVESTIGATION: Record<EventClass, boolean> = {
+  NORMAL: false,
+  OPTICAL_DEGRADATION: true,
+  CONGESTION: false,
+  DEVICE_FAULT: true,
+  POWER_FAULT: true,
+  OPTICAL_FAULT: true,
+  UPLINK_FAULT: true,
+  MASS_OUTAGE: true,
+  UNKNOWN: true,
+};
+
 export class FTTHExpertClassifier {
   private patterns: Map<string, { eventClass: EventClass; priority: number }>;
 
@@ -183,6 +240,9 @@ export class FTTHExpertClassifier {
         eventClass: 'NORMAL',
         confidence: 0.5,
         matchedKeywords: [],
+        severity: EVENT_CLASS_SEVERITY['NORMAL'],
+        probableScope: EVENT_CLASS_SCOPE['NORMAL'],
+        requiresInvestigation: EVENT_CLASS_REQUIRES_INVESTIGATION['NORMAL'],
       };
     }
 
@@ -194,6 +254,9 @@ export class FTTHExpertClassifier {
       eventClass: bestClass,
       confidence,
       matchedKeywords: [...new Set(matchedKeywords)],
+      severity: EVENT_CLASS_SEVERITY[bestClass],
+      probableScope: EVENT_CLASS_SCOPE[bestClass],
+      requiresInvestigation: EVENT_CLASS_REQUIRES_INVESTIGATION[bestClass],
     };
   }
 
