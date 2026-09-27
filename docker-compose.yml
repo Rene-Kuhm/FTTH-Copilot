@@ -1,7 +1,11 @@
-# FTTH-Copilot — Development Docker Compose (postgres only)
+# FTTH-Copilot — Development Docker Compose (postgres + Laya)
 # For a full demo with synthetic data and demo account, use:
 #   ./scripts/run-demo.sh
 #   # or: cp docs/demo-env-template.md .env && docker compose -f docker-compose.demo.yml up
+#
+# To enable Laya Decision Layer:
+#   LAYA_ENABLED=true LAYA_MODE=shadow docker compose up
+#
 ---
 services:
   postgres:
@@ -21,6 +25,34 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  # Laya Fast Decision Layer (System 1) - ADR-042
+  # CPU-only inference. For GPU acceleration, use CUDA image and set LAYA_DEVICE=cuda
+  laya:
+    build:
+      context: ./services/laya
+      dockerfile: Dockerfile
+    container_name: ftth_copilot_laya
+    restart: unless-stopped
+    environment:
+      LAYA_MODEL: ${LAYA_MODEL:-laya-multilingual}
+      LAYA_DEVICE: ${LAYA_DEVICE:-cpu}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    profiles:
+      - laya  # Only starts with: docker compose --profile laya up
 
 volumes:
   postgres_data:

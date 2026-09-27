@@ -849,3 +849,254 @@ export const topologyCorrelationGroupSchema = z
 
 export type TopologyCorrelationGroup = z.infer<typeof topologyCorrelationGroupSchema>;
 
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYA DECISION LAYER (System 1) — ADR-042
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fast Decision Layer (System 1) schema versions.
+ * Laya classifies network events before the LLM pipeline.
+ */
+export const LAYA_DECISION_EVENT_SCHEMA = 'ftth.laya-decision-event.v1' as const;
+export const LAYA_DECISION_SCHEMA = 'ftth.laya-decision.v1' as const;
+
+/**
+ * Event source identifiers.
+ */
+export const layaSourceSchema = z.enum([
+  'smartolt',
+  'mikrowisp',
+  'snmp',
+  'syslog',
+  'routeros',
+  'synthetic',
+]);
+export type LayaSource = z.infer<typeof layaSourceSchema>;
+
+/**
+ * Device kinds for Laya events. Mirrors deviceKindSchema but adds ROUTER.
+ */
+export const layaDeviceKindSchema = z.enum([
+  'OLT',
+  'PON_PORT',
+  'SPLITTER',
+  'CTO',
+  'ONU',
+  'ROUTER',
+]);
+export type LayaDeviceKind = z.infer<typeof layaDeviceKindSchema>;
+
+/**
+ * Event classification from Laya.
+ * These are machine inferences, NOT confirmed facts.
+ */
+export const layaEventClassSchema = z.enum([
+  'NORMAL',
+  'OPTICAL_DEGRADATION',
+  'OPTICAL_FAULT',
+  'POWER_FAULT',
+  'DEVICE_FAULT',
+  'UPLINK_FAULT',
+  'CONGESTION',
+  'MASS_OUTAGE',
+  'SECURITY_EVENT',
+  'UNKNOWN',
+]);
+export type LayaEventClass = z.infer<typeof layaEventClassSchema>;
+
+/**
+ * Severity levels for Laya decisions.
+ */
+export const layaSeveritySchema = z.enum([
+  'INFO',
+  'LOW',
+  'MEDIUM',
+  'HIGH',
+  'CRITICAL',
+]);
+export type LayaSeverity = z.infer<typeof layaSeveritySchema>;
+
+/**
+ * Probable scope of the fault.
+ */
+export const layaProbableScopeSchema = z.enum([
+  'ONU',
+  'CTO',
+  'SPLITTER',
+  'PON',
+  'OLT',
+  'UPLINK',
+  'POWER',
+  'UNKNOWN',
+]);
+export type LayaProbableScope = z.infer<typeof layaProbableScopeSchema>;
+
+/**
+ * Suggested routing decision.
+ * DIRECT: fast path, no LLM needed.
+ * ASSISTED: one LLM call with restricted tools.
+ * INVESTIGATION: full cognitive loop.
+ */
+export const layaSuggestedRouteSchema = z.enum([
+  'DIRECT',
+  'ASSISTED',
+  'INVESTIGATION',
+]);
+export type LayaSuggestedRoute = z.infer<typeof layaSuggestedRouteSchema>;
+
+/**
+ * Confidence scores for each decision dimension.
+ * Values in [0, 1]. Not calibrated until fine-tuned.
+ */
+export const layaConfidenceSchema = z.object({
+  eventClass: z.number().min(0).max(1),
+  severity: z.number().min(0).max(1),
+  probableScope: z.number().min(0).max(1),
+  suggestedRoute: z.number().min(0).max(1),
+});
+export type LayaConfidence = z.infer<typeof layaConfidenceSchema>;
+
+/**
+ * Topology context for Laya events.
+ * Contains device IDs only — no credentials or secrets.
+ */
+export const layaTopologyContextSchema = z.object({
+  oltId: z.string().optional(),
+  ponPort: z.string().optional(),
+  splitterId: z.string().optional(),
+  ctoId: z.string().optional(),
+}).optional();
+export type LayaTopologyContext = z.infer<typeof layaTopologyContextSchema>;
+
+/**
+ * Input contract: event to be classified by Laya.
+ * Stripped of secrets, credentials, and unnecessary data.
+ */
+export const layaDecisionEventSchema = z
+  .object({
+    schema: z.literal(LAYA_DECISION_EVENT_SCHEMA),
+    eventId: z.string().min(1),
+    tenantId: z.string().min(1),
+    timestamp: z.string().datetime(),
+    source: layaSourceSchema,
+    vendor: z.string().optional(),
+    deviceKind: layaDeviceKindSchema.optional(),
+    deviceId: z.string().optional(),
+    alarmType: z.string().optional(),
+    alarmCode: z.string().optional(),
+    rxPower: z.number().optional(),
+    rxTrend: z.number().optional(),
+    temperature: z.number().optional(),
+    affectedOnus: z.number().int().nonnegative().optional(),
+    affectedPonPorts: z.number().int().nonnegative().optional(),
+    dyingGasp: z.boolean().optional(),
+    powerAlarm: z.boolean().optional(),
+    topologyContext: layaTopologyContextSchema,
+    /**
+     * Human-readable summary of the raw event.
+     * This is the primary input to Laya's classifier.
+     */
+    rawSummary: z.string().min(1).max(2048),
+  })
+  .strict();
+
+export type LayaDecisionEvent = z.infer<typeof layaDecisionEventSchema>;
+
+/**
+ * Output contract: Laya's classification decision.
+ * Machine inference only — must be verified against telemetry.
+ */
+export const layaDecisionSchema = z
+  .object({
+    schema: z.literal(LAYA_DECISION_SCHEMA),
+    eventId: z.string().min(1),
+    /**
+     * Classification decision. Not a confirmed fact.
+     */
+    eventClass: layaEventClassSchema,
+    severity: layaSeveritySchema,
+    probableScope: layaProbableScopeSchema,
+    suggestedRoute: layaSuggestedRouteSchema,
+    requiresInvestigation: z.boolean(),
+    /**
+     * Confidence scores per dimension.
+     * ECE (Expected Calibration Error) unknown until fine-tuned.
+     */
+    confidence: layaConfidenceSchema,
+    model: z.string(),
+    modelVersion: z.string().optional(),
+    latencyMs: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export type LayaDecision = z.infer<typeof layaDecisionSchema>;
+
+/**
+ * Laya operating modes (ADR-042 DEC-042-2).
+ * - disabled: Laya is not consulted.
+ * - shadow: Laya decides but results are only logged.
+ * - assisted: Laya signal injected into adaptive-router context.
+ * - automatic-routing: Laya can affect routing (requires validation).
+ */
+export const layaModeSchema = z.enum([
+  'disabled',
+  'shadow',
+  'assisted',
+  'automatic-routing',
+]);
+export type LayaMode = z.infer<typeof layaModeSchema>;
+
+/**
+ * Laya configuration from environment (DEC-042-2).
+ */
+export const layaConfigSchema = z.object({
+  /** Master switch. False = Laya never consulted. */
+  enabled: z.boolean(),
+  /** Operating mode. */
+  mode: layaModeSchema,
+  /** Service URL (for microservice mode). */
+  url: z.string().url().optional(),
+  /** Timeout per request in milliseconds. */
+  timeoutMs: z.number().int().positive().default(250),
+  /** If true, fallback to pipeline on Laya failure. */
+  failOpen: z.boolean().default(true),
+  /** Confidence thresholds for fast-path routing. */
+  confidenceThresholdHigh: z.number().min(0).max(1).default(0.95),
+  confidenceThresholdLow: z.number().min(0).max(1).default(0.75),
+  /** Checkpoint identifier. */
+  model: z.string().default('laya-multilingual'),
+  modelVersion: z.string().optional(),
+});
+export type LayaConfig = z.infer<typeof layaConfigSchema>;
+
+/**
+ * Laya signal injected into adaptive-router context (assisted mode).
+ */
+export const layaSignalSchema = z.object({
+  suggestedRoute: layaSuggestedRouteSchema,
+  confidence: z.number().min(0).max(1),
+  probableScope: layaProbableScopeSchema,
+  eventClass: layaEventClassSchema.optional(),
+  requiresInvestigation: z.boolean(),
+});
+export type LayaSignal = z.infer<typeof layaSignalSchema>;
+
+/**
+ * Safe parsing helpers.
+ */
+export function parseLayaDecisionEvent(input: unknown): LayaDecisionEvent {
+  return layaDecisionEventSchema.parse(input);
+}
+
+export function parseLayaDecision(input: unknown): LayaDecision {
+  return layaDecisionSchema.parse(input);
+}
+
+export function safeParseLayaDecisionEvent(input: unknown) {
+  return layaDecisionEventSchema.safeParse(input);
+}
+
+export function safeParseLayaDecision(input: unknown) {
+  return layaDecisionSchema.safeParse(input);
+}
+
