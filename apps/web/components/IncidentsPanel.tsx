@@ -53,7 +53,7 @@ interface ConfirmState {
 export function IncidentsPanel() {
   const auth = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [openInvestigations, setOpenInvestigations] = useState<Record<string, boolean>>({});
 
@@ -68,7 +68,6 @@ export function IncidentsPanel() {
 
   const load = useCallback(async () => {
     if (!auth.user) return;
-    setLoading(true);
     try {
       const response = await fetch('/api/incidents', { credentials: 'include' });
       const body = await response.json().catch(() => ({}));

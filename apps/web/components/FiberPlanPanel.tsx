@@ -13,7 +13,7 @@ interface FiberPlanPanelProps {
 export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps) {
   const [plans, setPlans] = useState<FiberPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showZoneManager, setShowZoneManager] = useState(false);
@@ -21,7 +21,6 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
 
   const loadPlans = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/fiber-plans', { credentials: 'include' });
