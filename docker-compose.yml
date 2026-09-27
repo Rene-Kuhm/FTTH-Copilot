@@ -1,4 +1,4 @@
-# FTTH-Copilot — Development Docker Compose (postgres only)
+# FTTH-Copilot — Development Docker Compose
 # For a full demo with synthetic data and demo account, use:
 #   ./scripts/run-demo.sh
 #   # or: cp docs/demo-env-template.md .env && docker compose -f docker-compose.demo.yml up
@@ -21,6 +21,34 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Laya Decision Layer — Fast Decision System (ADR-042)
+  # Expert System (94.4% accuracy) — runs as microservice fallback.
+  # Primary mode is module import from @ftth-copilot/shared.
+  # Enable via: LAYA_ENABLED=true LAYA_MODE=shadow
+  # ─────────────────────────────────────────────────────────────────────
+  laya:
+    build:
+      context: ./services/laya
+      dockerfile: Dockerfile
+    container_name: ftth_copilot_laya
+    restart: unless-stopped
+    environment:
+      # Laya operating mode (shadow|assisted|automatic|disabled)
+      LAYA_MODE: ${LAYA_MODE:-shadow}
+      # Logging level
+      LAYA_LOG_LEVEL: ${LAYA_LOG_LEVEL:-info}
+    ports:
+      - "${LAYA_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    profiles:
+      - laya  # docker compose --profile laya
 
 volumes:
   postgres_data:
