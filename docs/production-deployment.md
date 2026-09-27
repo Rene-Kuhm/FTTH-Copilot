@@ -20,6 +20,7 @@
         │  FTTH-Copilot    │  Next.js standalone (Docker)
         │  app (:3001)      │  + Receptor SNMP UDP 1162
         │                   │  + Receptor Syslog UDP 5514
+        │  + Laya (module)  │  + Laya Decision Layer (<5ms)
         └────────┬──────────┘
                  │
        ┌─────────┴──────────┐
@@ -29,6 +30,13 @@
 │  (:5432)   │     │ Phoenix LLM    │
 │ persistent  │     │ traces         │
 └─────────────┘     └────────────────┘
+       │
+       │  (optional: Docker microservice)
+       ▼
+┌─────────────┐
+│ Laya Service │  FastAPI (:8080) — 0 contenedores si usás módulo
+│  (:8080)    │
+└─────────────┘
 ```
 
 | Componente | Puerto | Volumen persistente | Descripción |
@@ -38,6 +46,7 @@
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |
 | Syslog receiver | 5514/UDP | — | Solo si `SYSLOG_RECEIVER_ENABLED=true` |
+| `laya` | 8080/TCP | — | FastAPI microservicio (opcional, profile=laya) |
 
 ---
 
@@ -114,6 +123,20 @@ METRICS_BEARER_TOKEN=<generate-with-openssl-rand-hex-32>
 # ── LLM ────────────────────────────────────────────────────────────────────
 LLM_PROVIDER=minimax  # o deepseek, qwen
 MINIMAX_API_KEY=<real-key>
+
+# ── Laya Decision Layer (ADR-042) ─────────────────────────────────────────
+# Modo módulo (default, sin Docker): Laya corre dentro del proceso Node.js
+LAYA_ENABLED=true
+LAYA_MODE=shadow        # shadow → assisted → automatic (progresivo)
+LAYA_FAIL_OPEN=true
+LAYA_MIN_CONFIDENCE=0.75
+LAYA_SUGGEST_ROUTE=false
+LAYA_ALLOW_DIRECT_ROUTING=false
+
+# Modo microservicio Docker (activar con --profile laya):
+# docker compose --profile laya -f docker-compose.prod.yml up -d
+# LAYA_URL=http://laya:8080
+# LAYA_PORT=8080
 ```
 
 ### 2.3 Con Docker Compose directo

@@ -28,7 +28,7 @@ El sistema tiene **dos pipelines de datos**, uno por cada plano de vigilancia:
 
 El Copiloto (plano 1) es *consumidor* de ambos: puede responder preguntas sobre el NMS y consultar las predicciones del NOC.
 
-## 2. Los dos pipelines de datos
+## 2. Los tres pipelines de datos
 
 ### 2.1 Pipeline NOC (métricas → fallas)
 
@@ -62,6 +62,31 @@ poll (cada N ms)
 
 **Por qué:** los equipos de red (OLTs/ONUs) están expuestos; la señal de ataque está en los syslogs, no en las métricas.
 
+### 2.3 Pipeline del Copiloto — Laya Decision Layer (ADR-042)
+
+**Qué:** antes de invocar cualquier razonamiento LLM, Laya clasifica el evento de alarma en <5ms usando un Expert System basado en keywords con 94.4% de accuracy. El resultado informa el routing del Organic Diagnostic Router.
+
+**Por qué:** la mayoría de los eventos son casos obvios (corte de fibra, falla de alimentación). Clasificarlos cheaply libera al LLM para lo que realmente necesita investigación.
+
+```text
+evento de alarma (trap/summary)
+  │
+  ▼
+Laya Expert System (<5ms)
+  ├─► clasifica en: CONGESTION | DEVICE_FAULT | MASS_OUTAGE
+  │                  NORMAL | OPTICAL_DEGRADATION | OPTICAL_FAULT
+  │                  POWER_FAULT | UNKNOWN | UPLINK_FAULT
+  ├─► infiere severidad: INFO | LOW | MEDIUM | HIGH | CRITICAL
+  ├─► infiere scope: ONU | CTO | SPLITTER | PON | OLT | UPLINK | POWER | UNKNOWN
+  └─► sugiere ruta: DIRECT | ASSISTED | INVESTIGATION
+
+shadow mode:  → solo loguea a decision_evaluations
+assisted mode: → inyecta eventClass en adaptive-router
+automatic mode: → toma decisiones de routing directamente
+```
+
+**Tabla DecisionEvaluation** — toda decisión Laya se persiste en `decision_evaluations` (tenant-aware,shadow-flagged). En shadow mode los datos alimentan la evaluación y, cuando haya ≥5000 ejemplos reales, el fine-tuning de un modelo DeBERTa-v3.
+
 ```text
 UDP socket (SYSLOG_UDP_PORT, default 5514)
   │
@@ -88,6 +113,7 @@ UDP socket (SYSLOG_UDP_PORT, default 5514)
 | `MetricSample` | un punto de una serie temporal | `deviceKind` + `deviceId` + `kind` + `value` |
 | `DetectedAlert` | una falla proactiva detectada | `kind` + `severity` + `status` + ventana temporal |
 | `Incident` | un equipo con una o más alertas activas | agrupa `DetectedAlert` por `(deviceKind, deviceId)` |
+| `DecisionEvaluation` | decisión de Laya en shadow mode | `eventClass`, `severity`, `confidence`, `shadow` |
 | `DeviceEvent` | un evento syslog crudo clasificado | `category` + `sourceIp` + `message` |
 
 Reglas que emergen del modelo:
@@ -103,7 +129,7 @@ Los paquetes están organizados por **responsabilidad**, no por capa técnica. L
 | Paquete | Qué hace | Por qué existe |
 |---------|----------|----------------|
 | `@ftth-copilot/db` | Prisma client (singleton), auth (JWT + hash), cifrado AES-256-GCM | la única puerta a PostgreSQL; evita N clientes Prisma |
-| `@ftth-copilot/shared` | tipos compartidos agente↔frontend | contrato único de tipos |
+| `@ftth-copilot/shared` | tipos compartidos + Laya modules (expert-system, shadow, metrics, client) | contrato único de tipos + System 1 (Laya) |
 | `@ftth-copilot/connectors/core` | interfaz de conector + política de red (HTTPS, DNS, allowlist) | una sola implementación de las reglas de seguridad de red |
 | `@ftth-copilot/connectors/smartolt` / `mikrowisp` | adaptadores HTTP de cada NMS | aislar las diferencias de cada proveedor |
 | `@ftth-copilot/connectors-mikrotik` | cliente REST y binario para MikroTik RouterOS v7 | integración directa con routers de borde y OLTs MikroTik (paquete listo; runtime en PR 2) |
@@ -113,7 +139,7 @@ Los paquetes están organizados por **responsabilidad**, no por capa técnica. L
 | `@ftth-copilot/monitoring` | `pollConnections` / `runPollCycle`, decodificadores SNMP multi-fabricante | el "latido" del poller: sample → detect → notify y telemetría binaria |
 | `@ftth-copilot/security` | parseo syslog, clasificación y detectores SOC (incl. firmware y tráfico) | los detectores puros de seguridad |
 | `@ftth-copilot/soc` | `ingestEvent` y `runSecurityDetection` | el cerebro SOC: convierte eventos en hallazgos |
-| `@ftth-copilot/agent-core` | loop del agente, prompt, tools (incl. `get_predicted_issues`) | el plano conversacional |
+| `@ftth-copilot/agent-core` | loop del agente, prompt, tools (incl. `get_predicted_issues`) + Laya Decision Layer wiring | el plano conversacional + System 1 (Laya) |
 
 **Por qué separar detector de orquestación:** `detectSignalDrift` no toca la base — recibe series y devuelve findings. Eso permite testear cada detector con casos sintéticos (100% de cobertura de statements) sin levantar PostgreSQL. La orquestación (`runDetection`, `runSecurityDetection`) se testea con el módulo `@ftth-copilot/db` mockeado y `fetch` inyectado.
 
@@ -232,7 +258,7 @@ Ambos canales reciben `fetchImpl` inyectable, lo que permite testear la entrega 
 
 ## 10. Activar en producción
 
-Todo está **apagado por defecto** por diseño: ningún plano de vigilancia corre sin que lo habilites explícitamente. Para activar el NOC y el SOC:
+Todo está **apagado por defecto** por diseño: ningún plano de vigilancia corre sin que lo habilites explícitamente. Para activar el NOC, el SOC y Laya:
 
 ```bash
 # 1. Migrar la base (MetricSample, DetectedAlert, Incident, DeviceEvent)
@@ -253,6 +279,25 @@ SYSLOG_UDP_PORT=5514
 
 Después reiniciar el proceso (PM2 `ftth-copilot`). Verificá que el NMS acepte el tráfico saliente y que el puerto UDP esté abierto para el syslog de los equipos.
 
+### Laya Decision Layer (ADR-042)
+
+Laya funciona como módulo importable desde `@ftth-copilot/shared` (sin Docker, sin GPU). También disponible como microservicio FastAPI en Docker:
+
+```bash
+# Module mode (default, sin Docker)
+LAYA_ENABLED=true
+LAYA_MODE=shadow           # shadow → assisted cuando quieras influir en routing
+LAYA_FAIL_OPEN=true
+LAYA_MIN_CONFIDENCE=0.75
+LAYA_SUGGEST_ROUTE=false   # true = inyecta eventClass en adaptive-router
+
+# Docker microservice mode (opcional)
+docker compose --profile laya up -d
+LAYA_URL=http://laya:8080
+```
+
+**Métricas:** `/api/metrics` incluye `ftth_laya_requests_total`, `ftth_laya_latency_ms`, `ftth_laya_confidence`. Dashboard visual en `/dashboard/laya`.
+
 ## 11. Gaps conocidos (honestos) y Estado de Integración
 
 Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cableada**, o una decisión pendiente. No son bugs; son trabajo futuro organizado en el roadmap:
@@ -262,7 +307,7 @@ Estos son puntos donde el sistema tiene una pieza **diseñada pero aún no cable
 3. **Multi-tenant por fuente syslog.** El receptor hoy atribuye todos los eventos a un único `SYSLOG_TENANT_ID`. Soportar varias fuentes → varios tenants es un follow-up.
 4. **Conector MikroTik RouterOS v7.** Integrado en runtime (`/api/connectors` y UI de configuración). Cliente REST API con fallback binario 8728, pooling y persistencia cifrada en PostgreSQL (AES-256-GCM derivado de KMS) completado en el **PR 2**.
 5. **Canales de Alerta Slack y WhatsApp.** Integrados en runtime (`apps/web/lib/alerts/runner.ts`). Despacho automático por tenant vía Block Kit (Slack) y API de mensajería (WhatsApp) completado en el **PR 2**.
-6. **Observabilidad Prometheus (`/api/metrics`).** Integrado en runtime (`apps/web/app/api/metrics/route.ts`). Expone métricas de proceso y poller en formato estándar Prometheus, con autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`. Las métricas de tokens LLM (`ftth_copilot_llm_tokens_total`) y latencia RAG (`ftth_copilot_rag_*`) quedan registradas cuando `recordLlmTokens` / `recordLlmMetrics` / `recordRagMetrics` se invocan desde código de producción — el chat route las emite a partir del PR que introduce `AgentResult.tokens` (Block 1 del diagnostic-router).
+6. **Observabilidad Prometheus (`/api/metrics`).** Integrado en runtime (`apps/web/app/api/metrics/route.ts`). Expone métricas de proceso, poller, LLM tokens, latencia RAG, dispatch del Organic Diagnostic Router y **Laya Decision Layer** (`ftth_laya_*`). Dashboard `/dashboard/laya` integrado.
 7. **Observabilidad LLM con Phoenix.** Integrado en runtime (`packages/agent-core/src/telemetry`). Instrumentación OpenInference / OpenTelemetry para evaluar latencias, tokens, spans RAG, llamadas a herramientas e investigación cognitiva con exportador OTLP (`POST /v1/traces`) completado en el **PR 3**.
 
 ### Cierre reciente (Fase 1 del AIOps roadmap)
