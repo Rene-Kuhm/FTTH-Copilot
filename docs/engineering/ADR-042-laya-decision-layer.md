@@ -331,7 +331,16 @@ import { getExpertClassifier } from '@ftth-copilot/shared';
 
 const classifier = getExpertClassifier();
 const result = classifier.classify('OLT reports LOS alarm...');
-console.log(result.eventClass); // "OPTICAL_FAULT"
+
+// Full response:
+// {
+//   eventClass: 'OPTICAL_FAULT',       // NORMAL | OPTICAL_DEGRADATION | OPTICAL_FAULT | POWER_FAULT | DEVICE_FAULT | UPLINK_FAULT | CONGESTION | MASS_OUTAGE | UNKNOWN
+//   confidence: 0.87,                  // 0.5 - 0.95
+//   matchedKeywords: ['los alarm'],
+//   severity: 'HIGH',                  // INFO | LOW | MEDIUM | HIGH | CRITICAL
+//   probableScope: 'PON',              // ONU | CTO | SPLITTER | PON | OLT | UPLINK | POWER | UNKNOWN
+//   requiresInvestigation: true
+// }
 ```
 
 ### Integración con Adaptive Router
@@ -343,6 +352,19 @@ const route = planRoute({ userMessage: 'OLT reports LOS...' });
 // route.mode = 'direct'
 // route.eventClass = 'OPTICAL_FAULT'
 // route.eventConfidence = 0.87
+// route.severity = 'HIGH'
+// route.probableScope = 'PON'
+// route.requiresInvestigation = true
+```
+
+### Feature Flags
+
+```env
+LAYA_ENABLED=true
+LAYA_MODE=shadow
+LAYA_FAIL_OPEN=true
+LAYA_MIN_CONFIDENCE=0.75
+LAYA_SUGGEST_ROUTE=false  # aún no usado
 ```
 
 ### Archivos
@@ -351,6 +373,7 @@ const route = planRoute({ userMessage: 'OLT reports LOS...' });
 - `packages/shared/src/index.ts` - Exports del classifier
 - `packages/shared/tests/laya-expert-system.test.ts` - 12 tests passing
 - `packages/agent-core/src/adaptive-router.ts` - Integración con planRoute
+- `packages/db/prisma/schema.prisma` - DecisionEvaluation table
 
 ### Tests
 
