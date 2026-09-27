@@ -17,6 +17,7 @@
  */
 
 import type { IntentionLabel } from './diagnostic-router';
+import { getExpertClassifier, type EventClass } from '@ftth-copilot/shared';
 
 // Inline IntentionContext (mirror of @ftth-copilot/eval) so this file
 // remains self-contained without a runtime dep on the eval package.
@@ -96,6 +97,10 @@ export interface DiagnosticRoute {
   reason: string;
   /** Convenience: the intention label that fed into the mode decision. */
   label: IntentionLabel;
+  /** FTTH event classification from Expert System (94.4% accuracy). */
+  eventClass?: EventClass;
+  /** Confidence score from expert classifier. */
+  eventConfidence?: number;
 }
 
 // ── Query signals (regex-based extraction) ─────────────────────────────────
@@ -337,6 +342,18 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
   const mode = selectMode(label, signals);
   const tools = selectTools(mode, signals, opts.allTools);
 
+  // FTTH Event Classification using Expert System (94.4% accuracy)
+  let eventClass: EventClass | undefined;
+  let eventConfidence: number | undefined;
+  try {
+    const classifier = getExpertClassifier();
+    const result = classifier.classify(opts.userMessage);
+    eventClass = result.eventClass;
+    eventConfidence = result.confidence;
+  } catch {
+    // Expert classifier not available, continue without it
+  }
+
   const maxIterations =
     mode === 'direct' ? 0
     : mode === 'assisted' ? 1
@@ -347,7 +364,7 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
     : mode === 'assisted' ? `assisted (label=${label} q=${signals.hasQuestionMark})`
     : `investigation (label=${label} multi=${signals.multiDevice} cause=${signals.causeAnalysis})`;
 
-  return { mode, tools, maxIterations, reason, label };
+  return { mode, tools, maxIterations, reason, label, eventClass, eventConfidence };
 }
 
 // ── Re-exports for runtime convenience ─────────────────────────────────────
