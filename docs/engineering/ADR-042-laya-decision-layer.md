@@ -294,7 +294,7 @@ ftth_laya_shadow_disagreement_total
 | 2 | Shadow mode: persistir DecisionEvaluation, métricas | Datos reales de comparación disponibles |
 | 3 | Dataset FTTH + benchmark | Reporte con métricas por clase |
 | 4 | Assisted mode: inyectar señal layaSignal en adaptive-router | Umbrales de DEC-042-4 cumplidos |
-| 5 | Fine-tuning (opcional, solo si se justifica) | Modelo especializado `ftth-copilot-laya-v1` |
+| 5 | Fine-tuning (requerido) | Modelo especializado `ftth-copilot-laya-v1` |
 
 ---
 
@@ -311,3 +311,53 @@ ftth_laya_shadow_disagreement_total
 
 - Este ADR es minimalista por diseño. El documento de diseño completo contiene detalles de implementación, testing, Docker Compose, batch inference, y fine-tuning que se evaluarán en fases posteriores.
 - La decisión DEC-042-1 (módulo vs microservicio) es reversible. Si el módulo importable presenta problemas, se migra a microservicio en la fase 4+.
+
+---
+
+## Benchmark Results (Fase 3)
+
+### Modelo base: `convaiinnovations/laya-multilingual`
+
+**Accuracy global: 50.7%** (73/144 train, 9/18 test)
+
+| Clase | Precision (train) | Precision (test) | Fine-tuning requerido |
+|-------|-------------------|-------------------|----------------------|
+| NORMAL | 100% | 100% | No |
+| UPLINK_FAULT | 100% | 100% | No |
+| CONGESTION | 75% | 100% | No |
+| OPTICAL_DEGRADATION | 62.5% | 67% | Sí |
+| POWER_FAULT | 47.4% | 0% | **Sí** |
+| UNKNOWN | 33.3% | 0% | **Sí** |
+| MASS_OUTAGE | 29.4% | 0% | **Sí** |
+| OPTICAL_FAULT | 27.3% | 0% | **Sí** |
+| DEVICE_FAULT | 24% | 0% | **Sí** |
+
+### Conclusion
+
+Fine-tuning es **obligatorio** para:
+- OPTICAL_FAULT (0-27%)
+- DEVICE_FAULT (0-24%)
+- MASS_OUTAGE (0-29%)
+- POWER_FAULT (0-47%)
+
+### Datasets generados
+
+```
+dataset/laya-ftth/v3/
+├── train/balanced.jsonl (180 eventos)
+├── train/train/laya-format.jsonl (144 train)
+├── train/val/laya-format.jsonl (18 val)
+└── train/test/laya-format.jsonl (18 test)
+```
+
+### Para ejecutar fine-tuning
+
+```bash
+python3 dataset/laya-ftth/finetune_minimal.py \
+    --train_data dataset/laya-ftth/v3/train/train/laya-format.jsonl \
+    --val_data dataset/laya-ftth/v3/train/val/laya-format.jsonl \
+    --output ./ftth-laya-v1 \
+    --epochs 5 --batch_size 8 --lr 1e-4 --device cuda
+```
+
+Ver `dataset/laya-ftth/finetune_guide.md` para detalles completos.
