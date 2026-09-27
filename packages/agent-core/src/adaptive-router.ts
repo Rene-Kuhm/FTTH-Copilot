@@ -372,8 +372,9 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
     const result = classifier.classify(opts.userMessage);
     eventClass = result.eventClass;
     eventConfidence = result.confidence;
-  } catch {
-    // Expert classifier not available, continue without it
+  } catch (err) {
+    // Expert classifier failed — fail-open, continue without classification.
+    console.warn('[adaptive-router] Expert classifier error:', err instanceof Error ? err.message : err);
   }
 
   const maxIterations =
