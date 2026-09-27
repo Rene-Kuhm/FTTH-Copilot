@@ -230,6 +230,9 @@ export function IncidentsPanel() {
                   {canConfirm ? (
                     <FeedbackControls incidentId={incident.id} />
                   ) : null}
+                  {canConfirm ? (
+                    <PlanContextButton deviceKind={incident.deviceKind} deviceId={incident.deviceId} />
+                  ) : null}
                 </div>
                 {resolved && canConfirm ? (
                   <button
@@ -464,4 +467,161 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
       ) : null}
     </div>
   );
+}
+
+/**
+ * Fiber Plan context button — shown in IncidentsPanel.
+ * When a device has a marker in the fiber plan system, this renders
+ * a "Ver plano" button that opens the relevant plan at the marker position.
+ * @see packages/alerts/src/plan-correlation.ts for the server-side lookup.
+ */
+function PlanContextButton({ deviceKind, deviceId }: { deviceKind: string; deviceId: string }) {
+  const [planInfo, setPlanInfo] = useState<{ planId: string; planName: string; markerCount: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  // Lazy-load on first render (don't block the panel)
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/fiber-plans/correlate?deviceKind=${encodeURIComponent(deviceKind)}&deviceId=${encodeURIComponent(deviceId)}`,
+          { credentials: 'include' },
+        );
+        if (cancelled || !res.ok) return;
+        const body = (await res.json().catch(() => ({}))) as {
+          plans?: Array<{ plan: { id: string; name: string }; markerCount: number }>;
+        };
+        if (cancelled || !body.plans?.length) return;
+        setPlanInfo({
+          planId: body.plans[0].plan.id,
+          planName: body.plans[0].plan.name,
+          markerCount: body.plans[0].markerCount,
+        });
+      } catch {
+        // noop — silently fail
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [deviceKind, deviceId]);
+
+  if (loading) return null;
+  if (!planInfo) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setPanelOpen(true)}
+        className="flex items-center gap-1.5 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/20"
+        title={`Ver en plano: ${planInfo.planName}`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+          <line x1="8" y1="2" x2="8" y2="18" />
+          <line x1="16" y1="6" x2="16" y2="22" />
+        </svg>
+        Ver en plano
+      </button>
+      {panelOpen && (
+        <PlanModal
+          planId={planInfo.planId}
+          planName={planInfo.planName}
+          deviceKind={deviceKind}
+          deviceId={deviceId}
+          onClose={() => setPanelOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Full-screen modal that embeds the FiberPlanViewer for the matched plan,
+ * centred on the marker position of the incident device.
+ */
+function PlanModal({
+  planId,
+  planName,
+  deviceKind,
+  deviceId,
+  onClose,
+}: {
+  planId: string;
+  planName: string;
+  deviceKind: string;
+  deviceId: string;
+  onClose: () => void;
+}) {
+  const [plan, setPlan] = useState<unknown>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/fiber-plans/${planId}`, { credentials: 'include' });
+        const body = (await res.json().catch(() => ({}))) as { plan?: unknown; error?: string };
+        if (!res.ok) { setError(body.error ?? 'Error'); return; }
+        setPlan(body.plan);
+      } catch {
+        setError('Error de red');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [planId]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Plano: ${planName}`}
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/80 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="flex w-full max-w-6xl flex-col rounded-2xl bg-neutral-900 shadow-xl ring-1 ring-white/[0.08]" style={{ maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-white">{planName}</h3>
+            <p className="text-xs text-neutral-500">
+              Dispositivo: <span className="font-mono">{deviceKind} · {deviceId}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/[0.06] hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden" style={{ minHeight: 400 }}>
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-neutral-500 text-sm">Cargando plano…</div>
+          ) : error ? (
+            <div className="flex h-full items-center justify-center text-rose-400 text-sm">{error}</div>
+          ) : plan ? (
+            // Dynamic import to avoid circular deps — FiberPlanViewer is a client component
+            <DynamicFiberPlanViewer plan={plan} />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Wrapper that dynamically imports FiberPlanViewer only on the client */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DynamicFiberPlanViewer({ plan }: { plan: any }) {
+  const [Viewer, setViewer] = useState<React.ComponentType<{ plan: any }> | null>(null);
+  useEffect(() => {
+    import('./FiberPlanViewer').then((mod) => setViewer(() => mod.default));
+  }, []);
+  if (!Viewer) return null;
+  return <Viewer plan={plan} />;
 }
