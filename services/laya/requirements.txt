@@ -1,0 +1,17 @@
+# Laya Fast Decision Layer - Service Requirements
+# Install with: pip install -r requirements.txt
+
+# Laya core (includes transformers, torch)
+laya>=0.3.0
+
+# FastAPI for HTTP server (if using custom server)
+# fastapi>=0.104.0
+# uvicorn[standard]>=0.24.0
+
+# Optional: for metrics
+# prometheus-client>=0.19.0
+
+# Optional: for OpenTelemetry tracing
+# opentelemetry-api>=1.20.0
+# opentelemetry-sdk>=1.20.0
+# opentelemetry-instrumentation-fastapi>=0.41b0

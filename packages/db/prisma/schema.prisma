@@ -182,6 +182,9 @@ model Tenant {
   planZones                PlanZone[]
   planMarkers              PlanMarker[]
 
+  // Laya Decision Layer (ADR-042)
+  decisionEvaluations       DecisionEvaluation[]
+
   @@map("tenants")
 }
 
@@ -501,6 +504,61 @@ model PendingIncidentCandidate {
 
   @@index([tenantId, status])
   @@map("pending_incident_candidates")
+}
+
+// Laya Decision Layer (ADR-042) — Shadow mode evaluation record.
+//
+// Stores Laya decisions for:
+// - Shadow mode: compare Laya decisions vs actual routing
+// - Benchmark: measure accuracy, precision, recall per class
+// - Fine-tuning: build training dataset from operator-confirmed outcomes
+// - Calibration: track confidence vs actual outcome
+//
+// NOT used for real-time routing until assisted/automatic modes are validated.
+model DecisionEvaluation {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Event reference
+  eventId             String    @db.Text
+  eventSource         String?   // 'smartolt', 'snmp', 'syslog', etc.
+  eventRawSummary     String?   @db.Text // sanitized, no credentials
+
+  // Laya model info
+  engine             String    @default("laya")
+  model              String    // e.g., 'laya-multilingual'
+  modelVersion       String?
+
+  // Laya decision (what Laya decided)
+  eventClass         String?   // LayaEventClass enum value
+  severity           String?   // LayaSeverity enum value
+  probableScope      String?   // LayaProbableScope enum value
+  suggestedRoute     String?   // LayaSuggestedRoute enum value
+  requiresInvestigation Boolean?
+
+  // Confidence scores as JSON
+  confidence         Json?
+
+  // Latency
+  latencyMs          Int?
+
+  // Actual routing (for shadow mode comparison)
+  actualRoute       String?   // What FTTH-Copilot actually did
+  actualDiagnosis    String?   @db.Text
+  operatorOutcome   String?   // Confirmed by operator later
+
+  // Shadow mode flag
+  shadow             Boolean   @default(true)
+
+  // Timestamps
+  createdAt          DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, eventClass])
+  @@index([tenantId, shadow])
+  @@index([model, eventClass])
+  @@map("decision_evaluations")
 }
 
 // Fase E — per-tenant override envelope (1:1 with Tenant). Five nullable
