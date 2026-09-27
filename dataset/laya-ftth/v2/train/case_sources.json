@@ -1,0 +1,407 @@
+{
+  "cases": 21,
+  "sources": [
+    "EXFO App Note 130",
+    "Routine Maintenance",
+    "Yantai China Unicom 2026",
+    "Huawei ODN Faults",
+    "Huawei Case Study",
+    "NetLink Trust Singapore 2026",
+    "Routine Operation",
+    "PT ICON+ Indonesia",
+    "Telecomate Dying Gasp FAQ",
+    "PPPoE Error 691",
+    "Bandwidth Congestion",
+    "Uplink Failure",
+    "Common OLT",
+    "Huawei",
+    "China FTTH Cases",
+    "Huawei Technical Support",
+    "Viavi Solutions"
+  ],
+  "real_cases": [
+    {
+      "source": "Huawei Technical Support",
+      "description": "Multiple ONUs frequently go online and offline on a PON port",
+      "device_kind": "PON_PORT",
+      "alarm_types": [
+        "LOS",
+        "LCDGi",
+        "SDi",
+        "SFi",
+        "LOFi"
+      ],
+      "symptoms": [
+        "All ONUs on PON port go online/offline frequently",
+        "OLT reports mass LOS alarms",
+        "Service intermittently lost"
+      ],
+      "root_cause": "PON port is faulty or ODN quality is poor",
+      "affected_scope": "PON",
+      "severity": "HIGH",
+      "treatment": "Replace PON port or check ODN quality"
+    },
+    {
+      "source": "Huawei Technical Support",
+      "description": "Single ONU or some ONUs frequently go online and offline",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "LOS",
+        "RECOVERY"
+      ],
+      "symptoms": [
+        "One or few ONUs affected",
+        "Same splitter's other ONUs work fine",
+        "Intermittent connectivity"
+      ],
+      "root_cause": "Rogue ONU, branch fiber fault, or ONU hardware issue",
+      "affected_scope": "ONU",
+      "severity": "MEDIUM",
+      "treatment": "Check rogue ONU, test branch fiber"
+    },
+    {
+      "source": "Huawei Technical Support",
+      "description": "Feeder fiber broken - total PON outage",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "PON-LOS",
+        "0x2e11a001"
+      ],
+      "symptoms": [
+        "All ONUs on GPON card report LOS simultaneously",
+        "Complete service loss",
+        "No signal from PON port"
+      ],
+      "root_cause": "Feeder fiber is broken or unplugged",
+      "affected_scope": "PON",
+      "severity": "CRITICAL",
+      "treatment": "Locate and repair fiber break"
+    },
+    {
+      "source": "Telecomate Dying Gasp FAQ",
+      "description": "ONT reports power failure - dying gasp alarm",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "DYING_GASP",
+        "POWER_ALARM"
+      ],
+      "symptoms": [
+        "ONT suddenly offline",
+        "Dying gasp message sent before shutdown",
+        "Power failure at customer premises"
+      ],
+      "root_cause": "Customer power outage or ONT power supply failure",
+      "affected_scope": "ONU",
+      "severity": "HIGH",
+      "treatment": "Restore customer power or replace ONT power supply"
+    },
+    {
+      "source": "NetLink Trust Singapore 2026",
+      "description": "Bishan-Thomson fiber outage - third party damage",
+      "device_kind": "PON_PORT",
+      "alarm_types": [
+        "MASS_OUTAGE",
+        "MULTIPLE_ONU_OFFLINE"
+      ],
+      "symptoms": [
+        "2000 connections affected",
+        "Service disrupted",
+        "Multiple ISPs impacted (Singtel, Starhub, M1)"
+      ],
+      "root_cause": "Third party contractor cut multiple fiber cables during construction",
+      "affected_scope": "PON",
+      "severity": "CRITICAL",
+      "treatment": "Emergency fiber repair, restore cables"
+    },
+    {
+      "source": "Yantai China Unicom 2026",
+      "description": "Traffic accident broke 3 fiber cables",
+      "device_kind": "PON_PORT",
+      "alarm_types": [
+        "FIBER_CUT",
+        "MULTIPLE_CABLE_BREAK"
+      ],
+      "symptoms": [
+        "11 poles knocked down",
+        "3 fiber cables with 96 cores each broken",
+        "400+ users offline"
+      ],
+      "root_cause": "Traffic accident damaged poles and fiber cables",
+      "affected_scope": "PON",
+      "severity": "CRITICAL",
+      "treatment": "Emergency pole and fiber repair"
+    },
+    {
+      "source": "PT ICON+ Indonesia",
+      "description": "Frequent service disruptions in rural area",
+      "device_kind": "PON_PORT",
+      "alarm_types": [
+        "SERVICE_DISRUPTION",
+        "INTERMITTENT_OUTAGE"
+      ],
+      "symptoms": [
+        "Repeated outages in same area",
+        "Customer complaints",
+        "Quality of service degraded"
+      ],
+      "root_cause": "Poor fiber infrastructure, multiple causes",
+      "affected_scope": "PON",
+      "severity": "MEDIUM",
+      "treatment": "Infrastructure assessment and upgrades"
+    },
+    {
+      "source": "Viavi Solutions",
+      "description": "Splitter failure - partial outage",
+      "device_kind": "SPLITTER",
+      "alarm_types": [
+        "PARTIAL_OUTAGE",
+        "SPLITTER_FAULT"
+      ],
+      "symptoms": [
+        "Some ONUs offline, others degraded",
+        "Same splitter, different behaviors",
+        "Macro bend or splitter damage"
+      ],
+      "root_cause": "Internal splitter damage, macro bends, or fiber issues",
+      "affected_scope": "SPLITTER",
+      "severity": "HIGH",
+      "treatment": "Replace splitter or fix fiber issues"
+    },
+    {
+      "source": "Viavi Solutions",
+      "description": "1x32 splitter with one branch down - single customer",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "LOS",
+        "SINGLE_ONU_OFFLINE"
+      ],
+      "symptoms": [
+        "Only one customer affected",
+        "Same splitter's other ONUs online",
+        "Problem between ONT and splitter"
+      ],
+      "root_cause": "Drop cable damage, connector issue, or ONT fault",
+      "affected_scope": "ONU",
+      "severity": "MEDIUM",
+      "treatment": "Test drop cable, check connectors"
+    },
+    {
+      "source": "Viavi Solutions",
+      "description": "Macro bend in distribution fiber - affects single branch",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "DEGRADED_SIGNAL",
+        "SLOW_CONNECTION"
+      ],
+      "symptoms": [
+        "Single ONT showing poor performance",
+        "Fiber may have tight bends",
+        "Intermittent issues"
+      ],
+      "root_cause": "Macro bend in fiber causing excess attenuation",
+      "affected_scope": "ONU",
+      "severity": "LOW",
+      "treatment": "Locate and fix macro bend in fiber"
+    },
+    {
+      "source": "EXFO App Note 130",
+      "description": "Macro bend causing 4dB loss on one branch",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "MACRO_BEND",
+        "EXCESS_LOSS"
+      ],
+      "symptoms": [
+        "One branch affected on 1x32 splitter",
+        "Other branches fine",
+        "Problem in fiber closure or distribution box"
+      ],
+      "root_cause": "Macro bend from improper fiber handling (4dB loss = 8dB at 1650nm)",
+      "affected_scope": "PON",
+      "severity": "MEDIUM",
+      "treatment": "Fix fiber routing in closure"
+    },
+    {
+      "source": "Huawei ODN Faults",
+      "description": "Poor ODN quality - multiple symptoms",
+      "device_kind": "PON_PORT",
+      "alarm_types": [
+        "LCDGi",
+        "SDi",
+        "SFi",
+        "LOFi"
+      ],
+      "symptoms": [
+        "Multiple ONUs affected inconsistently",
+        "Poor optical quality",
+        "Intermittent issues"
+      ],
+      "root_cause": "Large reflection, attenuation from improper ODN construction",
+      "affected_scope": "PON",
+      "severity": "HIGH",
+      "treatment": "ODN quality audit and remediation"
+    },
+    {
+      "source": "Huawei Case Study",
+      "description": "Rogue ONU causing upstream errors on GPON",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "UPSTREAM_ERROR_RATE",
+        "SERVICE_IMMOBILIZATION"
+      ],
+      "symptoms": [
+        "Multiple ONUs report upstream errors",
+        "Service degradation across PON",
+        "Interference pattern"
+      ],
+      "root_cause": "Uncontrolled ONU emitting abnormal light-wave",
+      "affected_scope": "PON",
+      "severity": "HIGH",
+      "treatment": "Locate and disconnect rogue ONU"
+    },
+    {
+      "source": "Huawei",
+      "description": "OLT board failure - all PONs affected",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "BOARD_FAILURE",
+        "MULTIPLE_PON_DOWN"
+      ],
+      "symptoms": [
+        "All PON ports on a board affected",
+        "Multiple OLT alarms",
+        "Large scale outage"
+      ],
+      "root_cause": "Board or slot hardware failure",
+      "affected_scope": "OLT",
+      "severity": "CRITICAL",
+      "treatment": "Replace board or move services to backup"
+    },
+    {
+      "source": "Common OLT",
+      "description": "OLT temperature high - thermal throttling",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "HIGH_TEMPERATURE",
+        "THERMAL_SHUTDOWN"
+      ],
+      "symptoms": [
+        "OLT running hot",
+        "Performance degradation",
+        "Potential shutdown warnings"
+      ],
+      "root_cause": "Cooling failure, high ambient temperature, fan failure",
+      "affected_scope": "OLT",
+      "severity": "HIGH",
+      "treatment": "Check cooling system, reduce load, improve ventilation"
+    },
+    {
+      "source": "China FTTH Cases",
+      "description": "LOID mismatch - ONT not registering",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "REGISTRATION_FAIL",
+        "LOID_MISMATCH"
+      ],
+      "symptoms": [
+        "ONT PON light blinking",
+        "ONT not coming online",
+        "Service not provisioned"
+      ],
+      "root_cause": "LOID on ONT doesn't match OLT PON port configuration",
+      "affected_scope": "ONU",
+      "severity": "MEDIUM",
+      "treatment": "Check and correct LOID configuration"
+    },
+    {
+      "source": "PPPoE Error 691",
+      "description": "Authentication failure after new ONT",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "AUTH_FAILURE",
+        "PPPOE_ERROR"
+      ],
+      "symptoms": [
+        "User cannot connect",
+        "Error 691 or similar",
+        "ONT appears online"
+      ],
+      "root_cause": "Account credentials mismatch or ONT not registered properly",
+      "affected_scope": "ONU",
+      "severity": "LOW",
+      "treatment": "Verify credentials, re-register ONT"
+    },
+    {
+      "source": "Routine Operation",
+      "description": "Normal ONT operation - no issues",
+      "device_kind": "ONU",
+      "alarm_types": [
+        "NONE",
+        "HEARTBEAT"
+      ],
+      "symptoms": [
+        "ONT online",
+        "Normal RX power (-8 to -25 dBm)",
+        "All services working"
+      ],
+      "root_cause": "N/A - normal operation",
+      "affected_scope": "NORMAL",
+      "severity": "INFO",
+      "treatment": "None - normal operation"
+    },
+    {
+      "source": "Routine Maintenance",
+      "description": "Planned maintenance window",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "MAINTENANCE",
+        "PLANNED_OUTAGE"
+      ],
+      "symptoms": [
+        "Service degradation during window",
+        "Announced outage",
+        "Recovery after maintenance"
+      ],
+      "root_cause": "Planned network maintenance",
+      "affected_scope": "OLT",
+      "severity": "LOW",
+      "treatment": "Complete maintenance as planned"
+    },
+    {
+      "source": "Bandwidth Congestion",
+      "description": "Peak hour congestion on uplink",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "CONGESTION",
+        "HIGH_UTILIZATION"
+      ],
+      "symptoms": [
+        "High bandwidth utilization (>80%)",
+        "Slow speeds during peak hours",
+        "Multiple customers affected"
+      ],
+      "root_cause": "Insufficient uplink capacity for peak demand",
+      "affected_scope": "UPLINK",
+      "severity": "MEDIUM",
+      "treatment": "Upgrade uplink capacity, implement QoS"
+    },
+    {
+      "source": "Uplink Failure",
+      "description": "Uplink port down - redundancy activated",
+      "device_kind": "OLT",
+      "alarm_types": [
+        "UPLINK_DOWN",
+        "PORT_FAILURE"
+      ],
+      "symptoms": [
+        "Primary uplink offline",
+        "Failover to backup path",
+        "Service maintained but degraded"
+      ],
+      "root_cause": "Uplink cable or port failure",
+      "affected_scope": "UPLINK",
+      "severity": "CRITICAL",
+      "treatment": "Restore primary uplink, investigate cause"
+    }
+  ]
+}

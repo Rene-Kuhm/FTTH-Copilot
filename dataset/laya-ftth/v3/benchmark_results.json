@@ -1,0 +1,48 @@
+[
+  {
+    "name": "Base (laya-multilingual)",
+    "accuracy": 0.5,
+    "correct": 9,
+    "total": 18,
+    "avg_latency_ms": 5098.683595657349,
+    "p95_latency_ms": 13354.681491851807,
+    "class_stats": {
+      "UNKNOWN": {
+        "correct": 0,
+        "total": 1
+      },
+      "NORMAL": {
+        "correct": 3,
+        "total": 3
+      },
+      "MASS_OUTAGE": {
+        "correct": 0,
+        "total": 1
+      },
+      "OPTICAL_DEGRADATION": {
+        "correct": 2,
+        "total": 3
+      },
+      "OPTICAL_FAULT": {
+        "correct": 0,
+        "total": 4
+      },
+      "CONGESTION": {
+        "correct": 3,
+        "total": 3
+      },
+      "DEVICE_FAULT": {
+        "correct": 0,
+        "total": 1
+      },
+      "POWER_FAULT": {
+        "correct": 0,
+        "total": 1
+      },
+      "UPLINK_FAULT": {
+        "correct": 1,
+        "total": 1
+      }
+    }
+  }
+]

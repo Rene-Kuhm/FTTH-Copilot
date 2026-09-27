@@ -1,0 +1,16 @@
+{
+  "total": 110,
+  "class_distribution": {
+    "OPTICAL_DEGRADATION": 8,
+    "POWER_FAULT": 17,
+    "NORMAL": 18,
+    "OPTICAL_FAULT": 17,
+    "DEVICE_FAULT": 17,
+    "UNKNOWN": 9,
+    "MASS_OUTAGE": 8,
+    "UPLINK_FAULT": 8,
+    "CONGESTION": 8
+  },
+  "negation_samples": 10,
+  "seed": 42
+}
