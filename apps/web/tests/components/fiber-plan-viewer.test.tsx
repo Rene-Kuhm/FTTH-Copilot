@@ -3,12 +3,7 @@
  * These tests cover pure helper logic, marker rendering, and state transitions.
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  FiberPlanViewer,
-  type FiberPlan,
-  type PlanMarker,
-  type PlanZone,
-} from '../../components/FiberPlanViewer';
+import FiberPlanViewer, { type FiberPlan, type PlanMarker, type PlanZone } from '../../components/FiberPlanViewer';
 
 // ─── Fixture helpers ───────────────────────────────────────────────────────────
 
