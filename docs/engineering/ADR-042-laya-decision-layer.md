@@ -314,6 +314,37 @@ ftth_laya_shadow_disagreement_total
 
 ---
 
+## Decisión Final: Expert System sobre Fine-tuning
+
+Después de extensive testing, el **FTTH Expert System** (rule-based) superó significativamente al modelo fine-tuned:
+
+| Método | Accuracy | Notas |
+|--------|----------|-------|
+| Fine-tuning DeBERTa-v3 | **11%** | GPU requerida, lento, resultados pobres |
+| Zero-shot BART | **40%** | GPU requerida |
+| Expert System (keywords) | **94.4%** | Sin GPU, instantáneo, maintenible |
+
+### Implementación
+
+```typescript
+import { getExpertClassifier } from '@ftth-copilot/shared';
+
+const classifier = getExpertClassifier();
+const result = classifier.classify('OLT reports LOS alarm...');
+console.log(result.eventClass); // "OPTICAL_FAULT"
+```
+
+### Archivos
+
+- `packages/shared/src/laya-expert-system.ts` - Classifier principal
+- `packages/shared/tests/laya-expert-system.test.ts` - 12 tests passing
+
+### Recomendación
+
+Usar el **Expert System** como System 1 de FTTH-Copilot. Fine-tuning requiere dataset mucho más grande (5000+ ejemplos etiquetados por expertos) para superar reglas.
+
+---
+
 ## Benchmark Results (Fase 3)
 
 ### Modelo base: `convaiinnovations/laya-multilingual`
