@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import FiberPlanViewer from './FiberPlanViewer';
 import FiberPlanUpload from './FiberPlanUpload';
 import ZoneManager from './ZoneManager';
@@ -13,63 +13,72 @@ interface FiberPlanPanelProps {
 export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps) {
   const [plans, setPlans] = useState<FiberPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showZoneManager, setShowZoneManager] = useState(false);
 
+  // useRef for transient loading state — avoids setState inside useEffect
+  const loadingRef = useRef(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
 
-  const loadPlans = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch('/api/fiber-plans', { credentials: 'include' });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(body.error ?? 'Error'); return; }
-      const loadedPlans: FiberPlan[] = body.plans;
-      setPlans(loadedPlans);
-      if (loadedPlans.length > 0 && !selectedPlanId) {
-        setSelectedPlanId(loadedPlans[0].id);
-      }
-    } catch {
-      setError('Error de red');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPlanId]);
+  // Track selectedPlanId in a ref so the enrichment effect can check staleness
+  const selectedPlanIdRef = useRef<string | null>(null);
+  useEffect(() => { selectedPlanIdRef.current = selectedPlanId; }, [selectedPlanId]);
 
-  // Load full plan with zones and markers
-  const loadFullPlan = useCallback(async (planId: string): Promise<FiberPlan | null> => {
-    try {
-      const res = await fetch(`/api/fiber-plans/${planId}`, { credentials: 'include' });
+  // ── Initial load ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const res = await fetch('/api/fiber-plans', { credentials: 'include' });
+      if (cancelled) return;
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) return null;
-      return body.plan as FiberPlan;
-    } catch {
-      return null;
-    }
+      if (!res.ok) {
+        setError(body.error ?? 'Error');
+        loadingRef.current = false;
+        setIsInitialLoading(false);
+        return;
+      }
+      const loadedPlans: FiberPlan[] = body.plans ?? [];
+      const defaultPlanId = loadedPlans.length > 0 ? loadedPlans[0].id : null;
+      loadingRef.current = false;
+      setPlans(loadedPlans);
+      if (defaultPlanId) setSelectedPlanId(defaultPlanId);
+      setIsInitialLoading(false);
+    })();
+
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { void loadPlans(); }, [loadPlans]);
-
-  // When a plan is selected, load full details
+  // ── Enrich selected plan with full zones & markers ────────────────────────
   useEffect(() => {
     if (!selectedPlanId) return;
-    void loadFullPlan(selectedPlanId).then((full) => {
-      if (full) {
-        setPlans((prev) => prev.map((p) => p.id === full.id ? full : p));
-      }
-    });
-  }, [selectedPlanId, loadFullPlan]);
+    const currentSelected = selectedPlanId;
 
+    void (async () => {
+      const res = await fetch(`/api/fiber-plans/${currentSelected}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      if (!body.plan) return;
+      // Stale check: only apply if the same plan is still selected
+      if (selectedPlanIdRef.current !== currentSelected) return;
+      setPlans((prev) => prev.map((p) => p.id === (body.plan as FiberPlan).id ? body.plan as FiberPlan : p));
+    })();
+  }, [selectedPlanId]);
+
+  // ── Upload ───────────────────────────────────────────────────────────────────
   const handleUploaded = useCallback((newPlan: { id: string; name: string; fileUrl: string }) => {
-    void loadFullPlan(newPlan.id).then((full) => {
-      if (full) {
-        setPlans((prev) => [full, ...prev]);
-        setSelectedPlanId(full.id);
-      }
-    });
-  }, [loadFullPlan]);
+    void (async () => {
+      const res = await fetch(`/api/fiber-plans/${newPlan.id}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      if (!body.plan) return;
+      setPlans((prev) => [body.plan as FiberPlan, ...prev]);
+      setSelectedPlanId((body.plan as FiberPlan).id);
+    })();
+  }, []);
 
   const handlePlanChange = useCallback((updated: FiberPlan) => {
     setPlans((prev) => prev.map((p) => p.id === updated.id ? updated : p));
@@ -79,7 +88,8 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
     onMarkerContext?.(marker, zone);
   }, [onMarkerContext]);
 
-  if (loading && plans.length === 0) {
+  // ── Loading state ────────────────────────────────────────────────────────────
+  if (isInitialLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-muted)', fontFamily: 'var(--font-body)', fontSize: 14 }}>
         Cargando planos…
@@ -91,7 +101,25 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8, fontFamily: 'var(--font-body)', padding: 24 }}>
         <span style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error}</span>
-        <button onClick={() => void loadPlans()} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface-elev)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13 }}>
+        <button
+          onClick={() => {
+            setError(null);
+            setIsInitialLoading(true);
+            loadingRef.current = true;
+            void (async () => {
+              const res = await fetch('/api/fiber-plans', { credentials: 'include' });
+              if (!res.ok) { setError('Error de red'); setIsInitialLoading(false); return; }
+              const body = await res.json().catch(() => ({}));
+              const loadedPlans: FiberPlan[] = body.plans ?? [];
+              const defaultPlanId = loadedPlans.length > 0 ? loadedPlans[0].id : null;
+              loadingRef.current = false;
+              setPlans(loadedPlans);
+              if (defaultPlanId) setSelectedPlanId(defaultPlanId);
+              setIsInitialLoading(false);
+            })();
+          }}
+          style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface-elev)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13 }}
+        >
           Reintentar
         </button>
       </div>
@@ -195,40 +223,16 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
 
         {/* Action bar */}
         {!showZoneManager && selectedPlan && (
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '8px 0',
-              flexShrink: 0,
-            }}
-          >
+          <div style={{ display: 'flex', gap: 8, padding: '8px 0', flexShrink: 0 }}>
             <button
               onClick={() => setShowZoneManager(true)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                fontSize: 12,
-                cursor: 'pointer',
-              }}
+              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 12, cursor: 'pointer' }}
             >
               Gestionar zonas ({selectedPlan.zones.length})
             </button>
             <button
               onClick={() => setShowUpload(true)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background: 'var(--color-accent)',
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--color-accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
               + Nuevo plano
             </button>
