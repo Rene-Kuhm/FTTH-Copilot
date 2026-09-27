@@ -178,6 +178,9 @@ model Tenant {
   InvestigationVersion      InvestigationVersion[]
   InvestigationFeedback     InvestigationFeedback[]
   maintenanceWindows        MaintenanceWindow[]
+  fiberPlans               FiberPlan[]
+  planZones                PlanZone[]
+  planMarkers              PlanMarker[]
 
   @@map("tenants")
 }
@@ -241,7 +244,8 @@ model NmsConnection {
   incidents          Incident[]
   deviceEvents       DeviceEvent[]
   confirmedIncidents ConfirmedIncident[]
-  InvestigationRun   InvestigationRun[]
+  fiberPlans         FiberPlan[]
+  InvestigationRun  InvestigationRun[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -724,4 +728,76 @@ model MaintenanceWindow {
   @@index([tenantId, status, startUtc, endUtc])
   @@index([tenantId, startUtc, endUtc])
   @@map("maintenance_windows")
+}
+
+// Fiber Plan Viewer — visual fiber optic plan integration.
+//
+// Strategy: logical zones defined by the operator (no GPS/GIS required).
+// A marker links a plan position to a topology node (deviceKind + deviceId),
+// enabling alert→plan correlation without coordinate geometry.
+//
+// Model hierarchy:
+//   Tenant  ──1:N──> FiberPlan ──1:N──> PlanZone ──1:N──> PlanMarker
+//                                                   └──────────────> (optional FK)
+//   PlanMarker also has a soft link to PlanZone via zoneId.
+
+model FiberPlan {
+  id            String        @id @default(cuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId  String?
+  connection    NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  name          String
+  description   String?
+  fileUrl       String        @map("file_url")
+  mimeType      String        @map("mime_type")
+  widthPx       Int?          @map("width_px")
+  heightPx      Int?          @map("height_px")
+  fileSizeBytes BigInt?       @map("file_size_bytes")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  zones PlanZone[]
+
+  @@index([tenantId])
+  @@index([connectionId])
+  @@map("fiber_plans")
+}
+
+model PlanZone {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId      String
+  plan        FiberPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  color       String     @default("#6366F1") // hex, e.g. #6366F1
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  markers PlanMarker[]
+
+  @@index([tenantId])
+  @@index([planId])
+  @@map("plan_zones")
+}
+
+model PlanMarker {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  zoneId      String?   @map("zone_id")
+  zone        PlanZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  label       String
+  deviceKind  String?   @map("device_kind") // TopologyNodeKind values: OLT, PON_PORT, SPLITTER, CTO, ONU
+  deviceId    String?   @map("device_id")
+  xPercent    Float     @map("x_percent")    // 0.0–100.0, resolution-independent
+  yPercent    Float     @map("y_percent")    // 0.0–100.0, resolution-independent
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([zoneId])
+  @@index([deviceKind])
+  @@index([deviceId])
+  @@map("plan_markers")
 }
