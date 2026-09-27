@@ -362,7 +362,6 @@ describe('POST /api/fiber-plans/[id]/zones', () => {
     mocks.fiberPlan.findFirst.mockResolvedValueOnce({ id: 'plan-1' });
     mocks.planZone.create.mockImplementationOnce(
       // Prisma calls: prisma.planZone.create({ data: { tenantId, planId, name, description, color } })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       async (args: any) => {
         const d = args?.data ?? args;
         return {

@@ -477,13 +477,12 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
  */
 function PlanContextButton({ deviceKind, deviceId }: { deviceKind: string; deviceId: string }) {
   const [planInfo, setPlanInfo] = useState<{ planId: string; planName: string; markerCount: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
 
   // Lazy-load on first render (don't block the panel)
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     void (async () => {
       try {
         const res = await fetch(
@@ -616,7 +615,6 @@ function PlanModal({
 }
 
 /** Wrapper that dynamically imports FiberPlanViewer only on the client */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DynamicFiberPlanViewer({ plan }: { plan: any }) {
   const [Viewer, setViewer] = useState<React.ComponentType<{ plan: any }> | null>(null);
   useEffect(() => {
