@@ -1,5 +1,6 @@
 import { prisma } from '@ftth-copilot/db';
 import { snapshotHealth, type SchedulerName } from '@/lib/monitoring/scheduler-health';
+import { layaMetrics } from '@ftth-copilot/shared';
 
 interface MetricsState {
   snmpTrapsReceived: number;
@@ -299,6 +300,22 @@ export async function generatePrometheusMetrics(): Promise<string> {
     lines.push(`ftth_copilot_database_scrape_error 1`);
     lines.push('');
   }
+
+  // 7. Laya Decision Layer Metrics (ADR-042 — Expert System)
+  lines.push('# HELP ftth_laya_requests_total Total Laya decision requests by mode, event class and result.');
+  lines.push('# TYPE ftth_laya_requests_total counter');
+  lines.push('# HELP ftth_laya_latency_ms Laya decision latency percentiles in milliseconds.');
+  lines.push('# TYPE ftth_laya_latency_ms gauge');
+  lines.push('# HELP ftth_laya_confidence Laya decision confidence statistics by event class.');
+  lines.push('# TYPE ftth_laya_confidence gauge');
+
+  try {
+    const layaOutput = layaMetrics.toPrometheusFormat();
+    lines.push(layaOutput);
+  } catch {
+    lines.push('# Laya metrics unavailable');
+  }
+  lines.push('');
 
   return lines.join('\n') + '\n';
 }
