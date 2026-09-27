@@ -267,6 +267,171 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
 
 ---
 
+## Arquitectura del sistema
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║              FTTH-COPILOT — ARQUITECTURA COMPLETA                 ║
+╚════════════════════════════════════════════════════════════════════╝
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 0 — FUENTES DE DATOS                   │
+  │                                                                │
+  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────┐│
+  │  │ SmartOLT │ │Mikrowisp │ │ MikroTik │ │  OLTs  │ │ Syslog││
+  │  │  (HTTP)  │ │  (HTTP)  │ │REST (8728│ │  SNMP  │ │UDP 5514││
+  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └───┬────┘│
+  └───────┼───────────┼───────────┼───────────┼──────────┼─────────┼─────┘
+          │           │           │           │          │         │
+          ▼           ▼           ▼           ▼          ▼         ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │              CAPA 1 — INGESTA Y NORMALIZACIÓN                   │
+  │                                                                │
+  │  ┌──────────────┐  ┌────────────────┐  ┌───────────────────┐  │
+  │  │  Connector   │  │   SNMP Trap    │  │   Syslog Receiver │  │
+  │  │  Manager     │  │   Receiver     │  │   (RFC 3164)     │  │
+  │  │              │  │  (UDP 1162)    │  │                   │  │
+  │  │ • health    │  │ • decodif.     │  │ • parseSyslog()  │  │
+  │  │ • retry     │  │   multi-vendor │  │ • classifyEvent()│  │
+  │  │ • pool      │  │ • dedup        │  │   auth_failure   │  │
+  │  │              │  │ • token bucket │  │   access         │  │
+  │  └──────┬───────┘  └───────┬────────┘  │   config_change  │  │
+  └─────────┼─────────────────┼───────────└───────────────────┘────────┘
+            │                   │                    │
+            ▼                   ▼                    ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │       CAPA 2A — PIPELINE NOC (MÉTRICAS → INCIDENTES)          │
+  │                                                                │
+  │  ┌───────────────┐  ┌────────────────┐  ┌──────────────────┐  │
+  │  │Metric         │  │ Detection      │  │ Alert             │  │
+  │  │Collector       │─▶│ Engine          │─▶│ Reconciliation     │  │
+  │  │               │  │ (pure fns)     │  │                    │  │
+  │  │ poll()        │  │                │  │ • dedup            │  │
+  │  │ getOverview() │  │ detectSignal   │  │ • cooldown (1h)   │  │
+  │  │ getOnuDetail  │  │ detectTemp     │  │ • escalation (4h) │  │
+  │  │               │  │ detectFlapping │  │ • ack / resolve    │  │
+  │  │ Metrics:      │  │ detectReboot   │  └────────┬─────────┘  │
+  │  │ RX/TX power  │  │ detectBaseline │             │             │
+  │  │ LOS seconds  │  │ detectFEC     │             ▼             │
+  │  │ FEC errors   │  │ detectOptical  │  ┌──────────────────┐   │
+  │  │ Temperature   │  │                │  │ Incident         │   │
+  │  └───────┬───────┘  └────────────────┘  │ Correlator       │   │
+  │          │                               │ (deviceKind,     │   │
+  │          ▼                               │  deviceId)       │   │
+  │  ┌──────────────────────────────────────┐└────────┬─────────┘   │
+  │  │           PERSISTENCIA (PostgreSQL)   │          │             │
+  │  │                                          │          ▼             │
+  │  │  MetricSample · DetectedAlert · Incident│  ┌──────────────────┐│
+  │  │  DecisionEvaluation · DeviceEvent        │  │ Notifications   ││
+  │  │                                          │  │Webhook·Telegram││
+  │  │                                          │  │Slack·WhatsApp  ││
+  │  └──────────────────────────────────────────┘└──────────────────┘│
+  └────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │       CAPA 2B — PIPELINE SOC (SYSLOG → HALLAZGOS)             │
+  │                                                                │
+  │  DeviceEvent ──▶ Security Detection (pure functions)         │
+  │                    detectBruteForce ──► CRITICAL              │
+  │                    detectConfigChange ──► WARNING               │
+  │                    detectVulnFirmware ──► CRITICAL             │
+  └────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │     CAPA 3 — COPILOTO + LAYA DECISION LAYER (ADR-042)         │
+  │                                                                │
+  │  OPERADOR: "20 ONUs offline en PON-3, cuál es la causa?"      │
+  │                         │                                       │
+  │                         ▼                                       │
+  │  ┌──────────────────────────────────────────────────────────────┐│
+  │  │        LAYA DECISION LAYER — System 1 (<5ms, CPU)       ││
+  │  │                                                              ││
+  │  │  Clasifica evento en 9 clases con 94.4% accuracy:       ││
+  │  │                                                              ││
+  │  │  CONGESTION · DEVICE_FAULT · MASS_OUTAGE · NORMAL        ││
+  │  │  OPTICAL_DEGRADATION · OPTICAL_FAULT · POWER_FAULT        ││
+  │  │  UNKNOWN · UPLINK_FAULT                                   ││
+  │  │                                                              ││
+  │  │  shadow ──► solo loguea a decision_evaluations            ││
+  │  │  assisted ──► sugiere ruta al adaptive router               ││
+  │  │  automatic ──► influye directamente en routing              ││
+  │  │  disabled ──► desactivado                                   ││
+  │  └──────────────────────────┬───────────────────────────────┘│
+  │                             │                                  │
+  │                             ▼                                  │
+  │  ┌──────────────────────────────────────────────────────────────┐│
+  │  │         ADAPTIVE ROUTER — Organic Diagnostic Router       ││
+  │  │                                                              ││
+  │  │  Intención ──▶ Clasifica en modo:                          ││
+  │  │                                                              ││
+  │  │  routine / single_device  ──▶  ┌─────────┐  0 LLM calls  ││
+  │  │                               │ DIRECT  │  1 tool       ││
+  │  │                               └─────────┘                ││
+  │  │  histórico / multi_device ──▶  ┌─────────┐  1 LLM call  ││
+  │  │                               │ ASSISTED│  2-4 tools   ││
+  │  │                               └─────────┘  + RAG      ││
+  │  │  causa_raíz / advisory ──▶  ┌───────────┐  6 LLM calls││
+  │  │                               │INVESTIG- │  all tools  ││
+  │  │                               │  ATION   │  + reasoning││
+  │  │                               └───────────┘             ││
+  │  └───────────────────────────────┬───────────────────────────┘│
+  └──────────────────────────────────┼───────────────────────────┘
+                                     │
+          ┌───────────────────────────┼───────────────────────────┐
+          │ DIRECT                   │ ASSISTED                  │ INVESTIGATION
+          ▼                          ▼                           ▼
+  ┌─────────────┐           ┌─────────────┐            ┌───────────────┐
+  │  1 tool    │           │  RAG +      │            │  Full loop    │
+  │  formatter  │           │  LLM call  │            │  LLM × 6      │
+  │  (no LLM) │           │  2-4 tools │            │  all tools    │
+  └─────────────┘           └─────────────┘            └───────────────┘
+          │                          │                            │
+  └────────┴─────────────────────────┴────────────────────────────┘
+                                     │
+                                     ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 4 — RUNTIME                            │
+  │                                                                │
+  │  ┌──────────────┐  ┌────────────────┐  ┌──────────────────┐  │
+  │  │ System       │  │ Tool           │  │ TruthGate         │  │
+  │  │ Prompt       │  │ Registry       │  │ (evidencia first) │  │
+  │  │ (3 modes)    │  │ (9 tools)      │  │                  │  │
+  │  └──────────────┘  └────────────────┘  └──────────────────┘  │
+  │                                                                │
+  │  ┌────────────────────────────────────────────────────────┐     │
+  │  │     LLM PROVIDERS (fallback chain)                   │     │
+  │  │     MiniMax ──error──▶ DeepSeek ──error──▶ Qwen   │     │
+  │  │     Token counting · Latency metrics · Fallback ev │     │
+  │  └────────────────────────────────────────────────────────┘     │
+  └────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 5 — OBSERVABILIDAD                      │
+  │                                                                │
+  │  /api/metrics (Prometheus)      /dashboard/laya (UI)          │
+  │  • process · SNMP · LLM         • decisiones · latencia       │
+  │  • RAG · router dispatches      • confianza por clase          │
+  │  • Laya: requests · latency     • auto-refresh 30s           │
+  │    confidence                                                      │
+  │                                                                │
+  │  Phoenix LLM Tracing (OpenInference / OTLP)                    │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+### Las 4 invariantes que cruzan todo el sistema
+
+| Invariante | Qué significa |
+|---|---|
+| **Tenant-aware** | Todo toca `tenantId`. No hay datos compartidos entre ISPs. |
+| **Evidencia first** | TruthGate rechaza afirmaciones sin evidencia que la sostenga. |
+| **Fail-open** | Si Laya no responde → pipeline continúa. Si LLM falla → fallback. |
+| **Shadow mode first** | Laya decide pero solo loguea hasta que confirmes que funciona. |
+
+---
+
 ## Copiloto Conversacional: Organic Diagnostic Router
 
 El **Organic Diagnostic Router** clasifica cada consulta del operador y, para eventos de alarma, consulta primero a **Laya Decision Layer** (ADR-042) — el Expert System clasifica el tipo de evento en <5ms antes de decidir la ruta.
