@@ -8,9 +8,11 @@ import {
   LayaIntegration,
   shouldConsultLaya,
   mergeRoutingDecision,
+  getLayaIntegration,
+  resetLayaIntegration,
   type LayaDecision,
 } from '../src/laya-integration.js';
-import type { LayaSignal, LayaHttpConfig } from '../src/laya-shadow.js';
+import type { LayaSignal, LayaHttpConfig, LayaDecisionEvent } from '../src/laya-shadow.js';
 
 // ── LayaIntegration Tests ──────────────────────────────────────────────────
 
@@ -67,6 +69,148 @@ describe('LayaIntegration', () => {
         confidenceThresholdLow: 0.75,
       });
       expect(assistedIntegration.isShadowMode()).toBe(false);
+    });
+  });
+
+  describe('getMode', () => {
+    it('returns the configured mode', () => {
+      const shadowIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'shadow',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+      expect(shadowIntegration.getMode()).toBe('shadow');
+
+      const assistedIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'assisted',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+      expect(assistedIntegration.getMode()).toBe('assisted');
+
+      const automaticIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'automatic',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+      expect(automaticIntegration.getMode()).toBe('automatic');
+    });
+  });
+
+  describe('getMetrics', () => {
+    it('returns metrics from the client', () => {
+      const enabledIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'shadow',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+
+      const metrics = enabledIntegration.getMetrics();
+      expect(metrics).toBeDefined();
+      expect(typeof metrics).toBe('object');
+      expect(metrics).toHaveProperty('requestsTotal');
+      expect(metrics).toHaveProperty('failuresTotal');
+    });
+  });
+
+  describe('getCircuitBreakerState', () => {
+    it('returns circuit breaker state from the client', () => {
+      const enabledIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'shadow',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+
+      const state = enabledIntegration.getCircuitBreakerState();
+      expect(state).toBeDefined();
+      expect(typeof state).toBe('object');
+    });
+  });
+
+  describe('processEvent', () => {
+    it('returns null when disabled', async () => {
+      const disabledIntegration = new LayaIntegration({
+        enabled: false,
+        mode: 'disabled',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+
+      const event: LayaDecisionEvent = {
+        eventId: 'evt-001',
+        tenantId: 'tenant-001',
+        timestamp: new Date().toISOString(),
+        source: 'snmp',
+        deviceKind: 'ONU',
+        deviceId: 'ONU-342',
+        alarmType: 'LOS',
+        rxPower: -27.8,
+        rawSummary: 'ONU-342 reports LOS',
+      };
+
+      const result = await disabledIntegration.processEvent(event);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when LAYA_URL is not configured', async () => {
+      // Even when enabled, if no LAYA_URL is set, the client fails-open and returns null
+      const enabledIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'shadow',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+
+      const event: LayaDecisionEvent = {
+        eventId: 'evt-001',
+        tenantId: 'tenant-001',
+        timestamp: new Date().toISOString(),
+        source: 'snmp',
+        deviceKind: 'ONU',
+        deviceId: 'ONU-342',
+        alarmType: 'LOS',
+        rxPower: -27.8,
+        rawSummary: 'ONU-342 reports LOS',
+      };
+
+      // Without LAYA_URL configured, the client fails open and returns null
+      const result = await enabledIntegration.processEvent(event);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('healthCheck', () => {
+    it('returns health status from client', async () => {
+      const enabledIntegration = new LayaIntegration({
+        enabled: true,
+        mode: 'shadow',
+        timeoutMs: 250,
+        failOpen: true,
+        confidenceThresholdHigh: 0.95,
+        confidenceThresholdLow: 0.75,
+      });
+
+      const health = await enabledIntegration.healthCheck();
+      expect(typeof health).toBe('boolean');
     });
   });
 
@@ -373,5 +517,57 @@ describe('LayaIntegration.toLayaEvent', () => {
     expect(event.topologyContext).toBeDefined();
     expect(event.topologyContext?.oltId).toBe('OLT-01');
     expect(event.topologyContext?.ponPort).toBe('0/2/7');
+  });
+});
+
+// ── Global Instance Tests ─────────────────────────────────────────────────
+
+describe('getLayaIntegration', () => {
+  beforeEach(() => {
+    // Reset global instance before each test
+    resetLayaIntegration();
+  });
+
+  it('creates and returns a singleton instance', () => {
+    const instance1 = getLayaIntegration();
+    const instance2 = getLayaIntegration();
+
+    expect(instance1).toBe(instance2);
+    expect(instance1).toBeInstanceOf(LayaIntegration);
+  });
+
+  it('returns the same instance on multiple calls', () => {
+    const instance1 = getLayaIntegration();
+    const instance2 = getLayaIntegration();
+    const instance3 = getLayaIntegration();
+
+    expect(instance1).toBe(instance2);
+    expect(instance2).toBe(instance3);
+  });
+});
+
+describe('resetLayaIntegration', () => {
+  beforeEach(() => {
+    resetLayaIntegration();
+  });
+
+  it('resets the global instance to null', () => {
+    const instance1 = getLayaIntegration();
+    resetLayaIntegration();
+    const instance2 = getLayaIntegration();
+
+    // instance2 should be a new instance, not the same as instance1
+    expect(instance1).not.toBe(instance2);
+  });
+
+  it('allows creating a fresh instance after reset', () => {
+    const instance1 = getLayaIntegration();
+    expect(instance1).toBeInstanceOf(LayaIntegration);
+
+    resetLayaIntegration();
+
+    const instance2 = getLayaIntegration();
+    expect(instance2).toBeInstanceOf(LayaIntegration);
+    expect(instance1).not.toBe(instance2);
   });
 });

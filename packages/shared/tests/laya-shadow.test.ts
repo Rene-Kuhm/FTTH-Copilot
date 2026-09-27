@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { EventClass } from '../src/laya-expert-system';
 import type { LayaMode } from '../src/laya-shadow';
 import {
@@ -7,6 +7,7 @@ import {
   canInfluenceRouting,
   canTakeDirectRoute,
   toDecisionLog,
+  logLayaDecision,
   getSuggestedRoute,
   calculateAgreement,
 } from '../src/laya-shadow';
@@ -126,6 +127,13 @@ describe('LayaShadow', () => {
 
       expect(getSuggestedRoute(result, config)).toBeUndefined();
     });
+
+    it('returns ASSISTED for default case (low confidence, no investigation)', () => {
+      const result = { eventClass: 'UNKNOWN' as EventClass, confidence: 0.5, matchedKeywords: [], severity: 'INFO' as const, probableScope: 'UNKNOWN' as const, requiresInvestigation: false };
+      const config = { enabled: true, mode: 'assisted' as LayaMode, failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
+
+      expect(getSuggestedRoute(result, config)).toBe('ASSISTED');
+    });
   });
 
   describe('calculateAgreement', () => {
@@ -139,6 +147,145 @@ describe('LayaShadow', () => {
 
     it('returns false when layaRoute is undefined', () => {
       expect(calculateAgreement(undefined, 'direct')).toBe(false);
+    });
+
+    it('returns true for ASSISTED route match (edge case)', () => {
+      expect(calculateAgreement('ASSISTED', 'assisted')).toBe(true);
+    });
+
+    it('handles lowercase layaRoute input', () => {
+      // @ts-ignore - testing runtime behavior
+      expect(calculateAgreement('direct', 'direct')).toBe(true);
+    });
+  });
+
+  describe('logLayaDecision', () => {
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    it('logs decision to console in non-production environment', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
+      const input = {
+        tenantId: 'tenant-1',
+        eventId: 'evt-123',
+        source: 'user-query' as const,
+        rawSummary: 'OLT reports LOS alarm',
+      };
+
+      const decision = {
+        engine: 'expert-system',
+        model: 'ftth-expert-system-v1',
+        modelVersion: '1.0.0',
+        eventClass: 'OPTICAL_FAULT' as EventClass,
+        severity: 'HIGH' as const,
+        probableScope: 'PON' as const,
+        requiresInvestigation: true,
+        confidence: 0.87,
+        matchedKeywords: ['los'],
+        latencyMs: 15,
+        suggestedRoute: 'INVESTIGATION' as const,
+        shadow: true,
+        mode: 'shadow' as LayaMode,
+        result: 'success',
+      };
+
+      await logLayaDecision(input, decision);
+
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logCall = consoleLogSpy.mock.calls[0][0];
+      const parsed = JSON.parse(logCall);
+
+      expect(parsed.type).toBe('laya_decision');
+      expect(parsed.tenantId).toBe('tenant-1');
+      expect(parsed.eventId).toBe('evt-123');
+      expect(parsed.engine).toBe('expert-system');
+      expect(parsed.eventClass).toBe('OPTICAL_FAULT');
+      expect(parsed.suggestedRoute).toBe('INVESTIGATION');
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('logs decision when LAYA_LOG_LEVEL is debug in production', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      const originalLogLevel = process.env.LAYA_LOG_LEVEL;
+
+      process.env.NODE_ENV = 'production';
+      process.env.LAYA_LOG_LEVEL = 'debug';
+
+      const input = {
+        tenantId: 'tenant-1',
+        eventId: 'evt-456',
+        source: 'user-query' as const,
+        rawSummary: 'Test alarm',
+      };
+
+      const decision = {
+        engine: 'expert-system',
+        model: 'ftth-expert-system-v1',
+        modelVersion: '1.0.0',
+        eventClass: 'NORMAL' as EventClass,
+        severity: 'INFO' as const,
+        probableScope: 'ONU' as const,
+        requiresInvestigation: false,
+        confidence: 0.95,
+        matchedKeywords: [],
+        latencyMs: 10,
+        suggestedRoute: 'DIRECT' as const,
+        shadow: false,
+        mode: 'assisted' as LayaMode,
+        result: 'success',
+      };
+
+      await logLayaDecision(input, decision);
+
+      expect(consoleLogSpy).toHaveBeenCalled();
+
+      process.env.NODE_ENV = originalEnv;
+      process.env.LAYA_LOG_LEVEL = originalLogLevel;
+    });
+
+    it('does not log when in production without debug flag', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      const originalLogLevel = process.env.LAYA_LOG_LEVEL;
+
+      process.env.NODE_ENV = 'production';
+      process.env.LAYA_LOG_LEVEL = undefined;
+
+      const input = {
+        tenantId: 'tenant-1',
+        eventId: 'evt-789',
+        source: 'user-query' as const,
+        rawSummary: 'Test alarm',
+      };
+
+      const decision = {
+        engine: 'expert-system',
+        model: 'ftth-expert-system-v1',
+        modelVersion: '1.0.0',
+        eventClass: 'NORMAL' as EventClass,
+        severity: 'INFO' as const,
+        probableScope: 'ONU' as const,
+        requiresInvestigation: false,
+        confidence: 0.95,
+        matchedKeywords: [],
+        latencyMs: 10,
+        suggestedRoute: 'DIRECT' as const,
+        shadow: false,
+        mode: 'assisted' as LayaMode,
+        result: 'success',
+      };
+
+      await logLayaDecision(input, decision);
+
+      expect(consoleLogSpy).not.toHaveBeenCalled();
+
+      process.env.NODE_ENV = originalEnv;
+      process.env.LAYA_LOG_LEVEL = originalLogLevel;
     });
   });
 });
