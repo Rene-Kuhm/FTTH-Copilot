@@ -287,14 +287,24 @@ ftth_laya_shadow_disagreement_total
 
 ## Fases de implementación
 
-| Fase | Descripción | Criterio de salida |
-|------|-------------|-------------------|
-| 0 | ADR + contratos + pruebas de concepto | Este documento aprobado |
-| 1 | Módulo Laya importable + client TypeScript | Laya responde correctamente a eventos hardcodeados |
-| 2 | Shadow mode: persistir DecisionEvaluation, métricas | Datos reales de comparación disponibles |
-| 3 | Dataset FTTH + benchmark | Reporte con métricas por clase |
-| 4 | Assisted mode: inyectar señal layaSignal en adaptive-router | Umbrales de DEC-042-4 cumplidos |
-| 5 | Fine-tuning (requerido) | Modelo especializado `ftth-copilot-laya-v1` |
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| 0 | ADR + contratos + pruebas de concepto | ✅ Completado |
+| 1 | Módulo importable + client TypeScript | ✅ Completado (Expert System) |
+| 2 | Shadow mode: persistir DecisionEvaluation | ✅ Tabla lista |
+| 3 | Dataset FTTH + benchmark | ✅ 94.4% accuracy |
+| 4 | Assisted mode: inyectar señal en adaptive-router | ✅ Integrado |
+| 5 | Fine-tuning | ❌ Abandonado (requiere 5000+ ejemplos) |
+
+### Decisión: Expert System sobre Laya ML
+
+Después de extensive testing:
+- **Fine-tuning DeBERTa-v3**: 11% accuracy (NaN weights)
+- **Zero-shot BART**: 40% accuracy
+- **Expert System**: 94.4% accuracy
+
+Fine-tuning requiere dataset mucho más grande y GPU dedicada. El Expert System
+con keywords es más efectivo para FTTH.
 
 ---
 
@@ -302,6 +312,7 @@ ftth_laya_shadow_disagreement_total
 
 - Documento de diseño completo: `/home/tecnodespegue/Descargas/laya-integration-ftth-copilot.md`
 - Adaptive router existente: `packages/agent-core/src/adaptive-router.ts`
+- Expert System: `packages/shared/src/laya-expert-system.ts`
 - Contratos existentes: `packages/shared/src/contracts.ts`
 - Laya: https://github.com/NandhaKishorM/laya
 
