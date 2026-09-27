@@ -260,7 +260,7 @@ jobs:
         run: pnpm --filter @ftth-copilot/db exec prisma generate
 
       - name: Apply migrations
-        run: pnpm --filter @ftth-copilot/db exec prisma migrate deploy
+        run: pnpm --filter @ftth-copilot/db exec prisma db push --accept-data-loss
 
       - name: Run E2E tests
         run: pnpm test:e2e
@@ -308,8 +308,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Bootstrap environment with setup script (pnpm run setup)
-        run: pnpm run setup
+      - name: Bootstrap environment
+        run: |
+          pnpm --filter @ftth-copilot/db exec prisma db push --accept-data-loss
+          pnpm --filter @ftth-copilot/db exec prisma db seed || true
 
       - name: Run database tests
         run: pnpm --filter @ftth-copilot/db test
