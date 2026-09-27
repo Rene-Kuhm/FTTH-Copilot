@@ -285,8 +285,46 @@ export function toDecisionLog(
 }
 
 /**
- * Log a Laya decision to console (for development)
- * In production, this would write to the DecisionEvaluation table
+ * Log handler type — registered by the host application (e.g. agent-core).
+ * Allows the host to persist decisions to a database without coupling shared to Prisma.
+ */
+export type LayaLogHandler = (input: DecisionInput, decision: LayaDecisionLog) => Promise<void> | void;
+
+let _logHandler: LayaLogHandler | undefined;
+
+/**
+ * Register a custom log handler for Laya decisions.
+ * Call this once during application startup if you want to persist
+ * decisions to a database (e.g. Prisma DecisionEvaluation table).
+ *
+ * @example
+ *   import { prisma } from '@ftth-copilot/db';
+ *   setLayaLogHandler(async (input, decision) => {
+ *     await prisma.decisionEvaluation.create({
+ *       data: {
+ *         tenantId: input.tenantId,
+ *         eventId: input.eventId || `gen-${Date.now()}`,
+ *         engine: decision.engine,
+ *         model: decision.model,
+ *         modelVersion: decision.modelVersion,
+ *         eventClass: decision.eventClass,
+ *         severity: decision.severity,
+ *         probableScope: decision.probableScope,
+ *         suggestedRoute: decision.suggestedRoute,
+ *         confidence: { eventClass: decision.confidence },
+ *         latencyMs: decision.latencyMs,
+ *         shadow: decision.shadow,
+ *       }
+ *     });
+ *   });
+ */
+export function setLayaLogHandler(handler: LayaLogHandler): void {
+  _logHandler = handler;
+}
+
+/**
+ * Log a Laya decision to console (for development) and to the registered handler.
+ * If no handler is registered, only console output is produced.
  */
 export async function logLayaDecision(
   input: DecisionInput,
@@ -313,23 +351,14 @@ export async function logLayaDecision(
     }, null, 2));
   }
   
-  // In production with Prisma:
-  // await prisma.decisionEvaluation.create({
-  //   data: {
-  //     tenantId: input.tenantId,
-  //     eventId: input.eventId || `gen-${Date.now()}`,
-  //     engine: decision.engine,
-  //     model: decision.model,
-  //     modelVersion: decision.modelVersion,
-  //     eventClass: decision.eventClass,
-  //     severity: decision.severity,
-  //     probableScope: decision.probableScope,
-  //     suggestedRoute: decision.suggestedRoute,
-  //     confidence: { eventClass: decision.confidence },
-  //     latencyMs: decision.latencyMs,
-  //     shadow: decision.shadow,
-  //   }
-  // });
+  // Call registered handler (e.g. Prisma write in agent-core)
+  if (_logHandler) {
+    try {
+      await _logHandler(input, decision);
+    } catch (err) {
+      console.error('[laya] log handler error:', err instanceof Error ? err.message : err);
+    }
+  }
 }
 
 /**

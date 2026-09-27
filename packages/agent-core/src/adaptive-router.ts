@@ -17,7 +17,29 @@
  */
 
 import type { IntentionLabel } from './diagnostic-router';
-import { getExpertClassifier, type EventClass } from '@ftth-copilot/shared';
+import { getExpertClassifier, setLayaLogHandler, type EventClass } from '@ftth-copilot/shared';
+import { prisma } from '@ftth-copilot/db';
+
+// ── Module init: register Laya decision logging handler (ADR-042) ──────────
+// Persists shadow-mode decisions to the DecisionEvaluation table.
+setLayaLogHandler(async (input, decision) => {
+  await prisma.decisionEvaluation.create({
+    data: {
+      tenantId: input.tenantId,
+      eventId: input.eventId || `gen-${Date.now()}`,
+      engine: decision.engine as string,
+      model: decision.model as string,
+      modelVersion: decision.modelVersion ?? null,
+      eventClass: decision.eventClass ?? null,
+      severity: decision.severity ?? null,
+      probableScope: decision.probableScope ?? null,
+      suggestedRoute: decision.suggestedRoute ?? null,
+      confidence: { eventClass: decision.confidence },
+      latencyMs: decision.latencyMs ?? null,
+      shadow: decision.shadow,
+    },
+  });
+});
 
 // Inline IntentionContext (mirror of @ftth-copilot/eval) so this file
 // remains self-contained without a runtime dep on the eval package.

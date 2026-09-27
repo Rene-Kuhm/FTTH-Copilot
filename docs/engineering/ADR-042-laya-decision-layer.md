@@ -1,6 +1,6 @@
 # ADR-042: Laya como Fast Decision Layer (System 1)
 
-**Estado:** Propuesto\
+**Estado:** Implementado\
 **Fecha:** 2026-09-27\
 **Decisores:** equipo FTTH-Copilot\
 **Proyecto:** FTTH-Copilot
@@ -253,16 +253,19 @@ Request:
 
 ### Métricas Prometheus
 
+**Implementado:** métricas expuestas via `/api/metrics` (Next.js) integrando
+`layaMetrics.toPrometheusFormat()`.
+
 ```
-ftth_laya_requests_total          # Total requests
-ftth_laya_failures_total          # Failed requests
-ftth_laya_timeouts_total         # Timeouts
-ftth_laya_shadow_total           # Shadow mode decisions
-ftth_laya_fallback_total         # Fallback activations
-ftth_laya_latency_ms             # Histogram de latencia
-ftth_laya_confidence             # Gauge de confianza promedio
-ftth_laya_route_suggestion_total # Por route (DIRECT/ASSISTED/INVESTIGATION)
-ftth_laya_shadow_agreement_total #shadow vs routing agreement
+ftth_laya_requests_total          # counter{mode, event_class, result}
+ftth_laya_failures_total          # counter
+ftth_laya_timeouts_total         # counter
+ftth_laya_shadow_total           # counter (shadow mode decisions)
+ftth_laya_fallback_total         # counter (fallback activations)
+ftth_laya_latency_ms             # gauge{mode, quantile: p50|p95|p99}
+ftth_laya_confidence             # gauge{event_class, stat: avg|min|max}
+ftth_laya_route_suggestion_total # counter (by route)
+ftth_laya_shadow_agreement_total # counter (shadow vs routing agreement)
 ftth_laya_shadow_disagreement_total
 ```
 
@@ -291,7 +294,7 @@ ftth_laya_shadow_disagreement_total
 |------|-------------|--------|
 | 0 | ADR + contratos + pruebas de concepto | ✅ Completado |
 | 1 | Módulo importable + client TypeScript | ✅ Completado (Expert System) |
-| 2 | Shadow mode: persistir DecisionEvaluation | ✅ Tabla lista |
+| 2 | Shadow mode: persistir DecisionEvaluation | ✅ Tabla + setLayaLogHandler wiring |
 | 3 | Dataset FTTH + benchmark | ✅ 94.4% accuracy |
 | 4 | Assisted mode: inyectar señal en adaptive-router | ✅ Integrado |
 | 5 | Fine-tuning | ❌ Abandonado (requiere 5000+ ejemplos) |
