@@ -9,10 +9,103 @@
  *   await logLayaDecision({ tenantId, eventId, ... }, result, 'shadow');
  */
 
+import { z } from 'zod';
 import type { ClassificationResult, EventClass, Severity, ProbableScope } from './laya-expert-system';
 
 export type LayaMode = 'disabled' | 'shadow' | 'assisted' | 'automatic';
 export type LayaResult = 'success' | 'fallback' | 'timeout' | 'error';
+
+// ── Laya API types (used by laya-client and laya-integration) ───────────────
+
+/**
+ * Incoming event to classify via Laya
+ */
+export interface LayaDecisionEvent {
+  tenantId: string;
+  eventId?: string;
+  rawSummary: string;
+  userMessage?: string;
+  deviceId?: string;
+  deviceKind?: string;
+  alarmType?: string;
+  // Extended fields used by laya-integration
+  source?: string;
+  timestamp?: string;
+  rxPower?: number;
+  dyingGasp?: boolean;
+  powerAlarm?: boolean;
+  affectedOnus?: number;
+  topologyContext?: {
+    oltId?: string;
+    ponPort?: string;
+    splitterId?: string;
+    ctoId?: string;
+  };
+}
+
+/**
+ * Classification result from Laya
+ */
+export interface LayaDecision {
+  eventClass: string;
+  confidence: {
+    eventClass: number;
+    suggestedRoute?: number;
+    severity?: number;
+  };
+  severity: string;
+  probableScope: string;
+  requiresInvestigation: boolean;
+  suggestedRoute?: 'DIRECT' | 'ASSISTED' | 'INVESTIGATION';
+}
+
+/**
+ * Signal from Laya for routing decisions
+ */
+export interface LayaSignal {
+  eventClass: EventClass;
+  confidence: number;
+  severity: Severity;
+  probableScope: ProbableScope;
+  requiresInvestigation: boolean;
+  suggestedRoute?: 'DIRECT' | 'ASSISTED' | 'INVESTIGATION';
+}
+
+/**
+ * Zod schemas for Laya API validation
+ */
+export const layaDecisionEventSchema = z.object({
+  tenantId: z.string().min(1),
+  eventId: z.string().optional(),
+  rawSummary: z.string().min(1),
+  userMessage: z.string().optional(),
+  deviceId: z.string().optional(),
+  deviceKind: z.string().optional(),
+  alarmType: z.string().optional(),
+  source: z.string().optional(),
+  timestamp: z.string().optional(),
+  rxPower: z.number().optional(),
+  dyingGasp: z.boolean().optional(),
+  powerAlarm: z.boolean().optional(),
+  affectedOnus: z.number().optional(),
+  topologyContext: z.object({
+    oltId: z.string().optional(),
+    ponPort: z.string().optional(),
+    splitterId: z.string().optional(),
+    ctoId: z.string().optional(),
+  }).optional(),
+});
+
+export const layaDecisionSchema = z.object({
+  eventClass: z.string(),
+  confidence: z.number().min(0).max(1),
+  severity: z.string(),
+  probableScope: z.string(),
+  requiresInvestigation: z.boolean(),
+  matchedKeywords: z.array(z.string()).optional(),
+});
+
+export const LAYA_DECISION_SCHEMA = 'laya.decision.v1' as const;
 
 /**
  * Input for a Laya decision
@@ -63,7 +156,7 @@ export interface LayaDecisionLog {
 }
 
 /**
- * Feature flag configuration for Laya
+ * Feature flag configuration for Laya (shadow/logging mode)
  */
 export interface LayaConfig {
   enabled: boolean;
@@ -72,6 +165,21 @@ export interface LayaConfig {
   minConfidence: number;
   suggestRoute: boolean;
   allowDirectRouting: boolean;
+  model?: string;
+  modelVersion?: string;
+}
+
+/**
+ * HTTP client configuration for Laya API calls
+ */
+export interface LayaHttpConfig {
+  enabled: boolean;
+  mode: LayaMode;
+  url?: string;
+  timeoutMs: number;
+  failOpen: boolean;
+  confidenceThresholdHigh: number;
+  confidenceThresholdLow: number;
   model?: string;
   modelVersion?: string;
 }
@@ -91,6 +199,32 @@ export function getLayaConfig(): LayaConfig {
     modelVersion: process.env.LAYA_MODEL_VERSION,
   };
 }
+
+/**
+ * Zod schemas for Laya API validation
+ */
+export const layaConfigSchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(['disabled', 'shadow', 'assisted', 'automatic']),
+  failOpen: z.boolean(),
+  minConfidence: z.number().min(0).max(1),
+  suggestRoute: z.boolean(),
+  allowDirectRouting: z.boolean(),
+  model: z.string().optional(),
+  modelVersion: z.string().optional(),
+});
+
+export const layaHttpConfigSchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(['disabled', 'shadow', 'assisted', 'automatic']),
+  url: z.string().optional(),
+  timeoutMs: z.number().int().positive(),
+  failOpen: z.boolean(),
+  confidenceThresholdHigh: z.number().min(0).max(1),
+  confidenceThresholdLow: z.number().min(0).max(1),
+  model: z.string().optional(),
+  modelVersion: z.string().optional(),
+});
 
 /**
  * Check if Laya decisions should be logged

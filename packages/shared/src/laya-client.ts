@@ -17,19 +17,18 @@
 import type {
   LayaDecisionEvent,
   LayaDecision,
-  LayaConfig,
+  LayaHttpConfig,
   LayaMode,
-} from './contracts.js';
+} from './laya-shadow.js';
 import {
-  layaConfigSchema,
+  layaHttpConfigSchema,
   layaDecisionSchema,
   layaDecisionEventSchema,
-  LAYA_DECISION_SCHEMA,
-} from './contracts.js';
+} from './laya-shadow.js';
 
 // ── Default configuration ────────────────────────────────────────────────────
 
-export const DEFAULT_LAYA_CONFIG: LayaConfig = {
+export const DEFAULT_LAYA_CONFIG: LayaHttpConfig = {
   enabled: false,
   mode: 'disabled',
   timeoutMs: 250,
@@ -43,7 +42,7 @@ export const DEFAULT_LAYA_CONFIG: LayaConfig = {
  * Parse and validate Laya configuration from environment variables.
  * Falls back to defaults for missing values.
  */
-export function loadLayaConfigFromEnv(): LayaConfig {
+export function loadLayaConfigFromEnv(): LayaHttpConfig {
   const raw = {
     enabled: process.env.LAYA_ENABLED === 'true',
     mode: process.env.LAYA_MODE ?? 'disabled',
@@ -59,7 +58,7 @@ export function loadLayaConfigFromEnv(): LayaConfig {
   };
 
   // Validate with zod, filling defaults for missing optional fields
-  const result = layaConfigSchema.safeParse(raw);
+  const result = layaHttpConfigSchema.safeParse(raw);
   if (!result.success) {
     console.warn('[Laya] Invalid config, using defaults:', result.error.message);
     return DEFAULT_LAYA_CONFIG;
@@ -281,7 +280,7 @@ export function recordLayaDecision(
 // ── Laya Client ──────────────────────────────────────────────────────────
 
 export interface LayaClientConfig {
-  config: LayaConfig;
+  config: LayaHttpConfig;
   circuitBreaker?: ReturnType<typeof createCircuitBreaker>;
   metrics?: LayaMetrics;
   /** Custom fetch implementation. Defaults to global fetch. */
@@ -295,7 +294,7 @@ export interface LayaClient {
   /** Check if Laya is enabled and operational. */
   isOperational: () => boolean;
   /** Get current configuration. */
-  getConfig: () => LayaConfig;
+  getConfig: () => LayaHttpConfig;
   /** Get circuit breaker state. */
   getCircuitBreakerState: () => CircuitBreakerState;
   /** Get current metrics snapshot. */
@@ -333,7 +332,7 @@ export function createLayaClient(config: LayaClientConfig): {
   /** Check if Laya is enabled and operational. */
   isOperational: () => boolean;
   /** Get current configuration. */
-  getConfig: () => LayaConfig;
+  getConfig: () => LayaHttpConfig;
   /** Get circuit breaker state. */
   getCircuitBreakerState: () => CircuitBreakerState;
   /** Get current metrics snapshot. */
@@ -405,9 +404,7 @@ export function createLayaClient(config: LayaClientConfig): {
   }
 
   function mapResponseToLayaDecision(
-    eventId: string,
-    response: Record<string, unknown>,
-    latencyMs: number
+    response: Record<string, unknown>
   ): LayaDecision {
     // Parse Laya's response format
     const eventClassResp = response.event_class as {
@@ -427,23 +424,17 @@ export function createLayaClient(config: LayaClientConfig): {
     const confidence = {
       eventClass: eventClassResp?.confidence ?? 0,
       severity: severityResp?.confidence ?? 0,
-      probableScope: 0.5, // Laya doesn't provide this directly
       suggestedRoute: 0.5,
     };
 
     // Map to our decision format
     return {
-      schema: LAYA_DECISION_SCHEMA,
-      eventId,
       eventClass: (eventClassResp?.choice as LayaDecision['eventClass']) ?? 'UNKNOWN',
       severity: (severityResp?.choice as LayaDecision['severity']) ?? 'INFO',
       probableScope: 'UNKNOWN',
       suggestedRoute: 'INVESTIGATION',
       requiresInvestigation: requiresInvestigationResp?.choice ?? true,
       confidence,
-      model: layaConfig.model,
-      modelVersion: layaConfig.modelVersion,
-      latencyMs,
     };
   }
 
@@ -452,7 +443,7 @@ export function createLayaClient(config: LayaClientConfig): {
       return layaConfig.enabled && circuitBreaker.canExecute();
     },
 
-    getConfig(): LayaConfig {
+    getConfig(): LayaHttpConfig {
       return { ...layaConfig };
     },
 
@@ -505,7 +496,7 @@ export function createLayaClient(config: LayaClientConfig): {
           );
           const latencyMs = Date.now() - startTime;
           circuitBreaker.recordSuccess();
-          return mapResponseToLayaDecision(event.eventId, result, latencyMs);
+          return mapResponseToLayaDecision(result);
         } catch (error) {
           const latencyMs = Date.now() - startTime;
           const opened = circuitBreaker.recordFailure();
@@ -525,7 +516,7 @@ export function createLayaClient(config: LayaClientConfig): {
         const latencyMs = Date.now() - startTime;
         circuitBreaker.recordSuccess();
 
-        const decision = mapResponseToLayaDecision(event.eventId, result, latencyMs);
+        const decision = mapResponseToLayaDecision(result);
 
         recordLayaDecision(metrics, {
           latencyMs,
@@ -584,9 +575,8 @@ export function createLayaClient(config: LayaClientConfig): {
         circuitBreaker.recordSuccess();
         metrics.batchSizeSum += events.length;
 
-        return result.decisions.map((decision, i) => {
-          const latencyMs = Date.now(); // Approximate
-          return mapResponseToLayaDecision(events[i]!.eventId, decision, latencyMs);
+        return result.decisions.map((decision) => {
+          return mapResponseToLayaDecision(decision);
         });
       } catch (error) {
         const opened = circuitBreaker.recordFailure();

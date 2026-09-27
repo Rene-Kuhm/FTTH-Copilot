@@ -8,9 +8,8 @@
  *   layaMetrics.recordDecision('OPTICAL_FAULT', 0.87, 'shadow');
  */
 
-export type LayaMode = 'disabled' | 'shadow' | 'assisted' | 'automatic';
-export type LayaResult = 'success' | 'fallback' | 'timeout' | 'error';
-
+import type { LayaMode, LayaResult } from './laya-shadow';
+export type { LayaMode, LayaResult };
 interface MetricLabels {
   eventClass?: string;
   mode: LayaMode;

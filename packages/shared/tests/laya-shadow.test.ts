@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import type { EventClass } from '../src/laya-expert-system';
+import type { LayaMode } from '../src/laya-shadow';
 import {
   getLayaConfig,
   shouldLogDecision,
@@ -97,30 +99,30 @@ describe('LayaShadow', () => {
 
   describe('getSuggestedRoute', () => {
     it('returns DIRECT for high confidence no investigation', () => {
-      const result = { eventClass: 'NORMAL', confidence: 0.9, matchedKeywords: [], severity: 'INFO' as const, probableScope: 'UNKNOWN' as const, requiresInvestigation: false };
-      const config = { enabled: true, mode: 'assisted', failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
+      const result = { eventClass: 'NORMAL' as EventClass, confidence: 0.9, matchedKeywords: [], severity: 'INFO' as const, probableScope: 'UNKNOWN' as const, requiresInvestigation: false };
+      const config = { enabled: true, mode: 'assisted' as LayaMode, failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
 
       expect(getSuggestedRoute(result, config)).toBe('DIRECT');
     });
 
     it('returns INVESTIGATION when required', () => {
-      const result = { eventClass: 'OPTICAL_FAULT', confidence: 0.9, matchedKeywords: [], severity: 'HIGH' as const, probableScope: 'PON' as const, requiresInvestigation: true };
-      const config = { enabled: true, mode: 'assisted', failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
+      const result = { eventClass: 'OPTICAL_FAULT' as EventClass, confidence: 0.9, matchedKeywords: [], severity: 'HIGH' as const, probableScope: 'PON' as const, requiresInvestigation: true };
+      const config = { enabled: true, mode: 'assisted' as LayaMode, failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
 
       expect(getSuggestedRoute(result, config)).toBe('INVESTIGATION');
     });
 
     it('returns DIRECT for high confidence no investigation', () => {
       // CONGESTION with high confidence and no investigation = DIRECT
-      const result = { eventClass: 'CONGESTION', confidence: 0.8, matchedKeywords: [], severity: 'LOW' as const, probableScope: 'UPLINK' as const, requiresInvestigation: false };
-      const config = { enabled: true, mode: 'assisted', failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
+      const result = { eventClass: 'CONGESTION' as EventClass, confidence: 0.8, matchedKeywords: [], severity: 'LOW' as const, probableScope: 'UPLINK' as const, requiresInvestigation: false };
+      const config = { enabled: true, mode: 'assisted' as LayaMode, failOpen: true, minConfidence: 0.75, suggestRoute: true, allowDirectRouting: false };
 
       expect(getSuggestedRoute(result, config)).toBe('DIRECT');
     });
 
     it('returns undefined when suggestRoute is false', () => {
-      const result = { eventClass: 'NORMAL', confidence: 0.9, matchedKeywords: [], severity: 'INFO' as const, probableScope: 'UNKNOWN' as const, requiresInvestigation: false };
-      const config = { enabled: true, mode: 'shadow', failOpen: true, minConfidence: 0.75, suggestRoute: false, allowDirectRouting: false };
+      const result = { eventClass: 'NORMAL' as EventClass, confidence: 0.9, matchedKeywords: [], severity: 'INFO' as const, probableScope: 'UNKNOWN' as const, requiresInvestigation: false };
+      const config = { enabled: true, mode: 'shadow' as LayaMode, failOpen: true, minConfidence: 0.75, suggestRoute: false, allowDirectRouting: false };
 
       expect(getSuggestedRoute(result, config)).toBeUndefined();
     });

@@ -14,15 +14,15 @@
 
 import type {
   LayaDecisionEvent,
-  LayaDecision,
   LayaSignal,
-  LayaConfig,
+  LayaHttpConfig,
   LayaMode,
-} from './contracts.js';
+} from './laya-shadow.js';
+import type { EventClass, Severity, ProbableScope } from './laya-expert-system';
 import {
   layaDecisionEventSchema,
   layaDecisionSchema,
-} from './contracts.js';
+} from './laya-shadow.js';
 import {
   createLayaClient,
   loadLayaConfigFromEnv,
@@ -30,6 +30,25 @@ import {
   type LayaClient,
   type LayaMetrics,
 } from './laya-client.js';
+
+// ── API Response types ──────────────────────────────────────────────────────
+
+/**
+ * Laya decision as returned by the HTTP API client.
+ * Differs from the expert-system output: confidence is a per-field object.
+ */
+export interface LayaDecision {
+  eventClass: string;
+  confidence: {
+    eventClass: number;
+    suggestedRoute?: number;
+    severity?: number;
+  };
+  severity: string;
+  probableScope: string;
+  requiresInvestigation: boolean;
+  suggestedRoute?: 'DIRECT' | 'ASSISTED' | 'INVESTIGATION';
+}
 
 // ── Laya Service Integration ──────────────────────────────────────────────
 
@@ -39,10 +58,10 @@ import {
  */
 export class LayaIntegration {
   private client: LayaClient;
-  private config: LayaConfig;
+  private config: LayaHttpConfig;
   private metrics: LayaMetrics;
 
-  constructor(config?: Partial<LayaConfig>) {
+  constructor(config?: Partial<LayaHttpConfig>) {
     this.config = {
       ...loadLayaConfigFromEnv(),
       ...config,
@@ -113,9 +132,10 @@ export class LayaIntegration {
     return {
       suggestedRoute: decision.suggestedRoute,
       confidence: decision.confidence.eventClass,
-      probableScope: decision.probableScope,
-      eventClass: decision.eventClass,
+      probableScope: decision.probableScope as ProbableScope,
+      eventClass: decision.eventClass as EventClass,
       requiresInvestigation: decision.requiresInvestigation,
+      severity: decision.severity as Severity,
     };
   }
 
@@ -124,7 +144,7 @@ export class LayaIntegration {
    * Applies confidence gating based on ADR-042 thresholds.
    */
   shouldFollowLayaRoute(decision: LayaDecision): boolean {
-    const confidence = decision.confidence.suggestedRoute;
+    const confidence = decision.confidence.suggestedRoute ?? 0;
 
     // High confidence → follow Laya's suggestion
     if (confidence >= this.config.confidenceThresholdHigh) {
@@ -161,7 +181,7 @@ export class LayaIntegration {
     // CRITICAL with low confidence → escalate
     if (
       decision.severity === 'CRITICAL' &&
-      decision.confidence.severity < 0.9
+      (decision.confidence.severity ?? 0) < 0.9
     ) {
       return true;
     }
@@ -169,7 +189,7 @@ export class LayaIntegration {
     // Any decision with very low confidence → escalate
     if (
       decision.confidence.eventClass < 0.5 ||
-      decision.confidence.severity < 0.5
+      (decision.confidence.severity ?? 0) < 0.5
     ) {
       return true;
     }
@@ -207,7 +227,6 @@ export class LayaIntegration {
     };
   }): LayaDecisionEvent {
     const event = {
-      schema: 'ftth.laya-decision-event.v1' as const,
       eventId: params.eventId,
       tenantId: params.tenantId,
       timestamp: new Date().toISOString(),
@@ -239,7 +258,7 @@ export class LayaIntegration {
  * Respects feature flags and mode settings.
  */
 export function shouldConsultLaya(
-  config: LayaConfig,
+  config: LayaHttpConfig,
   eventType?: string
 ): boolean {
   if (!config.enabled) return false;
