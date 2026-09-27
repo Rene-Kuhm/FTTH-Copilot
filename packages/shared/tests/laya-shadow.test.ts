@@ -178,7 +178,7 @@ describe('LayaShadow', () => {
       };
 
       const decision = {
-        engine: 'expert-system',
+        engine: 'expert-system' as const,
         model: 'ftth-expert-system-v1',
         modelVersion: '1.0.0',
         eventClass: 'OPTICAL_FAULT' as EventClass,
@@ -191,21 +191,22 @@ describe('LayaShadow', () => {
         suggestedRoute: 'INVESTIGATION' as const,
         shadow: true,
         mode: 'shadow' as LayaMode,
-        result: 'success',
+        result: 'success' as const,
       };
 
       await logLayaDecision(input, decision);
 
       expect(consoleLogSpy).toHaveBeenCalled();
-      const logCall = consoleLogSpy.mock.calls[0][0];
-      const parsed = JSON.parse(logCall);
+      const logCall = consoleLogSpy.mock.calls[0][0] as string;
+      const parsed = JSON.parse(logCall) as Record<string, unknown>;
+      const p = parsed as { type: string; tenantId: string; eventId?: string; engine: string; eventClass: string; severity: string; probableScope: string; confidence: number; suggestedRoute?: string; shadow: boolean; latencyMs: number; matchedKeywords?: string[] };
 
-      expect(parsed.type).toBe('laya_decision');
-      expect(parsed.tenantId).toBe('tenant-1');
-      expect(parsed.eventId).toBe('evt-123');
-      expect(parsed.engine).toBe('expert-system');
-      expect(parsed.eventClass).toBe('OPTICAL_FAULT');
-      expect(parsed.suggestedRoute).toBe('INVESTIGATION');
+      expect(p.type).toStrictEqual('laya_decision');
+      expect(p.tenantId).toStrictEqual('tenant-1');
+      expect(p.eventId).toStrictEqual('evt-123');
+      expect(p.engine).toStrictEqual('expert-system');
+      expect(p.eventClass).toStrictEqual('OPTICAL_FAULT');
+      expect(p.suggestedRoute).toStrictEqual('INVESTIGATION');
 
       process.env.NODE_ENV = originalEnv;
     });
@@ -225,7 +226,7 @@ describe('LayaShadow', () => {
       };
 
       const decision = {
-        engine: 'expert-system',
+        engine: 'expert-system' as const,
         model: 'ftth-expert-system-v1',
         modelVersion: '1.0.0',
         eventClass: 'NORMAL' as EventClass,
@@ -238,7 +239,7 @@ describe('LayaShadow', () => {
         suggestedRoute: 'DIRECT' as const,
         shadow: false,
         mode: 'assisted' as LayaMode,
-        result: 'success',
+        result: 'success' as const,
       };
 
       await logLayaDecision(input, decision);
@@ -264,7 +265,7 @@ describe('LayaShadow', () => {
       };
 
       const decision = {
-        engine: 'expert-system',
+        engine: 'expert-system' as const,
         model: 'ftth-expert-system-v1',
         modelVersion: '1.0.0',
         eventClass: 'NORMAL' as EventClass,
@@ -277,7 +278,7 @@ describe('LayaShadow', () => {
         suggestedRoute: 'DIRECT' as const,
         shadow: false,
         mode: 'assisted' as LayaMode,
-        result: 'success',
+        result: 'success' as const,
       };
 
       await logLayaDecision(input, decision);
