@@ -11,8 +11,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 10 | Research cataloged, MIBs registered, architectural limits documented |
-| **Level L2 (Simulated)** | 23 | Full adapter implemented, synthetic & loopback UDP tests passing |
+| **Level L1 (Documented)** | 14 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L2 (Simulated)** | 19 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
 
@@ -43,11 +43,11 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | E7 | unknown | **L2** | B | 1 |
 | P1 | [Calix](../research/olt/calix/) | E9 | unknown | **L1** | A | 1 |
-| P1 | [DZS](../research/olt/dzs/) | MXK-319 | unknown | **L2** | A | 2 |
-| P1 | [DZS](../research/olt/dzs/) | MXK-819 | unknown | **L2** | A | 1 |
-| P1 | [DZS](../research/olt/dzs/) | MXK-823 | unknown | **L2** | A | 1 |
+| P1 | [DZS](../research/olt/dzs/) | MXK-319 | unknown | **L1** | A | 2 |
+| P1 | [DZS](../research/olt/dzs/) | MXK-819 | unknown | **L1** | A | 1 |
+| P1 | [DZS](../research/olt/dzs/) | MXK-823 | unknown | **L1** | A | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V16 | sdNOS | **L1** | B | 1 |
-| P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L2** | A | 2 |
+| P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L1** | A | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600 | unknown | **L2** | B | 2 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES5206 | unknown | **L1** | A | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3600 | unknown | **L2** | B | 1 |

@@ -9,7 +9,7 @@ iana_pens:
 
 families:
   - family: MXK-319
-    level: L2
+    level: L1
     confidence_grade: A
     firmware: unknown
     form_factor: 3U chassis
@@ -27,7 +27,7 @@ families:
     supported_traps: []
 
   - family: MXK-819
-    level: L2
+    level: L1
     confidence_grade: A
     firmware: unknown
     form_factor: 8U chassis
@@ -44,7 +44,7 @@ families:
     supported_traps: []
 
   - family: MXK-823
-    level: L2
+    level: L1
     confidence_grade: A
     firmware: unknown
     form_factor: 8U chassis
@@ -61,7 +61,7 @@ families:
     supported_traps: []
 
   - family: Velocity-V6
-    level: L2
+    level: L1
     confidence_grade: A
     firmware: sdNOS
     form_factor: 6U chassis
