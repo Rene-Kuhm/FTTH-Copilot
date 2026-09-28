@@ -1,21 +1,109 @@
 vendor: DZS
+vendor_aliases:
+  - Zhone
 priority: P1
 iana_pens:
-  - 5504
-  - 6296
-  - 5597
+  - 5504  # Zhone
+  - 6296  # DZS original
+  - 5597  # DZS legacy
+
 families:
-  - family: MXK
-    level: L1
-    confidence_grade: C
-    firmware: unknown
-    supported_traps: []
-    sources:
-      - dzs-velocity-portal-001
-  - family: Velocity-V1
-    level: L1
+  - family: MXK-319
+    level: L2
     confidence_grade: A
     firmware: unknown
+    form_factor: 3U chassis
+    max_slots: 9
+    max_gpon_ports: 72 (with GPON-8 cards)
+    max_subscribers: 3584
+    pon_technologies:
+      - GPON (2.5G/1.25G)
+    uplink_options:
+      - 1GigE
+      - 10GigE
+    sources:
+      - dzs-mxk-datasheet-001
+      - dzs-mxk-gponx8-io3-001
     supported_traps: []
+
+  - family: MXK-819
+    level: L2
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 8U chassis
+    max_slots: 16
+    max_gpon_ports: 128 (with GPON-8 cards)
+    max_subscribers: 7168
+    pon_technologies:
+      - GPON (2.5G/1.25G)
+    uplink_options:
+      - 1GigE
+      - 10GigE
+    sources:
+      - dzs-mxk-datasheet-001
+    supported_traps: []
+
+  - family: MXK-823
+    level: L2
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 8U chassis
+    max_slots: 20
+    max_gpon_ports: 160 (with GPON-8 cards)
+    max_subscribers: 9216
+    pon_technologies:
+      - GPON (2.5G/1.25G)
+    uplink_options:
+      - 1GigE
+      - 10GigE
+    sources:
+      - dzs-mxk-datasheet-001
+    supported_traps: []
+
+  - family: Velocity-V6
+    level: L2
+    confidence_grade: A
+    firmware: sdNOS
+    form_factor: 6U chassis
+    max_slots: 10
+    max_gpon_ports: 160
+    max_xgspom_ports: 160
+    max_subscribers: 24000
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - GPON+XGS-PON (Combo)
+      - 50G-PON (future)
+      - 100G-PON (future)
+    uplink_options:
+      - Multi-terabit uplinks
+      - 100G QSFP28
+    switching_capacity: 800 Gbps per slot (non-blocking)
+    sources:
+      - dzs-velocity-v6-datasheet-001
+      - dzs-velocity-v6-press-001
+    supported_traps: []
+
+  - family: Velocity-V16
+    level: L1
+    confidence_grade: B
+    firmware: sdNOS
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - Combo PON
     sources:
       - dzs-velocity-portal-001
+    supported_traps: []
+
+# MIB subtree: 1.3.6.1.4.1.5504.5.14
+# Zhone-GPON-MIB traps discovered in Observium:
+# - zhoneGponSerialNumberFound (serial discovery event)
+# - gponOnuLineStatusChange (link up/down)
+# - omciOnuAlarms (ONT alarms via OMCI)
+snmp_enterprise: 5504
+mib_references:
+  - name: Zhone-GPON-MIB
+    source: Observium MIB Browser
+    url: https://mibs.observium.org/mib/Zhone-GPON-MIB/
+    oid_prefix: 1.3.6.1.4.1.5504.5.14
