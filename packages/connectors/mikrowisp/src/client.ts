@@ -108,7 +108,7 @@ export class MikrowispClient implements INmsConnector {
       return {
         ...this.mapRouterToOlt(router),
         subscribersConnected,
-        model: router.hardware,
+        model: router.modelo,
         ponTechnology: 'GPON',
         maxSubscribers: 256,
       };

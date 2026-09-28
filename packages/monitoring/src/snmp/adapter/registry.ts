@@ -20,6 +20,7 @@ import { CalixOltAdapter } from './calix';
 import { AdtranOltAdapter } from './adtran';
 import { VsolOltAdapter } from './vsol';
 import { BdcomOltAdapter } from './bdcom';
+import { DzsOltAdapter } from './dzs';
 import { GenericXponAdapter } from './generic-xpon';
 
 export class OltAdapterRegistry {
@@ -95,4 +96,5 @@ defaultAdapterRegistry.register(new CalixOltAdapter());
 defaultAdapterRegistry.register(new AdtranOltAdapter());
 defaultAdapterRegistry.register(new VsolOltAdapter());
 defaultAdapterRegistry.register(new BdcomOltAdapter());
+defaultAdapterRegistry.register(new DzsOltAdapter());
 defaultAdapterRegistry.register(new GenericXponAdapter());
