@@ -990,6 +990,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.1',
@@ -1003,6 +1004,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.2',
@@ -1016,6 +1018,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.3',
@@ -1029,6 +1032,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.10',
@@ -1042,6 +1046,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.11',
@@ -1057,6 +1062,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'unknown',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.5504.5.14.2.1.10',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.12',
@@ -1071,6 +1077,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
     is_clear: true,
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.20',
@@ -1084,6 +1091,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['MXK', 'Velocity'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.5504.5.14.2.1.21',
@@ -1099,6 +1107,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'unknown',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.5504.5.14.2.1.20',
+    status: 'provisional',
   },
 
   // ── Ubiquiti / UISP GPON Traps (UBNT-EdgeMAX-MIB, enterprise 41112) ──────
@@ -1116,6 +1125,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.41112.1.5.1.2.0',
@@ -1131,6 +1141,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'unknown',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.41112.1.5.1.1.0',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.41112.1.5.2.1.0',
@@ -1144,6 +1155,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     license: 'review-required',
     target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
     firmware: 'unknown',
+    status: 'provisional',
   },
   {
     oid: '1.3.6.1.4.1.41112.1.5.2.2.0',
@@ -1159,6 +1171,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'unknown',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.41112.1.5.2.1.0',
+    status: 'provisional',
   },
 ];
 

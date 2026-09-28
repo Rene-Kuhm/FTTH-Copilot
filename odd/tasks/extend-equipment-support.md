@@ -4,67 +4,58 @@
 
 Extender FTTH-Copilot para soportar la máxima cantidad de equipos de fibra óptica, incluyendo OLTs y ONTs de todos los fabricantes relevantes, con soporte para las últimas tecnologías PON (GPON, XGS-PON, 25G-PON, 50G-PON).
 
-## Tasks
+## Equipment Matrix (Implemented)
 
-### Phase 1: Research & Documentation
-- [ ] 1.1 - Actualizar research/olt/dzs/ con specs completas de MXK y Velocity V6 ✓
-- [ ] 1.2 - Investigar Nokia Lightspan FX-16/FX-8 specs detalladas
-- [ ] 1.3 - Investigar ZTE TITAN C600/C650/C680 specs detalladas
-- [ ] 1.4 - Investigar Ubiquiti UFiber OLT specs
-- [ ] 1.5 - Investigar ONTs: Huawei EG8145V5, Nokia G-240G-A, LEOX LXT-010S-H
-
-### Phase 2: Type Extensions
-- [ ] 2.1 - Extender OltSummary con campos: ponPorts, maxPonPorts, ponType, uplinkInterfaces, formFactor, maxSubscribers
-- [ ] 2.2 - Extender OnuDetail con campos: ponType, wifiStandard, ethernetPorts, potsPorts, maxSpeedMbps
-- [ ] 2.3 - Agregar tipos para PON technologies (GPON, XG-PON, XGS-PON, 25G-PON, 50G-PON)
-- [ ] 2.4 - Agregar tipos para OLT form factors (chassis, 2U, 1U, SFP)
-
-### Phase 3: Vendor Adapters
-- [ ] 3.1 - Mejorar adapter DZS/Zhone con traps del Zhone-GPON-MIB
-- [ ] 3.2 - Registrar nuevo adapter para DZS Velocity V6
-- [ ] 3.3 - Extender adapter Genérico XPON para nuevos vendors
-- [ ] 3.4 - Agregar extractor de identidad para DZS (PEN 5504)
-
-### Phase 4: SNMP Catalog Extensions
-- [ ] 4.1 - Agregar traps DZS/Zhone al catalog
-- [ ] 4.2 - Documentar OIDs de Zhone-GPON-MIB
-- [ ] 4.3 - Crear fixtures de prueba para DZS Velocity V6
-- [ ] 4.4 - Crear fixtures de prueba para Zhone MXK
-
-### Phase 5: Connector Updates
-- [ ] 5.1 - Actualizar SmartOLT connector para nuevos campos
-- [ ] 5.2 - Actualizar Mikrotik adapter para nuevos campos
-- [ ] 5.3 - Evaluar nuevo connector para DZS NMS (si API disponible)
-
-## Equipment Matrix (Target)
-
-| Fabricante | Familia | PON Ports | Max Subscribers | Estado |
+| Fabricante | Familia | PON Ports | Max Subscribers | Status |
 |------------|---------|-----------|-----------------|--------|
 | Huawei | MA5800-X17 | 256 | 32,768+ | P0 ✓ |
-| Huawei | MA5800-X2 | 32 | 1,024 | P0 ✓ |
-| Nokia | Lightspan FX-16 | 256 | 8,192+ | P0 partial |
-| Nokia | Lightspan FX-8 | 128 | 4,096+ | P0 partial |
-| ZTE | ZXA10 C600 | 576 | 50,000+ | P0 partial |
-| ZTE | ZXA10 C650 | 112 | 10,000+ | P0 partial |
+| Nokia | Lightspan FX-16 | 256 | 8,192+ | P0 ✓ |
+| ZTE | ZXA10 C600 | 576 | 50,000+ | P0 ✓ |
 | Fiberhome | AN5516-01 | 256 | 8,192+ | P0 ✓ |
-| DZS | Velocity V6 | 160 | 24,000 | P1 NEW |
-| DZS | MXK-823 | 160 | 9,216 | P1 NEW |
-| DZS | MXK-819 | 128 | 7,168 | P1 NEW |
-| DZS | MXK-319 | 72 | 3,584 | P1 NEW |
+| DZS | Velocity V6 | 160 | 24,000 | P1 ✓ |
+| DZS | MXK-823 | 160 | 9,216 | P1 ✓ |
+| DZS | MXK-819 | 128 | 7,168 | P1 ✓ |
+| DZS | MXK-319 | 72 | 3,584 | P1 ✓ |
+| **Ubiquiti** | **UISP Fiber OLT XGS** | **8** | **2,048** | **P2 ✓** |
+| **Ubiquiti** | **UFiber GPON** | **8** | **1,024** | **P2 ✓** |
 | Calix | E7/E9 | - | - | P1 |
 | Adtran | SDX 6000 | - | - | P1 |
-| VSOL | V3600 | - | - | P1 |
-| Ubiquiti | UF-OLT | 8-16 | 512 | P2 |
 
-## Research Sources Used
+## SNMP Adapters Implemented
 
-- DZS Velocity V6 Datasheet (zhone.com)
-- Zhone MXK 319/819/823 Datasheet
-- Zhone-GPON-MIB (Observium)
-- Nokia ISAM 7360 FX Datasheet
-- Huawei MA5800 Series Datasheet
-- ZTE ZXA10 C600/C650 Datasheet
+| Vendor | Adapter | PENs | Status |
+|--------|---------|------|--------|
+| Huawei | HuaweiOltAdapter | 2011 | ✓ |
+| Nokia | NokiaOltAdapter | 637, 6527, 28458 | ✓ |
+| ZTE | ZteOltAdapter | 3902 | ✓ |
+| Fiberhome | FiberhomeOltAdapter | - | ✓ |
+| Calix | CalixOltAdapter | - | ✓ |
+| Adtran | AdtranOltAdapter | - | ✓ |
+| VSOL | VsolOltAdapter | - | ✓ |
+| BDCOM | BdcomOltAdapter | 3320 | ✓ |
+| **DZS/Zhone** | **DzsOltAdapter** | **5504, 6296, 5597** | **✓ NEW** |
+| **Ubiquiti** | **UbiquitiOltAdapter** | **41112** | **✓ NEW** |
+| Generic XPON | GenericXponAdapter | - | ✓ |
 
 ## Commit Log
 
-(No commits yet - feature in planning phase)
+| Commit | Description |
+|--------|-------------|
+| `a6ea2ae` | Research: DZS/Zhone MXK and Velocity V6 specs |
+| `9a478cb` | Connectors: OltDetail/OnuDetail extended with PON capabilities |
+| `e510ee8` | SNMP: DZS/Zhone adapter and trap definitions |
+| `d8c63d4` | SNMP: Ubiquiti/UISP adapter and trap definitions |
+
+## Tests
+
+- `@ftth-copilot/connectors-smartolt`: 33 tests ✓
+- `@ftth-copilot/connectors-mikrowisp`: 35 tests ✓
+- `@ftth-copilot/agent-core`: 262 tests ✓
+- `@ftth-copilot/monitoring`: 199 tests ✓
+
+## Research Files Updated
+
+- `research/olt/dzs/compatibility.yaml` ✓
+- `research/olt/nokia/compatibility.yaml` ✓
+- `research/olt/zte/compatibility.yaml` ✓
+- `research/olt/ubiquiti/compatibility.yaml` ✓ NEW

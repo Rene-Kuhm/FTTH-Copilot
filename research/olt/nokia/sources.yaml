@@ -2,7 +2,14 @@
   vendor: Nokia
   families:
     - 7360-ISAM-FX
+    - 7360-ISAM-FX-16
+    - 7360-ISAM-FX-8
+    - 7360-ISAM-FX-4
     - Lightspan-MF
+    - Lightspan-FX-16
+    - Lightspan-FX-8
+    - Lightspan-FX-4
+    - 7362-ISAM-DF-16GW
   firmware: unknown
   title: Nokia Broadband Access Optical Networks Portfolio
   publisher: Nokia Networks
@@ -62,3 +69,75 @@
       status: recognized
       severity: info
       category: pon_up
+
+- source_id: nokia-7360-fx-16-datasheet-001
+  vendor: Nokia
+  families:
+    - 7360-ISAM-FX-16
+  firmware: unknown
+  title: Nokia 7360 ISAM FX-16 Datasheet
+  publisher: Nokia
+  url: https://www.hi-network.com/action/download?file=alcatel-7360+isam+fx-16-datasheet
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: nokia-7360-fx-8-datasheet-001
+  vendor: Nokia
+  families:
+    - 7360-ISAM-FX-8
+  firmware: unknown
+  title: Nokia 7360 ISAM FX-8 Datasheet
+  publisher: Nokia
+  url: https://studylib.net/doc/27174841/nokia-7360-isam-fx-etsi-data-sheet-en
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: nokia-7360-fx-4-datasheet-001
+  vendor: Nokia
+  families:
+    - 7360-ISAM-FX-4
+  firmware: unknown
+  title: Nokia 7360 ISAM FX-4 Datasheet
+  publisher: Nokia
+  url: https://www.nokia.com/broadband-access/
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: nokia-lightspan-fx-datasheet-001
+  vendor: Nokia
+  families:
+    - Lightspan-FX-16
+    - Lightspan-FX-8
+    - Lightspan-FX-4
+  firmware: FemtoApp
+  title: Nokia Lightspan FX Datasheet
+  publisher: Nokia
+  url: https://amt.com/wp-content/uploads/2024/10/Nokia_Lightspan_FX_ANSI_Data_Sheet_EN.pdf
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: nokia-7362-df-datasheet-001
+  vendor: Nokia
+  families:
+    - 7362-ISAM-DF-16GW
+  firmware: unknown
+  title: Nokia 7362 ISAM DF-16GW Datasheet
+  publisher: Nokia Enterprise
+  url: https://www.al-enterprise.com/-/media/assets/internet/documents/nokia-7362-isam-df-16gw-datasheet-en.pdf
+  source_grade: B
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
