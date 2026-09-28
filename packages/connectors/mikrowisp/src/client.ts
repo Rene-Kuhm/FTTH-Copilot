@@ -202,6 +202,12 @@ export class MikrowispClient implements INmsConnector {
     );
   }
 
+  async listOnusByOlt(oltId: string): Promise<OnuDetail[]> {
+    throw new Error(
+      'listOnusByOlt is not supported by Mikrowisp. Use listOnus({ oltId }) instead.',
+    );
+  }
+
   // ── Mikrowisp-specific methods ──
 
   async listRouters(): Promise<MikrowispRouter[]> {

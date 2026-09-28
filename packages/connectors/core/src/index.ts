@@ -76,7 +76,7 @@ export interface OltDetail extends OltSummary {
   slotsOccupied?: number;
   /** Firmware/software version */
   firmwareVersion?: string;
-  /** Optical budget budget in dB */
+  /** Optical budget in dB */
   opticalBudgetDb?: number;
 }
 
