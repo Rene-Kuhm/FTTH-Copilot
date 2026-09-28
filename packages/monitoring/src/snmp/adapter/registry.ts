@@ -21,6 +21,7 @@ import { AdtranOltAdapter } from './adtran';
 import { VsolOltAdapter } from './vsol';
 import { BdcomOltAdapter } from './bdcom';
 import { DzsOltAdapter } from './dzs';
+import { UbiquitiOltAdapter } from './ubiquiti';
 import { GenericXponAdapter } from './generic-xpon';
 
 export class OltAdapterRegistry {
@@ -97,4 +98,5 @@ defaultAdapterRegistry.register(new AdtranOltAdapter());
 defaultAdapterRegistry.register(new VsolOltAdapter());
 defaultAdapterRegistry.register(new BdcomOltAdapter());
 defaultAdapterRegistry.register(new DzsOltAdapter());
+defaultAdapterRegistry.register(new UbiquitiOltAdapter());
 defaultAdapterRegistry.register(new GenericXponAdapter());
