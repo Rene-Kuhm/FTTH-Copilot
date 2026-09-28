@@ -299,6 +299,12 @@ export class SmartOltClient implements INmsConnector {
     return this.realFetch<OnuSummary[]>('/onus?customer_name=' + encodeURIComponent(name));
   }
 
+  async listOnusByOlt(oltId: string): Promise<OnuDetail[]> {
+    throw new Error(
+      'listOnusByOlt is not supported by SmartOLT. Use listOnus({ oltId }) instead.',
+    );
+  }
+
   // ── Helpers for mapping real SmartOLT responses to INmsConnector types ──
 
   private mapOnuSummary(o: Record<string, unknown>): OnuSummary {

@@ -18,6 +18,7 @@ export type SnmpTrapCategory =
   | 'config_change'
   | 'onu_offline'
   | 'onu_online'
+  | 'ont_discovery'
   | 'pon_down'
   | 'pon_up'
   | 'card_failure'
@@ -981,7 +982,7 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
   {
     oid: '1.3.6.1.4.1.5504.5.14.1.1.1',
     name: 'zhoneGponSerialNumberFound',
-    category: 'onu_online',
+    category: 'ont_discovery',
     severity: 'info',
     vendor: 'DZS',
     description: 'ONT serial number discovered during registration',
