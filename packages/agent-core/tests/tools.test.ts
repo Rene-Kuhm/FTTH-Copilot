@@ -8,7 +8,7 @@ function connector(): INmsConnector {
     providerName: 'test',
     ping: vi.fn(async () => ({ ok: true })),
     listOlts: vi.fn(async () => [{ id: 'olt-1', name: 'OLT 1', ip: '1.1.1.1', status: 'online' }] as const),
-    getOltDetail: vi.fn(async (id) => ({ id, name: 'OLT 1', ip: '1.1.1.1', status: 'online', onusConnected: 1 })),
+    getOltDetail: vi.fn(async (id) => ({ id, name: 'OLT 1', ip: '1.1.1.1', status: 'online', subscribersConnected: 1 })),
     getNetworkOverview: vi.fn(async () => ({ totalOlts: 1, oltsOnline: 1, totalOnus: 1, onusOnline: 1, onusOffline: 0, averageUptimeSeconds: 1, oltsWithHighTemperature: 0 })),
     listOnus: vi.fn(async () => [{ id: 'onu-1', serial: 'sn-1', oltId: 'olt-1', status: 'online' }] as const),
     getOnuDetail: vi.fn(async (id) => id === 'missing' ? null : ({ id, serial: 'sn-1', oltId: 'olt-1', status: 'online' })),

@@ -34,11 +34,11 @@ describe('MikrowispClient (mock mode)', () => {
     expect(bsas02?.status).toBe('offline');
   });
 
-  it('getOltDetail returns the OLT with onusConnected count', async () => {
+  it('getOltDetail returns the OLT with subscribersConnected count', async () => {
     const detail = await client.getOltDetail('RT-BSAS-01');
     expect(detail.id).toBe('RT-BSAS-01');
     expect(detail.name).toBe('MikroTik-RB3011-Centro');
-    expect(detail.onusConnected).toBeGreaterThanOrEqual(1);
+    expect(detail.subscribersConnected).toBeGreaterThanOrEqual(1);
   });
 
   it('getOltDetail throws for unknown router', async () => {
