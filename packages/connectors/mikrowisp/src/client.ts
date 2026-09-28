@@ -1,6 +1,7 @@
 import type {
   INmsConnector,
   OltSummary,
+  OltDetail,
   OnuSummary,
   OnuDetail,
   NetworkOverview,
@@ -97,14 +98,20 @@ export class MikrowispClient implements INmsConnector {
     return (data.routers ?? []).map((r) => this.mapRouterToOltRaw(r));
   }
 
-  async getOltDetail(oltId: string): Promise<OltSummary & { onusConnected: number }> {
+  async getOltDetail(oltId: string): Promise<OltDetail> {
     if (this.useMock) {
       const router = FIXTURE_ROUTERS.find((r) => r.id === oltId);
       if (!router) throw new Error(`Router/OLT ${oltId} not found`);
-      const onusConnected = FIXTURE_ONUS.filter(
+      const subscribersConnected = FIXTURE_ONUS.filter(
         (o) => o.status === 'online',
       ).length;
-      return { ...this.mapRouterToOlt(router), onusConnected };
+      return {
+        ...this.mapRouterToOlt(router),
+        subscribersConnected,
+        model: router.modelo,
+        ponTechnology: 'GPON',
+        maxSubscribers: 256,
+      };
     }
     const data = await this.realFetch<{ routers: Array<Record<string, unknown>> }>(
       '/GetRouters',
@@ -113,7 +120,10 @@ export class MikrowispClient implements INmsConnector {
     if (!match) throw new Error(`Router/OLT ${oltId} not found`);
     const olt = this.mapRouterToOltRaw(match);
     const onus = await this.listOnus();
-    return { ...olt, onusConnected: onus.filter((o) => o.status === 'online').length };
+    return {
+      ...olt,
+      subscribersConnected: onus.filter((o) => o.status === 'online').length,
+    };
   }
 
   async getNetworkOverview(): Promise<NetworkOverview> {

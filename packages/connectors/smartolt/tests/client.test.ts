@@ -68,10 +68,10 @@ describe('SmartOltClient (mock mode)', () => {
     expect(low.every((o) => (o.rxPowerDbm ?? 0) < -27)).toBe(true);
   });
 
-  it('getOltDetail returns the OLT with onusConnected count', async () => {
+  it('getOltDetail returns the OLT with subscribersConnected count', async () => {
     const detail = await client.getOltDetail('OLT-Norte-01');
     expect(detail.id).toBe('OLT-Norte-01');
-    expect(detail.onusConnected).toBeGreaterThanOrEqual(10);
+    expect(detail.subscribersConnected).toBeGreaterThanOrEqual(10);
   });
 
   it('resolves OLT identifiers case-insensitively without changing the canonical ID', async () => {

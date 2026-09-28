@@ -90,3 +90,87 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: zte-c680-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C680
+  firmware: TITAN
+  title: ZXA10 C680 Ultra Large-Capacity Optical Access Equipment
+  publisher: ZTE Corporation
+  url: https://www.zte.com.cn/global/product_index/optical_access_en/pon-olt/zxa10/zxa10_c600_1.html
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: zte-c600-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C600
+  firmware: TITAN
+  title: ZXA10 C600 Product Datasheet
+  publisher: ZTE Corporation / Provetel
+  url: https://www.provetel.com.ar/wp-content/uploads/sites/18/2025/03/ZXA10-C600C650C620-Products-Datasheet.pdf
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: zte-c650-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C650
+  firmware: TITAN
+  title: ZXA10 C650 Datasheet
+  publisher: ZTE Corporation / YCICT
+  url: https://www.ycict.net/wp-content/uploads/2023/09/ZXA10-C650-OLT-Datasheet.pdf
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: zte-c620-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C620
+  firmware: TITAN
+  title: ZXA10 C620 2U Compact OLT
+  publisher: ZTE Corporation
+  url: https://www.zte.com.cn/global/product_index/optical_access_en/pon-olt/zxa10/zxa10_c620.html
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: zte-c320-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C320
+  firmware: unknown
+  title: ZXA10 C320 GPON OLT
+  publisher: ZTE Corporation
+  url: https://www.zte.com.cn/global/product_index/optical_access_en/pon-olt/zxa10/zxa10_c320.html
+  source_grade: B
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: zte-c300-datasheet-001
+  vendor: ZTE
+  families:
+    - ZXA10-C300
+  firmware: unknown
+  title: ZXA10 C300 GPON OLT
+  publisher: ZTE Corporation
+  url: https://www.zte.com.cn/global/product_index/optical_access_en/pon-olt/zxa10/zxa10_c300.html
+  source_grade: B
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []

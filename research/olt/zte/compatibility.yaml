@@ -1,37 +1,135 @@
 vendor: ZTE
 priority: P0
 iana_pens:
-  - 3902
+  - 3902  # ZTE
 families:
-  - family: C300
+  - family: ZXA10-C680
     level: L2
+    confidence_grade: A
+    firmware: TITAN
+    form_factor: 11U chassis
+    max_slots: 16
+    max_gpon_ports: 576
+    max_xgspom_ports: 576
+    max_subscribers: 50000+
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - GPON+XGS-PON (Combo)
+      - Any-PON
+    uplink_options:
+      - 10GE
+      - 100GE
+    switching_capacity: ultra high capacity
+    sources:
+      - zte-c680-datasheet-001
+    supported_traps: []
+
+  - family: ZXA10-C600
+    level: L2
+    confidence_grade: A
+    firmware: TITAN
+    form_factor: 11U chassis (19" or 21")
+    max_slots: 14
+    max_gpon_ports: 272
+    max_xgspom_ports: 272
+    max_subscribers: 30000+
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - GPON+XGS-PON (Combo)
+      - Any-PON
+    uplink_options:
+      - 10GE
+      - 100GE
+    switching_capacity: high capacity
+    sources:
+      - zte-c600-datasheet-001
+    supported_traps: []
+
+  - family: ZXA10-C650
+    level: L2
+    confidence_grade: A
+    firmware: TITAN
+    form_factor: 6U chassis
+    max_slots: 7
+    max_gpon_ports: 112
+    max_xgspom_ports: 112
+    max_subscribers: 10000+
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - GPON+XGS-PON (Combo)
+      - Any-PON
+    uplink_options:
+      - 10GE
+      - 40GE
+    switching_capacity: medium capacity
+    sources:
+      - zte-c650-datasheet-001
+    supported_traps: []
+
+  - family: ZXA10-C620
+    level: L2
+    confidence_grade: A
+    firmware: TITAN
+    form_factor: 2U compact
+    max_slots: 2
+    max_gpon_ports: 32
+    max_subscribers: 2048
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    uplink_options:
+      - 10GE SFP+
+    switching_capacity: small capacity
+    sources:
+      - zte-c620-datasheet-001
+    supported_traps: []
+
+  - family: ZXA10-C320
+    level: L1
     confidence_grade: B
     firmware: unknown
-    supported_traps:
-      - zxAnGponOnuDyingGasp
-      - zxAnGponOnuLos
-      - zxGponOntLossOfFrame
-      - zxGponOntOffline
-      - zxGponOntOnline
-      - zxGponOntLosClear
-      - zxGponPortDown
-      - zxGponPortUp
+    form_factor: 1U compact
+    max_slots: 1
+    max_gpon_ports: 8
+    max_subscribers: 512
+    pon_technologies:
+      - GPON
+    uplink_options:
+      - 1GE
+      - 10GE SFP+
     sources:
-      - zte-c320-monitoring-001
-      - zte-c300-mib-librenms
-  - family: C600
-    level: L2
+      - zte-c320-datasheet-001
+    supported_traps: []
+
+  - family: ZXA10-C300
+    level: L1
     confidence_grade: B
     firmware: unknown
-    supported_traps:
-      - zxAnGponOnuDyingGasp
-      - zxAnGponOnuLos
-      - zxGponOntLossOfFrame
-      - zxGponOntOffline
-      - zxGponOntOnline
-      - zxGponOntLosClear
-      - zxGponPortDown
-      - zxGponPortUp
+    form_factor: 1U compact
+    max_slots: 1
+    max_gpon_ports: 8
+    max_subscribers: 512
+    pon_technologies:
+      - GPON
+    uplink_options:
+      - 1GE
+      - 10GE SFP+
     sources:
-      - zte-c600-official-portal-001
-      - zte-c300-mib-librenms
+      - zte-c300-datasheet-001
+    supported_traps: []
+
+# TITAN platform evolution
+future_pon_support:
+  - technology: 50G-PON
+    status: planned
+    vendors:
+      - ZTE (TITAN platform)
+    sources:
+      - zte-titan-datasheet-001

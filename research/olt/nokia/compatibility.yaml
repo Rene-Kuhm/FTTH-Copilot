@@ -1,14 +1,31 @@
 vendor: Nokia
 priority: P0
 iana_pens:
-  - 637
-  - 6527
-  - 28458
+  - 637  # Nokia Networks
+  - 6527  # Alcatel-Lucent Enterprise
+  - 28458 # Nokia Siemens Networks
 families:
-  - family: 7360-ISAM-FX
+  - family: 7360-ISAM-FX-16
     level: L2
     confidence_grade: A
     firmware: unknown
+    form_factor: 14U chassis
+    max_slots: 16
+    max_gpon_ports: 256
+    max_xgspom_ports: 128
+    max_subscribers: 8192
+    switching_capacity: 10 Tb/s
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo PON
+      - TWDM-PON
+    uplink_options:
+      - 40GbE
+      - 100GbE QSFP28
+    sources:
+      - nokia-7360-fx-16-datasheet-001
     supported_traps:
       - nokiaOntLossOfSignal
       - nokiaOntDyingGasp
@@ -18,12 +35,84 @@ families:
       - nokiaPonPortDown
       - nokiaPonPortUp
       - nokiaCardFailure
-    sources:
-      - nokia-broadband-access-001
-  - family: Lightspan-MF
+
+  - family: 7360-ISAM-FX-8
     level: L2
     confidence_grade: A
     firmware: unknown
+    form_factor: 8U chassis
+    max_slots: 8
+    max_gpon_ports: 128
+    max_xgspom_ports: 64
+    max_subscribers: 4096
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo PON
+    uplink_options:
+      - 10GbE SFP+
+      - 40GbE
+      - 100GbE QSFP28
+    sources:
+      - nokia-7360-fx-8-datasheet-001
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+
+  - family: 7360-ISAM-FX-4
+    level: L2
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 5U chassis
+    max_slots: 4
+    max_gpon_ports: 64
+    max_subscribers: 2048
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    uplink_options:
+      - 10GbE SFP+
+      - 40GbE
+    sources:
+      - nokia-7360-fx-4-datasheet-001
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+
+  - family: Lightspan-FX-16
+    level: L2
+    confidence_grade: A
+    firmware: FemtoApp
+    form_factor: 14U chassis
+    max_slots: 16
+    max_gpon_ports: 256
+    max_xgspom_ports: 128
+    max_subscribers: 8192
+    switching_capacity: 10 Tb/s
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo PON
+      - 25G-PON
+      - 50G-PON
+    uplink_options:
+      - 40GbE
+      - 100GbE QSFP28
+    sources:
+      - nokia-lightspan-fx-datasheet-001
     supported_traps:
       - nokiaOntLossOfSignal
       - nokiaOntDyingGasp
@@ -34,5 +123,108 @@ families:
       - nokiaPonPortUp
       - nokiaLightspanPortDown
       - nokiaLightspanPortUp
+
+  - family: Lightspan-FX-8
+    level: L2
+    confidence_grade: A
+    firmware: FemtoApp
+    form_factor: 8U chassis
+    max_slots: 8
+    max_gpon_ports: 128
+    max_subscribers: 4096
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo PON
+    uplink_options:
+      - 10GbE SFP+
+      - 40GbE
+      - 100GbE QSFP28
+    sources:
+      - nokia-lightspan-fx-datasheet-001
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+
+  - family: Lightspan-FX-4
+    level: L2
+    confidence_grade: A
+    firmware: FemtoApp
+    form_factor: 5U chassis
+    max_slots: 4
+    max_gpon_ports: 64
+    max_subscribers: 2048
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    uplink_options:
+      - 10GbE SFP+
+      - 40GbE
+    sources:
+      - nokia-lightspan-fx-datasheet-001
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+
+  - family: Lightspan-MF
+    level: L2
+    confidence_grade: A
+    firmware: unknown
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    sources:
+      - nokia-broadband-access-001
+    supported_traps:
+      - nokiaOntLossOfSignal
+      - nokiaOntDyingGasp
+      - nokiaOntOffline
+      - nokiaOntOnline
+      - nokiaOntLosClear
+      - nokiaPonPortDown
+      - nokiaPonPortUp
+      - nokiaLightspanPortDown
+      - nokiaLightspanPortUp
+
+  - family: 7362-ISAM-DF-16GW
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: 1U rack
+    max_gpon_ports: 16
+    max_xgspom_ports: 8
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    uplink_options:
+      - 10GbE SFP+
+    sources:
+      - nokia-7362-df-datasheet-001
+    supported_traps: []
+
+# Next-generation PON evolution
+future_pon_support:
+  - technology: 25G-PON
+    status: planned
+    vendors:
+      - Nokia (Lightspan FX)
+    sources:
+      - nokia-broadband-access-001
+  - technology: 50G-PON
+    status: planned
+    vendors:
+      - Nokia (Lightspan FX)
     sources:
       - nokia-broadband-access-001

@@ -12,3 +12,125 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: dzs-mxk-datasheet-001
+  vendor: DZS
+  families:
+    - MXK-319
+    - MXK-819
+    - MXK-823
+  firmware: unknown
+  title: MXK 319 819 823 Series Datasheet
+  publisher: Zhone/DZS Inc.
+  url: https://zhone.com/wp-content/uploads/MXK-319-819-823_Datasheet.pdf
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: dzs-mxk-gponx8-io3-001
+  vendor: DZS
+  families:
+    - MXK-319
+    - MXK-819
+    - MXK-823
+  firmware: unknown
+  title: MXK-GPONX8-IO3 Line Card
+  publisher: Zhone/DZS Inc.
+  url: https://zhone.com/product/mxk-gponx8-io3/
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: dzs-velocity-v6-datasheet-001
+  vendor: DZS
+  families:
+    - Velocity-V6
+  firmware: sdNOS
+  title: Velocity V6 Datasheet
+  publisher: DZS Inc.
+  url: https://zhone.com/wp-content/uploads/V6_Datasheet.pdf
+  source_grade: A
+  retrieved_at: 2025-09-15
+  license: restricted
+  sha256: null
+  facts: []
+
+- source_id: dzs-velocity-v6-press-001
+  vendor: DZS
+  families:
+    - Velocity-V6
+  firmware: sdNOS
+  title: DZS offers high-capacity Velocity V6 OLT as Huawei replacement
+  publisher: Lightwave Online
+  url: https://www.lightwaveonline.com/fttx/pon-systems/article/14284335/dzs-offers-high-capacity-velocity-v6-olt-as-huawei-replacement
+  source_grade: B
+  retrieved_at: 2025-09-15
+  license: permissive
+  sha256: null
+  facts: []
+
+- source_id: zhone-gpon-mib-observium-001
+  vendor: DZS
+  families:
+    - MXK-319
+    - MXK-819
+    - MXK-823
+    - Velocity-V6
+  firmware: unknown
+  title: Zhone-GPON-MIB
+  publisher: Observium MIB Browser
+  url: https://mibs.observium.org/mib/Zhone-GPON-MIB/
+  source_grade: B
+  retrieved_at: 2025-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: zhoneGponSerialNumberFound
+      oid: 1.3.6.1.4.1.5504.5.14.1.1.1
+      status: provisional
+      severity: info
+      category: onu_online
+    - notification_name: zhoneGponOntDyingGasp
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.1
+      status: provisional
+      severity: critical
+      category: dying_gasp
+    - notification_name: zhoneGponOntLossOfSignal
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.2
+      status: provisional
+      severity: critical
+      category: los
+    - notification_name: zhoneGponOntLossOfFrame
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.3
+      status: provisional
+      severity: critical
+      category: los
+    - notification_name: zhoneGponOntOffline
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.10
+      status: provisional
+      severity: warning
+      category: onu_offline
+    - notification_name: zhoneGponOntOnline
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.11
+      status: provisional
+      severity: info
+      category: onu_online
+    - notification_name: zhoneGponOntLosClear
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.12
+      status: provisional
+      severity: info
+      category: los_clear
+    - notification_name: zhoneGponPonDown
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.20
+      status: provisional
+      severity: critical
+      category: pon_down
+    - notification_name: zhoneGponPonUp
+      oid: 1.3.6.1.4.1.5504.5.14.2.1.21
+      status: provisional
+      severity: info
+      category: pon_up

@@ -1,13 +1,53 @@
 vendor: Ubiquiti
+vendor_aliases:
+  - UISP
 priority: P2
 iana_pens:
-  - 41112
+  - 41112  # Ubiquiti Networks
 families:
-  - family: UF-OLT
+  - family: UFiber
     level: L1
     confidence_grade: A
     firmware: unknown
-    supported_traps: []
+    form_factor: 1U rackmount
+    max_gpon_ports: 8
+    max_subscribers: 1024
+    subscribers_per_port: 128
+    pon_technologies:
+      - GPON
+    uplink_options:
+      - 10G SFP+
     sources:
-      - ubiquiti-uisp-fiber-specs-001
-      - ubiquiti-snmp-uisp-boundary-002
+      - ubiquiti-ufiber-datasheet-001
+    supported_traps: []
+
+  - family: UISP-Fiber-OLT-XGS
+    level: L1
+    confidence_grade: A
+    firmware: UISP
+    form_factor: 1U rackmount
+    max_gpon_ports: 8
+    max_xgspom_ports: 8
+    max_subscribers: 2048
+    subscribers_per_port: 128
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    uplink_options:
+      - 1G SFP28
+      - 10G SFP+
+      - 25G SFP28
+    sources:
+      - ubiquiti-uisp-xgs-datasheet-001
+      - ubiquiti-techspecs-001
+    supported_traps: []
+
+# SNMP Management
+snmp_enterprise: 41112
+mib_references:
+  - name: UBNT-EdgeMAX-MIB
+    source: Ubiquiti Community
+    url: https://community.ui.com
+    oid_prefix: 1.3.6.1.4.1.41112.1.5
+    notes: Limited GPON MIB support; primarily uses IF-MIB
