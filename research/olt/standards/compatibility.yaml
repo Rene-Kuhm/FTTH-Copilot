@@ -1,0 +1,53 @@
+vendor: Standards
+priority: P0
+iana_pens:
+  - 100  # Broadband Forum IANA private enterprise number
+families:
+  - family: TR-451
+    level: L1
+    confidence_grade: A
+    firmware: v1.0
+    supported_traps: []
+    sources:
+      - bbf-tr-451-vomci
+    notes: vOMCI specification for virtualized ONT management over disaggregated OLT
+
+  - family: TR-142
+    level: L1
+    confidence_grade: A
+    firmware: v2.0
+    supported_traps: []
+    sources:
+      - bbf-tr-142-voltha
+    notes: Disaggregated vOLT (VOLTHA / SEBA) hardware southbound interface
+
+  - family: 50G-PON
+    level: L1
+    confidence_grade: A
+    firmware: "G.9804-amd1"
+    pon_technologies:
+      - 50G-PON
+    optical_class: N1
+    max_distance_km: 20
+    supported_traps: []
+    sources:
+      - itu-t-g-9804-ghsp
+    notes: ITU-T G.9804 higher-speed PON, Class N1 (29 dB) and N2 (33 dB) optical budgets
+
+  - family: OMCI
+    level: L1
+    confidence_grade: A
+    firmware: "G.988-amd2"
+    supported_traps: []
+    sources:
+      - itu-t-g-988-omci
+    notes: ONU Management and Control Interface, foundational protocol for GPON/XGS-PON ONT provisioning
+
+  - family: USP
+    level: L1
+    confidence_grade: A
+    firmware: v1.1
+    supported_traps: []
+    sources:
+      - bbf-tr-369-usp
+    notes: TR-369 USP — modern REST/STOMP CPE management replacing TR-069

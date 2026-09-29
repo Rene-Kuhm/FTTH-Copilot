@@ -18,10 +18,35 @@ families:
     sources:
       - huawei-ma5600-snmp-mib-001
       - huawei-ma5600-manual-v800
-  - family: MA5800
+  - family: MA5800-X17
     level: L2
-    confidence_grade: B
-    firmware: unknown
+    confidence_grade: A
+    firmware: V100R019
+    form_factor: chassis
+    slots: 17
+    max_gpon_ports: 272
+    max_xgspom_ports: 272
+    max_subscribers: 32768
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+      - 50G-PON
+    optical_class: C++
+    max_distance_km: 40
+    combo_pon: true
+    disaggregated_hardware: false
+    standards_compliance:
+      omci_version: G.988
+      vOMCI_ready: true
+      tr069_supported: true
+      tr369_usp_supported: true
+      disaggregated_vlt: false
+    built_in_otdr: true
+    uplink_options:
+      - 10GE
+      - 100GE
     supported_traps:
       - hwGponOntDyingGasp
       - hwGponOntOffline
@@ -32,3 +57,82 @@ families:
     sources:
       - huawei-ma5800-product-doc-001
       - huawei-ma5600-manual-v800
+  - family: MA5800-X15
+    level: L2
+    confidence_grade: A
+    firmware: V100R019
+    form_factor: chassis
+    slots: 15
+    max_gpon_ports: 240
+    max_xgspom_ports: 240
+    max_subscribers: 24576
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+      - 50G-PON
+    optical_class: C++
+    max_distance_km: 40
+    combo_pon: true
+    built_in_otdr: true
+    sources:
+      - huawei-ma5800-product-doc-001
+      - huawei-ma5600-manual-v800
+  - family: MA5800-X7
+    level: L2
+    confidence_grade: A
+    firmware: V100R019
+    form_factor: chassis
+    slots: 7
+    max_gpon_ports: 112
+    max_xgspom_ports: 112
+    max_subscribers: 14336
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+      - 50G-PON
+    combo_pon: true
+    optical_class: C+
+    max_distance_km: 40
+    built_in_otdr: true
+    sources:
+      - huawei-ma5800-product-doc-001
+      - huawei-ma5600-manual-v800
+  - family: MA5800-X2
+    level: L2
+    confidence_grade: A
+    firmware: V100R019
+    form_factor: 2U
+    slots: 2
+    max_gpon_ports: 32
+    max_xgspom_ports: 32
+    max_subscribers: 4096
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    combo_pon: false
+    optical_class: C+
+    max_distance_km: 30
+    sources:
+      - huawei-ma5800-product-doc-001
+  - family: HN8245Q
+    level: L1
+    confidence_grade: B
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: XGS-PON
+    ethernet_ports: 4
+    pots_ports: 2
+    usb_ports: 2
+    wifi_standard: WiFi5
+    wifi_bands:
+      - 2.4GHz
+      - 5GHz
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - huawei-hn8245q-datasheet-001
