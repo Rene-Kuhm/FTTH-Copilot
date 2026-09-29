@@ -23,3 +23,26 @@ families:
     supported_traps: []
     sources:
       - calix-axos-e9-portal-001
+  - family: 844G-1
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: GPON
+    ethernet_ports: 4
+    pots_ports: 2
+    usb_ports: 1
+    wifi_standard: WiFi5
+    wifi_bands:
+      - 2.4GHz
+      - 5GHz
+    optical_class: B+
+    max_distance_km: 20
+    wpa3_supported: true
+    standards_compliance:
+      tr069_supported: true
+      tr369_usp_supported: true
+      omci_version: G.988
+    sources:
+      - calix-844g-1-datasheet-001
+      - calix-844g-1-wifi-cert-001

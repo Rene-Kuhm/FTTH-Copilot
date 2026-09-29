@@ -15,7 +15,67 @@ export type PonTechnology =
   | 'XGS-PON'    /* 10 Gbps symmetric */
   | '25G-PON'    /* 25 Gbps downstream, 10/25 Gbps upstream (MSA) */
   | '50G-PON'    /* 50 Gbps symmetric (ITU-T G.HSP) */
-  | 'NG-PON2';   /* TWDM-PON, 4 wavelengths x 10 Gbps */
+  | 'NG-PON2'    /* TWDM-PON, 4 wavelengths x 10 Gbps */
+  | 'Combo-GPON-XGS-PON'; /* Mixed GPON + XGS-PON on same port (Flex-PON) */
+
+/**
+ * Optical power budget classes per ITU-T G.984.2 / G.9807.1.
+ * Determines maximum PON reach and split ratio.
+ */
+export type OpticalClass = 'B+' | 'C+' | 'C++' | 'N1' | 'N2';
+
+/**
+ * Standards compliance for ONT management and access architecture.
+ * - OMCI: ITU-T G.988 (standard GPON/XGS-PON ONT management)
+ * - vOMCI: Broadband Forum TR-451 (virtualized OMCI)
+ * - TR-069: legacy CPE management (CWMP)
+ * - TR-369 (USP): User Services Platform, TR-069 successor
+ * - SDX/vOLT: Broadband Forum TR-142/TR-385 (disaggregated OLT)
+ */
+export interface StandardsCompliance {
+  omciVersion?: string;
+  vOMCIReady?: boolean;
+  tr069Supported?: boolean;
+  tr369UspSupported?: boolean;
+  disaggregatedVlt?: boolean; // TR-142/TR-385
+}
+
+/**
+ * ODN passive component kinds.
+ * Used to model the physical fiber plant from OLT to subscriber.
+ */
+export type OdnComponentKind =
+  | 'OLT'
+  | 'FDH'         // Fiber Distribution Hub
+  | 'SPLITTER'    // Passive optical splitter
+  | 'NAP'         // Network Access Point (mikrotik-style outdoor cabinet)
+  | 'FAT'         // Fiber Access Terminal (Huawei-style outdoor closure)
+  | 'CTO'         // Caja Terminal Óptica
+  | 'DROP_CABLE'  // Last-mile drop cable
+  | 'ONU';
+
+/**
+ * Passive ODN component with attenuation and physical metadata.
+ * These are detected/confirmed from operator-provided topology, NOT inferred.
+ */
+export interface OdnComponent {
+  kind: OdnComponentKind;
+  id: string;
+  label?: string;
+  parentId?: string;
+  /** Total attenuation introduced by this component (dB) */
+  attenuationDb?: number;
+  /** Splitter split ratio (1xN) — only meaningful for SPLITTER kind */
+  splitRatio?: number;
+  /** Maximum fiber length downstream of this component (meters) */
+  downstreamLengthM?: number;
+  /** Installed firmware/serial when relevant */
+  serialNumber?: string;
+  /** Geographic location if known */
+  location?: { latitude?: number; longitude?: number; address?: string };
+  /** Source of truth for this component */
+  sourceId: string;
+}
 
 /**
  * OLT form factor types.
@@ -62,6 +122,8 @@ export interface OltDetail extends OltSummary {
   ponTechnology?: PonTechnology;
   /** All PON technologies supported (for Combo PON OLTs) */
   ponTechnologiesSupported?: PonTechnology[];
+  /** Whether the OLT supports Flex-PON combo (GPON+XGS-PON on same port) */
+  comboPonSupported?: boolean;
   /** Maximum subscribers supported by the OLT */
   maxSubscribers?: number;
   /** Number of subscribers currently connected */
@@ -78,6 +140,16 @@ export interface OltDetail extends OltSummary {
   firmwareVersion?: string;
   /** Optical budget in dB */
   opticalBudgetDb?: number;
+  /** Optical class for PON reach calculation */
+  opticalClass?: OpticalClass;
+  /** Maximum PON reach in km (typical for the configured class) */
+  maxDistanceKm?: number;
+  /** Standards compliance (OMCI, vOMCI, TR-069, USP, vOLT) */
+  standardsCompliance?: StandardsCompliance;
+  /** Disaggregated white-box hardware (TIP, OCP) when applicable */
+  disaggregatedHardware?: boolean;
+  /** Built-in OTDR availability */
+  builtInOtdr?: boolean;
 }
 
 export interface OnuSummary {
@@ -157,8 +229,20 @@ export interface OnuDetail extends OnuSummary {
   maxUpstreamMbps?: number;
   /** CATV port present */
   hasCatv?: boolean;
-  /** Optical class (B+, C+, etc.) */
-  opticalClass?: 'B+' | 'C+' | 'C++';
+  /** Optical class (B+, C+, N1/N2 for 50G-PON) */
+  opticalClass?: OpticalClass;
+  /** WPA3 personal/enterprise support */
+  wpa3Supported?: boolean;
+  /** Supports 160 MHz WiFi channels */
+  wifi160Mhz?: boolean;
+  /** Supports MLO (Multi-Link Operation, WiFi 7 feature) */
+  wifiMloSupported?: boolean;
+  /** Maximum number of SSIDs */
+  maxSsids?: number;
+  /** OMCI management channel active */
+  omciActive?: boolean;
+  /** OMCI version when known */
+  omciVersion?: string;
   /** ONT serial number (formatted) */
   formattedSerial?: string;
 }
@@ -176,6 +260,43 @@ export interface NetworkOverview {
 export interface RateLimitError extends Error {
   code: 'RATE_LIMIT';
   retryAfterSeconds?: number;
+}
+
+/**
+ * ODN topology graph — physical fiber plant from OLT to subscriber.
+ *
+ * This model is built from operator-provided topology or SNMP-derived hints.
+ * It is NOT inferred: per the evidence-first principle, components only enter
+ * the graph when there is a registered edge or varbind confirming them.
+ */
+export interface OdnTopologyGraph {
+  oltId: string;
+  components: OdnComponent[];
+  edges: Array<{
+    parentId: string;
+    childId: string;
+    /** Loss introduced by the upstream segment (dB) */
+    segmentLossDb?: number;
+    /** Physical fiber length of this segment (meters) */
+    fiberLengthM?: number;
+  }>;
+  /** Total optical budget from OLT to deepest ONU (dB) */
+  totalBudgetDb?: number;
+  /** Source that produced this graph */
+  sourceId: string;
+}
+
+/**
+ * Detected hint from an SNMP trap that suggests an ODN component is reachable.
+ * Adapters emit these when varbinds reference splitter/CTO identifiers.
+ * The system only uses them to enrich existing topology, never to invent it.
+ */
+export interface OdnComponentHint {
+  kind: OdnComponentKind;
+  candidateId: string;
+  sourceTrapOid: string;
+  confidence: 'low' | 'medium' | 'high';
+  evidence: Record<string, string>;
 }
 
 export interface INmsConnector {

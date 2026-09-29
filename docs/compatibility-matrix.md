@@ -4,15 +4,15 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 
 ## 1. Summary Statistics
 
-- **Total Vendors Registered**: 12
-- **Total Hardware Families**: 33
-- **Documented Sources**: 41
-- **Verified OID Facts**: 77
+- **Total Vendors Registered**: 13
+- **Total Hardware Families**: 43
+- **Documented Sources**: 49
+- **Verified OID Facts**: 91
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 14 | Research cataloged, MIBs registered, architectural limits documented |
-| **Level L2 (Simulated)** | 19 | Full adapter implemented, synthetic & loopback UDP tests passing |
+| **Level L1 (Documented)** | 21 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
 
@@ -22,8 +22,12 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 |---|---|---|---|---|---|---|
 | P0 | [FiberHome](../research/olt/fiberhome/) | AN5516 | unknown | **L2** | B | 2 |
 | P0 | [FiberHome](../research/olt/fiberhome/) | AN6000 | unknown | **L2** | B | 3 |
+| P0 | [Huawei](../research/olt/huawei/) | HN8245Q | undefined | **L1** | B | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5600 | unknown | **L2** | B | 2 |
-| P0 | [Huawei](../research/olt/huawei/) | MA5800 | unknown | **L2** | B | 2 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5800-X15 | V100R019 | **L2** | A | 2 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5800-X17 | V100R019 | **L2** | A | 2 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5800-X2 | V100R019 | **L2** | A | 1 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5800-X7 | V100R019 | **L2** | A | 2 |
 | P0 | [Nokia](../research/olt/nokia/) | 7360-ISAM-FX-16 | unknown | **L2** | A | 1 |
 | P0 | [Nokia](../research/olt/nokia/) | 7360-ISAM-FX-4 | unknown | **L2** | A | 1 |
 | P0 | [Nokia](../research/olt/nokia/) | 7360-ISAM-FX-8 | unknown | **L2** | A | 1 |
@@ -32,6 +36,11 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P0 | [Nokia](../research/olt/nokia/) | Lightspan-FX-4 | FemtoApp | **L2** | A | 1 |
 | P0 | [Nokia](../research/olt/nokia/) | Lightspan-FX-8 | FemtoApp | **L2** | A | 1 |
 | P0 | [Nokia](../research/olt/nokia/) | Lightspan-MF | unknown | **L2** | A | 1 |
+| P0 | [Standards](../research/olt/standards/) | 50G-PON | G.9804-amd1 | **L1** | A | 1 |
+| P0 | [Standards](../research/olt/standards/) | OMCI | G.988-amd2 | **L1** | A | 1 |
+| P0 | [Standards](../research/olt/standards/) | TR-142 | v2.0 | **L1** | A | 1 |
+| P0 | [Standards](../research/olt/standards/) | TR-451 | v1.0 | **L1** | A | 1 |
+| P0 | [Standards](../research/olt/standards/) | USP | v1.1 | **L1** | A | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C300 | unknown | **L1** | B | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C320 | unknown | **L1** | B | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C600 | TITAN | **L2** | A | 1 |
@@ -41,6 +50,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Adtran](../research/olt/adtran/) | SDX-6000 | unknown | **L1** | A | 1 |
 | P1 | [Adtran](../research/olt/adtran/) | TA5000 | unknown | **L2** | B | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
+| P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | E7 | unknown | **L2** | B | 1 |
 | P1 | [Calix](../research/olt/calix/) | E9 | unknown | **L1** | A | 1 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-319 | unknown | **L1** | A | 2 |
