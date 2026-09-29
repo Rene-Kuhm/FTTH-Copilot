@@ -58,16 +58,22 @@ export class UbiquitiOltAdapter implements OltVendorAdapter {
     }
 
     // Determine device scope: ONT vs OLT
+    const isOltLevelCategory =
+      catalogDef.category === 'pon_down' ||
+      catalogDef.category === 'pon_up' ||
+      catalogDef.category === 'card_failure';
+
     const hasVerifiableOntData =
-      hierarchy.onuId !== undefined ||
-      hierarchy.serial !== undefined;
+      !isOltLevelCategory &&
+      (hierarchy.onuId !== undefined || hierarchy.serial !== undefined);
 
     const isOntScope =
-      hasVerifiableOntData ||
-      catalogDef.category === 'onu_offline' ||
-      catalogDef.category === 'onu_online' ||
-      catalogDef.name.toLowerCase().includes('ont') ||
-      catalogDef.name.toLowerCase().includes('onu');
+      !isOltLevelCategory &&
+      (hasVerifiableOntData ||
+        catalogDef.category === 'onu_offline' ||
+        catalogDef.category === 'onu_online' ||
+        catalogDef.name.toLowerCase().includes('ont') ||
+        catalogDef.name.toLowerCase().includes('onu'));
 
     const deviceKind = isOntScope ? 'ONU' : 'OLT';
     let deviceId: string;

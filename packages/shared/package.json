@@ -19,11 +19,12 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^3.2.6",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.6",
+    "@types/node": "^22.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.18.0",
-    "@typescript-eslint/eslint-plugin": "^8.20.0"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "@ftth-copilot/evidence": "workspace:*"
