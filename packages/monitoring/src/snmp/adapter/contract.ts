@@ -6,10 +6,12 @@
  * 1. Multi-tenant isolation (adapters cannot mutate tenantId).
  * 2. Pure transformation (adapters have zero side-effects, no network mutation).
  * 3. Severity bounding (cannot elevate severity without source justification).
+ * 4. ODN hint enrichment (adapters receive extracted hints; harness attaches them).
  */
 
 import { type TelemetryEvent } from '@ftth-copilot/shared';
 import { lookupTrapDefinition } from '../catalog';
+import { extractOdnHints } from './odn-hints';
 import type { ResolvedDeviceIdentity } from '../identity';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from '../types';
 
@@ -109,6 +111,28 @@ export function executeAdapterSafe(
   if (catalogDef.candidateDescription) {
     if (!event.metrics) event.metrics = {};
     event.metrics['candidateDescription'] = catalogDef.candidateDescription;
+  }
+
+  // Invariant 4: ODN hint enrichment (Fase ODN-2)
+  // Extract ODN component hints (NAP, CTO, Splitter, FDH, FAT) from the trap varbinds
+  // and attach them to the event metrics. Hints are advisory — downstream consumers
+  // (e.g. evidence correlation) decide whether to confirm them against registered
+  // topology edges. The harness enforces that hints NEVER replace or modify the
+  // adapter's primary signal (deviceKind, deviceId, severity, etc.).
+  const odnHints = extractOdnHints(notification);
+  if (odnHints.length > 0) {
+    if (!event.metrics) event.metrics = {};
+    event.metrics['odnHints'] = odnHints.map((h) => ({
+      kind: h.kind,
+      candidateId: h.candidateId,
+      confidence: h.confidence,
+      sourceTrapOid: h.sourceTrapOid,
+    }));
+    if (!enforcedTags['odnHintKinds']) {
+      enforcedTags['odnHintKinds'] = odnHints
+        .map((h) => `${h.kind}:${h.candidateId}`)
+        .join(',');
+    }
   }
 
   if (identity.isAmbiguous) {
