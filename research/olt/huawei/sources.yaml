@@ -138,3 +138,29 @@
       severity: info
       category: device_info
       description: "HN8245Q: XGS-PON, 4 GE + 2 POTS + 2 USB, WiFi5 (2.4G/5G), C+ optical, 20km reach"
+
+- source_id: huawei-ma5800-otdr-001
+  vendor: Huawei
+  families:
+    - MA5800-X17
+    - MA5800-X15
+    - MA5800-X7
+  firmware: V100R019
+  title: Huawei MA5800 Built-in OTDR
+  publisher: Huawei
+  url: https://e.huawei.com/eu/products/optical-access/ma5800
+  source_grade: B
+  retrieved_at: 2026-09-29
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: hwOtdrFiberBreak
+      oid: 1.3.6.1.4.1.2011.6.128.20.1.1
+      status: provisional
+      severity: critical
+      category: otdr_fiber_break
+    - notification_name: hwOtdrFiberDegradation
+      oid: 1.3.6.1.4.1.2011.6.128.20.2.1
+      status: provisional
+      severity: warning
+      category: otdr_fiber_degradation

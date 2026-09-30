@@ -22,6 +22,10 @@ export type SnmpTrapCategory =
   | 'pon_down'
   | 'pon_up'
   | 'card_failure'
+  | 'otdr_fiber_break'
+  | 'otdr_fiber_degradation'
+  | 'otdr_scan_complete'
+  | 'otdr_scan_started'
   | 'unknown_trap';
 
 export interface SnmpTrapDefinition {
@@ -1172,6 +1176,93 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'unknown',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.41112.1.5.2.1.0',
+    status: 'provisional',
+  },
+
+  // ── OTDR Fiber Event Traps (Roadmap Fase ODN-3) ─────────────────────────
+  // OTDR (Optical Time Domain Reflectometer) detects fiber breaks, splice loss
+  // anomalies, and connector degradation. Three vendor implementations are
+  // documented below. Sources: vendor docs (Cisco IOS-XR 26.x, Huawei MA5800
+  // product docs, Nokia TROPIC-OPTICALPORT-MIB via Observium).
+
+  // ── Cisco NCS 1010 / NCS 1020 (CISCO-OPTICAL-OTS-MIB) ────────────────────
+  {
+    oid: '1.3.6.1.4.1.9.9.276.0.1',
+    name: 'ciscoOtsOtdrFiberBreak',
+    category: 'otdr_fiber_break',
+    severity: 'critical',
+    vendor: 'Cisco',
+    description:
+      'Cisco NCS 1010/1020 OTDR detected a fiber break. Per CISCO-OPTICAL-OTS-MIB, the in-built bidirectional OTDR functionality measures loss and back reflection in real time for fiber pairs linked to TX/RX ports. Source: https://www.cisco.com/c/en/us/td/docs/optical/ncs1010/26xx/optical-apps/guide/optical-apps-config-guide-26xx/otdr/c-otdr-overview.html',
+    source_id: 'cisco-ots-otdr-001',
+    source_grade: 'A',
+    license: 'review-required',
+    target_models: ['NCS-1010', 'NCS-1020'],
+    firmware: 'IOS-XR-7.9.1',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.9.9.276.0.2',
+    name: 'ciscoOtsOtdrScanComplete',
+    category: 'otdr_scan_complete',
+    severity: 'info',
+    vendor: 'Cisco',
+    description:
+      'Cisco NCS 1010/1020 OTDR scan completed. The OTDR port can switch between LINE-TX and LINE-RX ports on the OLT, and among LINE-1/2-TX/RX on ILA devices. Source: https://www.cisco.com/c/en/us/td/docs/optical/ncs1010/26xx/optical-apps/guide/optical-apps-config-guide-26xx/otdr/c-otdr-overview.html',
+    source_id: 'cisco-ots-otdr-001',
+    source_grade: 'A',
+    license: 'review-required',
+    target_models: ['NCS-1010', 'NCS-1020'],
+    firmware: 'IOS-XR-7.9.1',
+    status: 'provisional',
+  },
+
+  // ── Huawei MA5800 (Huawei-MIB, OTDR submodule) ──────────────────────────
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.20.1.1',
+    name: 'hwOtdrFiberBreak',
+    category: 'otdr_fiber_break',
+    severity: 'critical',
+    vendor: 'Huawei',
+    description:
+      'Huawei MA5800 OTDR detected a fiber break on a PON port. Built-in OTDR reports loss events from splicing, patch panel connections, and couplers; loss exceeding the configured threshold raises this trap. Source: https://e.huawei.com/eu/products/optical-access/ma5800 (built-in OTDR feature)',
+    source_id: 'huawei-ma5800-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MA5800-X17', 'MA5800-X15', 'MA5800-X7'],
+    firmware: 'V100R019',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.20.2.1',
+    name: 'hwOtdrFiberDegradation',
+    category: 'otdr_fiber_degradation',
+    severity: 'warning',
+    vendor: 'Huawei',
+    description:
+      'Huawei MA5800 OTDR detected fiber degradation (splice loss above threshold or bend loss) on a PON port. Indicates preventive maintenance is needed before a fiber break occurs. Source: https://e.huawei.com/eu/products/optical-access/ma5800 (built-in OTDR feature)',
+    source_id: 'huawei-ma5800-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MA5800-X17', 'MA5800-X15', 'MA5800-X7'],
+    firmware: 'V100R019',
+    status: 'provisional',
+  },
+
+  // ── Nokia TROPIC-OPTICALPORT-MIB (tnPortOtdrScanTable) ───────────────
+  {
+    oid: '1.3.6.1.4.1.7483.2.2.4.3.2.47.1.17',
+    name: 'tnPortOtdrScanStateChange',
+    category: 'otdr_scan_complete',
+    severity: 'info',
+    vendor: 'Nokia',
+    description:
+      'Nokia TROPIC-OPTICALPORT-MIB tnPortOtdrScanState value transition: OTDR scan completed or state changed. Values: running, pending, complete. Source: https://mibs.observium.org/object/TROPIC-OPTICALPORT-MIB/tnPortOtdrScanState',
+    source_id: 'nokia-tropic-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['7360-ISAM-FX-16', '7360-ISAM-FX-8', 'Lightspan-FX-16'],
+    firmware: 'R6.8.01',
     status: 'provisional',
   },
 ];

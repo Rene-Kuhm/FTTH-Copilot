@@ -4,14 +4,14 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 
 ## 1. Summary Statistics
 
-- **Total Vendors Registered**: 13
-- **Total Hardware Families**: 43
-- **Documented Sources**: 49
-- **Verified OID Facts**: 91
+- **Total Vendors Registered**: 14
+- **Total Hardware Families**: 45
+- **Documented Sources**: 52
+- **Verified OID Facts**: 96
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 21 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 23 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -53,6 +53,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | E7 | unknown | **L2** | B | 1 |
 | P1 | [Calix](../research/olt/calix/) | E9 | unknown | **L1** | A | 1 |
+| P1 | [Cisco](../research/olt/cisco/) | NCS-1010 | IOS-XR-7.9.1 | **L1** | A | 1 |
+| P1 | [Cisco](../research/olt/cisco/) | NCS-1020 | IOS-XR-7.9.1 | **L1** | A | 1 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-319 | unknown | **L1** | A | 2 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-819 | unknown | **L1** | A | 1 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-823 | unknown | **L1** | A | 1 |

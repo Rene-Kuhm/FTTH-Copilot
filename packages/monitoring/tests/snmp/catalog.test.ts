@@ -340,3 +340,67 @@ describe('SNMP Trap Catalog (Roadmap Fase 6 — 6.1)', () => {
     }
   });
 });
+
+// ── OTDR trap definitions (Roadmap Fase ODN-3) ──────────────────────
+
+describe('OTDR Fiber Event Traps', () => {
+  it('includes Cisco NCS 1010/1020 OTDR fiber-break trap', () => {
+    const def = KNOWN_TRAP_DEFINITIONS.find(
+      (d) => d.name === 'ciscoOtsOtdrFiberBreak',
+    );
+    expect(def).toBeDefined();
+    expect(def?.category).toBe('otdr_fiber_break');
+    expect(def?.severity).toBe('critical');
+    expect(def?.vendor).toBe('Cisco');
+    expect(def?.target_models).toContain('NCS-1010');
+    expect(def?.source_id).toBe('cisco-ots-otdr-001');
+    expect(def?.source_grade).toBe('A');
+  });
+
+  it('includes Cisco OTDR scan-complete trap with info severity', () => {
+    const def = KNOWN_TRAP_DEFINITIONS.find(
+      (d) => d.name === 'ciscoOtsOtdrScanComplete',
+    );
+    expect(def?.category).toBe('otdr_scan_complete');
+    expect(def?.severity).toBe('info');
+  });
+
+  it('includes Huawei MA5800 OTDR fiber-break and degradation traps', () => {
+    const breakTrap = KNOWN_TRAP_DEFINITIONS.find(
+      (d) => d.name === 'hwOtdrFiberBreak',
+    );
+    const degradationTrap = KNOWN_TRAP_DEFINITIONS.find(
+      (d) => d.name === 'hwOtdrFiberDegradation',
+    );
+    expect(breakTrap?.category).toBe('otdr_fiber_break');
+    expect(breakTrap?.severity).toBe('critical');
+    expect(breakTrap?.target_models).toContain('MA5800-X17');
+    expect(degradationTrap?.category).toBe('otdr_fiber_degradation');
+    expect(degradationTrap?.severity).toBe('warning');
+  });
+
+  it('includes Nokia TROPIC OTDR scan-state-change trap', () => {
+    const def = KNOWN_TRAP_DEFINITIONS.find(
+      (d) => d.name === 'tnPortOtdrScanStateChange',
+    );
+    expect(def?.category).toBe('otdr_scan_complete');
+    expect(def?.vendor).toBe('Nokia');
+    expect(def?.oid).toBe('1.3.6.1.4.1.7483.2.2.4.3.2.47.1.17');
+  });
+
+  it('all OTDR traps have non-empty firmware and target_models', () => {
+    const otdrNames = [
+      'ciscoOtsOtdrFiberBreak',
+      'ciscoOtsOtdrScanComplete',
+      'hwOtdrFiberBreak',
+      'hwOtdrFiberDegradation',
+      'tnPortOtdrScanStateChange',
+    ];
+    for (const name of otdrNames) {
+      const def = KNOWN_TRAP_DEFINITIONS.find((d) => d.name === name);
+      expect(def, `trap ${name} should be defined`).toBeDefined();
+      expect(def?.firmware, `${name} should declare firmware`).toBeTruthy();
+      expect(def?.target_models?.length ?? 0, `${name} should have target models`).toBeGreaterThan(0);
+    }
+  });
+});
