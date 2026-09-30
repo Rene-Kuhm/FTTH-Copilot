@@ -34,6 +34,12 @@ export interface MikrowispCliente {
 export interface MikrowispOdb {
   id: string;
   nombre_odb: string;
+  /** Optional OLT router id this ODB (NAP) is parented to. Present in newer Mikrowisp API responses. */
+  olt_id?: string;
+  /** Optional splitter split ratio (e.g. 8 for a 1:8 splitter feeding this NAP). */
+  split_ratio?: number;
+  /** Optional attenuation in dB introduced by the distribution segment to this NAP. */
+  atenuacion_db?: number;
 }
 
 export const FIXTURE_ROUTERS: MikrowispRouter[] = [
@@ -119,12 +125,12 @@ export const FIXTURE_CLIENTES: MikrowispCliente[] = [
 ];
 
 export const FIXTURE_ODBS: MikrowispOdb[] = [
-  { id: 'ODB-01', nombre_odb: 'NAP-CENTRO-01' },
-  { id: 'ODB-02', nombre_odb: 'NAP-NORTE-02' },
-  { id: 'ODB-03', nombre_odb: 'NAP-SUR-03' },
-  { id: 'ODB-04', nombre_odb: 'NAP-ESTE-04' },
-  { id: 'ODB-05', nombre_odb: 'NAP-OESTE-05' },
-  { id: 'ODB-06', nombre_odb: 'NAP-INDUSTRIAL-06' },
+  { id: 'ODB-01', nombre_odb: 'NAP-CENTRO-01', olt_id: 'RT-BSAS-01', split_ratio: 16, atenuacion_db: 17.5 },
+  { id: 'ODB-02', nombre_odb: 'NAP-NORTE-02', olt_id: 'RT-BSAS-01', split_ratio: 16, atenuacion_db: 18.2 },
+  { id: 'ODB-03', nombre_odb: 'NAP-SUR-03', olt_id: 'RT-MDPLATA-01', split_ratio: 8, atenuacion_db: 16.8 },
+  { id: 'ODB-04', nombre_odb: 'NAP-ESTE-04', olt_id: 'RT-MDPLATA-01', split_ratio: 16, atenuacion_db: 17.9 },
+  { id: 'ODB-05', nombre_odb: 'NAP-OESTE-05', olt_id: 'RT-BSAS-02', split_ratio: 32, atenuacion_db: 19.4 },
+  { id: 'ODB-06', nombre_odb: 'NAP-INDUSTRIAL-06', olt_id: 'RT-BSAS-02', split_ratio: 8, atenuacion_db: 16.2 },
 ];
 
 /**

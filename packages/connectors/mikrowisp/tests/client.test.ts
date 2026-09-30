@@ -115,6 +115,45 @@ describe('MikrowispClient (mock mode)', () => {
     expect(odbs[0]?.nombre_odb).toBe('NAP-CENTRO-01');
   });
 
+  // ── Fase ODN-2: OdnComponent mapping ──
+
+  it('getOdnComponents returns 6 NAP components parented to their OLT routers', async () => {
+    const components = await client.getOdnComponents();
+    expect(components).toHaveLength(6);
+    const first = components[0];
+    expect(first).toBeDefined();
+    expect(first?.kind).toBe('NAP');
+    expect(first?.id).toBe('ODB-01');
+    expect(first?.label).toBe('NAP-CENTRO-01');
+    expect(first?.parentId).toBe('RT-BSAS-01');
+    expect(first?.splitRatio).toBe(16);
+    expect(first?.attenuationDb).toBe(17.5);
+    expect(first?.sourceId).toBe('mikrowisp-odb');
+  });
+
+  it('getOdnComponents maps split ratios correctly across all fixtures', async () => {
+    const components = await client.getOdnComponents();
+    const ratios = components.map((c) => c.splitRatio);
+    expect(ratios).toEqual([16, 16, 8, 16, 32, 8]);
+  });
+
+  it('getOdnComponents associates NAP-CENTRO and NAP-NORTE with the same parent OLT', async () => {
+    const components = await client.getOdnComponents();
+    const centro = components.find((c) => c.label === 'NAP-CENTRO-01');
+    const norte = components.find((c) => c.label === 'NAP-NORTE-02');
+    expect(centro?.parentId).toBe('RT-BSAS-01');
+    expect(norte?.parentId).toBe('RT-BSAS-01');
+    expect(centro?.parentId).toBe(norte?.parentId);
+  });
+
+  it('getOdbList remains unchanged for backward compatibility', async () => {
+    // getOdbList and getOdnComponents coexist; consumers choose based on need
+    const odbs = await client.getOdbList();
+    const components = await client.getOdnComponents();
+    expect(odbs).toHaveLength(components.length);
+    expect(odbs[0]?.id).toBe(components[0]?.id);
+  });
+
   it('listRouters returns raw fixture router data', async () => {
     const routers = await client.listRouters();
     expect(routers).toHaveLength(4);
