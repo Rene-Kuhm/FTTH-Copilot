@@ -10,3 +10,35 @@ families:
     supported_traps: []
     sources:
       - zyxel-ies5206-portal-001
+  - family: OLT1404B
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 4
+    max_subscribers: 500
+    uplink_options:
+      - 10G SFP+
+      - 1G/2.5G SFP
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - zyxel-olt1408b-portal-001
+    notes: Pizza Box 4-port GPON OLT. Class B+ optics.
+  - family: OLT1408B
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 8
+    max_subscribers: 1000
+    uplink_options:
+      - 10G SFP+
+      - 1G/2.5G SFP
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - zyxel-olt1408b-portal-001
+    notes: Pizza Box 8-port GPON OLT. Class B+ optics.
