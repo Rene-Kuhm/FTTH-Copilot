@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 47
-- **Documented Sources**: 53
-- **Verified OID Facts**: 98
+- **Total Hardware Families**: 49
+- **Documented Sources**: 54
+- **Verified OID Facts**: 100
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 25 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 27 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -61,6 +61,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V16 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L1** | A | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600 | unknown | **L2** | B | 2 |
+| P1 | [VSOL](../research/olt/vsol/) | V2801RH | undefined | **L1** | A | 1 |
+| P1 | [VSOL](../research/olt/vsol/) | V2802RH | undefined | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES5206 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1404B | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1408B | unknown | **L1** | A | 1 |
