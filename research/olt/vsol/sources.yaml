@@ -71,13 +71,13 @@
   sha256: null
   facts:
     - notification_name: vsol-v2801rh-device-info
-      oid: 1.3.6.1.4.1.3902.1950.10.1.2801.1
+      oid: 1.3.6.1.4.1.37950.10.1.2801.1
       status: recognized
       severity: info
       category: device_info
       description: "V2801RH: XPON ONT, 1*2.5GbE, EPON PX20+/GPON Class B+, SC/UPC, 20km reach"
     - notification_name: vsol-v2802rh-device-info
-      oid: 1.3.6.1.4.1.3902.1950.10.1.2802.1
+      oid: 1.3.6.1.4.1.37950.10.1.2802.1
       status: recognized
       severity: info
       category: device_info
