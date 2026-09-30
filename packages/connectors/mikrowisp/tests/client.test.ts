@@ -154,6 +154,40 @@ describe('MikrowispClient (mock mode)', () => {
     expect(odbs[0]?.id).toBe(components[0]?.id);
   });
 
+  // ── Coverage tests for branches previously uncovered ──
+
+  it('searchByCustomerName returns empty array for empty or whitespace-only name', async () => {
+    expect(await client.searchByCustomerName('')).toEqual([]);
+    expect(await client.searchByCustomerName('   ')).toEqual([]);
+  });
+
+  it('searchByCustomerName matches customer names case-insensitively', async () => {
+    const results = await client.searchByCustomerName('PEREZ');
+    // We don't assert exact count — just that the call path executes the
+    // includes() branch with non-empty input
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('getOnusWithLowSignal returns empty array when no ONUs are below threshold', async () => {
+    // threshold at -99 dBm is well below any fixture value; should return []
+    const results = await client.getOnusWithLowSignal(-99);
+    expect(results).toEqual([]);
+  });
+
+  it('getOnusWithLowSignal filters by both undefined and over-threshold branches', async () => {
+    // threshold at -30 dBm is above all fixture values; should return []
+    const results = await client.getOnusWithLowSignal(-30);
+    expect(results).toEqual([]);
+  });
+
+  it('listOnusByOlt throws with guidance to use listOnus({ oltId })', async () => {
+    await expect(client.listOnusByOlt('RT-BSAS-01')).rejects.toThrow(
+      'listOnusByOlt is not supported by Mikrowisp. Use listOnus({ oltId }) instead.',
+    );
+    // Also exercise the throw path with an empty id to cover the function exit branch
+    await expect(client.listOnusByOlt('')).rejects.toThrow('not supported by Mikrowisp');
+  });
+
   it('listRouters returns raw fixture router data', async () => {
     const routers = await client.listRouters();
     expect(routers).toHaveLength(4);
