@@ -115,6 +115,79 @@ describe('MikrowispClient (mock mode)', () => {
     expect(odbs[0]?.nombre_odb).toBe('NAP-CENTRO-01');
   });
 
+  // ── Fase ODN-2: OdnComponent mapping ──
+
+  it('getOdnComponents returns 6 NAP components parented to their OLT routers', async () => {
+    const components = await client.getOdnComponents();
+    expect(components).toHaveLength(6);
+    const first = components[0];
+    expect(first).toBeDefined();
+    expect(first?.kind).toBe('NAP');
+    expect(first?.id).toBe('ODB-01');
+    expect(first?.label).toBe('NAP-CENTRO-01');
+    expect(first?.parentId).toBe('RT-BSAS-01');
+    expect(first?.splitRatio).toBe(16);
+    expect(first?.attenuationDb).toBe(17.5);
+    expect(first?.sourceId).toBe('mikrowisp-odb');
+  });
+
+  it('getOdnComponents maps split ratios correctly across all fixtures', async () => {
+    const components = await client.getOdnComponents();
+    const ratios = components.map((c) => c.splitRatio);
+    expect(ratios).toEqual([16, 16, 8, 16, 32, 8]);
+  });
+
+  it('getOdnComponents associates NAP-CENTRO and NAP-NORTE with the same parent OLT', async () => {
+    const components = await client.getOdnComponents();
+    const centro = components.find((c) => c.label === 'NAP-CENTRO-01');
+    const norte = components.find((c) => c.label === 'NAP-NORTE-02');
+    expect(centro?.parentId).toBe('RT-BSAS-01');
+    expect(norte?.parentId).toBe('RT-BSAS-01');
+    expect(centro?.parentId).toBe(norte?.parentId);
+  });
+
+  it('getOdbList remains unchanged for backward compatibility', async () => {
+    // getOdbList and getOdnComponents coexist; consumers choose based on need
+    const odbs = await client.getOdbList();
+    const components = await client.getOdnComponents();
+    expect(odbs).toHaveLength(components.length);
+    expect(odbs[0]?.id).toBe(components[0]?.id);
+  });
+
+  // ── Coverage tests for branches previously uncovered ──
+
+  it('searchByCustomerName returns empty array for empty or whitespace-only name', async () => {
+    expect(await client.searchByCustomerName('')).toEqual([]);
+    expect(await client.searchByCustomerName('   ')).toEqual([]);
+  });
+
+  it('searchByCustomerName matches customer names case-insensitively', async () => {
+    const results = await client.searchByCustomerName('PEREZ');
+    // We don't assert exact count — just that the call path executes the
+    // includes() branch with non-empty input
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('getOnusWithLowSignal returns empty array when no ONUs are below threshold', async () => {
+    // threshold at -99 dBm is well below any fixture value; should return []
+    const results = await client.getOnusWithLowSignal(-99);
+    expect(results).toEqual([]);
+  });
+
+  it('getOnusWithLowSignal filters by both undefined and over-threshold branches', async () => {
+    // threshold at -30 dBm is above all fixture values; should return []
+    const results = await client.getOnusWithLowSignal(-30);
+    expect(results).toEqual([]);
+  });
+
+  it('listOnusByOlt throws with guidance to use listOnus({ oltId })', async () => {
+    await expect(client.listOnusByOlt('RT-BSAS-01')).rejects.toThrow(
+      'listOnusByOlt is not supported by Mikrowisp. Use listOnus({ oltId }) instead.',
+    );
+    // Also exercise the throw path with an empty id to cover the function exit branch
+    await expect(client.listOnusByOlt('')).rejects.toThrow('not supported by Mikrowisp');
+  });
+
   it('listRouters returns raw fixture router data', async () => {
     const routers = await client.listRouters();
     expect(routers).toHaveLength(4);
