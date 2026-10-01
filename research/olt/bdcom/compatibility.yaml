@@ -3,6 +3,18 @@ priority: P2
 iana_pens:
   - 3320
 families:
+
+  - family: P5816-24T
+    level: L1
+    confidence_grade: B
+    device_kind: olt
+    form_factor: 1U
+    ethernet_ports: 24
+    uplink_options:
+      - 10GE
+    sources:
+      - bdcom-p5816-datasheet-001
+    notes: 24-port aggregation switch for OLT uplink aggregation.
   - family: P3600
     level: L2
     confidence_grade: B
