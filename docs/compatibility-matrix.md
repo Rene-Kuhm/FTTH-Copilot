@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 52
-- **Documented Sources**: 56
-- **Verified OID Facts**: 103
+- **Total Hardware Families**: 53
+- **Documented Sources**: 57
+- **Verified OID Facts**: 104
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 30 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 31 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -48,6 +48,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C650 | TITAN | **L2** | A | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C680 | TITAN | **L2** | A | 1 |
 | P1 | [Adtran](../research/olt/adtran/) | SDX-6000 | unknown | **L1** | A | 1 |
+| P1 | [Adtran](../research/olt/adtran/) | SDX-6320 | unknown | **L1** | A | 1 |
 | P1 | [Adtran](../research/olt/adtran/) | TA5000 | unknown | **L2** | B | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |

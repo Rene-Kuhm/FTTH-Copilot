@@ -24,3 +24,25 @@ families:
     supported_traps: []
     sources:
       - adtran-sdx-6000-portal-001
+  - family: SDX-6320
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 2
+    max_gpon_ports: 16
+    max_xgspom_ports: 16
+    max_subscribers: 8192
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    uplink_options:
+      - 100G QSFP28
+      - 10G SFP+
+    disaggregated_hardware: true
+    optical_class: C+
+    max_distance_km: 62
+    sources:
+      - adtran-sdx-6320-datasheet-001
+    notes: SDX 6320-16 Combo PON OLT with extended range optics (up to 62.5km). Part of disaggregated SD-Access platform.

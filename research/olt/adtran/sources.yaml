@@ -1,7 +1,7 @@
 - source_id: adtran-ta5000-tc-mib-001
   vendor: Adtran
   families:
-    - TA5000
+  - TA5000
   firmware: unknown
   title: Adtran Textual Conventions and TA5000 MIB
   publisher: LibreNMS / Adtran
@@ -11,45 +11,45 @@
   license: review-required
   sha256: null
   facts:
-    - notification_name: adGenGponOntAlarmSlotLosLevel
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1
-      status: recognized
-      severity: critical
-      category: los
-    - notification_name: adGenGponOntOMCICommFailAlarmSet
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.25
-      status: recognized
-      severity: warning
-      category: onu_offline
-    - notification_name: adGenGponOntDyingGaspAlarm
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38
-      status: recognized
-      severity: critical
-      category: dying_gasp
-    - notification_name: adGenGponPonDown
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5
-      status: recognized
-      severity: critical
-      category: pon_down
-    - notification_name: adGenGponPonUp
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.6
-      status: recognized
-      severity: info
-      category: pon_up
-    - notification_name: adGenGponOntOnline
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.26
-      status: recognized
-      severity: info
-      category: onu_online
-    - notification_name: adGenGponOntLosClear
-      oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2
-      status: recognized
-      severity: info
-      category: los_clear
+  - notification_name: adGenGponOntAlarmSlotLosLevel
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.1
+    status: recognized
+    severity: critical
+    category: los
+  - notification_name: adGenGponOntOMCICommFailAlarmSet
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.25
+    status: recognized
+    severity: warning
+    category: onu_offline
+  - notification_name: adGenGponOntDyingGaspAlarm
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.38
+    status: recognized
+    severity: critical
+    category: dying_gasp
+  - notification_name: adGenGponPonDown
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.5
+    status: recognized
+    severity: critical
+    category: pon_down
+  - notification_name: adGenGponPonUp
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.6
+    status: recognized
+    severity: info
+    category: pon_up
+  - notification_name: adGenGponOntOnline
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.26
+    status: recognized
+    severity: info
+    category: onu_online
+  - notification_name: adGenGponOntLosClear
+    oid: 1.3.6.1.4.1.664.6.10000.76.1.1.5.1.0.2
+    status: recognized
+    severity: info
+    category: los_clear
 - source_id: adtran-sdx-6000-portal-001
   vendor: Adtran
   families:
-    - SDX-6000
+  - SDX-6000
   firmware: unknown
   title: Adtran SDX 6000 Series 10G OLT Portfolio
   publisher: ADTRAN, Inc.
@@ -59,3 +59,22 @@
   license: restricted
   sha256: null
   facts: []
+- source_id: adtran-sdx-6320-datasheet-001
+  vendor: Adtran
+  families:
+  - SDX-6320
+  firmware: unknown
+  title: ADTRAN SDX 6320-16 10G PON/GPON OLT
+  publisher: Adtran / Pulse Supply
+  url: https://www.pulsesupply.com/images/pdf/adtran/6320-16_SDX_Series.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+  - notification_name: adtran-sdx-6320-16-device-info
+    oid: 1.3.6.1.4.1.664.5.5320.16.1
+    status: recognized
+    severity: info
+    category: device_info
+    description: 'SDX-6320-16: 16 Combo PON ports (GPON/XG-PON1/XGS-PON), 4xQSFP28 100G + 4xSFP+ 10G uplinks, disaggregated vOLT'
