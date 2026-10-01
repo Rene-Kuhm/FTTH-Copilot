@@ -19,6 +19,49 @@ families:
     sources:
       - fiberhome-snmp-implementation-001
       - fiberhome-librenms-common-mib-001
+      - fiberhome-an5516-handbook-001
+  - family: AN5516-01
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: chassis
+    slots: 16
+    max_gpon_ports: 128
+    max_xgspom_ports: 128
+    max_subscribers: 16384
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - fiberhome-an5516-01-portal-001
+    notes: 16-slot chassis supporting EPON/GPON/XG-PON/XGS-PON/Combo via swappable line cards.
+  - family: AN5116-06B
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: chassis
+    slots: 6
+    max_gpon_ports: 48
+    max_subscribers: 6144
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - fiberhome-an5516-01-portal-001
+    notes: Compact 6-slot variant of AN5516 series.
   - family: AN6000
     level: L2
     confidence_grade: B
