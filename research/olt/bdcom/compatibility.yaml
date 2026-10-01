@@ -16,3 +16,32 @@ families:
       - nmsGponPonUp
     sources:
       - bdcom-librenms-gpon-mib-001
+  - family: P3310B
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: outdoor cabinet
+    max_gpon_ports: 8
+    max_subscribers: 512
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - bdcom-p3310b-datasheet-001
+    notes: 1U rack-mount high-performance cabinet OLT, 1:64 split, IEEE 802.3ah compliant.
+  - family: P3310C
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: outdoor cabinet
+    max_gpon_ports: 8
+    max_subscribers: 1024
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - bdcom-p3310b-datasheet-001
+    notes: P3310C 8-port GPON OLT with 1:128 split ratio support.

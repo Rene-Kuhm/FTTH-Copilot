@@ -25,3 +25,50 @@
   license: review-required
   sha256: null
   facts: []
+
+- source_id: cdata-fd1104sn-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1104SN
+  firmware: unknown
+  title: C-Data FD1104SN EPON OLT Datasheet
+  publisher: Shenzhen C-Data Technology
+  url: https://www.mondoplast.ro/download/7438/FD1104SNEPONOLTDatasheet1.3.pdf
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: cdata-fd1104sn-device-info
+      oid: 1.3.6.1.4.1.34592.1.1104.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1104SN: 1U pizza-box EPON OLT, 4 EPON ports, 4 GE + 4 SFP uplinks, up to 256 ONUs at 1:64 split"
+
+- source_id: cdata-fd1604s-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1604S
+    - FD1604E-C1
+  firmware: unknown
+  title: C-Data FD1604S/FD1604E-C1 GPON OLT Datasheet
+  publisher: Shenzhen C-Data Technology
+  url: https://www.cdatatec.com/uploads/file/20250613/fd1604s-c1-fd1604e-c1-gpon-olt--v5.0.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: cdata-fd1604s-device-info
+      oid: 1.3.6.1.4.1.34592.1.1604.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1604S: 1U rack-mount GPON OLT, 4 fixed GPON ports, 1:128 split, up to 512/1024 terminals"
+    - notification_name: cdata-fd1604ec1-device-info
+      oid: 1.3.6.1.4.1.34592.1.1604.2
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1604E-C1: 4 fixed GPON + 1 optional 4-GPON card, 1:128 split, up to 1024 terminals"

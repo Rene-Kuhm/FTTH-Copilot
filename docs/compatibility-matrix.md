@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 53
-- **Documented Sources**: 57
-- **Verified OID Facts**: 104
+- **Total Hardware Families**: 58
+- **Documented Sources**: 60
+- **Verified OID Facts**: 109
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 31 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 36 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -50,7 +50,10 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Adtran](../research/olt/adtran/) | SDX-6000 | unknown | **L1** | A | 1 |
 | P1 | [Adtran](../research/olt/adtran/) | SDX-6320 | unknown | **L1** | A | 1 |
 | P1 | [Adtran](../research/olt/adtran/) | TA5000 | unknown | **L2** | B | 1 |
+| P1 | [C-Data](../research/olt/cdata/) | FD1104SN | undefined | **L1** | B | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
+| P1 | [C-Data](../research/olt/cdata/) | FD1604E-C1 | unknown | **L1** | A | 1 |
+| P1 | [C-Data](../research/olt/cdata/) | FD1604S | unknown | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | E3-2 | AXOS | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | E3-48C | E7-OS-R2.5 | **L1** | A | 1 |
@@ -70,6 +73,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Zyxel](../research/olt/zyxel/) | IES5206 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1404B | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1408B | unknown | **L1** | A | 1 |
+| P2 | [BDCOM](../research/olt/bdcom/) | P3310B | unknown | **L1** | B | 1 |
+| P2 | [BDCOM](../research/olt/bdcom/) | P3310C | unknown | **L1** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3600 | unknown | **L2** | B | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UFiber | unknown | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UISP-Fiber-OLT-XGS | UISP | **L1** | A | 2 |
