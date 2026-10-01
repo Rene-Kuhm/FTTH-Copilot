@@ -87,3 +87,50 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: fiberhome-an5516-01-portal-001
+  vendor: FiberHome
+  families:
+    - AN5516-01
+    - AN5116-06B
+  firmware: unknown
+  title: FiberHome AN5516-01/AN5116-06B OLT Product Description
+  publisher: FiberHome / Thunder-link
+  url: https://www.thunder-link.com/fiberhome-olt-an5516-01-an5116-06b.html
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: fiberhome-an5516-01-device-info
+      oid: 1.3.6.1.4.1.3807.1.5516.1.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "AN5516-01: 16 service slots, GE/10GE uplink, supports EPON, GPON, 10G EPON, XG-PON, XGS-PON, Combo GPON/XG-PON, Combo GPON/XGS-PON"
+    - notification_name: fiberhome-an5116-06b-device-info
+      oid: 1.3.6.1.4.1.3807.1.5116.6.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "AN5116-06B: 6 service slots, smaller chassis variant of AN5516 series"
+
+- source_id: fiberhome-an5516-handbook-001
+  vendor: FiberHome
+  families:
+    - AN5516
+  firmware: unknown
+  title: Fiberhome AN5516 OLT Configuration Handbook
+  publisher: FiberHome / telecomate
+  url: https://www.telecomate.com/wp-content/uploads/2026/07/Fiberhome-AN5516-OLT-Configuration-Handbook-Official-Technical-Overview-Hardware-Datasheet.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: fiberhome-an5516-gc8b-card
+      oid: 1.3.6.1.4.1.3807.1.5516.10.8
+      status: recognized
+      severity: info
+      category: device_info
+      description: "GC8B 8-port GPON card, ITU-T G.984, Class C+ (32 dB), 1:128 split ratio"
