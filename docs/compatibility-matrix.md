@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 65
-- **Documented Sources**: 66
-- **Verified OID Facts**: 117
+- **Total Hardware Families**: 69
+- **Documented Sources**: 74
+- **Verified OID Facts**: 129
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 43 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 47 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -58,6 +58,10 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [C-Data](../research/olt/cdata/) | FD1604E-C1 | unknown | **L1** | A | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1604S | unknown | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
+| P1 | [Calix](../research/olt/calix/) | 844G-2 | AXOS | **L1** | A | 1 |
+| P1 | [Calix](../research/olt/calix/) | 844GE-2 | AXOS | **L1** | A | 1 |
+| P1 | [Calix](../research/olt/calix/) | B6-002 | AXOS | **L1** | A | 1 |
+| P1 | [Calix](../research/olt/calix/) | B6-006 | AXOS | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | E3-2 | AXOS | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | E3-48C | E7-OS-R2.5 | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | E5-48C | E7-OS-R2.5 | **L1** | A | 1 |
