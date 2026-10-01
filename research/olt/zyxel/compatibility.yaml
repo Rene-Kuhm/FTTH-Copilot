@@ -42,3 +42,50 @@ families:
     sources:
       - zyxel-olt1408b-portal-001
     notes: Pizza Box 8-port GPON OLT. Class B+ optics.
+  - family: OLT2404
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 2U
+    slots: 4
+    max_gpon_ports: 64
+    max_subscribers: 4096
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - zyxel-olt2406-datasheet-001
+    notes: 2U 4-slot chassis MSAN/OLT with redundant power and dual management cards.
+  - family: OLT2406
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 2U
+    max_gpon_ports: 16
+    max_subscribers: 1024
+    uplink_options:
+      - 4 GE
+      - 2 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - zyxel-olt2406-datasheet-001
+    notes: 16-port GPON OLT, ITU-T G.984 compliant.
+  - family: IES4204
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 2U
+    slots: 4
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    sources:
+      - zyxel-ies4204-datasheet-001
+    notes: 2U 4-slot temperature-hardened chassis MSAN/OLT, 80x10GbE + 32xAIO PON.
