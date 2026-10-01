@@ -68,3 +68,23 @@
       severity: info
       category: device_info
       description: "P3310C: 8-port GPON, larger chassis, 1:128 split ratio"
+
+- source_id: bdcom-p5816-datasheet-001
+  vendor: BDCOM
+  families:
+    - P5816-24T
+  firmware: unknown
+  title: BDCOM P5816 Series Aggregation Switch
+  publisher: BDCOM
+  url: https://www.bdcom.com.cn/Product/Index/id/9
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: bdcomP5816DeviceInfo
+      oid: 1.3.6.1.4.1.3320.10.5816.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "P5816-24T: 24-port aggregation switch, 10GE uplinks"

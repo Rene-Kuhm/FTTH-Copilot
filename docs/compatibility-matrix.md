@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 69
-- **Documented Sources**: 74
-- **Verified OID Facts**: 129
+- **Total Hardware Families**: 79
+- **Documented Sources**: 81
+- **Verified OID Facts**: 139
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 47 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 57 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -26,6 +26,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P0 | [FiberHome](../research/olt/fiberhome/) | AN6000 | unknown | **L2** | B | 3 |
 | P0 | [Huawei](../research/olt/huawei/) | HN8245Q | undefined | **L1** | B | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5600 | unknown | **L2** | B | 2 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5600T | V800R019 | **L1** | A | 1 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5603T | V800R019 | **L1** | A | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X15 | V100R019 | **L2** | A | 2 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X17 | V100R019 | **L2** | A | 2 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X2 | V100R019 | **L2** | A | 1 |
@@ -57,6 +59,9 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1604E-C1 | unknown | **L1** | A | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1604S | unknown | **L1** | A | 1 |
+| P1 | [C-Data](../research/olt/cdata/) | FD1700S | unknown | **L1** | A | 1 |
+| P1 | [C-Data](../research/olt/cdata/) | FD1801S-C1 | unknown | **L1** | A | 1 |
+| P1 | [C-Data](../research/olt/cdata/) | FD6700S | unknown | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | 844G-2 | AXOS | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | 844GE-2 | AXOS | **L1** | A | 1 |
@@ -76,8 +81,12 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V16 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L1** | A | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600 | unknown | **L2** | B | 2 |
+| P1 | [VSOL](../research/olt/vsol/) | V1600XG02 | unknown | **L1** | A | 1 |
 | P1 | [VSOL](../research/olt/vsol/) | V2801RH | undefined | **L1** | A | 1 |
 | P1 | [VSOL](../research/olt/vsol/) | V2802RH | undefined | **L1** | A | 1 |
+| P1 | [VSOL](../research/olt/vsol/) | V2902A | undefined | **L1** | A | 1 |
+| P1 | [VSOL](../research/olt/vsol/) | V2905H | undefined | **L1** | A | 1 |
+| P1 | [VSOL](../research/olt/vsol/) | V3600G1-C | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES4204 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES5206 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1404B | unknown | **L1** | A | 1 |
@@ -87,6 +96,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P2 | [BDCOM](../research/olt/bdcom/) | P3310B | unknown | **L1** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3310C | unknown | **L1** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3600 | unknown | **L2** | B | 1 |
+| P2 | [BDCOM](../research/olt/bdcom/) | P5816-24T | undefined | **L1** | B | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UFiber | unknown | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UISP-Fiber-OLT-XGS | UISP | **L1** | A | 2 |
 
