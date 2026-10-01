@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 58
-- **Documented Sources**: 60
-- **Verified OID Facts**: 109
+- **Total Hardware Families**: 60
+- **Documented Sources**: 62
+- **Verified OID Facts**: 112
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 36 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 38 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -20,7 +20,9 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 
 | Priority | Vendor | Family / Series | Firmware | Level | Grade | Sources |
 |---|---|---|---|---|---|---|
-| P0 | [FiberHome](../research/olt/fiberhome/) | AN5516 | unknown | **L2** | B | 2 |
+| P0 | [FiberHome](../research/olt/fiberhome/) | AN5116-06B | unknown | **L1** | B | 1 |
+| P0 | [FiberHome](../research/olt/fiberhome/) | AN5516 | unknown | **L2** | B | 3 |
+| P0 | [FiberHome](../research/olt/fiberhome/) | AN5516-01 | unknown | **L1** | A | 1 |
 | P0 | [FiberHome](../research/olt/fiberhome/) | AN6000 | unknown | **L2** | B | 3 |
 | P0 | [Huawei](../research/olt/huawei/) | HN8245Q | undefined | **L1** | B | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5600 | unknown | **L2** | B | 2 |
