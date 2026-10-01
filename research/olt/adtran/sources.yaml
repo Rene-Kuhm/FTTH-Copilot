@@ -78,3 +78,23 @@
     severity: info
     category: device_info
     description: 'SDX-6320-16: 16 Combo PON ports (GPON/XG-PON1/XGS-PON), 4xQSFP28 100G + 4xSFP+ 10G uplinks, disaggregated vOLT'
+
+- source_id: adtran-ta1148-datasheet-001
+  vendor: Adtran
+  families:
+    - TA1148
+  firmware: unknown
+  title: Adtran TA1148 10G XGS-PON ONT
+  publisher: Adtran
+  url: https://www.adtran.com/en/products-and-services/ta1148
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: adtran-ta1148-device-info
+      oid: 1.3.6.1.4.1.664.5.1148.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "TA1148: 10G XGS-PON ONT, 4 GE + 1 10GE, WiFi 6, 2 POTS"
