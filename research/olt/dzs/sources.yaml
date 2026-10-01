@@ -134,3 +134,43 @@
       status: provisional
       severity: info
       category: pon_up
+
+- source_id: dzs-velocity-v14-datasheet-001
+  vendor: DZS
+  families:
+    - Velocity-V14
+  firmware: sdNOS
+  title: DZS Velocity V14 14-Slot Chassis OLT
+  publisher: DZS / Zhone
+  url: https://zhone.com/wp-content/uploads/V14-V16-OLT_Datasheet.pdf
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: dzsVelocityV14DeviceInfo
+      oid: 1.3.6.1.4.1.5504.5.14.50.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "Velocity V14: 14-slot high-density chassis, GPON/XGS-PON/Combo/10GbE AE, sdNOS, disaggregated architecture"
+
+- source_id: dzs-velocity-mxk-194-001
+  vendor: DZS
+  families:
+    - MXK-194
+  firmware: unknown
+  title: DZS MXK-194/MXK-198 Intelligent Multiservice Gateway
+  publisher: DZS / ANATEL
+  url: https://fccid.io/ANATEL/02896-12-07105/Manual/CA688C46-4656-426E-8892-3A52C65A99ED/PDF
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: dzsMxk194DeviceInfo
+      oid: 1.3.6.1.4.1.5504.5.14.40.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "MXK-194: 4/8 GPON ports, 8 FE/GE uplinks, indoor/outdoor mounting"

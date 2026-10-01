@@ -74,3 +74,43 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: ubiquiti-uf-loco-001
+  vendor: Ubiquiti
+  families:
+    - UF-LOCO
+  firmware: UFiber
+  title: UISP Fiber Loco Tech Specs
+  publisher: Ubiquiti Networks
+  url: https://techspecs.ui.com/uisp/fiber/ufiber-loco
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: ubiquitiUfLocoDeviceInfo
+      oid: 1.3.6.1.4.1.41112.2.7.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "UF-LOCO: 76.5x76.5x26.4mm GPON CPE, 1 SC/APC + 1 GbE, Micro-USB/24V PoE"
+
+- source_id: ubiquiti-uf-nano-001
+  vendor: Ubiquiti
+  families:
+    - UF-NANO
+  firmware: UFiber
+  title: UISP Fiber Nano Tech Specs
+  publisher: Ubiquiti Networks
+  url: https://techspecs.ui.com/uisp/fiber/uf-nano
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: ubiquitiUfNanoDeviceInfo
+      oid: 1.3.6.1.4.1.41112.2.8.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "UF-Nano: 77x77x28mm GPON CPE with LED display, 1 SC/APC + 1 GbE, 24V PoE"
