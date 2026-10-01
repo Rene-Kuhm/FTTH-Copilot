@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 49
-- **Documented Sources**: 54
-- **Verified OID Facts**: 100
+- **Total Hardware Families**: 52
+- **Documented Sources**: 56
+- **Verified OID Facts**: 103
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 27 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 30 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -51,6 +51,9 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Adtran](../research/olt/adtran/) | TA5000 | unknown | **L2** | B | 1 |
 | P1 | [C-Data](../research/olt/cdata/) | FD1600 | unknown | **L1** | A | 2 |
 | P1 | [Calix](../research/olt/calix/) | 844G-1 | undefined | **L1** | A | 2 |
+| P1 | [Calix](../research/olt/calix/) | E3-2 | AXOS | **L1** | A | 1 |
+| P1 | [Calix](../research/olt/calix/) | E3-48C | E7-OS-R2.5 | **L1** | A | 1 |
+| P1 | [Calix](../research/olt/calix/) | E5-48C | E7-OS-R2.5 | **L1** | A | 1 |
 | P1 | [Calix](../research/olt/calix/) | E7 | unknown | **L2** | B | 1 |
 | P1 | [Calix](../research/olt/calix/) | E9 | unknown | **L1** | A | 1 |
 | P1 | [Cisco](../research/olt/cisco/) | NCS-1010 | IOS-XR-7.9.1 | **L1** | A | 1 |

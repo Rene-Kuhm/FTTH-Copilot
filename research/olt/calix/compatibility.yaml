@@ -46,3 +46,37 @@ families:
     sources:
       - calix-844g-1-datasheet-001
       - calix-844g-1-wifi-cert-001
+  - family: E3-2
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    form_factor: outdoor
+    slots: 2
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - calix-e3-2-portal-001
+    notes: Sealed remote OLT, pluggable SFP+ modules, environmentally hardened, no active cooling.
+  - family: E5-48C
+    level: L1
+    confidence_grade: A
+    firmware: E7-OS-R2.5
+    form_factor: chassis
+    max_subscribers: 4096
+    pon_technologies:
+      - GPON
+    sources:
+      - calix-e-series-planning-001
+    notes: E-Series modular Ethernet access chassis with E7 OS.
+  - family: E3-48C
+    level: L1
+    confidence_grade: A
+    firmware: E7-OS-R2.5
+    form_factor: 1U
+    ethernet_ports: 48
+    sources:
+      - calix-e-series-planning-001
+    notes: E-Series compact 48-port Ethernet access system.

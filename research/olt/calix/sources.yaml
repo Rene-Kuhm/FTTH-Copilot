@@ -89,3 +89,51 @@
       severity: info
       category: certification
       description: "Wi-Fi CERTIFIED ac, 2.4GHz + 5GHz, 4x4 MIMO, DFS channels"
+
+- source_id: calix-e3-2-portal-001
+  vendor: Calix
+  families:
+    - E3-2
+  firmware: unknown
+  title: Calix AXOS E3-2 Intelligent PON Node
+  publisher: Calix Networks
+  url: https://www.calix.com/products/platform/intelligent-access/systems/axos-e3-2.html
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: calix-e3-2-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.3.2.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "AXOS E3-2: sealed remote OLT, pluggable subscriber interface modules, XGS-PON/GPON/Multi-PON, environmentally hardened"
+
+- source_id: calix-e-series-planning-001
+  vendor: Calix
+  families:
+    - E5-48C
+    - E3-48C
+    - E3-8G
+  firmware: E7-OS-R2.5
+  title: Calix E-Series (E7 OS R2.5) Engineering and Planning Guide
+  publisher: Calix Networks
+  url: https://device.report/m/b92e1d95f099ace3977679955de88a3b6920dbf789343e9e7e5c4c9b634e36b8.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: calix-e5-48c-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.5.48.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "E5-48C: Calix E-Series E7 OS modular chassis, 48-port Ethernet access system"
+    - notification_name: calix-e3-48c-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.3.48.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "E3-48C: smaller form-factor E7-2 with 48-port Ethernet"
