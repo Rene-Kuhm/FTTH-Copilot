@@ -21,6 +21,34 @@ families:
       - ubiquiti-ufiber-datasheet-001
     supported_traps: []
 
+  - family: UF-LOCO
+    level: L1
+    confidence_grade: A
+    firmware: UFiber
+    device_kind: ont
+    form_factor: ont
+    pon_technology: GPON
+    ethernet_ports: 1
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - ubiquiti-uf-loco-001
+    notes: Compact GPON CPE (76.5mm cube), 1x SC/APC + 1x GbE, Micro-USB or 24V PoE.
+
+  - family: UF-NANO
+    level: L1
+    confidence_grade: A
+    firmware: UFiber
+    device_kind: ont
+    form_factor: ont
+    pon_technology: GPON
+    ethernet_ports: 1
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - ubiquiti-uf-nano-001
+    notes: GPON CPE with LED status display, 1x SC/APC + 1x GbE, 24V PoE.
+
   - family: UISP-Fiber-OLT-XGS
     level: L1
     confidence_grade: A

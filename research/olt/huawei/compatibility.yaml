@@ -18,6 +18,54 @@ families:
     sources:
       - huawei-ma5600-snmp-mib-001
       - huawei-ma5600-manual-v800
+
+  - family: MA5600T
+    level: L1
+    confidence_grade: A
+    firmware: V800R019
+    form_factor: chassis
+    slots: 16
+    max_gpon_ports: 256
+    max_xgpon_ports: 256
+    max_subscribers: 32768
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - huawei-ma5600t-portal-001
+    standards_compliance:
+      omci_version: G.988
+      vOMCI_ready: true
+      tr069_supported: true
+      tr369_usp_supported: true
+      disaggregated_vlt: false
+    notes: Aggregation OLT with Terabit capacity, 16 service slots, fully compatible with MA5603T.
+
+  - family: MA5603T
+    level: L1
+    confidence_grade: A
+    firmware: V800R019
+    form_factor: chassis
+    slots: 6
+    max_gpon_ports: 96
+    max_xgpon_ports: 96
+    max_subscribers: 12288
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - huawei-ma5600t-portal-001
+    notes: Medium-capacity OLT with 6 service slots, hardware-compatible with MA5600T.
   - family: MA5800-X17
     level: L2
     confidence_grade: A
