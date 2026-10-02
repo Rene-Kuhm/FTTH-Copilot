@@ -1,0 +1,104 @@
+vendor: Raisecom
+priority: P2
+iana_pens:
+  - 34595  # Raisecom Technology
+families:
+  - family: ISCOM5508-GP
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 2
+    max_gpon_ports: 8
+    max_subscribers: 1024
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - raisecom-iscom5508gp-001
+    notes: >-
+      Standalone modular GPON OLT for enterprise, SME and residential
+      fibre access. Plug-in line cards allow incremental capacity growth.
+
+  - family: ISCOM6820-GP
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 2U
+    slots: 4
+    max_gpon_ports: 32
+    max_subscribers: 4096
+    uplink_options:
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - raisecom-iscom6820gp-001
+    notes: >-
+      2U small-capacity GPON OLT designed for low-density, long-distance and
+      outdoor deployments. 320 Gbit/s backplane, 1:128 split ratio.
+
+  - family: ISCOM6860
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: chassis
+    slots: 16
+    max_gpon_ports: 256
+    max_xgpon_ports: 256
+    max_subscribers: 32768
+    uplink_options:
+      - 10GE
+      - 100GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - raisecom-iscom6860-001
+    notes: >-
+      High-density carrier-grade multi-PON chassis. 2.88 Tbit/s backplane with
+      1.44 Tbit/s switching and 1:1 switching redundancy for wire-rate
+      non-blocking forwarding.
+
+  - family: ISCOM6800
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: chassis
+    slots: 12
+    max_gpon_ports: 192
+    max_xgpon_ports: 192
+    max_subscribers: 24576
+    uplink_options:
+      - 10GE
+      - 100GE
+    pon_technologies:
+      - GPON
+      - XG-PON
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - raisecom-iscom6800-001
+    notes: >-
+      High-capacity chassis xPON OLT, 2.56 Tbit/s backplane and 1.28 Tbit/s
+      switching. Predecessor generation to the ISCOM6860.
+
+# SNMP: Raisecom publishes platform MIBs under their registered PEN.
+# Alarm OIDs above are registry placeholders pending lab confirmation.
+snmp_enterprise: 34595
+mib_references:
+  - name: Raisecom ISCOM MIB
+    source: Raisecom Technology
+    url: https://en.raisecom.com/support/download
+    oid_prefix: 1.3.6.1.4.1.34595
+    notes: >-
+      Platform and inventory MIBs documented in the support download area.
+      No public trap catalogue; treat notification OIDs as provisional.

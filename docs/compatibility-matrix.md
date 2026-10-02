@@ -4,14 +4,14 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 
 ## 1. Summary Statistics
 
-- **Total Vendors Registered**: 14
-- **Total Hardware Families**: 83
-- **Documented Sources**: 81
-- **Verified OID Facts**: 139
+- **Total Vendors Registered**: 17
+- **Total Hardware Families**: 90
+- **Documented Sources**: 89
+- **Verified OID Facts**: 148
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 61 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 68 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -82,6 +82,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V14 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V16 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L1** | A | 2 |
+| P1 | [Edgecore](../research/olt/edgecore/) | ASGvOLT64 | unknown | **L1** | A | 1 |
+| P1 | [Edgecore](../research/olt/edgecore/) | ASXvOLT16 | unknown | **L1** | A | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600 | unknown | **L2** | B | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600XG02 | unknown | **L1** | A | 1 |
 | P1 | [VSOL](../research/olt/vsol/) | V2801RH | undefined | **L1** | A | 1 |
@@ -99,6 +101,11 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P2 | [BDCOM](../research/olt/bdcom/) | P3310C | unknown | **L1** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3600 | unknown | **L2** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P5816-24T | undefined | **L1** | B | 1 |
+| P2 | [Ericsson](../research/olt/ericsson/) | EDA-1500 | R7.0 | **L1** | B | 1 |
+| P2 | [Raisecom](../research/olt/raisecom/) | ISCOM5508-GP | unknown | **L1** | A | 1 |
+| P2 | [Raisecom](../research/olt/raisecom/) | ISCOM6800 | unknown | **L1** | B | 1 |
+| P2 | [Raisecom](../research/olt/raisecom/) | ISCOM6820-GP | unknown | **L1** | A | 1 |
+| P2 | [Raisecom](../research/olt/raisecom/) | ISCOM6860 | unknown | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UF-LOCO | UFiber | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UF-NANO | UFiber | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UFiber | unknown | **L1** | A | 1 |
