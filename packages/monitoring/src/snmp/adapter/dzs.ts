@@ -12,9 +12,13 @@
 import { type TelemetryEvent } from '@ftth-copilot/shared';
 import { lookupTrapDefinition } from '../catalog';
 import { extractIfMibVarbinds } from '../extractors/if-mib';
+import { decodeVendorSerialNumber } from '../extractors/vendor-helpers';
 import type { ResolvedDeviceIdentity } from '../identity';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from '../types';
 import type { OltVendorAdapter } from './contract';
+
+/** Zhone-GPON-MIB ONT index column, without the instance suffix. */
+const DZS_GPON_ONT_INDEX_PREFIX = '1.3.6.1.4.1.5504.5.14.1.1';
 
 export class DzsOltAdapter implements OltVendorAdapter {
   readonly vendorId = 'dzs';
@@ -166,9 +170,18 @@ export class DzsOltAdapter implements OltVendorAdapter {
 
   /**
    * Extract GPON hierarchy from Zhone/DZS trap varbinds.
-   * Zhone-GPON-MIB uses index patterns like:
-   * - zhoneGponOntIndex: 1.3.6.1.4.1.5504.5.14.1.1.{ontIndex}
-   * - zhoneGponSerialNumber: serial number string
+   *
+   * Zhone-GPON-MIB documents the ONT index at
+   * `1.3.6.1.4.1.5504.5.14.1.1.{ontIndex}`. The index component layout is not
+   * published, so frame/slot/port are only reported when the trailing OID
+   * segments are unambiguous — a single number is treated as the ONT id alone
+   * rather than being spread across invented frame/slot/port fields.
+   *
+   * Serial extraction goes through `decodeVendorSerialNumber`, which enforces
+   * the standard 4-character vendor prefix convention and rejects known
+   * non-serial prefixes. Matching on the bare `5504.5.14` subtree is not
+   * sufficient: that subtree also carries ODN identifiers such as
+   * `CTO-NORTE-12` and `NAP-CENTRO-01`, which are not ONT serials.
    */
   private extractZhoneGponHierarchy(
     notification: DecodedSnmpNotification,
@@ -187,36 +200,31 @@ export class DzsOltAdapter implements OltVendorAdapter {
       serial?: string;
     } = {};
 
-    // Look for serial number in varbinds
+    // First valid serial wins; later varbinds must not overwrite it.
     for (const vb of notification.varbinds) {
-      const oid = vb.oid.toLowerCase();
+      if (result.serial) break;
+      const decoded = decodeVendorSerialNumber(vb.value, vb.rawHex);
+      if (decoded) result.serial = decoded;
+    }
 
-      // Zhone-GPON-MIB OIDs for serial number
-      if (
-        oid.includes('5504.5.14') ||
-        oid.includes('zhonegpon') ||
-        oid.includes('serialnumber')
-      ) {
-        if (typeof vb.value === 'string' && vb.value.length >= 8) {
-          result.serial = vb.value;
-        }
-      }
-
-      // Try to extract index components from OID
-      // Pattern: .1.3.6.1.4.1.5504.5.14.1.1.X.Y.Z.W
-      // where X=frame, Y=slot, Z=port, W=ontIndex
-      const parts = oid.split('.');
+    // Zhone-GPON-MIB ONT index: 1.3.6.1.4.1.5504.5.14.1.1.{ontIndex}
+    const indexMatch = notification.varbinds
+      .map((vb) => vb.oid.trim())
+      .find((oid) => oid.startsWith(`${DZS_GPON_ONT_INDEX_PREFIX}.`));
+    if (indexMatch) {
+      const suffix = indexMatch.slice(DZS_GPON_ONT_INDEX_PREFIX.length + 1);
+      const parts = suffix
+        .split('.')
+        .map((p) => parseInt(p, 10))
+        .filter((n) => !Number.isNaN(n) && n >= 0);
       if (parts.length >= 4) {
-        const lastParts = parts.slice(-4);
-        const numericParts = lastParts.filter((p) => /^\d+$/.test(p));
-        if (numericParts.length >= 3) {
-          result.frame = parseInt(numericParts[0], 10);
-          result.slot = parseInt(numericParts[1], 10);
-          result.port = parseInt(numericParts[2], 10);
-          if (numericParts.length >= 4) {
-            result.onuId = parseInt(numericParts[3], 10);
-          }
-        }
+        const [frame, slot, port, onuId] = parts.slice(-4);
+        result.frame = frame;
+        result.slot = slot;
+        result.port = port;
+        result.onuId = onuId;
+      } else if (parts.length === 1) {
+        result.onuId = parts[0];
       }
     }
 

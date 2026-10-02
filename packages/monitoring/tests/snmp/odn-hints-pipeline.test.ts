@@ -139,8 +139,6 @@ describe('ODN Hint Pipeline Integration (Fase ODN-2)', () => {
   it('preserves the adapter-emitted deviceKind and deviceId alongside ODN hints', () => {
     // Note: The DZS adapter has its own internal serial detection that matches
     // any varbind value with length >= 8 inside an OID containing '5504.5.14'.
-    // To avoid interference with the DZS adapter's heuristic, this test uses
-    // a separate OID namespace for the ODN hint varbind.
     const notification: DecodedSnmpNotification = {
       version: 'v2c',
       pduType: 'TrapV2',
@@ -150,8 +148,9 @@ describe('ODN Hint Pipeline Integration (Fase ODN-2)', () => {
       receivedAtMs: 1773316800000,
       varbinds: [
         { oid: '1.3.6.1.4.1.5504.5.14.1.1.1', type: 'OctetString', value: 'DZSA12345678' },
-        // ODN hint in a separate OID namespace (outside 5504.5.14 subtree)
-        { oid: '1.3.6.1.4.1.99999.10.50.1', type: 'OctetString', value: 'CTO-NORTE-12' },
+        // ODN identifier inside the same 5504.5.14 subtree the serial scanner
+        // used to over-match. It must not be mistaken for an ONT serial.
+        { oid: '1.3.6.1.4.1.5504.5.14.10.50.1', type: 'OctetString', value: 'CTO-NORTE-12' },
       ],
     };
 

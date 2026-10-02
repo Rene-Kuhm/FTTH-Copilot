@@ -144,4 +144,99 @@ describe('DZS / Zhone OLT Adapter', () => {
     expect(event.metrics.isClear).toBe(true);
     expect(event.metrics.clearsCategory).toBe('los');
   });
+
+  // ── Regression: ODN identifiers must never be mistaken for ONT serials ──
+  //
+  // The previous scanner matched any varbind whose OID contained the bare
+  // `5504.5.14` subtree and whose value was 8+ characters. That subtree also
+  // carries ODN identifiers, so `CTO-NORTE-12` was reported as `deviceId` for
+  // ONU-scoped events. The loop also had no early exit, so a trailing ODN
+  // varbind overwrote a genuine serial that appeared earlier.
+
+  it('does not treat an ODN identifier as an ONT serial', () => {
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.5.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.5504.5.14.2.1.2',
+      receivedAtMs: 1773316800000,
+      varbinds: [
+        { oid: '1.3.6.1.4.1.5504.5.14.1.1.1', type: 'OctetString', value: 'CTO-NORTE-12' },
+      ],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+
+    // The ODN identifier is rejected as a serial, so the event falls back to a
+    // positional id derived from the ONT index instance rather than to the CTO.
+    expect(event.deviceId).not.toBe('CTO-NORTE-12');
+    expect(event.metrics.serial).toBeUndefined();
+    expect(event.deviceKind).toBe('ONU');
+    expect(event.deviceId).toBe('mxk-819-core:onu:0/0/0/1');
+  });
+
+  it('keeps the first valid serial when a later varbind looks serial-like', () => {
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.5.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.5504.5.14.2.1.2',
+      receivedAtMs: 1773316800000,
+      varbinds: [
+        { oid: '1.3.6.1.4.1.5504.5.14.1.1.1', type: 'OctetString', value: 'DZSA12345678' },
+        { oid: '1.3.6.1.4.1.5504.5.14.10.50.1', type: 'OctetString', value: 'NAP-CENTRO-01' },
+      ],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+
+    expect(event.deviceId).toBe('DZSA12345678');
+    expect(event.metrics.serial).toBe('DZSA12345678');
+  });
+
+  it('does not invent frame/slot/port from an arbitrary subtree OID', () => {
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.5.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.5504.5.14.2.1.2',
+      receivedAtMs: 1773316800000,
+      varbinds: [
+        { oid: '1.3.6.1.4.1.5504.5.14.1.1.1', type: 'OctetString', value: 'DZSA12345678' },
+        // Not the documented ONT index column, so no hierarchy is derived.
+        { oid: '1.3.6.1.4.1.5504.5.14.99.1.2.3', type: 'OctetString', value: 'x' },
+      ],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+
+    expect(event.metrics.frame).toBeUndefined();
+    expect(event.metrics.slot).toBeUndefined();
+    expect(event.metrics.port).toBeUndefined();
+  });
+
+  it('derives frame/slot/port/onuId only from the documented ONT index column', () => {
+    const notification: DecodedSnmpNotification = {
+      version: 'v2c',
+      pduType: 'TrapV2',
+      senderIp: '10.100.5.10',
+      senderPort: 162,
+      trapOid: '1.3.6.1.4.1.5504.5.14.2.1.2',
+      receivedAtMs: 1773316800000,
+      varbinds: [
+        { oid: '1.3.6.1.4.1.5504.5.14.1.1.1.2.3.4.5', type: 'OctetString', value: 'DZSA12345678' },
+      ],
+    };
+
+    const event = executeAdapterSafe(adapter, notification, mockIdentity, mockEvidence);
+
+    expect(event.metrics.frame).toBe(2);
+    expect(event.metrics.slot).toBe(3);
+    expect(event.metrics.port).toBe(4);
+    expect(event.metrics.onuId).toBe(5);
+    expect(event.deviceId).toBe('DZSA12345678');
+  });
 });
