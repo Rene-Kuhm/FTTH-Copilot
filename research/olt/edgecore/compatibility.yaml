@@ -1,0 +1,80 @@
+vendor: Edgecore
+vendor_aliases:
+  - Accton
+priority: P1
+iana_pens:
+  - 40418  # Edgecore Networks (Accton Technology)
+families:
+  - family: ASXvOLT16
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 0
+    max_xgspom_ports: 16
+    max_subscribers: 2048
+    uplink_options:
+      - 100G QSFP28
+      - 40G QSFP28
+      - 25G SFP28
+    pon_technologies:
+      - XGS-PON
+    disaggregated_hardware: true
+    standards_compliance:
+      omci_version: G.988
+      vOMCI_ready: true
+      tr369_usp_supported: true
+      disaggregated_vlt: true
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - edgecore-asxvolt16-portal-001
+      - edgecore-asxvolt16-ocf-002
+    notes: >-
+      Open disaggregated vOLT, OCP/TIP-recognised. 16x10G XGS-PON with 4x
+      QSFP28 uplinks that break out to 4x25G or 4x10G via DAC. All line-rate
+      with standard XGS-PON transceivers. Pairs with VOLTHA / SEBA control
+      planes rather than a monolithic vendor NOS.
+
+  - family: ASGvOLT64
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 0
+    max_gpon_ports: 64
+    max_subscribers: 8192
+    uplink_options:
+      - 100G QSFP28
+      - 40G QSFP28
+      - 25G SFP28
+    pon_technologies:
+      - GPON
+    disaggregated_hardware: true
+    standards_compliance:
+      omci_version: G.988
+      vOMCI_ready: true
+      tr369_usp_supported: true
+      disaggregated_vlt: true
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - edgecore-asgvolt64-datasheet-001
+    notes: >-
+      Open disaggregated 64-port GPON vOLT, the high-density sibling of
+      ASXvOLT16. 2x QSFP28 uplinks plus 8x SFP28. Line-rate on all
+      1G GPON ports per ITU-T G.984.
+
+# SNMP MIB: Edgecore publishes platform MIBs under the Accton/Edgecore PEN.
+# No vendor-specific OLT trap OIDs are registered yet; the ONT-facing
+# notification surface is still standard OMCI (G.988) relayed by the
+# disaggregated control plane rather than a device-local MIB.
+snmp_enterprise: 40418
+mib_references:
+  - name: ACCTON-MIB / Edgecore platform MIBs
+    source: Edgecore Networks
+    url: https://www.edge-core.com/document-tag/mib/
+    oid_prefix: 1.3.6.1.4.1.40418
+    notes: >-
+      Platform/inventory MIBs only. OLT alarm semantics are carried by the
+      disaggregated host (VOLTHA/SEBA) rather than by the vOLT itself.

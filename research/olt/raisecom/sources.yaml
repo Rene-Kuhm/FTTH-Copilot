@@ -1,0 +1,79 @@
+- source_id: raisecom-iscom6820gp-001
+  vendor: Raisecom
+  families:
+    - ISCOM6820-GP
+  firmware: unknown
+  title: Raisecom ISCOM6820-GP Small-Size GPON OLT Datasheet
+  publisher: Raisecom Technology
+  url: https://en.raisecom.com/product/small-size-gpon-olt
+  source_grade: A
+  retrieved_at: 2026-10-02
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: raisecomIscom6820gpDeviceInfo
+      oid: 1.3.6.1.4.1.34595.1.6820.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "ISCOM6820-GP: 2U compact GPON OLT, up to 32 GPON ports, 4x10GbE uplinks, 320 Gbit/s backplane, 1:128 split, 4096 ONUs"
+
+- source_id: raisecom-iscom5508gp-001
+  vendor: Raisecom
+  families:
+    - ISCOM5508-GP
+  firmware: unknown
+  title: Raisecom ISCOM5508-GP Standalone GPON OLT Datasheet
+  publisher: Raisecom Technology
+  url: https://www.unicorsa.com.ar/Raisecom/Datasheet/RC_Datasheet_ISCOM5508-GP_20130816.pdf
+  source_grade: A
+  retrieved_at: 2026-10-02
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: raisecomIscom5508gpDeviceInfo
+      oid: 1.3.6.1.4.1.34595.1.5508.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "ISCOM5508-GP: standalone compact GPON OLT, up to 8 GPON ports, 10x GE and 2x10GE interfaces, modular plug-in design"
+
+- source_id: raisecom-iscom6860-001
+  vendor: Raisecom
+  families:
+    - ISCOM6860
+  firmware: unknown
+  title: Raisecom ISCOM6860 xPON OLT Datasheet
+  publisher: Raisecom Technology
+  url: https://www.unicorsa.com.ar/Raisecom/Datasheet/RC_DS_ISCOM6860%20(Rel_02).pdf
+  source_grade: A
+  retrieved_at: 2026-10-02
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: raisecomIscom6860DeviceInfo
+      oid: 1.3.6.1.4.1.34595.1.6860.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "ISCOM6860: high-density carrier-grade xPON OLT, EPON/10G EPON/GPON/XG-PON1/XG-PON2, 2.88 Tbit/s backplane, 1.44 Tbit/s switching, 1:1 redundancy"
+
+- source_id: raisecom-iscom6800-001
+  vendor: Raisecom
+  families:
+    - ISCOM6800
+  firmware: unknown
+  title: Raisecom ISCOM6800 xPON OLT Datasheet
+  publisher: Raisecom Technology
+  url: https://products.kst-bg.com/mpattachment/file/download/id/1669/
+  source_grade: B
+  retrieved_at: 2026-10-02
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: raisecomIscom6800DeviceInfo
+      oid: 1.3.6.1.4.1.34595.1.6800.1
+      status: provisional
+      severity: info
+      category: device_info
+      description: "ISCOM6800: high-capacity chassis xPON OLT, EPON/10G EPON/GPON/XG-PON, 2.56 Tbit/s backplane, 1.28 Tbit/s switching"
