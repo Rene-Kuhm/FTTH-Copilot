@@ -108,6 +108,45 @@ families:
       - zte-c320-datasheet-001
     supported_traps: []
 
+  - family: ZXA10-C610
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 0
+    max_gpon_ports: 16
+    max_subscribers: 2048
+    uplink_options:
+      - GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - zte-c610-portal-001
+    notes: >-
+      1U high PON OLT for low-density, remote and enterprise scenarios.
+      16/8 GPON ports, 160 Gbit/s system throughput, 1:128 split ratio.
+
+  - family: ZXA10-C610E
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    slots: 0
+    max_gpon_ports: 16
+    max_subscribers: 1024
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - zte-c610-portal-001
+    notes: 1U C610 variant, 16 GPON ports, 4 GE plus 4 SFP uplink interfaces.
+
   - family: ZXA10-C300
     level: L1
     confidence_grade: B
