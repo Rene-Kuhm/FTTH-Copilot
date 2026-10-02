@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 14
-- **Total Hardware Families**: 79
+- **Total Hardware Families**: 83
 - **Documented Sources**: 81
 - **Verified OID Facts**: 139
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 57 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 61 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -75,9 +75,11 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [Cisco](../research/olt/cisco/) | NCS-1001 | IOS-XR-7.9.1 | **L1** | A | 1 |
 | P1 | [Cisco](../research/olt/cisco/) | NCS-1010 | IOS-XR-7.9.1 | **L1** | A | 1 |
 | P1 | [Cisco](../research/olt/cisco/) | NCS-1020 | IOS-XR-7.9.1 | **L1** | A | 1 |
+| P1 | [DZS](../research/olt/dzs/) | MXK-194 | unknown | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-319 | unknown | **L1** | A | 2 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-819 | unknown | **L1** | A | 1 |
 | P1 | [DZS](../research/olt/dzs/) | MXK-823 | unknown | **L1** | A | 1 |
+| P1 | [DZS](../research/olt/dzs/) | Velocity-V14 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V16 | sdNOS | **L1** | B | 1 |
 | P1 | [DZS](../research/olt/dzs/) | Velocity-V6 | sdNOS | **L1** | A | 2 |
 | P1 | [VSOL](../research/olt/vsol/) | V1600 | unknown | **L2** | B | 2 |
@@ -97,6 +99,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P2 | [BDCOM](../research/olt/bdcom/) | P3310C | unknown | **L1** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P3600 | unknown | **L2** | B | 1 |
 | P2 | [BDCOM](../research/olt/bdcom/) | P5816-24T | undefined | **L1** | B | 1 |
+| P2 | [Ubiquiti](../research/olt/ubiquiti/) | UF-LOCO | UFiber | **L1** | A | 1 |
+| P2 | [Ubiquiti](../research/olt/ubiquiti/) | UF-NANO | UFiber | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UFiber | unknown | **L1** | A | 1 |
 | P2 | [Ubiquiti](../research/olt/ubiquiti/) | UISP-Fiber-OLT-XGS | UISP | **L1** | A | 2 |
 

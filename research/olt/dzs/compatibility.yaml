@@ -60,6 +60,45 @@ families:
       - dzs-mxk-datasheet-001
     supported_traps: []
 
+  - family: MXK-194
+    level: L1
+    confidence_grade: B
+    firmware: unknown
+    form_factor: indoor/outdoor
+    max_gpon_ports: 8
+    max_subscribers: 512
+    uplink_options:
+      - GE
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - dzs-velocity-mxk-194-001
+    notes: Small/medium GPON access device with 4/8 subscriber-facing ports.
+
+  - family: Velocity-V14
+    level: L1
+    confidence_grade: B
+    firmware: sdNOS
+    form_factor: chassis
+    slots: 14
+    max_gpon_ports: 224
+    max_xgspom_ports: 224
+    max_subscribers: 28672
+    uplink_options:
+      - 40GE
+      - 100GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    disaggregated_hardware: true
+    sources:
+      - dzs-velocity-v14-datasheet-001
+    notes: 14-slot XCelerate chassis, deployable as Chassis OLT or disaggregated vOLT. ETSI EN 300.
+
   - family: Velocity-V6
     level: L1
     confidence_grade: A
