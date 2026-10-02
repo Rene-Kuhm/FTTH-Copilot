@@ -10,6 +10,28 @@ families:
     supported_traps: []
     sources:
       - zyxel-ies5206-portal-001
+  - family: IES5212
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: chassis
+    slots: 12
+    max_gpon_ports: 160
+    max_subscribers: 20480
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - zyxel-ies5212-portal-001
+    notes: >-
+      8.3U 12-slot temperature-hardened chassis MSAN/OLT. Highest-capacity
+      Zyxel GPON node: 160 GPON ports alongside 400 active GbE fiber and
+      384 VDSL2 vectoring ports on the same shelf.
+
   - family: OLT1404B
     level: L1
     confidence_grade: A

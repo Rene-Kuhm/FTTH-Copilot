@@ -191,3 +191,23 @@
       severity: info
       category: device_info
       description: "MA5603T: medium-capacity OLT, 6 service slots, fully hardware/software compatible with MA5600T"
+
+- source_id: huawei-ma5683t-portal-001
+  vendor: Huawei
+  families:
+    - MA5683T
+  firmware: V800R019
+  title: Huawei SmartAX MA5683T GPON OLT
+  publisher: Huawei Technologies
+  url: https://support.huawei.com/enterprise/en/optical-access/smartax-ma5683t-pid-6294063
+  source_grade: A
+  retrieved_at: 2026-10-02
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: huaweiMa5683tDeviceInfo
+      oid: 1.3.6.1.4.1.2011.2.5683.1.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "MA5683T: MA5600T-series chassis, 5U, 6 service slots, 3.2 Tbit/s backplane, up to 12,000 subscribers, GPON/EPON/10G PON/Ethernet P2P"

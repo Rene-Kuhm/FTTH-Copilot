@@ -5,13 +5,13 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 ## 1. Summary Statistics
 
 - **Total Vendors Registered**: 17
-- **Total Hardware Families**: 90
-- **Documented Sources**: 89
-- **Verified OID Facts**: 148
+- **Total Hardware Families**: 94
+- **Documented Sources**: 92
+- **Verified OID Facts**: 152
 
 | Support Level | Hardware Families | Status |
 |---|---|---|
-| **Level L1 (Documented)** | 68 | Research cataloged, MIBs registered, architectural limits documented |
+| **Level L1 (Documented)** | 72 | Research cataloged, MIBs registered, architectural limits documented |
 | **Level L2 (Simulated)** | 22 | Full adapter implemented, synthetic & loopback UDP tests passing |
 | **Level L3 (Lab Certified)** | 0 | Physical lab hardware validated with real alarms (Fase 9) |
 | **Level L4 (Field Certified)** | 0 | Live production certified with zero false-positives (Fase 9) |
@@ -28,6 +28,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P0 | [Huawei](../research/olt/huawei/) | MA5600 | unknown | **L2** | B | 2 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5600T | V800R019 | **L1** | A | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5603T | V800R019 | **L1** | A | 1 |
+| P0 | [Huawei](../research/olt/huawei/) | MA5683T | V800R019 | **L1** | A | 1 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X15 | V100R019 | **L2** | A | 2 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X17 | V100R019 | **L2** | A | 2 |
 | P0 | [Huawei](../research/olt/huawei/) | MA5800-X2 | V100R019 | **L2** | A | 1 |
@@ -48,6 +49,8 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C300 | unknown | **L1** | B | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C320 | unknown | **L1** | B | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C600 | TITAN | **L2** | A | 1 |
+| P0 | [ZTE](../research/olt/zte/) | ZXA10-C610 | unknown | **L1** | A | 1 |
+| P0 | [ZTE](../research/olt/zte/) | ZXA10-C610E | unknown | **L1** | A | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C620 | TITAN | **L2** | A | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C650 | TITAN | **L2** | A | 1 |
 | P0 | [ZTE](../research/olt/zte/) | ZXA10-C680 | TITAN | **L2** | A | 1 |
@@ -93,6 +96,7 @@ Auto-generated from authoritative vendor sources in `research/olt/`.
 | P1 | [VSOL](../research/olt/vsol/) | V3600G1-C | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES4204 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | IES5206 | unknown | **L1** | A | 1 |
+| P1 | [Zyxel](../research/olt/zyxel/) | IES5212 | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1404B | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT1408B | unknown | **L1** | A | 1 |
 | P1 | [Zyxel](../research/olt/zyxel/) | OLT2404 | unknown | **L1** | A | 1 |
