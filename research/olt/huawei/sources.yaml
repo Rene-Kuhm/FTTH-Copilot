@@ -211,4 +211,3 @@
       severity: info
       category: device_info
       description: "MA5683T: MA5600T-series chassis, 5U, 6 service slots, 3.2 Tbit/s backplane, up to 12,000 subscribers, GPON/EPON/10G PON/Ethernet P2P"
->>>>>>> origin/main

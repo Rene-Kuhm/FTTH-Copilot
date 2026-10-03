@@ -105,4 +105,3 @@
       severity: info
       category: device_info
       description: "IES5212: 8.3U 12-slot temperature-hardened chassis MSAN/OLT, 160 GPON ports, 400 active GbE fiber ports, 384 VDSL2 vectoring ports"
->>>>>>> origin/main
