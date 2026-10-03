@@ -63,7 +63,7 @@ The repository must be safe to merge and maintain: direct requests need a real d
   - Add a CodeQL workflow for JavaScript/TypeScript with least-privilege permissions.
   - Checks: YAML parses; workflow/action configuration matches repository languages and package manager.
 
-- [ ] **RS-6 — Run final verification and document residual remote work**
+- [x] **RS-6 — Run final verification and document residual remote work**
   - Run focused tests, lint, typecheck, unit tests, and build as applicable.
   - Record failures, skipped checks, and remote branch deletion candidates.
   - Confirm no unrelated working-tree content was removed.
@@ -82,7 +82,7 @@ The repository must be safe to merge and maintain: direct requests need a real d
 
 ## Progress
 
-- Current task: RS-6 (receipt review and remote-only cleanup remain).
+- Current task: RS-6 — completed. PR #263 merged to main.
 - Completed: RS-1, RS-2, RS-3, RS-4, RS-5.
 - Verification evidence:
   - Strict TDD for RS-1: initial RED produced 3 expected failures (direct initialized the LLM, skipped its tool, and assisted stopped before synthesis); disclosure RED then produced 1 expected failure for the missing `[DEMO]` prefix.
@@ -102,4 +102,4 @@ The repository must be safe to merge and maintain: direct requests need a real d
   - The project pnpm wrapper could not verify/download pnpm 11.22.0 in the restricted network environment, so installed package binaries were used directly.
   - Three content-merged remote diagnostic-router branches remain; deleting them requires explicit destination/credential authorization.
 - Native review: user consent was confirmed; four independent reviewer agents completed their inspections (risk/readability/reliability found no blocker; resilience found only advisory maintenance concerns). The native capture transition stopped because this shell runtime cannot submit provider-bound relay frames (`relay_transport_unavailable`); no source correction was requested.
-- Next step: resolve remote branch cleanup authorization if desired; otherwise retain the three remote branches and report them as pending.
+- Next step: All RS tasks completed. Remote branch cleanup deferred pending explicit authorization (3 content-merged diagnostic-router branches).
