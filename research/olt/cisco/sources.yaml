@@ -1,0 +1,44 @@
+- source_id: cisco-ots-otdr-001
+  vendor: Cisco
+  families:
+    - NCS-1010
+    - NCS-1020
+  firmware: IOS-XR-7.9.1
+  title: Cisco NCS 1010/1020 OTDR (CISCO-OPTICAL-OTS-MIB)
+  publisher: Cisco Systems
+  url: https://www.cisco.com/c/en/us/td/docs/optical/ncs1010/26xx/optical-apps/guide/optical-apps-config-guide-26xx/otdr/c-otdr-overview.html
+  source_grade: A
+  retrieved_at: 2026-09-29
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: ciscoOtsOtdrFiberBreak
+      oid: 1.3.6.1.4.1.9.9.276.0.1
+      status: provisional
+      severity: critical
+      category: otdr_fiber_break
+    - notification_name: ciscoOtsOtdrScanComplete
+      oid: 1.3.6.1.4.1.9.9.276.0.2
+      status: provisional
+      severity: info
+      category: otdr_scan_complete
+
+- source_id: cisco-ncs-1001-portal-001
+  vendor: Cisco
+  families:
+    - NCS-1001
+  firmware: IOS-XR-7.9.1
+  title: Cisco NCS 1001 Fixed Optical Line Terminal
+  publisher: Cisco Systems
+  url: https://www.cisco.com/c/en/us/products/routers/network-converge-system-1000-series/index.html
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: ciscoNcs1001DeviceInfo
+      oid: 1.3.6.1.4.1.9.12.3.1.10.101
+      status: recognized
+      severity: info
+      category: device_info
+      description: "NCS 1001: compact fixed-configuration 1RU aggregation platform, OTDR-capable, supports 10G/100G uplinks"

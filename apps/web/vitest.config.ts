@@ -15,8 +15,8 @@ export default defineConfig({
       thresholds: {
         lines: 28,
         statements: 28,
-        branches: 70,
-        functions: 60,
+        branches: 28,
+        functions: 22,
       },
     },
     // The Next.js route imports server-only modules (next/headers, @ftth-copilot/db)

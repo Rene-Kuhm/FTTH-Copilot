@@ -23,3 +23,141 @@ families:
     supported_traps: []
     sources:
       - calix-axos-e9-portal-001
+  - family: 844G-1
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: GPON
+    ethernet_ports: 4
+    pots_ports: 2
+    usb_ports: 1
+    wifi_standard: WiFi5
+    wifi_bands:
+      - 2.4GHz
+      - 5GHz
+    optical_class: B+
+    max_distance_km: 20
+    wpa3_supported: true
+    standards_compliance:
+      tr069_supported: true
+      tr369_usp_supported: true
+      omci_version: G.988
+    sources:
+      - calix-844g-1-datasheet-001
+      - calix-844g-1-wifi-cert-001
+  - family: E3-2
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    form_factor: outdoor
+    slots: 2
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - calix-e3-2-portal-001
+    notes: Sealed remote OLT, pluggable SFP+ modules, environmentally hardened, no active cooling.
+  - family: E5-48C
+    level: L1
+    confidence_grade: A
+    firmware: E7-OS-R2.5
+    form_factor: chassis
+    max_subscribers: 4096
+    pon_technologies:
+      - GPON
+    sources:
+      - calix-e-series-planning-001
+    notes: E-Series modular Ethernet access chassis with E7 OS.
+  - family: E3-48C
+    level: L1
+    confidence_grade: A
+    firmware: E7-OS-R2.5
+    form_factor: 1U
+    ethernet_ports: 48
+    sources:
+      - calix-e-series-planning-001
+    notes: E-Series compact 48-port Ethernet access system.
+  - family: 844GE-2
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: GPON
+    ethernet_ports: 4
+    pots_ports: 2
+    usb_ports: 1
+    wifi_standard: WiFi5
+    wifi_bands:
+      - 2.4GHz
+      - 5GHz
+    has_catv: true
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - calix-844ge-844g-overview-001
+    notes: 2.5G GPON + 1G AE optical, Dual WiFi ac, RF video overlay.
+
+  - family: 844G-2
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: GPON
+    ethernet_ports: 4
+    pots_ports: 2
+    usb_ports: 1
+    wifi_standard: WiFi5
+    wifi_bands:
+      - 2.4GHz
+      - 5GHz
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - calix-844ge-844g-overview-001
+    notes: GPON GigaCenter, Dual WiFi ac.
+
+  - family: B6-002
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    form_factor: outdoor
+    slots: 2
+    max_gpon_ports: 8
+    max_xgspom_ports: 8
+    max_subscribers: 1024
+    uplink_options:
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - calix-b6-datasheet-001
+    notes: Compact sealed remote OLT, environmentally hardened, pluggable modules.
+
+  - family: B6-006
+    level: L1
+    confidence_grade: A
+    firmware: AXOS
+    form_factor: outdoor
+    slots: 6
+    max_gpon_ports: 24
+    max_xgspom_ports: 24
+    max_subscribers: 3072
+    uplink_options:
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - calix-b6-datasheet-001
+    notes: Compact sealed remote OLT, pluggable modules.
+

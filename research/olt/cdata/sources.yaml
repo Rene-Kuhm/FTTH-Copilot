@@ -25,3 +25,110 @@
   license: review-required
   sha256: null
   facts: []
+
+- source_id: cdata-fd1104sn-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1104SN
+  firmware: unknown
+  title: C-Data FD1104SN EPON OLT Datasheet
+  publisher: Shenzhen C-Data Technology
+  url: https://www.mondoplast.ro/download/7438/FD1104SNEPONOLTDatasheet1.3.pdf
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: cdata-fd1104sn-device-info
+      oid: 1.3.6.1.4.1.34592.1.1104.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1104SN: 1U pizza-box EPON OLT, 4 EPON ports, 4 GE + 4 SFP uplinks, up to 256 ONUs at 1:64 split"
+
+- source_id: cdata-fd1604s-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1604S
+    - FD1604E-C1
+  firmware: unknown
+  title: C-Data FD1604S/FD1604E-C1 GPON OLT Datasheet
+  publisher: Shenzhen C-Data Technology
+  url: https://www.cdatatec.com/uploads/file/20250613/fd1604s-c1-fd1604e-c1-gpon-olt--v5.0.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: cdata-fd1604s-device-info
+      oid: 1.3.6.1.4.1.34592.1.1604.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1604S: 1U rack-mount GPON OLT, 4 fixed GPON ports, 1:128 split, up to 512/1024 terminals"
+    - notification_name: cdata-fd1604ec1-device-info
+      oid: 1.3.6.1.4.1.34592.1.1604.2
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1604E-C1: 4 fixed GPON + 1 optional 4-GPON card, 1:128 split, up to 1024 terminals"
+
+- source_id: cdata-fd1801s-c1-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1801S-C1
+  firmware: unknown
+  title: C-Data FD1801S-C1 XGS-PON & GPON Combo OLT
+  publisher: Shenzhen C-Data Technology
+  url: https://www.cdatatec.com/uploads/file/20250605/fd1801s-c1-xgs-pon-gpon-olt-v5.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: cdataFd1801sc1DeviceInfo
+      oid: 1.3.6.1.4.1.34592.1.1801.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1801S-C1: 1-port XGS-PON&GPON Combo OLT, 1:128 split, 2 GE + 1 10GE uplinks, 1U rack"
+
+- source_id: cdata-fd1700s-datasheet-001
+  vendor: C-Data
+  families:
+    - FD1700S
+  firmware: unknown
+  title: C-Data FD1700S GPON OLT Datasheet
+  publisher: Shenzhen C-Data Technology
+  url: https://citraweb.com/images/C-DATA/fd1700s-datasheet-v4-0.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: cdataFd1700sDeviceInfo
+      oid: 1.3.6.1.4.1.34592.1.1700.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD1700S: 1U rack-mounted GPON OLT, 4/8/16 port options, ITU-T G.984 compliant, 1:128 split, up to 4096 terminals"
+
+- source_id: cdata-fd6700s-datasheet-001
+  vendor: C-Data
+  families:
+    - FD6700S
+  firmware: unknown
+  title: C-Data FD6700S 6U Chassis GPON/XGS-PON/50G-PON OLT
+  publisher: Shenzhen C-Data Technology
+  url: https://www.cdatatec.com/uploads/file/olt-fd1700s.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: cdataFd6700sDeviceInfo
+      oid: 1.3.6.1.4.1.34592.1.6700.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "FD6700S: 6U chassis OLT, 15 slots (1 universal + 7 business + 2 main control), GPON/XGS-PON/50G-PON, 2*100G/40G uplinks"

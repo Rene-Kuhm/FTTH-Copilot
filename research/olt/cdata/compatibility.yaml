@@ -3,6 +3,66 @@ priority: P1
 iana_pens:
   - 34592
 families:
+
+  - family: FD1801S-C1
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 1
+    max_xgspom_ports: 1
+    max_subscribers: 128
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - cdata-fd1801s-c1-datasheet-001
+    notes: 1-port XGS-PON&GPON Combo OLT.
+
+  - family: FD1700S
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 16
+    max_subscribers: 2048
+    uplink_options:
+      - 1G/10G
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - cdata-fd1700s-datasheet-001
+    notes: GPON OLT, ITU-T G.984 compliant.
+
+  - family: FD6700S
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 6U chassis
+    slots: 15
+    max_gpon_ports: 112
+    max_xgspom_ports: 112
+    max_subscribers: 14336
+    uplink_options:
+      - 100G QSFP28
+      - 25G SFP28
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - 50G-PON
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - cdata-fd6700s-datasheet-001
+    notes: High-end 6U chassis OLT with GPON/XGS-PON/50G-PON support.
   - family: FD1600
     level: L1
     confidence_grade: A
@@ -11,3 +71,55 @@ families:
     sources:
       - cdata-products-portal-001
       - cdata-oem-architecture-002
+  - family: FD1104SN
+    level: L1
+    confidence_grade: B
+    device_kind: olt
+    form_factor: 1U
+    max_gpon_ports: 4
+    max_subscribers: 256
+    uplink_options:
+      - GE
+      - SFP
+    pon_technologies:
+      - GPON
+    optical_class: B+
+    sources:
+      - cdata-fd1104sn-datasheet-001
+    notes: Pizza-box EPON/GPON OLT, 1:64 split.
+  - family: FD1604S
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 4
+    max_subscribers: 512
+    uplink_options:
+      - GE
+      - SFP
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - cdata-fd1604s-datasheet-001
+    notes: Fixed 4-port GPON OLT, ITU-T G.984.x compliant, 1:128 split.
+  - family: FD1604E-C1
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_gpon_ports: 8
+    max_subscribers: 1024
+    uplink_options:
+      - GE
+      - SFP
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 40
+    sources:
+      - cdata-fd1604s-datasheet-001
+    notes: 4 fixed GPON + 1 optional 4-GPON card.

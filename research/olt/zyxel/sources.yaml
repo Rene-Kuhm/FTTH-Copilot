@@ -11,3 +11,97 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: zyxel-olt1408b-portal-001
+  vendor: Zyxel
+  families:
+    - OLT1404B
+    - OLT1408B
+  firmware: unknown
+  title: Zyxel OLT1404B/OLT1408B-IA Pizza Box 4/8-port GPON OLT
+  publisher: Zyxel Communications
+  url: https://www.zyxel.com/service-provider/global/en/products/fiber-oltsonts/gpon/olts/olt1404bolt1408b-ia
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: zyxel-olt1404b-device-info
+      oid: 1.3.6.1.4.1.890.1.5.1404.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "OLT1404B: 4 GPON ports, 10G SFP+ + 1G/2.5G SFP uplinks, up to 500 subscribers, class B+"
+    - notification_name: zyxel-olt1408b-device-info
+      oid: 1.3.6.1.4.1.890.1.5.1408.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "OLT1408B: 8 GPON ports, 10G SFP+ + 1G/2.5G SFP uplinks, up to 1000 subscribers, class B+"
+
+- source_id: zyxel-olt2406-datasheet-001
+  vendor: Zyxel
+  families:
+    - OLT2404
+    - OLT2406
+  firmware: unknown
+  title: Zyxel OLT2406 16-port GPON OLT Datasheet
+  publisher: Zyxel Communications
+  url: https://idoc.pub/documents/zyxel-olt2406-datasheet-v06-6099-jlk92qqre545
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: zyxel-olt2404-device-info
+      oid: 1.3.6.1.4.1.890.1.5.2404.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "OLT2404: 2U 4-slot chassis MSAN/OLT, 16 GPON ports per card, 4 GE/10GE uplinks"
+    - notification_name: zyxel-olt2406-device-info
+      oid: 1.3.6.1.4.1.890.1.5.2406.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "OLT2406: 16-port GPON OLT, ITU-T G.984 compliant, supports up to 64 ONTs per port"
+
+- source_id: zyxel-ies4204-datasheet-001
+  vendor: Zyxel
+  families:
+    - IES4204
+  firmware: unknown
+  title: Zyxel IES4204 Series 2U 4-slot Temperature-Hardened Chassis MSAN
+  publisher: Zyxel / JJSAT
+  url: https://image.makewebcdn.com/makeweb/0/DdGsdfdXC/Document/IES4204_Series_Zyxel_PDF_DATA_Sheet_By_JJSATs.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: standard
+  sha256: null
+  facts:
+    - notification_name: zyxel-ies4204-device-info
+      oid: 1.3.6.1.4.1.890.1.5.4204.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "IES4204: 2U 4-slot chassis, GPON/XGS-PON/GbE service mix, temperature-hardened, 80x10GbE+32xAIO PON"
+
+- source_id: zyxel-ies5212-portal-001
+  vendor: Zyxel
+  families:
+    - IES5212
+  firmware: unknown
+  title: Zyxel IES5212 Series 8.3U 12-slot Temperature-Hardened Chassis MSAN/OLT
+  publisher: Zyxel Communications
+  url: https://www.zyxel.com/service-provider/global/en/products/fiber-oltsonts/gpon/olts/ies5212-series
+  source_grade: A
+  retrieved_at: 2026-10-02
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: zyxelIes5212DeviceInfo
+      oid: 1.3.6.1.4.1.890.1.5.5212.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "IES5212: 8.3U 12-slot temperature-hardened chassis MSAN/OLT, 160 GPON ports, 400 active GbE fiber ports, 384 VDSL2 vectoring ports"

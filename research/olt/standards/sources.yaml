@@ -1,0 +1,114 @@
+- source_id: bbf-tr-451-vomci
+  vendor: Standards
+  families:
+    - TR-451
+  firmware: "v1.0"
+  title: Broadband Forum TR-451 v1.0 — Virtualized OMCI (vOMCI) Specification
+  publisher: Broadband Forum
+  url: https://www.broadband-forum.org/marketing/download/TR-451.pdf
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: vOMCI-northbound-api
+      oid: 1.3.6.1.4.1.100.0.451
+      status: recognized
+      severity: info
+      category: standard
+      description: "vOMCI northbound API contract — replaces vendor-specific OMCI firmware with a virtualized, multi-vendor-managed channel"
+
+- source_id: bbf-tr-142-voltha
+  vendor: Standards
+  families:
+    - TR-142
+    - TR-385
+  firmware: "v2.0"
+  title: Broadband Forum TR-142 & TR-385 — Disaggregated vOLT (VOLTHA / SEBA reference)
+  publisher: Broadband Forum / ONF
+  url: https://opennetworking.org/sdn-enabled-broadband-access-seba/
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: voltha-southbound
+      oid: 1.3.6.1.4.1.100.0.142
+      status: recognized
+      severity: info
+      category: standard
+      description: "vOLTA southbound interface to white-box OLT hardware (Edgecore ASXvOLT, TIP-compliant)"
+
+- source_id: itu-t-g-9804-ghsp
+  vendor: Standards
+  families:
+    - 50G-PON
+    - 25G-PON
+  firmware: "G.9804-amd1"
+  title: ITU-T G.9804 — Higher-Speed Passive Optical Networks (G.HSP)
+  publisher: ITU-T
+  url: https://www.itu.int/rec/T-REC-G.9804
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: ghsp-class-n1
+      oid: 1.3.6.1.4.1.100.0.49804
+      status: recognized
+      severity: info
+      category: standard
+      description: "50G-PON Class N1: 29 dB optical budget, 20 km reach, 1:64 split"
+    - notification_name: ghsp-class-n2
+      oid: 1.3.6.1.4.1.100.0.49805
+      status: recognized
+      severity: info
+      category: standard
+      description: "50G-PON Class N2: 33 dB optical budget, 20 km reach, 1:128 split"
+
+- source_id: itu-t-g-988-omci
+  vendor: Standards
+  families:
+    - OMCI
+  firmware: "G.988-amd2"
+  title: ITU-T G.988 — ONU Management and Control Interface (OMCI)
+  publisher: ITU-T
+  url: https://www.itu.int/rec/T-REC-G.988
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: omci-me-gemport
+      oid: 1.3.6.1.4.1.100.0.988.1
+      status: recognized
+      severity: info
+      category: standard
+      description: "GEM Port managed entity — GPON Encapsulation Method port configuration"
+    - notification_name: omci-me-tcont
+      oid: 1.3.6.1.4.1.100.0.988.2
+      status: recognized
+      severity: info
+      category: standard
+      description: "T-CONT managed entity — Transmission Container for upstream DBA"
+
+- source_id: bbf-tr-369-usp
+  vendor: Standards
+  families:
+    - USP
+    - TR-369
+  firmware: "v1.1"
+  title: Broadband Forum TR-369 — User Services Platform (USP)
+  publisher: Broadband Forum
+  url: https://usp-tech.github.io/specification/
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: usp-controller-endpoint
+      oid: 1.3.6.1.4.1.100.0.369
+      status: recognized
+      severity: info
+      category: standard
+      description: "USP controller/endpoint model — replaces TR-069 CWMP with modern REST/STOMP"

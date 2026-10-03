@@ -5,6 +5,7 @@ import type {
   OnuSummary,
   OnuDetail,
   NetworkOverview,
+  OdnComponent,
 } from '@ftth-copilot/connectors-core';
 import {
   NMS_REQUEST_TIMEOUT_MS,
@@ -232,6 +233,41 @@ export class MikrowispClient implements INmsConnector {
     if (this.useMock) return [...FIXTURE_ODBS];
     const data = await this.realFetch<{ odbs: MikrowispOdb[] }>('/SmartOltGetODB');
     return data.odbs ?? [];
+  }
+
+  /**
+   * Map Mikrowisp ODB rows to canonical OdnComponent entries (Fase ODN-2).
+   *
+   * In Mikrowisp, an "ODB" (Optical Distribution Box) is operator-side terminology
+   * for a Network Access Point (NAP) — the outdoor cabinet where the fiber
+   * distribution segment terminates. Each NAP is parented to a router/OLT
+   * via the optional `olt_id` field.
+   *
+   * The mapping is conservative: if `nombre_odb` does not match the NAP pattern
+   * (e.g. starts with a different prefix), the entry is still surfaced with
+   * the id as label so downstream consumers can decide.
+   */
+  async getOdnComponents(): Promise<OdnComponent[]> {
+    const odbs = await this.getOdbList();
+    return odbs.map((odb) => this.mapOdbToOdnComponent(odb));
+  }
+
+  private mapOdbToOdnComponent(odb: MikrowispOdb): OdnComponent {
+    const label = odb.nombre_odb?.trim() || odb.id;
+    // Heuristic: NAP-* (operator convention) or ODB-* (legacy). Default to NAP.
+    // Per the evidence-first principle, downstream consumers should confirm
+    // the kind against registered topology.
+    const kind: OdnComponent['kind'] = /^ODB[-_]/i.test(label) ? 'NAP' : 'NAP';
+
+    return {
+      kind,
+      id: odb.id,
+      label,
+      parentId: odb.olt_id,
+      splitRatio: odb.split_ratio,
+      attenuationDb: odb.atenuacion_db,
+      sourceId: 'mikrowisp-odb',
+    };
   }
 
   // ── Mapping helpers ──

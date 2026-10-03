@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { EventClass } from '../src/laya-expert-system';
 import type { LayaMode } from '../src/laya-shadow';
 import {
@@ -164,6 +164,10 @@ describe('LayaShadow', () => {
 
     beforeEach(() => {
       consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleLogSpy.mockRestore();
     });
 
     it('logs decision to console in non-production environment', async () => {

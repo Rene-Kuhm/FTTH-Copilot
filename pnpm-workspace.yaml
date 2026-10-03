@@ -5,6 +5,9 @@ packages:
 overrides:
   vite: 6.4.3
   deepmerge-ts: ">=8.0.0"
+  js-yaml: ^4.3.2
+  serialize-javascript: ^7.0.5
+  uuid: ^11.1.1
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
