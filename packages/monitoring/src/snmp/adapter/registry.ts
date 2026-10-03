@@ -23,6 +23,7 @@ import { BdcomOltAdapter } from './bdcom';
 import { DzsOltAdapter } from './dzs';
 import { UbiquitiOltAdapter } from './ubiquiti';
 import { GenericXponAdapter } from './generic-xpon';
+import { OpenBaselineOltAdapter } from './open-baseline';
 
 export class OltAdapterRegistry {
   private readonly adapters = new Map<string, OltVendorAdapter>();
@@ -99,4 +100,8 @@ defaultAdapterRegistry.register(new VsolOltAdapter());
 defaultAdapterRegistry.register(new BdcomOltAdapter());
 defaultAdapterRegistry.register(new DzsOltAdapter());
 defaultAdapterRegistry.register(new UbiquitiOltAdapter());
+// Registered before the generic fallback so platforms with a public alarm MIB
+// keep their vendor-specific interpretation; anything unmatched here still
+// degrades to GenericXponAdapter, then to StandardOltAdapter.
+defaultAdapterRegistry.register(new OpenBaselineOltAdapter());
 defaultAdapterRegistry.register(new GenericXponAdapter());

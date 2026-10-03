@@ -1,0 +1,42 @@
+vendor: Ericsson
+vendor_aliases:
+  - EntriView
+priority: P2
+iana_pens:
+  - 1931  # Ericsson
+families:
+  - family: EDA-1500
+    level: L1
+    confidence_grade: B
+    firmware: R7.0
+    form_factor: chassis
+    slots: 16
+    max_gpon_ports: 256
+    max_subscribers: 14336
+    uplink_options:
+      - GE
+      - 10GE
+    pon_technologies:
+      - GPON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - ericsson-eda1500-tpd-001
+    notes: >-
+      EDA 1500 GPON access platform. Management via EntriView EMS, CLI and
+      TL1 northbound. Ships with 8- and 16-port GPON boards; the 16-port
+      board yields >14,000 FTTH subscribers per chassis. Widely deployed in
+      Latin America and parts of Europe on legacy copper-to-fiber migrations.
+
+# SNMP: EDA 1500 exposes EntriView/TL1 northbound rather than a public
+# device-local alarm MIB. Notification OIDs above are registry placeholders
+# pending a lab capture, and are marked provisional for that reason.
+snmp_enterprise: 1931
+mib_references:
+  - name: EntriView EMS / TL1 northbound
+    source: Ericsson
+    url: https://www.ericsson.com/en/portfolio/broadband-access
+    oid_prefix: 1.3.6.1.4.1.1931
+    notes: >-
+      No public alarm MIB. Trap OIDs are unconfirmed; treat every Ericsson
+      notification as provisional until a physical capture validates it.
