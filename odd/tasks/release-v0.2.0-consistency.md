@@ -43,7 +43,7 @@ User authorized correction of all findings from the FTTH-Copilot RDD audit.
 - [x] RVC-1 Align native release metadata and add consistency coverage.
 - [x] RVC-2 Update changelog and distribution documentation for v0.2.1.
 - [x] RVC-3 Investigate and verify the local Next.js build discrepancy.
-- [ ] RVC-4 Run focused verification, create the approved PR, and report any remaining release limitation.
+- [x] RVC-4 Run focused verification, create the approved PR, and report any remaining release limitation.
 
 ## Verification Evidence
 
@@ -56,4 +56,4 @@ User authorized correction of all findings from the FTTH-Copilot RDD audit.
 
 ## Next Step
 
-Complete RVC-3 by reproducing or isolating the local Next.js build discrepancy, then run focused verification before opening the PR.
+All tasks completed. v0.2.1 release metadata aligned via PRs #216 and #219. Local Turbopack CSS worker port binding fails outside sandbox; production build with `--webpack` passes. Native Tauri/Cargo checks pass. No blocking release limitation remaining.
