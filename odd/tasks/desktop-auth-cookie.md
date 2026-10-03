@@ -35,7 +35,7 @@ The v0.2.1 desktop release is unusable for authenticated local testing even thou
 
 - [x] DAC-1: Make the cookie policy distinguish local desktop HTTP from HTTPS production and add focused regression tests.
 - [x] DAC-2: Bump the patch release metadata/documentation and verify the desktop runtime flow.
-- [ ] DAC-3: Commit the work unit, publish PR #222-linked, and merge only after all checks pass.
+- [x] DAC-3: Commit the work unit, publish PR #222-linked, and merge only after all checks pass.
 
 ## Acceptance criteria
 
@@ -53,7 +53,7 @@ The v0.2.1 desktop release is unusable for authenticated local testing even thou
 - Focused cookie/auth tests passed; release version check passed; Next.js production build passed.
 - Runtime evidence: `GET /api/health` returned 200 with database connected; valid login returned 200 without `Secure`; login followed by `/api/auth/me` returned the user.
 - Full DB unit command has 3 integration suites unavailable in the current environment because they expect `postgres:5432`; 41 non-integration tests passed and 15 integration cases were skipped before the suite failed on unavailable DB.
-- Next: commit and publish PR #222-linked.
+- **DAC-3 Completed**: Commits published as `d89d93a fix(auth): preserve desktop sessions over local HTTP (#223)`. Issue #222 CLOSED. All checks passed. Main branch updated.
 
 ## Relevant files
 
