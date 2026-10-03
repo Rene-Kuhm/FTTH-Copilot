@@ -33,7 +33,7 @@ export const SourceRecordSchema = z.object({
   source_id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'source_id must be lowercase kebab-case'),
   vendor: z.string().min(1),
   families: z.array(z.string().min(1)).min(1),
-  firmware: z.string().min(1), // can be 'unknown' or specific version string
+  firmware: z.string().optional(),
   title: z.string().min(1),
   publisher: z.string().min(1),
   url: z.string().url(),
@@ -42,7 +42,7 @@ export const SourceRecordSchema = z.object({
   license: LicenseStatusSchema,
   sha256: z.string().nullable().optional(),
   facts: z.array(FactRecordSchema).default([]),
-});
+}).passthrough();
 export type SourceRecord = z.infer<typeof SourceRecordSchema>;
 
 export const SourcesFileSchema = z.array(SourceRecordSchema);
@@ -55,11 +55,42 @@ export const CompatibilityFamilyRecordSchema = z.object({
   family: z.string().min(1),
   level: SupportLevelSchema,
   confidence_grade: SourceGradeSchema,
-  firmware: z.string().min(1),
+  firmware: z.string().optional(),
   supported_traps: z.array(z.string()).default([]),
   sources: z.array(z.string()).default([]),
   notes: z.string().optional(),
-});
+  // Extended OLT/ODN fields (Roadmap Fase ODN)
+  device_kind: z.enum(['olt', 'ont']).optional(),
+  form_factor: z.string().optional(),
+  slots: z.number().int().nonnegative().optional(),
+  max_gpon_ports: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+  max_xgspom_ports: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+  max_xgpon_ports: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+  max_subscribers: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+  pon_technologies: z.array(z.string()).optional(),
+  pon_technology: z.string().optional(),
+  optical_class: z.enum(['B+', 'C+', 'C++', 'N1', 'N2']).optional(),
+  max_distance_km: z.number().positive().optional(),
+  combo_pon: z.boolean().optional(),
+  built_in_otdr: z.boolean().optional(),
+  disaggregated_hardware: z.boolean().optional(),
+  ethernet_ports: z.number().int().nonnegative().optional(),
+  pots_ports: z.number().int().nonnegative().optional(),
+  usb_ports: z.number().int().nonnegative().optional(),
+  wifi_standard: z.string().optional(),
+  wifi_bands: z.array(z.string()).optional(),
+  wpa3_supported: z.boolean().optional(),
+  uplink_options: z.array(z.string()).optional(),
+  standards_compliance: z
+    .object({
+      omci_version: z.string().optional(),
+      vOMCI_ready: z.boolean().optional(),
+      tr069_supported: z.boolean().optional(),
+      tr369_usp_supported: z.boolean().optional(),
+      disaggregated_vlt: z.boolean().optional(),
+    })
+    .optional(),
+}).passthrough();
 export type CompatibilityFamilyRecord = z.infer<typeof CompatibilityFamilyRecordSchema>;
 
 export const VendorCompatibilityRecordSchema = z.object({

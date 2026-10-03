@@ -18,9 +18,14 @@ export type SnmpTrapCategory =
   | 'config_change'
   | 'onu_offline'
   | 'onu_online'
+  | 'ont_discovery'
   | 'pon_down'
   | 'pon_up'
   | 'card_failure'
+  | 'otdr_fiber_break'
+  | 'otdr_fiber_degradation'
+  | 'otdr_scan_complete'
+  | 'otdr_scan_started'
   | 'unknown_trap';
 
 export interface SnmpTrapDefinition {
@@ -973,6 +978,292 @@ export const KNOWN_TRAP_DEFINITIONS: ReadonlyArray<SnmpTrapDefinition> = [
     firmware: 'any',
     is_clear: true,
     clears_trap_oid: '1.3.6.1.4.1.3320.101.10.0.5',
+  },
+
+  // ── DZS / Zhone GPON Traps (Zhone-GPON-MIB, enterprise 5504) ──────────────
+  // Based on Zhone-GPON-MIB from Observium MIB Browser
+  // Source: https://mibs.observium.org/mib/Zhone-GPON-MIB/
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.1.1.1',
+    name: 'zhoneGponSerialNumberFound',
+    category: 'ont_discovery',
+    severity: 'info',
+    vendor: 'DZS',
+    description: 'ONT serial number discovered during registration',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.1',
+    name: 'zhoneGponOntDyingGasp',
+    category: 'dying_gasp',
+    severity: 'critical',
+    vendor: 'DZS',
+    description: 'Power failure / dying gasp alarm from Zhone GPON ONT',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.2',
+    name: 'zhoneGponOntLossOfSignal',
+    category: 'los',
+    severity: 'critical',
+    vendor: 'DZS',
+    description: 'Loss of optical signal on Zhone GPON ONT',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.3',
+    name: 'zhoneGponOntLossOfFrame',
+    category: 'los',
+    severity: 'critical',
+    vendor: 'DZS',
+    description: 'Loss of frame on Zhone GPON ONT',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.10',
+    name: 'zhoneGponOntOffline',
+    category: 'onu_offline',
+    severity: 'warning',
+    vendor: 'DZS',
+    description: 'Zhone GPON ONT offline / deregistered',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.11',
+    name: 'zhoneGponOntOnline',
+    category: 'onu_online',
+    severity: 'info',
+    vendor: 'DZS',
+    description: 'Zhone GPON ONT online and registered',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.5504.5.14.2.1.10',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.12',
+    name: 'zhoneGponOntLosClear',
+    category: 'los_clear',
+    severity: 'info',
+    vendor: 'DZS',
+    description: 'Zhone GPON ONT loss of signal cleared',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    is_clear: true,
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.20',
+    name: 'zhoneGponPonDown',
+    category: 'pon_down',
+    severity: 'critical',
+    vendor: 'DZS',
+    description: 'Zhone OLT PON port down',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.5504.5.14.2.1.21',
+    name: 'zhoneGponPonUp',
+    category: 'pon_up',
+    severity: 'info',
+    vendor: 'DZS',
+    description: 'Zhone OLT PON port up',
+    source_id: 'zhone-gpon-mib-observium-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MXK', 'Velocity'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.5504.5.14.2.1.20',
+    status: 'provisional',
+  },
+
+  // ── Ubiquiti / UISP GPON Traps (UBNT-EdgeMAX-MIB, enterprise 41112) ──────
+  // Based on Ubiquiti community feedback and UISP documentation
+  // Sources: https://community.ui.com, https://techspecs.ui.com
+  {
+    oid: '1.3.6.1.4.1.41112.1.5.1.1.0',
+    name: 'ufiberOntOffline',
+    category: 'onu_offline',
+    severity: 'warning',
+    vendor: 'Ubiquiti',
+    description: 'UFiber ONT offline / deregistered',
+    source_id: 'ubiquiti-community-snmp-001',
+    source_grade: 'C',
+    license: 'review-required',
+    target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.41112.1.5.1.2.0',
+    name: 'ufiberOntOnline',
+    category: 'onu_online',
+    severity: 'info',
+    vendor: 'Ubiquiti',
+    description: 'UFiber ONT online and registered',
+    source_id: 'ubiquiti-community-snmp-001',
+    source_grade: 'C',
+    license: 'review-required',
+    target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.41112.1.5.1.1.0',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.41112.1.5.2.1.0',
+    name: 'ufiberPonPortDown',
+    category: 'pon_down',
+    severity: 'critical',
+    vendor: 'Ubiquiti',
+    description: 'UFiber OLT PON port down',
+    source_id: 'ubiquiti-community-snmp-001',
+    source_grade: 'C',
+    license: 'review-required',
+    target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
+    firmware: 'unknown',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.41112.1.5.2.2.0',
+    name: 'ufiberPonPortUp',
+    category: 'pon_up',
+    severity: 'info',
+    vendor: 'Ubiquiti',
+    description: 'UFiber OLT PON port up',
+    source_id: 'ubiquiti-community-snmp-001',
+    source_grade: 'C',
+    license: 'review-required',
+    target_models: ['UFiber', 'UISP-Fiber-OLT-XGS'],
+    firmware: 'unknown',
+    is_clear: true,
+    clears_trap_oid: '1.3.6.1.4.1.41112.1.5.2.1.0',
+    status: 'provisional',
+  },
+
+  // ── OTDR Fiber Event Traps (Roadmap Fase ODN-3) ─────────────────────────
+  // OTDR (Optical Time Domain Reflectometer) detects fiber breaks, splice loss
+  // anomalies, and connector degradation. Three vendor implementations are
+  // documented below. Sources: vendor docs (Cisco IOS-XR 26.x, Huawei MA5800
+  // product docs, Nokia TROPIC-OPTICALPORT-MIB via Observium).
+
+  // ── Cisco NCS 1010 / NCS 1020 (CISCO-OPTICAL-OTS-MIB) ────────────────────
+  {
+    oid: '1.3.6.1.4.1.9.9.276.0.1',
+    name: 'ciscoOtsOtdrFiberBreak',
+    category: 'otdr_fiber_break',
+    severity: 'critical',
+    vendor: 'Cisco',
+    description:
+      'Cisco NCS 1010/1020 OTDR detected a fiber break. Per CISCO-OPTICAL-OTS-MIB, the in-built bidirectional OTDR functionality measures loss and back reflection in real time for fiber pairs linked to TX/RX ports. Source: https://www.cisco.com/c/en/us/td/docs/optical/ncs1010/26xx/optical-apps/guide/optical-apps-config-guide-26xx/otdr/c-otdr-overview.html',
+    source_id: 'cisco-ots-otdr-001',
+    source_grade: 'A',
+    license: 'review-required',
+    target_models: ['NCS-1010', 'NCS-1020'],
+    firmware: 'IOS-XR-7.9.1',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.9.9.276.0.2',
+    name: 'ciscoOtsOtdrScanComplete',
+    category: 'otdr_scan_complete',
+    severity: 'info',
+    vendor: 'Cisco',
+    description:
+      'Cisco NCS 1010/1020 OTDR scan completed. The OTDR port can switch between LINE-TX and LINE-RX ports on the OLT, and among LINE-1/2-TX/RX on ILA devices. Source: https://www.cisco.com/c/en/us/td/docs/optical/ncs1010/26xx/optical-apps/guide/optical-apps-config-guide-26xx/otdr/c-otdr-overview.html',
+    source_id: 'cisco-ots-otdr-001',
+    source_grade: 'A',
+    license: 'review-required',
+    target_models: ['NCS-1010', 'NCS-1020'],
+    firmware: 'IOS-XR-7.9.1',
+    status: 'provisional',
+  },
+
+  // ── Huawei MA5800 (Huawei-MIB, OTDR submodule) ──────────────────────────
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.20.1.1',
+    name: 'hwOtdrFiberBreak',
+    category: 'otdr_fiber_break',
+    severity: 'critical',
+    vendor: 'Huawei',
+    description:
+      'Huawei MA5800 OTDR detected a fiber break on a PON port. Built-in OTDR reports loss events from splicing, patch panel connections, and couplers; loss exceeding the configured threshold raises this trap. Source: https://e.huawei.com/eu/products/optical-access/ma5800 (built-in OTDR feature)',
+    source_id: 'huawei-ma5800-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MA5800-X17', 'MA5800-X15', 'MA5800-X7'],
+    firmware: 'V100R019',
+    status: 'provisional',
+  },
+  {
+    oid: '1.3.6.1.4.1.2011.6.128.20.2.1',
+    name: 'hwOtdrFiberDegradation',
+    category: 'otdr_fiber_degradation',
+    severity: 'warning',
+    vendor: 'Huawei',
+    description:
+      'Huawei MA5800 OTDR detected fiber degradation (splice loss above threshold or bend loss) on a PON port. Indicates preventive maintenance is needed before a fiber break occurs. Source: https://e.huawei.com/eu/products/optical-access/ma5800 (built-in OTDR feature)',
+    source_id: 'huawei-ma5800-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['MA5800-X17', 'MA5800-X15', 'MA5800-X7'],
+    firmware: 'V100R019',
+    status: 'provisional',
+  },
+
+  // ── Nokia TROPIC-OPTICALPORT-MIB (tnPortOtdrScanTable) ───────────────
+  {
+    oid: '1.3.6.1.4.1.7483.2.2.4.3.2.47.1.17',
+    name: 'tnPortOtdrScanStateChange',
+    category: 'otdr_scan_complete',
+    severity: 'info',
+    vendor: 'Nokia',
+    description:
+      'Nokia TROPIC-OPTICALPORT-MIB tnPortOtdrScanState value transition: OTDR scan completed or state changed. Values: running, pending, complete. Source: https://mibs.observium.org/object/TROPIC-OPTICALPORT-MIB/tnPortOtdrScanState',
+    source_id: 'nokia-tropic-otdr-001',
+    source_grade: 'B',
+    license: 'review-required',
+    target_models: ['7360-ISAM-FX-16', '7360-ISAM-FX-8', 'Lightspan-FX-16'],
+    firmware: 'R6.8.01',
+    status: 'provisional',
   },
 ];
 

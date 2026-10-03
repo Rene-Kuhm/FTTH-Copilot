@@ -29,28 +29,57 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
 
   if (auth.loading) {
     return (
-      <div className="card h-[74px] animate-pulse" role="status"><span className="sr-only">Cargando sesión…</span></div>
+      <div className="card h-[74px] animate-pulse" role="status">
+        <span className="sr-only">Cargando sesión…</span>
+      </div>
     );
   }
 
   if (auth.user) {
     return (
-      <div className="card flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5">
+      <div
+        className="card flex items-center justify-between gap-4 px-4 py-3.5 sm:px-5"
+        style={{ color: 'var(--color-text)' }}
+      >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-indigo-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/15">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)',
+              background: 'rgb(242 48 119 / 0.1)',
+              color: 'var(--color-accent)',
+            }}
+          >
             <UserCircleIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-semibold text-white">
+              <span
+                className="truncate text-sm font-semibold"
+                style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}
+              >
                 {auth.user.email}
               </span>
-              <span className="badge bg-success/10 text-emerald-300 ring-1 ring-inset ring-success/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              <span
+                className="badge"
+                style={{
+                  background: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
+                  color: 'var(--color-success)',
+                  border: '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)',
+                  fontFamily: 'var(--font-display)',
+                }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: 'var(--color-success)' }}
+                />
                 Activa
               </span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500">
+            <div
+              className="mt-1 flex items-center gap-1.5 text-[11px]"
+              style={{ color: 'var(--color-muted)' }}
+            >
               <BuildingOfficeIcon className="h-3.5 w-3.5" />
               <span className="truncate">{auth.user.tenant.name}</span>
             </div>
@@ -61,7 +90,9 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
           onClick={() => {
             setError(null);
             void auth.logout().catch((caught) =>
-              setError(caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.'),
+              setError(
+                caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.',
+              ),
             );
           }}
           className="btn-ghost px-3"
@@ -75,27 +106,27 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
 
   if (mode === null) {
     return (
-      <div className="card flex flex-col items-start justify-between gap-5 px-5 py-5 sm:flex-row sm:items-center sm:px-6">
+      <div
+        className="card flex flex-col items-start justify-between gap-5 px-5 py-5 sm:flex-row sm:items-center sm:px-6"
+        style={{ color: 'var(--color-text)' }}
+      >
         <div>
-          <h2 className="text-base font-semibold text-white">Inicia sesión</h2>
-          <p className="mt-1 text-sm text-neutral-500">
+          <h2
+            className="text-base font-semibold"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+          >
+            Inicia sesión
+          </h2>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
             Accedé para chatear con tu red FTTH y gestionar tu tenant.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('login')}
-            className="btn-outline"
-          >
+          <button type="button" onClick={() => setMode('login')} className="btn-outline">
             <ArrowLeftOnRectangleIcon className="h-4 w-4" />
             Iniciar sesión
           </button>
-          <button
-            type="button"
-            onClick={() => setMode('signup')}
-            className="btn-primary"
-          >
+          <button type="button" onClick={() => setMode('signup')} className="btn-primary">
             Crear cuenta
           </button>
         </div>
@@ -128,13 +159,20 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
   const isLogin = mode === 'login';
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="card space-y-5 p-5 sm:p-6">
+    <form
+      onSubmit={(e) => void submit(e)}
+      className="card space-y-5 p-5 sm:p-6"
+      style={{ color: 'var(--color-text)' }}
+    >
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">
+          <h2
+            className="text-lg font-semibold tracking-[-0.02em]"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+          >
             {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
           </h2>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
             {isLogin
               ? 'Accedé a tu tenant para continuar.'
               : 'Creá tu cuenta y tenant en un solo paso.'}
@@ -156,10 +194,7 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
       <div className="space-y-3">
         {!isLogin && (
           <>
-            <Field
-              icon={<UserCircleIcon className="h-4 w-4" />}
-              label="Tu nombre"
-            >
+            <Field icon={<UserCircleIcon className="h-4 w-4" />} label="Tu nombre">
               <input
                 type="text"
                 name="name"
@@ -220,22 +255,23 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
       </div>
 
       {error && (
-        <div role="alert" aria-live="assertive" className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-lg px-3 py-2 text-sm"
+          style={{
+            border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+            background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
+            color: 'var(--color-danger)',
+          }}
+        >
           {error}
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="btn-primary min-h-11 w-full"
-      >
+      <button type="submit" disabled={submitting} className="btn-primary min-h-11 w-full">
         <KeyIcon className="h-4 w-4" />
-        {submitting
-          ? 'Enviando…'
-          : isLogin
-            ? 'Entrar'
-            : 'Crear cuenta'}
+        {submitting ? 'Enviando…' : isLogin ? 'Entrar' : 'Crear cuenta'}
       </button>
     </form>
   );
@@ -254,12 +290,15 @@ function Field({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="flex items-center justify-between text-xs font-medium text-neutral-400">
+      <span
+        className="flex items-center justify-between text-xs font-medium"
+        style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+      >
         <span className="inline-flex items-center gap-1.5">
-          <span className="text-neutral-500">{icon}</span>
+          <span style={{ color: 'var(--color-muted)', opacity: 0.7 }}>{icon}</span>
           {label}
         </span>
-        {hint && <span className="text-neutral-500">{hint}</span>}
+        {hint && <span style={{ opacity: 0.6 }}>{hint}</span>}
       </span>
       {children}
     </label>

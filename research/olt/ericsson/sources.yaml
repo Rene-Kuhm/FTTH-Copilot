@@ -1,0 +1,26 @@
+- source_id: ericsson-eda1500-tpd-001
+  vendor: Ericsson
+  families:
+    - EDA-1500
+  firmware: R7.0
+  title: Technical Product Description EDA 1500 6.0
+  publisher: Ericsson (filed as FCC ID equipment documentation)
+  url: https://fccid.io/m/967d595a9178ddf9b419da130ff9a4d46bb72bba3c5093d1355adafd03287501.pdf
+  source_grade: B
+  retrieved_at: 2026-10-02
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: ericssonEda1500DeviceInfo
+      oid: 1.3.6.1.4.1.1931.1500.1
+      status: provisional
+      severity: info
+      category: device_info
+      description: "EDA 1500: GPON access platform, EntriView EMS + TL1 northbound, 16-port GPON board option, voice/data/video over GPON"
+
+    - notification_name: ericssonEda1500GponBoard
+      oid: 1.3.6.1.4.1.1931.1500.1.2
+      status: provisional
+      severity: info
+      category: capacity
+      description: "16-port GPON OLT board for EDA 1500; enables >14,000 FTTH GPON subscribers in a single chassis"

@@ -1,0 +1,7 @@
+# FTTH-Copilot Laya Expert System Service
+# Primary implementation is in TypeScript at packages/shared/src/laya-expert-system.ts
+# This Python service exists for Docker deployment and batch processing
+
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0

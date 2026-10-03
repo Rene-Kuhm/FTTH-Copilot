@@ -10,6 +10,10 @@ export default defineConfig({
     baseURL: "http://localhost:3001",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Block the PWA service worker so it doesn't intercept /api/* requests
+    // with its NetworkFirst strategy. Without this, mocks via page.route()
+    // are short-circuited by the SW cache and tests flake.
+    serviceWorkers: "block",
   },
   projects: [
     {

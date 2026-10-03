@@ -1,0 +1,59 @@
+vendor: Cisco
+priority: P1
+iana_pens:
+  - 9  # Cisco
+families:
+  - family: NCS-1010
+    level: L1
+    confidence_grade: A
+    firmware: IOS-XR-7.9.1
+    form_factor: 1U
+    slots: 2
+    max_gpon_ports: 32
+    max_subscribers: 8192
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    built_in_otdr: true
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - cisco-ots-otdr-001
+    notes: Cisco NCS 1010 disaggregated OLT with built-in bidirectional OTDR.
+
+  - family: NCS-1020
+    level: L1
+    confidence_grade: A
+    firmware: IOS-XR-7.9.1
+    form_factor: 2U
+    slots: 4
+    max_gpon_ports: 64
+    max_subscribers: 16384
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    built_in_otdr: true
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - cisco-ots-otdr-001
+    notes: Cisco NCS 1020 disaggregated OLT with built-in bidirectional OTDR.
+  - family: NCS-1001
+    level: L1
+    confidence_grade: A
+    firmware: IOS-XR-7.9.1
+    form_factor: 1U
+    slots: 0
+    max_subscribers: 4096
+    pon_technologies:
+      - XGS-PON
+    uplink_options:
+      - 100GE
+    disaggregated_hardware: true
+    built_in_otdr: true
+    optical_class: C++
+    max_distance_km: 40
+    sources:
+      - cisco-ncs-1001-portal-001
+    notes: Cisco NCS 1001 compact fixed-configuration 1RU aggregation platform with built-in OTDR.
+

@@ -62,22 +62,22 @@ const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
   {
     text: '¿Cuántas ONUs están offline ahora?',
     Icon: SignalIcon,
-    tint: 'text-red-500 bg-red-500/10 ring-danger/30',
+    tint: 'var(--color-danger)',
   },
   {
     text: '¿Qué OLTs tienen temperatura alta?',
     Icon: CpuChipIcon,
-    tint: 'text-amber-500 bg-warning/10 ring-warning/30',
+    tint: 'var(--color-warning)',
   },
   {
     text: 'Dame el detalle de la ONU con serial SN-001',
     Icon: ServerStackIcon,
-    tint: 'text-blue-500 bg-blue-500/10 ring-blue-500/30',
+    tint: 'var(--color-accent)',
   },
   {
     text: '¿Cuál es el uptime promedio de la red?',
     Icon: ChartBarSquareIcon,
-    tint: 'text-emerald-500 bg-success/10 ring-success/30',
+    tint: 'var(--color-success)',
   },
 ];
 
@@ -262,13 +262,24 @@ export default function ChatUI() {
         </div>
         </div>
         <span
-          className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex ${
-            hasDataSource
-              ? 'border-emerald-400/15 bg-emerald-400/[0.07] text-emerald-300'
-              : 'border-amber-400/20 bg-amber-400/[0.08] text-amber-300'
-          }`}
+          className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:inline-flex"
+          style={{
+            borderColor: hasDataSource
+              ? 'color-mix(in srgb, var(--color-success) 30%, transparent)'
+              : 'color-mix(in srgb, var(--color-warning) 30%, transparent)',
+            background: hasDataSource
+              ? 'color-mix(in srgb, var(--color-success) 8%, transparent)'
+              : 'color-mix(in srgb, var(--color-warning) 8%, transparent)',
+            color: hasDataSource ? 'var(--color-success)' : 'var(--color-warning)',
+            fontFamily: 'var(--font-display)',
+          }}
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${hasDataSource ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              background: hasDataSource ? 'var(--color-success)' : 'var(--color-warning)',
+            }}
+          />
           {connectorState.loading
             ? 'Comprobando'
             : hasDataSource
@@ -306,11 +317,11 @@ export default function ChatUI() {
               messages.map((m) => <MessageBubble key={m.id} message={m} />)
             )}
             {isLoading && (
-              <div className="flex items-center gap-2 px-1 text-sm text-neutral-400">
-                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
-                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400 [animation-delay:150ms]" />
-                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400 [animation-delay:300ms]" />
-                <span className="ml-1 text-xs text-neutral-500">
+              <div className="flex items-center gap-2 px-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: 'var(--color-accent)' }} />
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:150ms]" style={{ background: 'var(--color-accent)' }} />
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:300ms]" style={{ background: 'var(--color-accent)' }} />
+                <span className="ml-1 text-xs" style={{ opacity: 0.6 }}>
                   Analizando tu red…
                 </span>
               </div>
@@ -318,19 +329,29 @@ export default function ChatUI() {
           </div>
 
           {!canChat && auth.user && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-500">
+            <div
+              className="flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-sm"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
+                background: 'color-mix(in srgb, var(--color-warning) 8%, transparent)',
+                color: 'var(--color-warning)',
+              }}
+            >
               <CommandLineIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>Modo de solo lectura: no tenés permiso para enviar mensajes.</span>
             </div>
           )}
 
           {dataSource && (
-            <div role="status" aria-live="polite"
-              className={
-                dataSource.mode === 'demo'
-                  ? 'rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-500'
-                  : 'rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-sm text-emerald-500'
-              }
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg px-3.5 py-2.5 text-sm"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)',
+                background: 'color-mix(in srgb, var(--color-success) 8%, transparent)',
+                color: 'var(--color-success)',
+              }}
             >
               {dataSource.mode === 'demo' ? 'Datos simulados' : 'Datos reales'} ·{' '}
               {dataSource.label}
@@ -341,19 +362,30 @@ export default function ChatUI() {
             <div
               role="alert"
               aria-live="assertive"
-              className="flex flex-col gap-1.5 rounded-lg border border-danger/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+              className="flex flex-col gap-1.5 rounded-lg px-3.5 py-2.5 text-sm"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+                background: 'color-mix(in srgb, var(--color-danger) 8%, transparent)',
+                color: 'var(--color-text)',
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <span>{error.message}</span>
                 {error.kind && (
-                  <span className="shrink-0 rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-red-400">
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider"
+                    style={{
+                      background: 'color-mix(in srgb, var(--color-danger) 15%, transparent)',
+                      color: 'var(--color-danger)',
+                    }}
+                  >
                     {error.kind}
                   </span>
                 )}
               </div>
               {error.hint && (
-                <p className="text-xs text-neutral-400">
-                  <span className="font-semibold text-neutral-300">Sugerencia:</span> {error.hint}
+                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--color-text)' }}>Sugerencia:</span> {error.hint}
                 </p>
               )}
             </div>
@@ -408,19 +440,34 @@ function EmptyState({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 py-7 text-center sm:py-10">
-      <span className="relative flex h-16 w-16 items-center justify-center rounded-[1.25rem] border border-cyan-300/15 bg-gradient-to-br from-cyan-400/15 to-indigo-400/[0.08] text-cyan-300 shadow-[0_18px_45px_rgba(34,184,230,.1)]">
-        <span className="absolute inset-2 rounded-xl border border-white/[0.04]" />
+      <span
+        className="relative flex h-16 w-16 items-center justify-center rounded-[1.25rem]"
+        style={{
+          border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)',
+          background: 'linear-gradient(135deg, rgb(242 48 119 / 0.15), rgb(242 48 119 / 0.05))',
+          color: 'var(--color-accent)',
+          boxShadow: '0 18px 45px rgb(242 48 119 / 0.12)',
+        }}
+      >
+        <span
+          className="absolute inset-2 rounded-xl"
+          style={{ border: '1px solid color-mix(in srgb, var(--color-text) 5%, transparent)' }}
+        />
         <SparklesIcon className="relative h-7 w-7" />
       </span>
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-[-0.02em] text-white sm:text-lg">
+        <h3
+          className="text-base font-semibold tracking-[-0.02em] sm:text-lg"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
           {unauthenticated
             ? 'Iniciá sesión para consultar tu red'
             : needsConnector
               ? 'Conectá tu NMS para comenzar'
               : 'Hacé tu primera pregunta'}
         </h3>
-        <p className="mx-auto max-w-md text-sm leading-6 text-neutral-500">
+        <p
+          className="mx-auto max-w-md text-sm leading-6"
+          style={{ color: 'var(--color-muted)' }}>
           {unauthenticated
             ? 'Tus conversaciones y datos de red están protegidos por tu cuenta.'
             : needsConnector
@@ -440,14 +487,25 @@ function EmptyState({
             type="button"
             onClick={() => onPick(q.text)}
             disabled={disabled}
-            className="group flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 text-left transition-all hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-cyan-400/[0.04] disabled:opacity-50 disabled:hover:translate-y-0"
+            className="group flex items-start gap-3 rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+            style={{
+              borderColor: 'var(--border-divider)',
+              background: 'color-mix(in srgb, var(--color-muted) 5%, transparent)',
+            }}
           >
             <span
-              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${q.tint}`}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+              style={{
+                background: `color-mix(in srgb, ${q.tint} 10%, transparent)`,
+                border: `1px solid color-mix(in srgb, ${q.tint} 30%, transparent)`,
+                color: q.tint,
+              }}
             >
               <q.Icon className="h-4 w-4" />
             </span>
-            <span className="flex-1 text-xs font-medium leading-5 text-neutral-200 sm:text-sm">
+            <span
+              className="flex-1 text-xs font-medium leading-5 sm:text-sm"
+              style={{ color: 'var(--color-text)' }}>
               {q.text}
             </span>
           </button>

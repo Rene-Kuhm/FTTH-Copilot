@@ -1,9 +1,12 @@
 import type {
   INmsConnector,
   OltSummary,
+  OltDetail,
   OnuSummary,
   OnuDetail,
   NetworkOverview,
+  PonTechnology,
+  OltFormFactor,
 } from '@ftth-copilot/connectors-core';
 import {
   NMS_REQUEST_TIMEOUT_MS,
@@ -118,21 +121,47 @@ export class SmartOltClient implements INmsConnector {
     }));
   }
 
-  async getOltDetail(oltId: string): Promise<OltSummary & { onusConnected: number }> {
+  async getOltDetail(oltId: string): Promise<OltDetail> {
     if (this.useMock) {
-      const olt = FIXTURE_OLTS.find((o) => o.id === oltId);
+      // Router-extracted identifiers may be normalized to uppercase. Resolve
+      // against the canonical fixture ID without changing the returned ID or
+      // the existing not-found contract.
+      const normalizedOltId = oltId.trim().toLowerCase();
+      const olt = FIXTURE_OLTS.find((o) => o.id.toLowerCase() === normalizedOltId);
       if (!olt) throw new Error(`OLT ${oltId} not found`);
       const onusConnected = FIXTURE_ONUS.filter(
-        (o) => o.oltId === oltId && o.status === 'online',
+        (o) => o.oltId === olt.id && o.status === 'online',
       ).length;
-      return { ...olt, onusConnected };
+
+      // Build OltDetail from fixture data
+      const oltDetail: OltDetail = {
+        id: olt.id,
+        name: olt.name,
+        ip: olt.ip,
+        status: olt.status as OltDetail['status'],
+        uptimeSeconds: olt.uptimeSeconds,
+        temperatureCelsius: olt.temperatureCelsius,
+        model: olt.olt_hardware_version,
+        vendorId: olt.vendor,
+        ponPortsActive: this.countPonPorts(olt.id),
+        ponPortsMax: this.estimatePonPortsMax(olt.olt_hardware_version),
+        ponTechnology: this.estimatePonTechnology(olt.olt_hardware_version),
+        maxSubscribers: this.estimateMaxSubscribers(olt.olt_hardware_version),
+        subscribersConnected: onusConnected,
+        formFactor: this.estimateFormFactor(olt.olt_hardware_version),
+        firmwareVersion: olt.firmware,
+      };
+      return oltDetail;
     }
+
     // Real: combine the list (which has ip/name) with get_olt_detail for uptime/temp
     const detail = await this.realFetch<{ status: boolean; response: Record<string, unknown> }>(
       `/api/system/get_olt_detail/${oltId}`,
     );
     const olt = detail.response;
     const onus = await this.listOnus({ oltId });
+    const onlineOnus = onus.filter((o) => o.status === 'online').length;
+
     return {
       id: oltId,
       name: String(olt.name ?? oltId),
@@ -140,8 +169,53 @@ export class SmartOltClient implements INmsConnector {
       status: 'online' as const,
       uptimeSeconds: typeof olt.uptime === 'number' ? olt.uptime : undefined,
       temperatureCelsius: typeof olt.temperature === 'number' ? olt.temperature : undefined,
-      onusConnected: onus.filter((o) => o.status === 'online').length,
+      model: typeof olt.model === 'string' ? olt.model : undefined,
+      subscribersConnected: onlineOnus,
+      ponPortsActive: typeof olt.pon_ports === 'number' ? olt.pon_ports : undefined,
     };
+  }
+
+  /** Estimate max PON ports based on OLT model */
+  private estimatePonPortsMax(model: string): number {
+    const upper = model.toUpperCase();
+    if (upper.includes('MA5800') || upper.includes('C600') || upper.includes('FX-16')) return 256;
+    if (upper.includes('MA5600') || upper.includes('C650') || upper.includes('FX-8')) return 128;
+    if (upper.includes('C320') || upper.includes('FX-4')) return 64;
+    return 32; // Default for unknown models
+  }
+
+  /** Estimate PON technology based on OLT model */
+  private estimatePonTechnology(model: string): PonTechnology | undefined {
+    const upper = model.toUpperCase();
+    if (upper.includes('XGS') || upper.includes('10G')) return 'XGS-PON';
+    if (upper.includes('XG')) return 'XG-PON';
+    return 'GPON';
+  }
+
+  /** Estimate max subscribers based on OLT model */
+  private estimateMaxSubscribers(model: string): number {
+    const upper = model.toUpperCase();
+    if (upper.includes('MA5800') || upper.includes('C600')) return 32000;
+    if (upper.includes('MA5600') || upper.includes('C650')) return 16000;
+    if (upper.includes('C320') || upper.includes('FX-4')) return 4000;
+    return 8000;
+  }
+
+  /** Estimate form factor based on OLT model */
+  private estimateFormFactor(model: string): OltFormFactor {
+    const upper = model.toUpperCase();
+    if (upper.includes('FX-16') || upper.includes('C600')) return 'chassis';
+    if (upper.includes('FX-8') || upper.includes('C650')) return 'chassis';
+    if (upper.includes('C320') || upper.includes('FX-4') || upper.includes('MA5608')) return '1U';
+    return '2U';
+  }
+
+  /** Count active PON ports for an OLT (mock implementation) */
+  private countPonPorts(oltId: string): number {
+    // In real implementation, this would query the NMS
+    const onuCount = FIXTURE_ONUS.filter((o) => o.oltId === oltId).length;
+    // Estimate based on typical 1:64 split ratio
+    return Math.ceil(onuCount / 64) || 1;
   }
 
   async getNetworkOverview(): Promise<NetworkOverview> {
@@ -223,6 +297,12 @@ export class SmartOltClient implements INmsConnector {
       return FIXTURE_ONUS.filter(o => o.customerName?.toLowerCase().includes(lower));
     }
     return this.realFetch<OnuSummary[]>('/onus?customer_name=' + encodeURIComponent(name));
+  }
+
+  async listOnusByOlt(oltId: string): Promise<OnuDetail[]> {
+    throw new Error(
+      'listOnusByOlt is not supported by SmartOLT. Use listOnus({ oltId }) instead.',
+    );
   }
 
   // ── Helpers for mapping real SmartOLT responses to INmsConnector types ──

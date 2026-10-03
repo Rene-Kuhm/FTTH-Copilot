@@ -1,12 +1,181 @@
-# FTTH-Copilot — Plataforma NOC/SOC y Telemetría OLT para ISPs FTTH
+# FTTH-Copilot
 
-Plataforma operativa multi-tenant que unifica en una única base compartida (PostgreSQL 16+, auth revocable y conectores NMS) **cuatro planos de operación para redes de fibra óptica**: asistencia conversacional con IA, detección predictiva e investigación cognitiva de fallas (NOC / AIOps), vigilancia perimetral de seguridad (SOC) y recepción de telemetría SNMP en tiempo real compatible con **12 fabricantes de OLT**.
+## Diagnóstico de fibra para ISPs — impulsado por IA
 
-Transforma señales físicas débiles (deriva de potencia óptica RX, caídas dying gasp, intentos de intrusión o firmwares vulnerables) en **unidades de trabajo auditables y accionables**, reduciendo la carga cognitiva del operador del NOC.
+**Diagnóstico offline-ONU · Deriva óptica predictiva · Conectores SmartOLT / Mikrowisp · Evidencia verificable**
+
+![FTTH-Copilot convierte telemetría de red en evidencia operativa para equipos NOC](docs/assets/ftth-copilot-hero.png)
+
+> **From network data to operational evidence.**
+
+FTTH-Copilot responde la pregunta que un operador NOC tiene cada noche a las 2 AM:
+*¿Cuáles ONUs se fueron offline, por qué, y qué hago ahora?*
+
+Conecta SmartOLT o Mikrowisp, detecta ONUs offline y señales en degradación, y presenta
+un diagnóstico verificable — no una intuición. El operador mantiene el control: la plataforma
+investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura.
+
+## Promesa de producto (v0.2.2)
+
+**FTTH-Copilot le dice a un operador NOC cuáles ONUs están offline o degradándose,
+por qué, y cuál es el siguiente paso — verificado contra datos crudos de
+SmartOLT o Mikrowisp, no una suposición.**
+
+| | |
+|---|---|
+| **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT o Mikrowisp |
+| **Qué resuelve** | Identificación rápida de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
+| **Qué NO hace (v0.2.2)** | No ingiere traps SNMP en tiempo real · No detecta intrusiones SOC · No hace auditoría de firmware · No automatiza remediation |
+| **Métrica de éxito** | Un evaluador configura el entorno demo y llega a un diagnóstico funcional en ≤ 5 minutos sin credenciales reales |
+
+> [!NOTE]
+> La plataforma incluye capacidades NOC/AIOps, SOC, SNMP multi-vendor y más
+> (ver secciones debajo). El primer mensaje público se enfoca en el diagnóstico
+> offline-ONU porque es lo que un ISP puede evaluar inmediatamente.
+> Consultá [`docs/product-wedge.md`](docs/product-wedge.md) para el alcance técnico completo.
+
+---
+
+## ¿Querés evaluar FTTH-Copilot en tu ISP?
+
+> **v0.2.2 es un lanzamiento de evaluación técnica.**
+> No requiere inversión en hardware, contratos ni integraciones complejas para comenzar.
+
+### Estado de distribución
+
+La versión `v0.2.2` valida la distribución multiplataforma:
+
+| Plataforma | Formato | Estado |
+|---|---|---|
+| Web / Docker | Demo y despliegue productivo | ✅ Disponible para evaluación |
+| Linux | `.deb` y AppImage | ✅ Generado y validado |
+| Windows | `.msi` y NSIS `.exe` | ✅ Generado y ejecutado bajo Wine/Proton |
+| Android | APK | ✅ Generado; unsigned, instalación manual |
+
+Los instaladores están disponibles en [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.2.2).
+
+### Evaluadores ISP
+
+1. **Levantá el demo** → `./scripts/run-demo.sh` (sin credenciales, 3 min)
+2. **Viste el video** → [37s demo en video](docs/assets/ftth-copilot-demo-16x9.mp4)
+3. **Pedí una sesión técnica** → contactá al equipo para walkthrough guiado con tus escenarios
+
+### Para equipos de ingeniería que evaluan integración
+
+- [Documentación técnica completa](docs/architecture.md)
+- [Benchmarks reproducibles](docs/benchmarks.md)
+- [Guía de despliegue en producción](docs/production-deployment.md)
+- [Roadmap público](ROADMAP.md) con estado actual y siguientes pasos validados
+
+### Modelo de licenciamiento
+
+FTTH-Copilot es **software propietario**. El acceso público es para evaluación técnica;
+no otorga derecho a copiar, modificar o redistribuir sin autorización escrita.
+
+| Escenario | ¿Qué podés hacer? |
+|---|---|
+| Evaluar en tu entorno | ✅ Usar el demo, leer el código, correr los tests |
+| Integrar en tu ISP | ✅ Con licencia escrita de TecnoDespegue |
+| Forkear o modificar | ❌ Requiere autorización previa |
+| Reducir a producción | ❌ Requiere licencia comercial + validación de piloto |
+
+Consultá [`LICENSE`](LICENSE) para los términos completos.
+
+### Contacto y soporte
+
+| Canal | Uso |
+|---|---|
+| **Demo y evaluación** | Usá el demo público arriba |
+| **Sesión técnica guiada** | Abrí un issue con la etiqueta `evaluation` o contactá directamente |
+| **Bug report** | [`SECURITY.md`](SECURITY.md) para vulnerabilidades; issue normal para bugs |
+| **Roadmap y producto** | Issues con etiqueta `enhancement` |
+| **Contribuir código** | Leé [`CONTRIBUTING.md`](CONTRIBUTING.md) primero |
+
+---
+
+## Por qué FTTH-Copilot
+
+En un NOC tradicional, la información necesaria para resolver un incidente suele quedar fragmentada entre el NMS, las series temporales, las alarmas, la topología y el conocimiento del operador. El problema no es la falta de datos: es el tiempo y la carga cognitiva necesarios para convertirlos en una decisión defendible.
+
+FTTH-Copilot preserva la evidencia original, separa los hechos de las hipótesis y aplica controles de calidad antes de presentar un diagnóstico. El operador obtiene una ruta de investigación auditable sin ceder el control de la red ni habilitar remediaciones opacas.
+
+## Capacidades principales
+
+| Capacidad | Valor operativo |
+|---|---|
+| **Laya Decision Layer (ADR-042)** | Expert System de clasificación de eventos FTTH — 94.4% accuracy, <5ms, sin GPU. Shadow mode acumulando datos para futuro fine-tuning. |
+| **Organic Diagnostic Router — adaptive routing engine** | Selecciona el camino mínimo viable (`direct`, `assisted` o `investigation`) según la intención, el alcance y la evidencia necesaria. |
+| **NOC y AIOps predictivo** | Detecta deriva óptica y térmica, estima tiempo hasta degradación y correlaciona incidentes por topología y tiempo. |
+| **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante perfiles auditados para 12 fabricantes y dos interfaces estándar. |
+| **SOC perimetral** | Analiza syslog, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
+| **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; TruthGate rechaza afirmaciones que la evidencia no sostiene. |
+| **Automatización e integración** | Conecta SmartOLT, Mikrowisp y MikroTik, y entrega alertas mediante webhooks, Telegram, Slack y WhatsApp. |
+
+## Del dato a la decisión
+
+```text
+OLT / NMS / Syslog
+        │
+        ▼
+Telemetría y evidencia normalizada
+        │
+        ▼
+Laya Decision Layer (<5ms, shadow mode)
+        │
+        ▼
+Detección NOC/SOC + Organic Diagnostic Router
+        │
+        ▼
+Diagnóstico verificable + siguiente acción para el operador
+```
+
+La plataforma mantiene a la persona en el circuito: investiga, explica y prioriza; no ejecuta cambios sobre la infraestructura física. Consultá la [arquitectura completa](docs/architecture.md), la [matriz OLT](docs/compatibility-matrix.md) y el [roadmap público](ROADMAP.md) para conocer el alcance y los límites actuales.
 
 ---
 
 ## Quick Path (Inicio Rápido)
+
+### 0. Demo en 3 comandos (sin instalar nada)
+
+¿Querés evaluar FTTH-Copilot ahora mismo? Levantá un entorno completo con datos sintéticos y una cuenta demo en menos de un minuto:
+
+```bash
+# 1. Descargá y ejecutá el launcher (crea .env, compila, levanta todo)
+./scripts/run-demo.sh
+
+# 2. Esperá a que termine de compilar (~2 min la primera vez)
+#    Cuando veas " ✓ app", abrí http://localhost:3001
+
+# 3. Iniciá sesión con las credenciales de demo:
+#    Email:    admin@ftth-copilot.local
+#    Password: demo12345
+```
+
+El demo incluye:
+- **5 OLTs** con escenarios variados (1 con temperatura alta)
+- **~42 ONUs** (4 offline, 1 degradada, resto online)
+- **Alertas tempranas** en el dashboard
+- **NMS mock** de SmartOLT — sin credenciales reales
+
+Para detener: `./scripts/run-demo.sh down`. Para reiniciar desde cero: `./scripts/run-demo.sh reset`.
+
+### 0b. Ver el walkthrough en video (37 s)
+
+El video muestra dos casos del Organic Diagnostic Router funcionando contra datos sintéticos:
+
+**[▶ Ver demo (37 s, 16:9)](docs/assets/ftth-copilot-demo-16x9.mp4)**
+
+- **Caso 1 — DIRECT:** consulta de estado de OLT → 0 llamadas LLM, respuesta en 3 ms
+- **Caso 2 — INVESTIGATION:** diagnóstico de caída de RX → 4 tool calls, TruthGate activa la abstención
+
+Consultá [`docs/walkthrough.md`](docs/walkthrough.md) para el guion escrito con la evidencia capturada.
+
+> [!TIP]
+> Si preferís levantar los servicios manualmente:
+> ```bash
+> cp docs/demo-env-template.md .env  # luego copiá el bloque ```bash ``` a .env
+> docker compose -f docker-compose.demo.yml up
+> ```
 
 ### 1. Entorno de Desarrollo (Local)
 
@@ -91,10 +260,205 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
 
 | Plano | Qué resuelve | Señal que consume | Superficie operativa |
 |---|---|---|---|
-| **1. Copiloto Conversacional** | Diagnósticos interactivos sobre el estado de ONUs, causas de offline y consultas NMS. | APIs de SmartOLT y Mikrowisp | `/app` (Chat UI) y `/api/chat` |
+| **1. Copiloto Conversacional** | Diagnósticos interactivos sobre el estado de ONUs, causas de offline y consultas NMS. Incluye **Laya Decision Layer** (ADR-042) — clasificación de eventos FTTH con 94.4% accuracy antes del routing. | APIs de SmartOLT y Mikrowisp | `/app` (Chat UI) y `/api/chat` |
 | **2. NOC & AIOps Cognitivo** | Predicción de derivas ópticas, cálculo de ETA a corte y formulación de hipótesis raíz. | Series temporales (potencia RX, temp) y topología | `/dashboard` (Fallas) y `/api/predictions` |
 | **3. SOC Seguridad Perimetral** | Detección de ataques de fuerza bruta, accesos tras fallos y auditoría de firmware con CVEs. | Receptor Syslog UDP (5514) e inventarios | `/dashboard` (Accesos) y `/api/security/access` |
 | **4. Telemetría SNMP** | Ingestión binaria de trampas físicas de OLTs con deduplicación y token bucket. | Receptor SNMP UDP (162/1162) v1/v2c/v3 | Ingesta de bajo nivel y catálogo OID |
+
+---
+
+## Arquitectura del sistema
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║              FTTH-COPILOT — ARQUITECTURA COMPLETA                 ║
+╚════════════════════════════════════════════════════════════════════╝
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 0 — FUENTES DE DATOS                   │
+  │                                                                │
+  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────┐│
+  │  │ SmartOLT │ │Mikrowisp │ │ MikroTik │ │  OLTs  │ │ Syslog││
+  │  │  (HTTP)  │ │  (HTTP)  │ │REST (8728│ │  SNMP  │ │UDP 5514││
+  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └───┬────┘│
+  └───────┼───────────┼───────────┼───────────┼──────────┼─────────┼─────┘
+          │           │           │           │          │         │
+          ▼           ▼           ▼           ▼          ▼         ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │              CAPA 1 — INGESTA Y NORMALIZACIÓN                   │
+  │                                                                │
+  │  ┌──────────────┐  ┌────────────────┐  ┌───────────────────┐  │
+  │  │  Connector   │  │   SNMP Trap    │  │   Syslog Receiver │  │
+  │  │  Manager     │  │   Receiver     │  │   (RFC 3164)     │  │
+  │  │              │  │  (UDP 1162)    │  │                   │  │
+  │  │ • health    │  │ • decodif.     │  │ • parseSyslog()  │  │
+  │  │ • retry     │  │   multi-vendor │  │ • classifyEvent()│  │
+  │  │ • pool      │  │ • dedup        │  │   auth_failure   │  │
+  │  │              │  │ • token bucket │  │   access         │  │
+  │  └──────┬───────┘  └───────┬────────┘  │   config_change  │  │
+  └─────────┼─────────────────┼───────────└───────────────────┘────────┘
+            │                   │                    │
+            ▼                   ▼                    ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │       CAPA 2A — PIPELINE NOC (MÉTRICAS → INCIDENTES)          │
+  │                                                                │
+  │  ┌───────────────┐  ┌────────────────┐  ┌──────────────────┐  │
+  │  │Metric         │  │ Detection      │  │ Alert             │  │
+  │  │Collector       │─▶│ Engine          │─▶│ Reconciliation     │  │
+  │  │               │  │ (pure fns)     │  │                    │  │
+  │  │ poll()        │  │                │  │ • dedup            │  │
+  │  │ getOverview() │  │ detectSignal   │  │ • cooldown (1h)   │  │
+  │  │ getOnuDetail  │  │ detectTemp     │  │ • escalation (4h) │  │
+  │  │               │  │ detectFlapping │  │ • ack / resolve    │  │
+  │  │ Metrics:      │  │ detectReboot   │  └────────┬─────────┘  │
+  │  │ RX/TX power  │  │ detectBaseline │             │             │
+  │  │ LOS seconds  │  │ detectFEC     │             ▼             │
+  │  │ FEC errors   │  │ detectOptical  │  ┌──────────────────┐   │
+  │  │ Temperature   │  │                │  │ Incident         │   │
+  │  └───────┬───────┘  └────────────────┘  │ Correlator       │   │
+  │          │                               │ (deviceKind,     │   │
+  │          ▼                               │  deviceId)       │   │
+  │  ┌──────────────────────────────────────┐└────────┬─────────┘   │
+  │  │           PERSISTENCIA (PostgreSQL)   │          │             │
+  │  │                                          │          ▼             │
+  │  │  MetricSample · DetectedAlert · Incident│  ┌──────────────────┐│
+  │  │  DecisionEvaluation · DeviceEvent        │  │ Notifications   ││
+  │  │                                          │  │Webhook·Telegram││
+  │  │                                          │  │Slack·WhatsApp  ││
+  │  └──────────────────────────────────────────┘└──────────────────┘│
+  └────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │       CAPA 2B — PIPELINE SOC (SYSLOG → HALLAZGOS)             │
+  │                                                                │
+  │  DeviceEvent ──▶ Security Detection (pure functions)         │
+  │                    detectBruteForce ──► CRITICAL              │
+  │                    detectConfigChange ──► WARNING               │
+  │                    detectVulnFirmware ──► CRITICAL             │
+  └────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │     CAPA 3 — COPILOTO + LAYA DECISION LAYER (ADR-042)         │
+  │                                                                │
+  │  OPERADOR: "20 ONUs offline en PON-3, cuál es la causa?"      │
+  │                         │                                       │
+  │                         ▼                                       │
+  │  ┌──────────────────────────────────────────────────────────────┐│
+  │  │        LAYA DECISION LAYER — System 1 (<5ms, CPU)       ││
+  │  │                                                              ││
+  │  │  Clasifica evento en 9 clases con 94.4% accuracy:       ││
+  │  │                                                              ││
+  │  │  CONGESTION · DEVICE_FAULT · MASS_OUTAGE · NORMAL        ││
+  │  │  OPTICAL_DEGRADATION · OPTICAL_FAULT · POWER_FAULT        ││
+  │  │  UNKNOWN · UPLINK_FAULT                                   ││
+  │  │                                                              ││
+  │  │  shadow ──► solo loguea a decision_evaluations            ││
+  │  │  assisted ──► sugiere ruta al adaptive router               ││
+  │  │  automatic ──► influye directamente en routing              ││
+  │  │  disabled ──► desactivado                                   ││
+  │  └──────────────────────────┬───────────────────────────────┘│
+  │                             │                                  │
+  │                             ▼                                  │
+  │  ┌──────────────────────────────────────────────────────────────┐│
+  │  │         ADAPTIVE ROUTER — Organic Diagnostic Router       ││
+  │  │                                                              ││
+  │  │  Intención ──▶ Clasifica en modo:                          ││
+  │  │                                                              ││
+  │  │  routine / single_device  ──▶  ┌─────────┐  0 LLM calls  ││
+  │  │                               │ DIRECT  │  1 tool       ││
+  │  │                               └─────────┘                ││
+  │  │  histórico / multi_device ──▶  ┌─────────┐  1 LLM call  ││
+  │  │                               │ ASSISTED│  2-4 tools   ││
+  │  │                               └─────────┘  + RAG      ││
+  │  │  causa_raíz / advisory ──▶  ┌───────────┐  6 LLM calls││
+  │  │                               │INVESTIG- │  all tools  ││
+  │  │                               │  ATION   │  + reasoning││
+  │  │                               └───────────┘             ││
+  │  └───────────────────────────────┬───────────────────────────┘│
+  └──────────────────────────────────┼───────────────────────────┘
+                                     │
+          ┌───────────────────────────┼───────────────────────────┐
+          │ DIRECT                   │ ASSISTED                  │ INVESTIGATION
+          ▼                          ▼                           ▼
+  ┌─────────────┐           ┌─────────────┐            ┌───────────────┐
+  │  1 tool    │           │  RAG +      │            │  Full loop    │
+  │  formatter  │           │  LLM call  │            │  LLM × 6      │
+  │  (no LLM) │           │  2-4 tools │            │  all tools    │
+  └─────────────┘           └─────────────┘            └───────────────┘
+          │                          │                            │
+  └────────┴─────────────────────────┴────────────────────────────┘
+                                     │
+                                     ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 4 — RUNTIME                            │
+  │                                                                │
+  │  ┌──────────────┐  ┌────────────────┐  ┌──────────────────┐  │
+  │  │ System       │  │ Tool           │  │ TruthGate         │  │
+  │  │ Prompt       │  │ Registry       │  │ (evidencia first) │  │
+  │  │ (3 modes)    │  │ (9 tools)      │  │                  │  │
+  │  └──────────────┘  └────────────────┘  └──────────────────┘  │
+  │                                                                │
+  │  ┌────────────────────────────────────────────────────────┐     │
+  │  │     LLM PROVIDERS (fallback chain)                   │     │
+  │  │     MiniMax ──error──▶ DeepSeek ──error──▶ Qwen   │     │
+  │  │     Token counting · Latency metrics · Fallback ev │     │
+  │  └────────────────────────────────────────────────────────┘     │
+  └────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    CAPA 5 — OBSERVABILIDAD                      │
+  │                                                                │
+  │  /api/metrics (Prometheus)      /dashboard/laya (UI)          │
+  │  • process · SNMP · LLM         • decisiones · latencia       │
+  │  • RAG · router dispatches      • confianza por clase          │
+  │  • Laya: requests · latency     • auto-refresh 30s           │
+  │    confidence                                                      │
+  │                                                                │
+  │  Phoenix LLM Tracing (OpenInference / OTLP)                    │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+### Las 4 invariantes que cruzan todo el sistema
+
+| Invariante | Qué significa |
+|---|---|
+| **Tenant-aware** | Todo toca `tenantId`. No hay datos compartidos entre ISPs. |
+| **Evidencia first** | TruthGate rechaza afirmaciones sin evidencia que la sostenga. |
+| **Fail-open** | Si Laya no responde → pipeline continúa. Si LLM falla → fallback. |
+| **Shadow mode first** | Laya decide pero solo loguea hasta que confirmes que funciona. |
+
+---
+
+## Copiloto Conversacional: Organic Diagnostic Router
+
+El **Organic Diagnostic Router** clasifica cada consulta del operador y, para eventos de alarma, consulta primero a **Laya Decision Layer** (ADR-042) — el Expert System clasifica el tipo de evento en <5ms antes de decidir la ruta.
+
+**Laya Decision Layer** — antes de invocar cualquier razonamiento LLM, Laya clasifica el evento:
+
+| Evento | Laya decide | Routing resultante |
+|---------|-------------|---------------------|
+| NORMAL | Ignorar | — |
+| POWER_FAULT | Ruta directa | `direct` |
+| OPTICAL_FAULT | Investigación | `investigation` |
+| CONGESTION | Asistencia | `assisted` |
+| UNKNOWN | Investigación | `investigation` |
+
+Laya arranca en **shadow mode**: decide pero solo loguea. Cuando la accuracy sea满意, se activa `LAYA_MODE=assisted` para influir en el routing.
+
+Cada consulta del operador se clasifica en uno de tres modos de despacho. El modo determina **cuántas llamadas al LLM** se hacen y **qué subconjunto de herramientas** recibe el modelo.
+
+| Modo | Llamadas LLM | Iteraciones máx. | Herramientas | Cuándo se usa |
+|---|---|---|---|---|
+| `direct` | **0** | 0 | 1 (la más específica) | Una sola herramienta responde la consulta. Ej.: `estado de ONU-342`, `potencia RX de ONU-342` |
+| `assisted` | **1** (o 2 si la primera emite tool call) | 1 | 2–4 | Pregunta con device ID, o consulta histórica. Ej.: `qué pasó ayer con ONU-342?` |
+| `investigation` | **hasta 6** | 6 | todas | Multi-device, análisis de causa raíz, advisory. Ej.: `caída progresiva en 28 ONUs, cuál es la causa raíz?` |
+
+**Cómo se mide.** Cada `runAgent` expone un campo opcional `route` en `AgentResult` y un contador Prometheus `ftth_copilot_router_dispatches_total{mode="..."}` en `/api/metrics`. Esto permite comparar antes/después desde Grafana o cualquier scraper compatible.
+
+**Por qué importa.** Una consulta que antes hacía `LLM → tool → LLM → tool → respuesta` puede resolverse como `tool → formatter`, sin invocación al LLM. Para una flota de decenas de operadores preguntando por estado y potencia, el ahorro de tokens es medible desde el primer día.
 
 ---
 
@@ -142,7 +506,7 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 - **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 
 ### 3. Observabilidad y Métricas
-- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP en Next.js (`apps/web/app/api/metrics/route.ts`) que expone métricas de proceso, OLT, SNMP, LLM tokens, fallback de proveedores y latencia RAG en formato estándar de Prometheus (`text/plain; version=0.0.4; charset=utf-8`). Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP que expone métricas de proceso, OLT, SNMP, LLM tokens, dispatch del Organic Diagnostic Router y **Laya Decision Layer** (`ftth_laya_requests_total{mode,event_class}`, `ftth_laya_latency_ms{mode,quantile}`, `ftth_laya_confidence{event_class}`). Dashboard visual en `/dashboard/laya`. Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
 - **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
 
 > [!IMPORTANT]
@@ -180,7 +544,7 @@ Configuradas y documentadas en [`.env.example`](.env.example):
 
 ### 1. Validación General del Monorepo
 ```bash
-pnpm lint                  # Análisis estático ESLint en los 15 paquetes
+pnpm lint                  # Análisis estático ESLint en los 16 workspaces
 pnpm typecheck             # Comprobación de tipos estricta con TypeScript
 pnpm test                  # Suite completa de pruebas unitarias (Vitest)
 pnpm test:coverage-check   # Control de umbrales mínimos de cobertura
@@ -205,7 +569,7 @@ pnpm generate:matrix:write # Regenera docs/compatibility-matrix.md desde las fue
 | Paquete / Aplicación | Responsabilidad Principal |
 |---|---|
 | [`apps/web`](apps/web) | Next.js App Router, chat con IA, tableros NOC/SOC y endpoints REST |
-| [`packages/agent-core`](packages/agent-core) | Motor de razonamiento cognitivo, selección de herramientas y diagnóstico |
+| [`packages/agent-core`](packages/agent-core) | Motor cognitivo con Organic Diagnostic Router: clasifica la consulta en `direct` / `assisted` / `investigation`, despacha herramientas y decide cuándo llamar al LLM |
 | [`packages/alerts`](packages/alerts) | Deduplicación, agrupamiento y despacho de alertas a Webhooks y Telegram |
 | [`packages/analytics`](packages/analytics) | Ingesta, agregación y persistencia de métricas temporales de fibra |
 | [`packages/connectors/core`](packages/connectors/core) | Tipos canónicos y políticas estrictas de seguridad SSRF para NMS |
@@ -238,16 +602,40 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 
 ## Próximos Pasos y Documentación Técnica
 
+- **[Guía de inicio rápido](docs/quickstart.md)** — Llegá a un diagnóstico funcional en 5 minutos o menos, con opciones de demo (Docker), desarrollo local (pnpm) y producción (install.sh).
+- **[Benchmarks documentados](docs/benchmarks.md)** — Latencia de diagnóstico, rendimiento SNMP, accuracy del classifier, y métricas de piloto.
+- **[Caso de estudio reproducible](docs/case-study-synthetic.md)** — 4 escenarios de diagnóstico reproducibles paso a paso con datos sintéticos y métricas observadas.
+- **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.2.1.
+- **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (Prometheus, Phoenix), seguridad y runbook de emergencia.
+- **[Secret scan y rotación de credenciales](docs/secret-scan.md)** — Hallazgos de auditoría, estado del `.gitignore`, procedimientos de rotación, y acciones pendientes.
+- **[Plan de distribución](docs/distribution.md)** — Comunidades objetivo, mensajes de outreach, checklist de launch, y tracking de conversión demo→contacto.
+- **[Roadmap público](ROADMAP.md)** — Estado actual, validación pendiente y evolución prevista del producto.
 - **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
 - **[Matriz de compatibilidad OLT](docs/compatibility-matrix.md)** — Catálogo completo de OIDs, niveles de severidad y referencias técnicas.
 - **[Pruebas de laboratorio sin hardware](docs/testing-without-hardware.md)** — Guía para inyectar trampas SNMP y simular incidentes ópticos.
 - **[Procedimiento operativo de contingencia (SOP)](docs/operations/pilot-sop-and-fallback.md)** — Procedimientos manuales para el operador cuando el análisis cognitivo no está activo.
 - **[Evolución hacia AIOps cognitivo](docs/aiops-roadmap.md)** — Hoja de ruta sobre modelos multivariados y correlación topológica.
 
+## Contribuciones y Seguridad
+
+- Consultá [`CONTRIBUTING.md`](CONTRIBUTING.md) antes de proponer cambios. El repositorio es propietario y cualquier contribución requiere coordinación previa con el propietario.
+- Para reportar una vulnerabilidad, seguí el proceso de divulgación privada de [`SECURITY.md`](SECURITY.md). No publiques información sensible en un issue.
+
 ---
 
-## Licencia
+## Licencia y términos
 
-Propietario — todos los derechos reservados. Copyright © 2026 TecnoDespegue / René Kuhm.
+**Proprietario — todos los derechos reservados.** Copyright © 2026 TecnoDespegue / René Kuhm.
 
-Este repositorio **no** está bajo una licencia de código abierto. El acceso público se concede exclusivamente para revisión técnica y evaluación. No puede ser copiado, modificado, comercializado ni redistribuido sin autorización previa y por escrito. Consultar [`LICENSE`](LICENSE).
+| Uso | Permitido |
+|---|---|
+| Lectura y revisión técnica | ✅ Sí |
+| Evaluación con el demo público | ✅ Sí |
+| Fork para evaluación interna | ✅ Sí (revisión limitada) |
+| Uso en producción | ❌ Requiere licencia escrita |
+| Modificación o derivados | ❌ Requiere autorización previa |
+| Redistribución | ❌ Prohibido sin autorización |
+
+**Para solicitar una licencia de uso o una sesión técnica:** abrí un issue con la etiqueta `evaluation` o contactá directamente. El proceso de evaluación empieza con el demo público; no se requiere contacto previo para evaluar.
+
+Consultá [`LICENSE`](LICENSE) para los términos legales completos y [`CONTRIBUTING.md`](CONTRIBUTING.md) para el proceso de contribución.

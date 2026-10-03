@@ -10,44 +10,123 @@ interface AuthPageShellProps {
 export function AuthPageShell({ title, description, children }: AuthPageShellProps) {
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <div aria-hidden="true" className="surface-grid pointer-events-none absolute inset-0 opacity-50" />
+      <div
+        aria-hidden="true"
+        className="surface-grid pointer-events-none absolute inset-0 opacity-50"
+      />
       <div className="relative mx-auto grid min-h-screen max-w-7xl lg:grid-cols-[.9fr_1.1fr]">
-        <section className="flex flex-col justify-between border-b border-white/[0.06] px-5 py-6 sm:px-8 lg:border-b-0 lg:border-r lg:px-12 lg:py-10">
+
+        {/* ── Left panel ──────────────────────────────── */}
+        <section
+          className="flex flex-col justify-between border-b px-5 py-6 sm:px-8 lg:border-b-0 lg:border-r lg:px-12 lg:py-10"
+          style={{
+            borderColor: 'var(--border-divider)',
+            background: 'var(--color-surface)',
+          }}
+        >
+          {/* Brand */}
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-300">
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)',
+                background: 'rgb(242 48 119 / 0.12)',
+                color: 'var(--color-accent)',
+              }}
+            >
               <SignalIcon className="h-[18px] w-[18px]" />
             </span>
-            <span className="text-[15px] font-bold tracking-[-0.025em] text-white">FTTH<span className="text-cyan-400">·</span>Copilot</span>
+            <span
+              className="text-[15px] font-bold tracking-[-0.025em]"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+            >
+              FTTH
+              <span style={{ color: 'var(--color-accent)' }}>·</span>
+              Copilot
+            </span>
           </Link>
 
+          {/* Hero copy — desktop only */}
           <div className="hidden py-16 lg:block">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/15 bg-gradient-to-br from-cyan-400/15 to-indigo-400/10 text-cyan-300">
+            <span
+              className="flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)',
+                background: 'rgb(242 48 119 / 0.1)',
+                color: 'var(--color-accent)',
+              }}
+            >
               <SparklesIcon className="h-6 w-6" />
             </span>
-            <h2 className="mt-7 max-w-md text-4xl font-semibold leading-tight tracking-[-0.045em] text-white">
+            <h2
+              className="mt-7 max-w-md"
+              style={{
+                fontSize: 'clamp(1.75rem, 3vw, 2.25rem)',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                letterSpacing: '-0.045em',
+                lineHeight: 1.2,
+                color: 'var(--color-text)',
+              }}
+            >
               Operaciones FTTH con más contexto y menos fricción.
             </h2>
-            <p className="mt-5 max-w-md text-sm leading-7 text-neutral-400">
-              Unificá conversaciones, métricas y alertas sin reemplazar las herramientas que tu equipo ya usa.
+            <p
+              className="mt-5 max-w-md text-sm leading-7"
+              style={{ color: 'var(--color-muted)' }}
+            >
+              Unificá conversaciones, métricas y alertas sin reemplazar las
+              herramientas que tu equipo ya usa.
             </p>
-            <ul className="mt-8 space-y-3 text-sm text-neutral-300">
-              {['Conexiones NMS cifradas', 'Contexto separado por red', 'Permisos por rol y organización'].map((item) => (
-                <li key={item} className="flex items-center gap-2.5"><CheckCircleIcon className="h-4 w-4 text-emerald-400" />{item}</li>
+            <ul
+              className="mt-8 space-y-3 text-sm"
+              style={{ color: 'var(--color-text)' }}
+            >
+              {[
+                'Conexiones NMS cifradas',
+                'Contexto separado por red',
+                'Permisos por rol y organización',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2.5">
+                  <CheckCircleIcon
+                    className="h-4 w-4 shrink-0"
+                    style={{ color: 'var(--color-success)' }}
+                  />
+                  {item}
+                </li>
               ))}
             </ul>
           </div>
 
-          <div className="hidden items-center gap-2 text-xs text-neutral-600 lg:flex">
-            <ShieldCheckIcon className="h-4 w-4" />
+          {/* Footer */}
+          <div
+            className="hidden items-center gap-2 text-xs lg:flex"
+            style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+          >
+            <ShieldCheckIcon className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
             Acceso protegido por sesión segura
           </div>
         </section>
 
+        {/* ── Right panel — form ─────────────────────── */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-8 lg:py-16">
           <div className="w-full max-w-md">
             <p className="eyebrow">Tu espacio de trabajo</p>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{title}</h1>
-            <p className="mt-2 text-sm leading-6 text-neutral-400">{description}</p>
+            <h1
+              className="mt-4"
+              style={{
+                fontSize: 'clamp(1.5rem, 3vw, 1.875rem)',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                letterSpacing: '-0.04em',
+                color: 'var(--color-text)',
+              }}
+            >
+              {title}
+            </h1>
+            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--color-muted)' }}>
+              {description}
+            </p>
             <div className="mt-7">{children}</div>
           </div>
         </section>

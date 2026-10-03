@@ -151,6 +151,49 @@ describe('OLT Research Sources & Compatibility Validator (Roadmap Fase 1)', () =
     expect(crossResult.issues.some((i) => i.message.includes('nonexistent-source-ref'))).toBe(true);
   });
 
+  it('flags a source that declares a family with no compatibility record', () => {
+    const pkg = {
+      vendorId: 'dzs',
+      sources: [
+        {
+          ...validSource,
+          source_id: 'dzs-velocity-v14-datasheet-001',
+          vendor: 'DZS',
+          families: ['Velocity-V14'],
+        },
+      ],
+      compatibility: {
+        vendor: 'DZS',
+        priority: 'P1' as const,
+        iana_pens: [5504],
+        families: [
+          {
+            family: 'MXK-823',
+            level: 'L1' as const,
+            confidence_grade: 'B' as const,
+            firmware: 'unknown',
+            supported_traps: [],
+            sources: ['dzs-velocity-v14-datasheet-001'],
+          },
+        ],
+      },
+    };
+
+    const result = validateCrossVendorRegistry([pkg]);
+
+    // The source declares Velocity-V14, which has no compatibility record.
+    const orphan = result.issues.find(
+      (i) => i.message.includes('declares family') && i.message.includes('Velocity-V14'),
+    );
+    expect(orphan).toBeDefined();
+    // Reported as a warning so pre-existing family-line declarations
+    // (e.g. "MA5800" covered by MA5800-X17) do not break CI.
+    expect(orphan?.type).toBe('warning');
+    expect(orphan?.sourceId).toBe('dzs-velocity-v14-datasheet-001');
+    // Warnings alone must not invalidate the registry.
+    expect(result.valid).toBe(true);
+  });
+
   describe('validateCatalogFactsTraceability', () => {
     const mockPackages = [
       {

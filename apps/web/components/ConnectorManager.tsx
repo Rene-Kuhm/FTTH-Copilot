@@ -14,23 +14,63 @@ import {
   XMarkIcon,
 } from './icons';
 
-const STATUS_META: Record<
+const STATUS_STYLE: Record<
   ClientConnector['status'],
-  { label: string; className: string; Icon: React.ComponentType<{ className?: string }> }
+  {
+    label: string;
+    style: React.CSSProperties;
+    Icon: React.ComponentType<{ className?: string }>;
+  }
 > = {
   connected: {
     label: 'Conectado',
-    className: 'bg-success/15 text-emerald-400 ring-1 ring-inset ring-success/30',
+    style: {
+      background: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
+      color: 'var(--color-success)',
+      border: '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
     Icon: CheckCircleIcon,
   },
   error: {
     label: 'Error',
-    className: 'bg-danger/15 text-red-400 ring-1 ring-inset ring-danger/30',
+    style: {
+      background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+      color: 'var(--color-danger)',
+      border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
     Icon: XCircleIcon,
   },
   pending: {
     label: 'Pendiente',
-    className: 'bg-warning/15 text-amber-400 ring-1 ring-inset ring-warning/30',
+    style: {
+      background: 'color-mix(in srgb, var(--color-warning) 12%, transparent)',
+      color: 'var(--color-warning)',
+      border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
+      borderRadius: 'var(--radius-pill)',
+      padding: '0.2rem 0.55rem',
+      fontSize: '0.6875rem',
+      fontWeight: 650,
+      fontFamily: 'var(--font-display)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+    },
     Icon: ServerStackIcon,
   },
 };
@@ -157,15 +197,31 @@ export function ConnectorManager() {
   }
 
   return (
-    <section className="card overflow-hidden">
-      <header className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5">
+    <section className="card overflow-hidden" style={{ color: 'var(--color-text)' }}>
+      {/* Header */}
+      <header
+        className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5"
+        style={{ borderBottom: '1px solid var(--border-divider)' }}
+      >
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 ring-1 ring-inset ring-cyan-300/15">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              background: 'rgb(242 48 119 / 0.1)',
+              border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+              color: 'var(--color-accent)',
+            }}
+          >
             <ServerStackIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-white">Conectores NMS</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <h2
+              className="text-sm font-semibold"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+            >
+              Conectores NMS
+            </h2>
+            <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
               {connectorState.connectors.length === 0
                 ? 'Todavía no configuraste una red'
                 : `${connectorState.connectors.length} conector${connectorState.connectors.length === 1 ? '' : 'es'} configurado${connectorState.connectors.length === 1 ? '' : 's'}`}
@@ -178,82 +234,129 @@ export function ConnectorManager() {
             onClick={() => setShowForm(!showForm)}
             className="btn-outline"
           >
-            {showForm ? (
-              <XMarkIcon className="h-4 w-4" />
-            ) : (
-              <PlusIcon className="h-4 w-4" />
-            )}
+            {showForm ? <XMarkIcon className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
             {showForm ? 'Cancelar' : 'Agregar conector'}
           </button>
         )}
       </header>
 
-      <div className="border-t border-white/[0.06] px-5 py-4 sm:px-6">
+      {/* Content */}
+      <div className="px-5 py-4 sm:px-6" style={{ borderTop: '1px solid var(--border-divider)' }}>
         {feedback && (
           <div
             role={feedback.kind === 'error' ? 'alert' : 'status'}
             aria-live="polite"
-            className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+            className="mb-4 rounded-lg px-3 py-2 text-sm"
+            style={
               feedback.kind === 'error'
-                ? 'border-danger/30 bg-red-500/10 text-red-300'
-                : 'border-success/30 bg-success/10 text-emerald-300'
-            }`}
+                ? {
+                    border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+                    background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
+                    color: 'var(--color-danger)',
+                  }
+                : {
+                    border: '1px solid color-mix(in srgb, var(--color-success) 30%, transparent)',
+                    background: 'color-mix(in srgb, var(--color-success) 10%, transparent)',
+                    color: 'var(--color-success)',
+                  }
+            }
           >
             {feedback.text}
           </div>
         )}
 
         {connectorState.loading ? (
-          <p role="status" className="text-sm text-neutral-400">
+          <p role="status" className="text-sm" style={{ color: 'var(--color-muted)' }}>
             Cargando conectores…
           </p>
         ) : connectorState.connectors.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.09] bg-black/10 px-4 py-9 text-center">
-            <ServerStackIcon className="h-8 w-8 text-neutral-500" />
-            <p className="text-sm font-semibold text-white">No hay conectores</p>
-            <p className="max-w-md text-xs leading-5 text-neutral-500">
-              Agregá SmartOLT, Mikrowisp o MikroTik y validá la conexión para consultar tu red real.
+          <div
+            className="flex flex-col items-center justify-center gap-2 rounded-xl px-4 py-9 text-center"
+            style={{
+              border: '1px dashed var(--border-divider)',
+              background: 'color-mix(in srgb, var(--color-bg) 70%, transparent)',
+            }}
+          >
+            <ServerStackIcon className="h-8 w-8" style={{ color: 'var(--color-muted)' }} />
+            <p
+              className="text-sm font-semibold"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+            >
+              No hay conectores
+            </p>
+            <p
+              className="max-w-md text-xs leading-5"
+              style={{ color: 'var(--color-muted)' }}
+            >
+              Agregá SmartOLT, Mikrowisp o MikroTik y validá la conexión para consultar tu red
+              real.
             </p>
           </div>
         ) : (
           <ul className="space-y-2">
             {connectorState.connectors.map((connector) => {
-              const status = STATUS_META[connector.status];
+              const status = STATUS_STYLE[connector.status];
               const StatusIcon = status.Icon;
               const testing = testingId === connector.id;
               return (
                 <li
                   key={connector.id}
-                  className="rounded-xl border border-white/[0.07] bg-black/10 px-4 py-3.5 transition-colors hover:border-white/[0.12]"
+                  className="rounded-xl transition-colors"
+                  style={{
+                    border: '1px solid var(--border-divider)',
+                    background: 'color-mix(in srgb, var(--color-bg) 70%, transparent)',
+                    padding: '0.875rem 1rem',
+                  }}
                 >
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    {/* Info */}
                     <div className="flex min-w-0 items-start gap-3">
-                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-neutral-300 ring-1 ring-inset ring-white/[0.07]">
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                        style={{
+                          background: 'color-mix(in srgb, var(--color-muted) 8%, transparent)',
+                          border: '1px solid var(--border-divider)',
+                          color: 'var(--color-muted)',
+                        }}
+                      >
                         <ServerStackIcon className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-white">
+                          <span
+                            className="truncate text-sm font-semibold"
+                            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+                          >
                             {connector.label}
                           </span>
-                          <span className="badge bg-white/[0.05] text-neutral-300 ring-1 ring-inset ring-white/[0.08]">
+                          <span
+                            className="badge"
+                            style={{
+                              background: 'color-mix(in srgb, var(--color-muted) 10%, transparent)',
+                              color: 'var(--color-muted)',
+                              border: '1px solid var(--border-divider)',
+                              fontFamily: 'var(--font-display)',
+                            }}
+                          >
                             {connector.provider}
                           </span>
-                          <span className={`${status.className} badge`}>
+                          <span style={status.style}>
                             <StatusIcon className="h-3.5 w-3.5" />
                             {status.label}
                           </span>
                         </div>
                         {connector.baseUrl && (
-                          <p className="mt-1 truncate text-xs text-neutral-400">
+                          <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-muted)' }}>
                             {connector.baseUrl}
                           </p>
                         )}
                         {connector.lastError && (
-                          <p className="mt-1 text-xs text-red-300">{connector.lastError}</p>
+                          <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                            {connector.lastError}
+                          </p>
                         )}
                         {connector.lastCheckedAt && (
-                          <p className="mt-1 text-xs text-neutral-400">
+                          <p className="mt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
                             Última prueba:{' '}
                             {new Intl.DateTimeFormat('es-AR', {
                               dateStyle: 'short',
@@ -263,13 +366,13 @@ export function ConnectorManager() {
                         )}
                       </div>
                     </div>
+
+                    {/* Actions */}
                     {canManage && (
-                      <div className="flex flex-shrink-0 gap-2">
+                      <div className="flex shrink-0 gap-2">
                         <button
                           type="button"
-                          onClick={() =>
-                            void testConnector(connector.id, connector.label)
-                          }
+                          onClick={() => void testConnector(connector.id, connector.label)}
                           disabled={testingId !== null}
                           className="btn-outline"
                         >
@@ -299,14 +402,21 @@ export function ConnectorManager() {
         )}
       </div>
 
+      {/* Form */}
       {showForm && canManage && (
         <form
           onSubmit={(event) => void submit(event)}
-          className="space-y-4 border-t border-white/[0.06] bg-black/10 px-5 py-5 sm:px-6"
+          className="space-y-4 px-5 py-5 sm:px-6"
+          style={{ borderTop: '1px solid var(--border-divider)', background: 'color-mix(in srgb, var(--color-bg) 60%, transparent)' }}
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-neutral-300">Proveedor</span>
+              <span
+                className="text-xs font-medium"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+              >
+                Proveedor
+              </span>
               <select
                 value={provider}
                 onChange={(event) => {
@@ -315,6 +425,7 @@ export function ConnectorManager() {
                   setBaseUrl('');
                 }}
                 className="input"
+                style={{ color: 'var(--color-text)' }}
               >
                 <option value="SMARTOLT">SmartOLT</option>
                 <option value="MIKROWISP">Mikrowisp</option>
@@ -322,7 +433,12 @@ export function ConnectorManager() {
               </select>
             </label>
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-neutral-300">Etiqueta</span>
+              <span
+                className="text-xs font-medium"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+              >
+                Etiqueta
+              </span>
               <input
                 type="text"
                 name="connector-label"
@@ -335,14 +451,23 @@ export function ConnectorManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-300">
-                {provider === 'MIKROTIK' ? 'Credenciales (usuario:contraseña)' : 'Clave de API'}
+              <span
+                className="text-xs font-medium"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+              >
+                {provider === 'MIKROTIK'
+                  ? 'Credenciales (usuario:contraseña)'
+                  : 'Clave de API'}
               </span>
               <input
                 type="password"
                 name="connector-api-key"
                 autoComplete="off"
-                placeholder={provider === 'MIKROTIK' ? 'admin:clave (se guarda cifrada)' : 'Se guarda cifrada'}
+                placeholder={
+                  provider === 'MIKROTIK'
+                    ? 'admin:clave (se guarda cifrada)'
+                    : 'Se guarda cifrada'
+                }
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 required
@@ -350,7 +475,12 @@ export function ConnectorManager() {
               />
             </label>
             <label className="block space-y-1.5 sm:col-span-2">
-              <span className="text-xs font-medium text-neutral-300">URL base</span>
+              <span
+                className="text-xs font-medium"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+              >
+                URL base
+              </span>
               <input
                 type="url"
                 name="connector-base-url"
@@ -374,14 +504,19 @@ export function ConnectorManager() {
             <div
               role="alert"
               aria-live="assertive"
-              className="rounded-lg border border-danger/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+              className="rounded-lg px-3 py-2 text-sm"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+                background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
+                color: 'var(--color-danger)',
+              }}
             >
               {formError}
             </div>
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
               Solo se permiten destinos HTTPS públicos. La clave se almacena cifrada.
             </p>
             <button type="submit" disabled={submitting} className="btn-primary sm:w-auto">

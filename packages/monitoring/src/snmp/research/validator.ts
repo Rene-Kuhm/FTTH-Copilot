@@ -143,6 +143,29 @@ export function validateCrossVendorRegistry(packages: VendorPackageContent[]): V
     }
   }
 
+  // Reverse direction: every family a source declares should exist in the same
+  // vendor's compatibility file. Without this, a squash merge that drops the
+  // compatibility record leaves the source pointing at nothing and CI passes.
+  // Reported as a warning because several sources legitimately declare a
+  // family *line* (e.g. "MA5800", "C300") that is covered by concrete
+  // variants (MA5800-X17, ZXA10-C300) rather than by a record of its own.
+  for (const pkg of packages) {
+    const declaredFamilies = new Set(pkg.compatibility.families.map((f) => f.family));
+    for (const src of pkg.sources) {
+      for (const fam of src.families) {
+        if (!declaredFamilies.has(fam)) {
+          issues.push({
+            type: 'warning',
+            sourceId: src.source_id,
+            message:
+              `Source '${src.source_id}' in vendor '${pkg.vendorId}' declares family '${fam}' ` +
+              `but no compatibility record exists for it`,
+          });
+        }
+      }
+    }
+  }
+
   return {
     valid: issues.every((i) => i.type !== 'error'),
     issues,

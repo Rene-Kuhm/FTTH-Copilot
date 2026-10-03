@@ -1,0 +1,103 @@
+# FTTH-Copilot — Production with HTTPS (Caddy reverse proxy)
+#
+# Usage:
+#   cp .env.example .env.prod
+#   # Add to .env.prod:
+#   CADDY_DOMAIN=ftth.example.com
+#   CADDY_EMAIL=admin@example.com
+#   CADDY_HTTP_PORT=80
+#   CADDY_HTTPS_PORT=443
+#   # Remove or comment out the "ports: - 3001:3001" line from app service
+#   docker compose -f docker-compose.https.yml up -d
+#
+# Caddy automatically provisions Let's Encrypt certificates.
+# No manual certificate management required.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ftth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-ftth_copilot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-ftth} -d $${POSTGRES_DB:-ftth_copilot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - ftth-network
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dependencies
+    restart: "no"
+    command: ["pnpm", "--filter", "@ftth-copilot/db", "db:deploy"]
+    env_file:
+      - .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ftth-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    image: ftth-copilot:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    expose:
+      - "3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - ftth-network
+
+  # ── Caddy reverse proxy ──────────────────────────────────────────────
+  # Automatic HTTPS via Let's Encrypt.
+  # Remove this service if you use your own reverse proxy (nginx, traefik, etc.)
+  caddy:
+    image: caddy:2-alpine
+    container_name: ftth_caddy
+    restart: unless-stopped
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN}
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - ftth-network
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  ftth-network:
+    driver: bridge

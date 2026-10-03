@@ -49,3 +49,169 @@
   license: restricted
   sha256: null
   facts: []
+
+- source_id: calix-844g-1-datasheet-001
+  vendor: Calix
+  families:
+    - 844G-1
+  firmware: unknown
+  title: Calix 844G-1 GigaCenter XGS-PON ONT Installation Guide
+  publisher: Calix Networks
+  url: https://www.nexicomsystems.com/products/central-office-data-center/xgs-pon-gpon-xdsl-pots/calix/844g-1-gigacenter-2pots4ge-dual-wifi-1-usb-ups-pwr-int-ca/
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: 844g-1-specs
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "844G-1: GPON, 4 GE + 2 POTS + 1 USB, WiFi5 (2.4G/5G 4x4 MIMO), B+ optical, 20km, WPA3, TR-069/USP, OMCI G.988"
+
+- source_id: calix-844g-1-wifi-cert-001
+  vendor: Calix
+  families:
+    - 844G-1
+  firmware: unknown
+  title: Calix 844G-1 GigaCenter Wi-Fi Alliance Certification
+  publisher: Wi-Fi Alliance
+  url: https://device.report/calix/844g-1
+  source_grade: A
+  retrieved_at: 2026-09-15
+  license: permissive
+  sha256: null
+  facts:
+    - notification_name: 844g-1-wifi-cert
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.2
+      status: recognized
+      severity: info
+      category: certification
+      description: "Wi-Fi CERTIFIED ac, 2.4GHz + 5GHz, 4x4 MIMO, DFS channels"
+
+- source_id: calix-e3-2-portal-001
+  vendor: Calix
+  families:
+    - E3-2
+  firmware: unknown
+  title: Calix AXOS E3-2 Intelligent PON Node
+  publisher: Calix Networks
+  url: https://www.calix.com/products/platform/intelligent-access/systems/axos-e3-2.html
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: calix-e3-2-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.3.2.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "AXOS E3-2: sealed remote OLT, pluggable subscriber interface modules, XGS-PON/GPON/Multi-PON, environmentally hardened"
+
+- source_id: calix-e-series-planning-001
+  vendor: Calix
+  families:
+    - E5-48C
+    - E3-48C
+    - E3-8G
+  firmware: E7-OS-R2.5
+  title: Calix E-Series (E7 OS R2.5) Engineering and Planning Guide
+  publisher: Calix Networks
+  url: https://device.report/m/b92e1d95f099ace3977679955de88a3b6920dbf789343e9e7e5c4c9b634e36b8.pdf
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: calix-e5-48c-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.5.48.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "E5-48C: Calix E-Series E7 OS modular chassis, 48-port Ethernet access system"
+    - notification_name: calix-e3-48c-device-info
+      oid: 1.3.6.1.4.1.6321.1.2.4.3.48.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "E3-48C: smaller form-factor E7-2 with 48-port Ethernet"
+
+- source_id: calix-844ge-844g-overview-001
+  vendor: Calix
+  families:
+    - 844GE-1
+    - 844GE-2
+    - 844G-1
+    - 844G-2
+    - 844FB-1
+    - 844FB-2
+  firmware: unknown
+  title: Calix GigaFamily Overview (844G, 844GE, 844FB)
+  publisher: Calix Networks
+  url: https://www.calix.com/content/dam/calix/mycalix-misc/lib/prem/op/gf-op/gf-spg/65393.htm
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: calix844ge2DeviceInfo
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.200
+      status: recognized
+      severity: info
+      category: device_info
+      description: "844GE-2: 2POTS, 4 Gig-E, Dual WiFi (ac), 1 USB, 1 RF, 2.5G GPON + 1G AE optical"
+    - notification_name: calix844g2DeviceInfo
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.210
+      status: recognized
+      severity: info
+      category: device_info
+      description: "844G-2: 2POTS, 4 Gig-E, Dual WiFi (ac), 1 USB, GigaCenter"
+    - notification_name: calix844fb2DeviceInfo
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.220
+      status: recognized
+      severity: info
+      category: device_info
+      description: "844FB-2: 2POTS, 4 Gig-E, Dual WiFi (ac), 1 USB, G.fast bonding"
+
+- source_id: calix-844e-datasheet-001
+  vendor: Calix
+  families:
+    - '844E-1'
+  firmware: unknown
+  title: Calix 844E GigaCenter ANSI Product Datasheet
+  publisher: Calix / truestreamfiber
+  url: https://www.truestreamfiber.com/wp-content/uploads/2018/12/Gigacenter-technical-datasheet.pdf
+  source_grade: B
+  retrieved_at: 2026-10-01
+  license: review-required
+  sha256: null
+  facts:
+    - notification_name: calix844eDeviceInfo
+      oid: 1.3.6.1.4.1.6321.1.2.4.844.300
+      status: recognized
+      severity: info
+      category: device_info
+      description: "844E: Gigabit Ethernet subscriber gateway with VoIP and WiFi"
+
+- source_id: calix-b6-datasheet-001
+  vendor: Calix
+  families:
+    - B6-002
+    - B6-006
+  firmware: AXOS
+  title: Calix B6 OLT (Compact Sealed Remote)
+  publisher: Calix Networks
+  url: https://www.calix.com/products/platform/intelligent-access/systems/b6-olt.html
+  source_grade: A
+  retrieved_at: 2026-10-01
+  license: restricted
+  sha256: null
+  facts:
+    - notification_name: calixB6DeviceInfo
+      oid: 1.3.6.1.4.1.6321.1.2.4.6.1
+      status: recognized
+      severity: info
+      category: device_info
+      description: "B6: Compact sealed remote OLT, environmentally hardened, pluggable GPON/XGS-PON modules"

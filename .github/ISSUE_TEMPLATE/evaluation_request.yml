@@ -1,0 +1,123 @@
+name: Technical Evaluation Request
+description: Request a guided evaluation or pilot session for FTTH-Copilot
+title: "[Evaluation]: "
+labels: ["evaluation"]
+assignees: []
+body:
+
+  - type: markdown
+    attributes:
+      label: About this template
+      description: |
+        Use this template to request a guided technical evaluation session for FTTH-Copilot.
+        Before opening an issue, we recommend running the demo:
+        `./scripts/run-demo.sh` — no credentials or hardware required.
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Your role
+      description: What best describes your role?
+      options:
+        - ISP owner / operator
+        - NOC lead / engineer
+        - Network engineer
+        - Product / technical manager
+        - Developer / integrator
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: country
+    attributes:
+      label: Country / Region
+      description: "e.g. Argentina, Colombia, México, Spain"
+      placeholder: Argentina
+    validations:
+      required: true
+
+  - type: dropdown
+    id: nms
+    attributes:
+      label: NMS / OLT Platform
+      description: Which platform do you use today?
+      options:
+        - SmartOLT
+        - Mikrowisp
+        - MikroTik (RouterOS)
+        - Other / None yet
+    validations:
+      required: true
+
+  - type: input
+    id: fleet_size
+    attributes:
+      label: Fleet size (approximate)
+      description: "e.g. 2 OLTs / ~200 ONUs, or still evaluating"
+      placeholder: "~3 OLTs, ~500 ONUs"
+
+  - type: textarea
+    id: workflows
+    attributes:
+      label: What workflows do you want to evaluate?
+      description: "Check all that apply or describe your own scenarios."
+      value: |
+        - [ ] Diagnosing offline ONUs quickly
+        - [ ] Identifying optical signal degradation before it causes outages
+        - [ ] Correlating multi-ONU outages to a common root cause
+        - [ ] Predicting fiber cuts from signal drift trends
+        - [ ] Reducing NOC response time for FTTH incidents
+        - [ ] Other: ___
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_process
+    attributes:
+      label: Current diagnostic process
+      description: How does your team diagnose FTTH incidents today?
+      placeholder: |
+        Example: We check SmartOLT dashboard → identify offline ONUs → check
+        individual ONUs one by one → correlate by OLT manually → dispatch field tech.
+        Average time to first action: ~15 min.
+
+  - type: checkboxes
+    id: demo_status
+    attributes:
+      label: Demo status
+      options:
+        - label: I have run the demo (`./scripts/run-demo.sh`)
+        - label: I have watched the demo video (37s)
+        - label: I have read the case study (`docs/case-study-synthetic.md`)
+        - label: Not yet, but I want to before the session
+    validations:
+      required: true
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Key questions or specific scenarios for the session
+      description: Describe what you most want to explore or validate.
+      placeholder: |
+        Example: Can it handle our specific OLT model? How does the
+        prediction work if we only poll every 15 minutes?
+        Is there a way to integrate this with our existing alerting?
+
+  - type: input
+    id: availability
+    attributes:
+      label: Availability for a 30-minute guided session
+      description: "Approximate days/times in your timezone (UTC-3 unless noted)"
+      placeholder: "Weekdays 09:00–18:00 UTC-3 preferred"
+    validations:
+      required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: Contact email
+      description: For scheduling the session. Not published.
+      placeholder: your@email.com
+    validations:
+      required: true

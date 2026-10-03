@@ -3,6 +3,70 @@ priority: P1
 iana_pens:
   - 37950
 families:
+
+  - family: V2902A
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: XGS-PON
+    ethernet_ports: 2
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - vsol-v2900-ont-portal-001
+    notes: 10G PON ONT, 1*10GE + 1*GE, XG-PON/XGS-PON dual mode.
+
+  - family: V2905H
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: gateway
+    pon_technology: XGS-PON
+    ethernet_ports: 5
+    usb_ports: 1
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - vsol-v2900-ont-portal-001
+    notes: 10G PON ONT, 1*10GE + 4*GE + USB3.0.
+
+  - family: V3600G1-C
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_xgspom_ports: 8
+    max_subscribers: 1024
+    uplink_options:
+      - 100GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+      - Combo-GPON-XGS-PON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - vsol-v3600g-olt-portal-001
+    notes: 8-port XG(S) Combo PON OLT, 100Gbps uplinks.
+
+  - family: V1600XG02
+    level: L1
+    confidence_grade: A
+    firmware: unknown
+    form_factor: 1U
+    max_xgspom_ports: 2
+    max_subscribers: 256
+    uplink_options:
+      - 10GE
+    pon_technologies:
+      - GPON
+      - XGS-PON
+    optical_class: C+
+    max_distance_km: 20
+    sources:
+      - vsol-v3600g-olt-portal-001
+    notes: 2-port XG/XGS-PON OLT, FTTM deployment.
   - family: V1600
     level: L2
     confidence_grade: B
@@ -17,3 +81,29 @@ families:
     sources:
       - vsol-download-portal-001
       - vsol-gpon-mib-002
+  - family: V2801RH
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: ont
+    pon_technology: GPON
+    ethernet_ports: 1
+    wifi_standard: WiFi6
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - vsol-v2801rh-datasheet-001
+    notes: 1*2.5GbE XPON ONT. EPON PX20+/GPON Class B+, SC/UPC connector.
+  - family: V2802RH
+    level: L1
+    confidence_grade: A
+    device_kind: ont
+    form_factor: ont
+    pon_technology: GPON
+    ethernet_ports: 2
+    wifi_standard: WiFi6
+    optical_class: B+
+    max_distance_km: 20
+    sources:
+      - vsol-v2801rh-datasheet-001
+    notes: 1*2.5GbE + 1*GE XPON ONT. Meets WiFi 6/AR/VR/8K bandwidth needs.
