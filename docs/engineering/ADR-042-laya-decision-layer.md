@@ -251,10 +251,9 @@ Request:
 }
 ```
 
-### Métricas Prometheus
+### Métricas VictoriaMetrics / Prometheus-compatible
 
-**Implementado:** métricas expuestas via `/api/metrics` (Next.js) integrando
-`layaMetrics.toPrometheusFormat()`.
+**Implementado:** métricas expuestas via `/api/metrics` (Next.js) en formato Prometheus, consumidas por VictoriaMetrics via scrape. El método  genera la salida Prometheus-compatible que VM espera.
 
 ```
 ftth_laya_requests_total          # counter{mode, event_class, result}
@@ -385,7 +384,7 @@ LAYA_MODEL_VERSION=1.0.0
 LAYA_LOG_LEVEL=debug        # debug|info|error
 ```
 
-### Métricas Prometheus
+### Métricas VictoriaMetrics / Prometheus-compatible
 
 ```typescript
 import { recordLayaDecision, layaMetrics } from '@ftth-copilot/shared';
@@ -415,7 +414,7 @@ if (shouldLogDecision(config)) {
 ```
 packages/shared/src/
 ├── laya-expert-system.ts    # Classifier principal (94.4% accuracy)
-├── laya-metrics.ts          # Prometheus metrics
+├── laya-metrics.ts          # VictoriaMetrics / Prometheus-compatible
 ├── laya-shadow.ts           # Shadow mode + feature flags
 ├── laya-integration.ts      # Integration helpers
 ├── laya-client.ts           # HTTP client (for ML service)

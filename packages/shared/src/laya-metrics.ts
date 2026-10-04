@@ -1,5 +1,5 @@
 /**
- * Laya Prometheus Metrics
+ * Laya VictoriaMetrics / Prometheus-compatible Metrics
  * 
  * Metrics for monitoring Laya Expert System performance.
  * 

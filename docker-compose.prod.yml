@@ -58,8 +58,46 @@ services:
     networks:
       - ftth-network
 
+  # ─────────────────────────────────────────────────────────────────────
+  # VictoriaMetrics — Time-series database + Dashboard UI
+  # Production-grade TSDB with 1-year retention by default,
+  # built-in Grafana-compatible UI, and Prometheus-compatible API.
+  #
+  # Access: http://localhost:8428 (VM UI + Prometheus-compatible API)
+  # Docs: https://docs.victoriametrics.com/
+  # Note: Expose via reverse proxy (Caddy) with HTTPS + basic auth in production.
+  # ─────────────────────────────────────────────────────────────────────
+  victoriametrics:
+    image: victoriametrics/victorial:latest
+    container_name: ftth_prod_victoriametrics
+    restart: unless-stopped
+    command:
+      - '-storageDataPath=/storage'
+      - '-retentionPeriod=${VICTORIAMETRICS_RETENTION:-12}'
+      - '-httpListenAddr=:8428'
+      - '-scrape.verbose=false'
+      - '-scrape.timeout=10s'
+      - '-scrape.interval=30s'
+      # In production, set VICTORIAMETRICS_RETENTION=60 for 5-year retention.
+      # Retention is in months. 12 = 1 year, 60 = 5 years.
+    ports:
+      - "${VICTORIAMETRICS_PORT:-8428}:8428"
+    volumes:
+      - victoriametrics_prod_data:/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - ftth-network
+
 volumes:
   postgres_data:
+  victoriametrics_prod_data:
 
 networks:
   ftth-network:

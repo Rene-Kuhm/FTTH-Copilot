@@ -79,6 +79,47 @@ services:
     networks:
       - ftth-demo
 
+  # ─────────────────────────────────────────────────────────────────────
+  # VictoriaMetrics — Time-series database + Dashboard UI
+  # Drop-in replacement for Prometheus with better compression,
+  # long-term retention, and built-in Grafana-compatible UI.
+  #
+  # Access: http://localhost:8428 (VM UI + Prometheus-compatible API)
+  # Docs: https://docs.victoriametrics.com/
+  # ─────────────────────────────────────────────────────────────────────
+  victoriametrics:
+    image: victoriametrics/victorial:latest
+    container_name: ftth_demo_victoriametrics
+    restart: unless-stopped
+    command:
+      - '-storageDataPath=/storage'
+      - '-retentionPeriod=${VICTORIAMETRICS_RETENTION:-1}'
+      - '-httpListenAddr=:8428'
+      - '-scrape.verbose=true'
+      - '-scrape.timeout=10s'
+      - '-scrape.interval=30s'
+      - '-logNewSeries=true'
+      # Built-in scraper: point to the app's /api/metrics endpoint.
+      # Uses Docker DNS — 'app' resolves inside the ftth-demo network.
+      - '-scrape.url=http://app:3001/api/metrics'
+      # Bearer token auth (matches METRICS_BEARER_TOKEN in .env).
+      # If the token is empty, the header is omitted (demo mode).
+      - '-scrape.headers=Authorization:Bearer\ ${METRICS_BEARER_TOKEN:-}'
+    ports:
+      - "${VICTORIAMETRICS_PORT:-8428}:8428"
+    volumes:
+      - victoriametrics_demo_data:/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - ftth-demo
+
   # Seeds demo account + synthetic ONU metrics and alerts.
   # Runs after app is reachable so the UI can show immediately.
   db-seed:
@@ -106,6 +147,7 @@ services:
 
 volumes:
   postgres_demo_data:
+  victoriametrics_demo_data:
 
 networks:
   ftth-demo:

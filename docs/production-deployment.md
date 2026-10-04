@@ -25,11 +25,13 @@
                  │
        ┌─────────┴──────────┐
        ▼                   ▼
-┌─────────────┐     ┌────────────────┐
-│ PostgreSQL  │     │ Prometheus /   │
-│  (:5432)   │     │ Phoenix LLM    │
-│ persistent  │     │ traces         │
-└─────────────┘     └────────────────┘
+┌─────────────┐     ┌─────────────────────────────────────┐
+│ PostgreSQL  │     │ VictoriaMetrics (:8428)              │
+│  (:5432)   │     │ • TSDB (drop-in Prometheus)          │
+│ persistent  │     │ • Built-in Grafana UI                │
+└─────────────┘     │ • Prometheus-compatible API           │
+                    │ • Phoenix LLM traces (OTLP :4317)    │
+                    └─────────────────────────────────────┘
        │
        │  (optional: Docker microservice)
        ▼
@@ -44,6 +46,7 @@
 | `postgres` | 5432/TCP | `postgres_data` | Base de datos multi-tenant |
 | `app` | 3001/TCP | — | Next.js (sin estado) |
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
+| `victoriametrics` | 8428/TCP | `victoriametrics_prod_data` | TSDB + Grafana UI + Prometheus API |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |
 | Syslog receiver | 5514/UDP | — | Solo si `SYSLOG_RECEIVER_ENABLED=true` |
 | `laya` | 8080/TCP | — | FastAPI microservicio (opcional, profile=laya) |
@@ -267,16 +270,24 @@ curl -s http://localhost:3001/api/health | jq .
 }
 ```
 
-### 5.2 Prometheus metrics
+### 5.2 Métricas con VictoriaMetrics
 
-Con `METRICS_BEARER_TOKEN` configurado:
+VictoriaMetrics scanea automáticamente el endpoint `/api/metrics` de la app cada 30s
+(configurable via `VICTORIAMETRICS_RETENTION` y flags de `-scrape.*`).
 
+**Acceso a la UI de métricas:**
 ```bash
-curl -s -H "Authorization: Bearer <token>" \
-  http://localhost:3001/api/metrics
+# UI de VictoriaMetrics (built-in, estilo Grafana)
+open http://localhost:8428
+
+# Consulta directa Prometheus-compatible
+curl http://localhost:8428/api/v1/query?query=ftth_copilot_router_dispatches_total
+
+# Ver métricas crudas raw (sin parsing)
+curl http://localhost:8428/metrics
 ```
 
-**Métricas disponibles:**
+**Métricas disponibles en VictoriaMetrics:**
 
 | Métrica | Labels | Descripción |
 |---|---|---|
@@ -286,17 +297,38 @@ curl -s -H "Authorization: Bearer <token>" \
 | `ftth_copilot_alert_count` | `severity`, `kind` | Alertas emitidas |
 | `ftth_copilot_verdict_total` | `code`, `severity` | Verdicts de TruthGate |
 
-### 5.3 Prometheus scraping config
+**Agregar como datasource en Grafana (si ya tenés Grafana):**
+```
+URL: http://victoriametrics:8428
+Access: Server (default)
+Auth: With credentials (si usás bearer)
+Custom HTTP Headers:
+  Header: Authorization
+  Value: Bearer <METRICS_BEARER_TOKEN>
+```
+
+### 5.3 Configuración de scraping (deprecated — vmagent.yml)
+
+> **Nota:** El scraping está configurado directamente en `docker-compose.prod.yml`.
+> Ya no se necesita un archivo `prometheus.yml` externo. Si necesitás un
+> agente de scrape separado (`vmagent`), usá la configuración:
 
 ```yaml
-# prometheus.yml
+# docker/vmagent.yml — alternativa con vmagent externo
+global:
+  scrape_interval: 30s
 scrape_configs:
   - job_name: 'ftth-copilot'
     metrics_path: '/api/metrics'
-    bearer_token: '<METRICS_BEARER_TOKEN>'
     static_configs:
-      - targets: ['localhost:3001']
+      - targets: ['app:3001']
+    authorization:
+      type: Bearer
+      credentials: '${METRICS_BEARER_TOKEN}'
 ```
+
+Para usar vmagent externo, ejecutalo como container separado y configura
+`-remoteWrite.url=http://victoriametrics:8428/insert/0/prometheus/`.
 
 ### 5.4 Phoenix LLM Tracing
 
@@ -327,7 +359,7 @@ Trazas exportadas: `agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation
 | Puerto Syslog (5514) no expuesto a Internet | ☐ | Solo desde red de gestión |
 | `METRICS_BEARER_TOKEN` generado y almacenado de forma segura | ☐ | Rotar si se expone |
 | Conexión a PostgreSQL por red interna | ☐ | No exponer puerto 5432 a Internet |
-| Firewall: solo puertos 3001, 1162, 5514 разрешены | ☐ | Configurar según política de red |
+| Firewall: solo puertos 3001, 8428, 1162, 5514 разрешены | ☐ | 8428 = VictoriaMetrics UI; proteger con reverse proxy + auth si se expone |
 | HTTPS configurado con Caddy o reverse proxy propio | ☐ | Usar `docker-compose.https.yml` o terminación TLS propia |
 | `CADDY_EMAIL` configurado en `.env.prod` | ☐ | Para notificaciones de vencimiento de certificado |
 | Dominio apontado a DNS antes de levantar Caddy | ☐ | Caddy necesita DNS resuelto para generar certificados |
@@ -451,4 +483,4 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --scale app
 | Volumen de base destruido | Disaster recovery (sección 4.2) |
 | Puerto 3001 ocupado | Cambiar `PORT` en `.env.prod` y reiniciar |
 | Error "Refusing to seed in production" | Verificar `NODE_ENV=production` + `ALLOW_PRODUCTION_SEED=false` en `.env.prod` |
-| Métricas no responden | Verificar `METRICS_BEARER_TOKEN`; `curl` con el token |
+| Métricas no responden | Verificar que VictoriaMetrics esté corriendo (`docker compose ps`); `curl http://localhost:8428/health` debe devolver `OK`; verificar `METRICS_BEARER_TOKEN` coincide entre app y VM scrape config |
