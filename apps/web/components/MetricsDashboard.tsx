@@ -1,10 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/lib/auth/client';
+import { SituationsPanel } from './SituationsPanel';
+import { NetworkTopologyMap } from './NetworkTopologyMap';
+import { CapacityForecast } from './CapacityForecast';
+import { ChangeTimeline } from './ChangeTimeline';
+import { RunbookPanel } from './RunbookPanel';
 
 // Captured once at module load — stable across re-renders, no impure-call-in-render issue.
 const MODULE_LOAD_MS = Date.now();
-import { useAuth } from '@/lib/auth/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -665,31 +670,68 @@ export default function MetricsDashboard() {
         / apiIncidents.filter(i => i.status === 'resolved').length
     : 0;
 
-  return (
-    <div className="space-y-5">
+  // ── Tab navigation ────────────────────────────────────────────
+  type Tab = 'overview' | 'triage' | 'aiops' | 'situations' | 'topology' | 'capacity' | 'timeline' | 'runbooks';
+  const [tab, setTab] = useState<Tab>('overview');
 
-      {/* ── HEADER ─────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight">Observabilidad NOC · AIOps</h2>
-          <p className="text-sm text-base-content/50">
-            VictoriaMetrics TSDB · Prometheus API
-            {updated && <span className="ml-2">· {updated.toLocaleTimeString('es-ES')}</span>}
-            <span className="ml-2">· {tr}</span>
-            <span className="ml-2">· streaming live</span>
-          </p>
+  const tabs: Array<{ id: Tab; label: string; icon: string }> = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'triage', label: 'Triage', icon: '🔍' },
+    { id: 'aiops', label: 'AIOps', icon: '🧠' },
+    { id: 'situations', label: 'Situations', icon: '🔗' },
+    { id: 'topology', label: 'Topología', icon: '🗺️' },
+    { id: 'capacity', label: 'Capacidad', icon: '📈' },
+    { id: 'timeline', label: 'Timeline', icon: '📋' },
+    { id: 'runbooks', label: 'Runbooks', icon: '📖' },
+  ];
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── HEADER ─────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Observabilidad NOC · AIOps</h2>
+            <p className="text-sm text-base-content/50">
+              VictoriaMetrics TSDB · Prometheus API
+              {updated && <span className="ml-2">· {updated.toLocaleTimeString('es-ES')}</span>}
+              <span className="ml-2">· {tr}</span>
+              {tab === 'overview' && <span className="ml-2">· streaming live</span>}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="join">
+              {(Object.keys(TR) as TimeRange[]).map((t) => (
+                <button key={t} className={`join-item btn btn-xs ${tr === t ? 'btn-active' : ''}`} onClick={() => setTr(t)}>{t}</button>
+              ))}
+            </div>
+            <button className="btn btn-ghost btn-sm gap-1" onClick={() => void refresh()} disabled={loading}>
+              <svg className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="join">
-            {(Object.keys(TR) as TimeRange[]).map((t) => (
-              <button key={t} className={`join-item btn btn-xs ${tr === t ? 'btn-active' : ''}`} onClick={() => setTr(t)}>{t}</button>
+
+        {/* Tab bar */}
+        <div className="overflow-x-auto rounded-xl border border-base-200 bg-base-100 p-1">
+          <div className="flex gap-1">
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
+                  tab === t.id
+                    ? 'bg-primary text-primary-content shadow-sm'
+                    : 'text-base-content/50 hover:bg-base-200 hover:text-base-content'
+                }`}
+              >
+                <span>{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
             ))}
           </div>
-          <button className="btn btn-ghost btn-sm gap-1" onClick={() => void refresh()} disabled={loading}>
-            <svg className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -700,329 +742,344 @@ export default function MetricsDashboard() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          LAYER 1 — OVERVIEW: Is it working?
-      ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
-            Layer 1 · Overview — ¿Está funcionando?
-          </span>
-          <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
-        </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-          {/* Health Score */}
-          <div className="col-span-2 flex items-center gap-4 rounded-xl border border-base-200 bg-base-100 p-4">
-            <HealthRing score={healthScore} />
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${up ? 'bg-success animate-pulse' : 'bg-error'}`} />
-                <span className="text-xs font-medium">{up ? 'Scraping activo' : 'Scraping caído'}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {[{ v: criticalAlerts, l: 'Críticas', c: 'text-error' }, { v: warningAlerts, l: 'Warning', c: 'text-warning' }, { v: incidents, l: 'Incidentes', c: 'text-warning' }].map((x) => (
-                  <div key={x.l} className="text-center">
-                    <div className={`font-mono text-lg font-black ${x.c}`}>{x.v}</div>
-                    <div className="text-[9px] text-base-content/40">{x.l}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Uptime */}
-          <KpiTile label="Uptime" value={fmtDur(uptime)} spark={[]} />
-
-          {/* Samples VM */}
-          <KpiTile label="Samples" value={fmt(samples)} spark={[]} />
-
-          {/* Requests */}
-          <KpiTile label="Requests (15m)" value={fmt(requestsRate.total)} spark={requestsRate.pts} color="#10b981" />
-
-          {/* Tokens */}
-          <KpiTile label="Tokens consumidos" value={fmt(llmTokens)} spark={[]} />
-
-          {/* Incidents open */}
-          <KpiTile label="Incidentes abiertos"
-            value={openIncidents.length}
-            color={openIncidents.length > 0 ? '#f59e0b' : '#10b981'}
-            spark={[]} />
-
-          {/* MTTR */}
-          <KpiTile label="MTTR avg"
-            value={mttrMs > 0 ? fmtDur(mttrMs / 1000) : '—'}
-            spark={[]} />
-        </div>
-      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          LAYER 2 — TRIAGE: Where is the problem?
+          TAB CONTENT
       ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
-            Layer 2 · Triage — ¿Dónde está el problema?
-          </span>
-          <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+      {(tab === 'overview' || tab === 'triage' || tab === 'aiops') && (
+      <div>
 
-          {/* NMS Connections */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold">NMS Connections</span>
-              <span className="badge badge-sm badge-outline">{nmsConn.filter(c => c.up).length}/{nmsConn.length} up</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {nmsConn.length ? nmsConn.map((c) => (
-                <div key={c.provider} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 ${c.up ? 'border-success/30 bg-success/5' : 'border-error/30 bg-error/5'}`}>
-                  <span className={`h-2 w-2 rounded-full ${c.up ? 'bg-success animate-pulse' : 'bg-error'}`} />
-                  <span className="text-xs font-medium capitalize">{c.provider}</span>
-                  <span className="text-xs text-base-content/40">{c.up ? 'up' : 'down'}</span>
-                  {c.count > 0 && <span className="font-mono text-[10px] text-base-content/40">×{c.count}</span>}
+        {/* ── LAYER 1 OVERVIEW ──────────────────────────────────────── */}
+        {tab === 'overview' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
+              Layer 1 · Overview — ¿Está funcionando?
+            </span>
+            <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+            {/* Health Score */}
+            <div className="col-span-2 flex items-center gap-4 rounded-xl border border-base-200 bg-base-100 p-4">
+              <HealthRing score={healthScore} />
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${up ? 'bg-success animate-pulse' : 'bg-error'}`} />
+                  <span className="text-xs font-medium">{up ? 'Scraping activo' : 'Scraping caído'}</span>
                 </div>
-              )) : <span className="text-xs text-base-content/30">Sin conexiones NMS</span>}
-            </div>
-          </div>
-
-          {/* Router Dispatch */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold">Router · Dispatch</div>
-                <div className="text-xs text-base-content/40">{dispatchTotal > 0 ? `${dispatchTotal.toLocaleString('es-ES')} dispatches totales` : 'Sin tráfico'}</div>
-              </div>
-              <DispatchDonut dispatches={dispatches} />
-            </div>
-            {dispatches.map((d) => {
-              const col = MODE_COL[d.labels.mode ?? 'unknown'];
-              return (
-                <div key={d.labels.mode} className="mt-2 flex items-center gap-2">
-                  <span className="w-24 text-xs capitalize text-base-content/60">{d.labels.mode ?? 'unknown'}</span>
-                  <Sparkline pts={d.points} color={col} h={18} />
-                  <span className="ml-auto font-mono text-xs text-base-content/40">{fmt(d.avg)}/h avg</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* SNMP */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold">SNMP Traps</span>
-              <span className="text-xs text-base-content/40">últimas {tr}</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[['Recibidos', (snmpTraps.find(t => t.labels.status === 'received')?.current ?? 0), '#10b981'],
-                ['Dedupidos', (snmpTraps.find(t => t.labels.status === 'deduped')?.current ?? 0), '#3b82f6'],
-                ['Descartados', (snmpTraps.find(t => t.labels.status === 'dropped')?.current ?? 0), '#ef4444'],
-              ].map(([l, v, c]) => (
-                <div key={l as string} className={`rounded-lg border p-3 text-center ${(v as number) > 0 ? 'border-error/40 bg-error/5' : 'border-base-200'}`}>
-                  <div className="font-mono text-lg font-black" style={{ color: v === 0 ? undefined : c as string }}>{fmt(v as number)}</div>
-                  <div className="text-[9px] text-base-content/50">{l as string}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* LLM Fallback */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold">LLM Fallback</span>
-              <span className={`badge badge-sm ${llmFallback > 0 ? 'badge-warning' : 'badge-success'}`}>
-                {llmFallback > 0 ? `${llmFallback.toFixed(1)}/15m` : 'sin fallbacks'}
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {fbBreakdown.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-28 truncate text-[10px] text-base-content/60">{s.provider}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-                    <div className="h-full rounded-full bg-warning transition-all" style={{ width: `${Math.min(s.rate * 20, 100)}%` }} />
-                  </div>
-                  <span className="font-mono text-xs text-warning">{s.rate.toFixed(1)}/h</span>
-                </div>
-              ))}
-              {tokBreakdown.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-28 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4] }} />
-                  </div>
-                  <span className="font-mono text-xs">{fmt(s.current)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Topology mini-tree */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">Topología de red</span>
-                <div className="text-xs text-base-content/40">OLT → PON → ONU</div>
-              </div>
-              <span className="badge badge-sm badge-outline">{topologyRoots.length} raíces</span>
-            </div>
-            <TopologyTree roots={topologyRoots} />
-          </div>
-
-        </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          LAYER 2b — AIOps: Predictions + Incidents + SLA
-      ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-warning/20 bg-warning/5 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-warning/40 to-transparent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-warning/80">
-            Layer 2b · AIOps — Predicción y tendencia
-          </span>
-          <div className="h-px flex-1 bg-gradient-to-l from-warning/40 to-transparent" />
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-
-          {/* Predictive alerts */}
-          <div className="rounded-xl border border-warning/20 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">Alertas predictivas</span>
-                <div className="text-xs text-base-content/40">Degradación proyectada antes de que ocurra</div>
-              </div>
-              <span className="badge badge-sm badge-warning">{predictions.length}</span>
-            </div>
-            <PredictionsPanel predictions={predictions} />
-          </div>
-
-          {/* Incidents + MTTR */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">Incidentes</span>
-                <div className="text-xs text-base-content/40">Historial y MTTR</div>
-              </div>
-              <span className="badge badge-sm badge-outline">{apiIncidents.length} total</span>
-            </div>
-            <IncidentsPanel incidents={apiIncidents} now={lastPoll || MODULE_LOAD_MS} />
-          </div>
-
-          {/* SLA compliance */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">SLA Compliance</span>
-                <div className="text-xs text-base-content/40">Últimos 7 días</div>
-              </div>
-              {slaRows.length > 0 && (() => {
-                const avgUp = slaRows.filter(r => r.uptimePercent !== null)
-                  .reduce((s, r) => s + (r.uptimePercent ?? 0), 0) /
-                  Math.max(slaRows.filter(r => r.uptimePercent !== null).length, 1);
-                const col = avgUp >= 99.5 ? '#10b981' : '#f59e0b';
-                return <span className="font-mono text-sm font-bold" style={{ color: col }}>{avgUp.toFixed(2)}%</span>;
-              })()}
-            </div>
-            <SlaTable rows={slaRows} />
-          </div>
-
-        </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          LAYER 3 — DEBUG: Why?
-      ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
-            Layer 3 · Debug — ¿Por qué?
-          </span>
-          <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-          {/* LLM Latency — Golden Signal: Latency */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-semibold">LLM Latency</span>
-              <span className="text-[9px] text-base-content/30">Golden Signal: Latency · avg 15m</span>
-            </div>
-            <div className="mb-3 flex gap-2 text-[9px] text-base-content/30">
-              <span>▓ p50</span><span>▓▓ p95</span><span>▓▓▓ p99</span>
-            </div>
-            <GoldenLatency series={llmLatency} />
-          </div>
-
-          {/* Saturation */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-semibold">Saturation — Memoria</span>
-              <span className="text-[9px] text-base-content/30">Golden Signal: Saturation · % de límite</span>
-            </div>
-            <div className="mb-4 space-y-3">
-              <SatBar label="RSS" current={memRss} limit={512 * 1_048_576} />
-              <SatBar label="Heap usado" current={memHeap} limit={256 * 1_048_576} color="#8b5cf6" />
-            </div>
-            {memRssPts.length >= 2 && (
-              <div>
-                <div className="mb-1 text-[9px] text-base-content/30">RSS trend · {tr}</div>
-                <Sparkline pts={memRssPts} color="#3b82f6" h={32} />
-              </div>
-            )}
-          </div>
-
-          {/* Throughput */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-semibold">Requests · Throughput</span>
-              <span className="text-[9px] text-base-content/30">Golden Signal: Traffic · {tr}</span>
-            </div>
-            <div className="mt-3">
-              <div className="mb-2 flex items-end justify-between">
-                <span className="font-mono text-2xl font-black">{fmt(requestsRate.total)}</span>
-                <span className="text-xs text-base-content/40">requests en {tr}</span>
-              </div>
-              {requestsRate.pts.length >= 2 && (
-                <div className="rounded-lg bg-base-200/50 p-2">
-                  <Sparkline pts={requestsRate.pts} color="#10b981" h={40} />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Tokens breakdown */}
-          <div className="rounded-xl border border-base-200 bg-base-100 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold">Tokens consumidos</span>
-              <span className="font-mono text-sm font-bold">{fmt(llmTokens)} total</span>
-            </div>
-            <div className="space-y-1.5">
-              {tokBreakdown.map((s, i) => {
-                const col = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4];
-                return (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-16 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-base-200">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: col }} />
+                <div className="grid grid-cols-3 gap-3">
+                  {[{ v: criticalAlerts, l: 'Críticas', c: 'text-error' }, { v: warningAlerts, l: 'Warning', c: 'text-warning' }, { v: incidents, l: 'Incidentes', c: 'text-warning' }].map((x) => (
+                    <div key={x.l} className="text-center">
+                      <div className={`font-mono text-lg font-black ${x.c}`}>{x.v}</div>
+                      <div className="text-[9px] text-base-content/40">{x.l}</div>
                     </div>
-                    <span className="font-mono text-xs">{fmt(s.current)}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <KpiTile label="Uptime" value={fmtDur(uptime)} spark={[]} />
+            <KpiTile label="Samples" value={fmt(samples)} spark={[]} />
+            <KpiTile label="Requests (15m)" value={fmt(requestsRate.total)} spark={requestsRate.pts} color="#10b981" />
+            <KpiTile label="Tokens consumidos" value={fmt(llmTokens)} spark={[]} />
+            <KpiTile label="Incidentes abiertos"
+              value={openIncidents.length}
+              color={openIncidents.length > 0 ? '#f59e0b' : '#10b981'}
+              spark={[]} />
+            <KpiTile label="MTTR avg"
+              value={mttrMs > 0 ? fmtDur(mttrMs / 1000) : '—'}
+              spark={[]} />
+          </div>
+        </div>
+        )}
+
+        {/* ── LAYER 2 TRIAGE ──────────────────────────────────────── */}
+        {(tab === 'overview' || tab === 'triage') && (
+        <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
+              Layer 2 · Triage — ¿Dónde está el problema?
+            </span>
+            <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+            {/* NMS Connections */}
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold">NMS Connections</span>
+                <span className="badge badge-sm badge-outline">{nmsConn.filter(c => c.up).length}/{nmsConn.length} up</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {nmsConn.length ? nmsConn.map((c) => (
+                  <div key={c.provider} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 ${c.up ? 'border-success/30 bg-success/5' : 'border-error/30 bg-error/5'}`}>
+                    <span className={`h-2 w-2 rounded-full ${c.up ? 'bg-success animate-pulse' : 'bg-error'}`} />
+                    <span className="text-xs font-medium capitalize">{c.provider}</span>
+                    <span className="text-xs text-base-content/40">{c.up ? 'up' : 'down'}</span>
+                    {c.count > 0 && <span className="font-mono text-[10px] text-base-content/40">×{c.count}</span>}
+                  </div>
+                )) : <span className="text-xs text-base-content/30">Sin conexiones NMS</span>}
+              </div>
+            </div>
+
+            {/* Router Dispatch */}
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Router · Dispatch</div>
+                  <div className="text-xs text-base-content/40">{dispatchTotal > 0 ? `${dispatchTotal.toLocaleString('es-ES')} dispatches totales` : 'Sin tráfico'}</div>
+                </div>
+                <DispatchDonut dispatches={dispatches} />
+              </div>
+              {dispatches.map((d) => {
+                const col = MODE_COL[d.labels.mode ?? 'unknown'];
+                return (
+                  <div key={d.labels.mode} className="mt-2 flex items-center gap-2">
+                    <span className="w-24 text-xs capitalize text-base-content/60">{d.labels.mode ?? 'unknown'}</span>
+                    <Sparkline pts={d.points} color={col} h={18} />
+                    <span className="ml-auto font-mono text-xs text-base-content/40">{fmt(d.avg)}/h avg</span>
                   </div>
                 );
               })}
             </div>
+
+            {/* SNMP */}
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold">SNMP Traps</span>
+                <span className="text-xs text-base-content/40">últimas {tr}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[['Recibidos', (snmpTraps.find(t => t.labels.status === 'received')?.current ?? 0), '#10b981'],
+                  ['Dedupidos', (snmpTraps.find(t => t.labels.status === 'deduped')?.current ?? 0), '#3b82f6'],
+                  ['Descartados', (snmpTraps.find(t => t.labels.status === 'dropped')?.current ?? 0), '#ef4444'],
+                ].map(([l, v, c]) => (
+                  <div key={l as string} className={`rounded-lg border p-3 text-center ${(v as number) > 0 ? 'border-error/40 bg-error/5' : 'border-base-200'}`}>
+                    <div className="font-mono text-lg font-black" style={{ color: v === 0 ? undefined : c as string }}>{fmt(v as number)}</div>
+                    <div className="text-[9px] text-base-content/50">{l as string}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* LLM Fallback */}
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold">LLM Fallback</span>
+                <span className={`badge badge-sm ${llmFallback > 0 ? 'badge-warning' : 'badge-success'}`}>
+                  {llmFallback > 0 ? `${llmFallback.toFixed(1)}/15m` : 'sin fallbacks'}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {fbBreakdown.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-[10px] text-base-content/60">{s.provider}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
+                      <div className="h-full rounded-full bg-warning transition-all" style={{ width: `${Math.min(s.rate * 20, 100)}%` }} />
+                    </div>
+                    <span className="font-mono text-xs text-warning">{s.rate.toFixed(1)}/h</span>
+                  </div>
+                ))}
+                {tokBreakdown.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4] }} />
+                    </div>
+                    <span className="font-mono text-xs">{fmt(s.current)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Topology mini-tree */}
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-semibold">Topología de red</span>
+                  <div className="text-xs text-base-content/40">OLT → PON → ONU</div>
+                </div>
+                <span className="badge badge-sm badge-outline">{topologyRoots.length} raíces</span>
+              </div>
+              <TopologyTree roots={topologyRoots} />
+            </div>
           </div>
-
         </div>
+        )}
+
+        {/* ── LAYER 2b AIOps ─────────────────────────────────────── */}
+        {(tab === 'overview' || tab === 'aiops') && (
+        <div className="rounded-2xl border border-warning/20 bg-warning/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-warning/40 to-transparent" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-warning/80">
+              Layer 2b · AIOps — Predicción y tendencia
+            </span>
+            <div className="h-px flex-1 bg-gradient-to-l from-warning/40 to-transparent" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border border-warning/20 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-semibold">Alertas predictivas</span>
+                  <div className="text-xs text-base-content/40">Degradación proyectada antes de que ocurra</div>
+                </div>
+                <span className="badge badge-sm badge-warning">{predictions.length}</span>
+              </div>
+              <PredictionsPanel predictions={predictions} />
+            </div>
+
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-semibold">Incidentes</span>
+                  <div className="text-xs text-base-content/40">Historial y MTTR</div>
+                </div>
+                <span className="badge badge-sm badge-outline">{apiIncidents.length} total</span>
+              </div>
+              <IncidentsPanel incidents={apiIncidents} now={lastPoll || MODULE_LOAD_MS} />
+            </div>
+
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-semibold">SLA Compliance</span>
+                  <div className="text-xs text-base-content/40">Últimos 7 días</div>
+                </div>
+                {slaRows.length > 0 && (() => {
+                  const avgUp = slaRows.filter(r => r.uptimePercent !== null)
+                    .reduce((s, r) => s + (r.uptimePercent ?? 0), 0) /
+                    Math.max(slaRows.filter(r => r.uptimePercent !== null).length, 1);
+                  const col = avgUp >= 99.5 ? '#10b981' : '#f59e0b';
+                  return <span className="font-mono text-sm font-bold" style={{ color: col }}>{avgUp.toFixed(2)}%</span>;
+                })()}
+              </div>
+              <SlaTable rows={slaRows} />
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* ── LAYER 3 DEBUG ─────────────────────────────────────── */}
+        {tab === 'overview' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100/50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-base-300 to-transparent" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-base-content/30">
+              Layer 3 · Debug — ¿Por qué?
+            </span>
+            <div className="h-px flex-1 bg-gradient-to-l from-base-300 to-transparent" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-semibold">LLM Latency</span>
+                <span className="text-[9px] text-base-content/30">Golden Signal: Latency · avg 15m</span>
+              </div>
+              <div className="mb-3 flex gap-2 text-[9px] text-base-content/30">
+                <span>▓ p50</span><span>▓▓ p95</span><span>▓▓▓ p99</span>
+              </div>
+              <GoldenLatency series={llmLatency} />
+            </div>
+
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-semibold">Saturation — Memoria</span>
+                <span className="text-[9px] text-base-content/30">Golden Signal: Saturation · % de límite</span>
+              </div>
+              <div className="mb-4 space-y-3">
+                <SatBar label="RSS" current={memRss} limit={512 * 1_048_576} />
+                <SatBar label="Heap usado" current={memHeap} limit={256 * 1_048_576} color="#8b5cf6" />
+              </div>
+              {memRssPts.length >= 2 && (
+                <div>
+                  <div className="mb-1 text-[9px] text-base-content/30">RSS trend · {tr}</div>
+                  <Sparkline pts={memRssPts} color="#3b82f6" h={32} />
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-semibold">Requests · Throughput</span>
+                <span className="text-[9px] text-base-content/30">Golden Signal: Traffic · {tr}</span>
+              </div>
+              <div className="mt-3">
+                <div className="mb-2 flex items-end justify-between">
+                  <span className="font-mono text-2xl font-black">{fmt(requestsRate.total)}</span>
+                  <span className="text-xs text-base-content/40">requests en {tr}</span>
+                </div>
+                {requestsRate.pts.length >= 2 && (
+                  <div className="rounded-lg bg-base-200/50 p-2">
+                    <Sparkline pts={requestsRate.pts} color="#10b981" h={40} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-base-200 bg-base-100 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold">Tokens consumidos</span>
+                <span className="font-mono text-sm font-bold">{fmt(llmTokens)} total</span>
+              </div>
+              <div className="space-y-1.5">
+                {tokBreakdown.map((s, i) => {
+                  const col = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4];
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-16 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-base-200">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: col }} />
+                      </div>
+                      <span className="font-mono text-xs">{fmt(s.current)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+        )}
+
       </div>
+      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          RECORDING RULES REFERENCE
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* NEW TAB PANELS */}
+      {tab === 'situations' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <SituationsPanel />
+        </div>
+      )}
+
+      {tab === 'topology' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <NetworkTopologyMap />
+        </div>
+      )}
+
+      {tab === 'capacity' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <CapacityForecast />
+        </div>
+      )}
+
+      {tab === 'timeline' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <ChangeTimeline />
+        </div>
+      )}
+
+      {tab === 'runbooks' && (
+        <div className="rounded-2xl border border-base-200 bg-base-100 p-4">
+          <RunbookPanel />
+        </div>
+      )}
+
+      {/* ── Recording rules + VM UI (shown on overview) ───── */}
+      {tab === 'overview' && (
+      <>
       <RulesRef />
-
-      {/* ── VM UI ────────────────────────────────────────────────────── */}
       <div className="rounded-xl border border-dashed border-base-300 bg-base-100 p-4 text-center">
         <p className="text-sm text-base-content/50">
           Exploración avanzada:{' '}
@@ -1034,6 +1091,8 @@ export default function MetricsDashboard() {
           <code className="text-xs">/api/vm/query</code>
         </p>
       </div>
+      </>
+      )}
 
     </div>
   );

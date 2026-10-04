@@ -146,6 +146,7 @@ export async function promotePendingIncidents(
         tenantId: candidate.tenantId,
         deviceKind: sourceIncident.deviceKind,
         deviceId: sourceIncident.deviceId,
+        severity: sourceIncident.severity,
         sourceIncidentId: candidate.sourceIncidentId,
         sourceTool: '__agent_promote__',
         summary: candidate.summary,
