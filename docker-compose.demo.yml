@@ -69,6 +69,7 @@ services:
       NODE_ENV: development
       PORT: 3001
       DEMO_MODE_ENABLED: "true"
+      VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
     ports:
       - "${PORT:-3001}:3001"
     depends_on:
@@ -76,6 +77,77 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
+    networks:
+      - ftth-demo
+
+  # ─────────────────────────────────────────────────────────────────────
+  # VictoriaMetrics — Time-series database + Dashboard UI
+  # Drop-in replacement for Prometheus with better compression,
+  # long-term retention, and built-in Grafana-compatible UI.
+  #
+  # Access: http://localhost:8428 (VM UI + Prometheus-compatible API)
+  # Docs: https://docs.victoriametrics.com/
+  # ─────────────────────────────────────────────────────────────────────
+  victoriametrics:
+    image: ${VICTORIAMETRICS_IMAGE:-victoriametrics/victoria-metrics:v1.153.0}
+    container_name: ftth_demo_victoriametrics
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/opt/vm/entrypoint.sh"]
+    environment:
+      # Single-node VictoriaMetrics takes a Prometheus scrape config via
+      # -promscrape.config. The wrapper renders the two variable fields.
+      VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
+      DEPLOY_ENV: ${DEPLOY_ENV:-development}
+      VM_RETENTION_PERIOD: ${VICTORIAMETRICS_RETENTION:-1}
+      VM_LOG_LEVEL: ${VICTORIAMETRICS_LOG_LEVEL:-INFO}
+    ports:
+      - "${VICTORIAMETRICS_PORT:-8428}:8428"
+    volumes:
+      - victoriametrics_demo_data:/storage
+      - ./docker/victoriametrics-entrypoint.sh:/opt/vm/entrypoint.sh:ro
+      - ./docker/victoriametrics-scrape.yml:/etc/victoriametrics/scrape.yml.tmpl:ro
+    healthcheck:
+      # 127.0.0.1, not localhost: inside this image localhost resolves to ::1
+      # first and VictoriaMetrics listens on IPv4 only, so localhost refuses.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      app:
+        condition: service_started
+    extra_hosts:
+      # Allows scraping a dev server running on the host (Linux).
+      - 'host.docker.internal:host-gateway'
+    networks:
+      - ftth-demo
+
+  # ─────────────────────────────────────────────────────────────────────
+  # vmalert — recording + alerting rules.
+  # Single-node VictoriaMetrics does not evaluate PromQL rules, so this runs as
+  # a sidecar against the VM query API and writes recorded series back over
+  # remote write. Opt in with:  --profile alerts
+  # ─────────────────────────────────────────────────────────────────────
+  vmalert:
+    image: ${VMALERT_IMAGE:-victoriametrics/vmalert:v1.153.0}
+    container_name: ftth_demo_vmalert
+    restart: unless-stopped
+    entrypoint: ["/vmalert-prod"]
+    command:
+      - '-rule=/etc/vmalert/rules.yml'
+      - '-datasource.url=http://victoriametrics:8428'
+      # Single-node appends /api/v1/write itself; do NOT include the path here.
+      - '-remoteWrite.url=http://victoriametrics:8428'
+      - '-notifier.url=http://victoriametrics:8428'
+      - '-loggerLevel=${VMALERT_LOG_LEVEL:-INFO}'
+    volumes:
+      - ./docker/victoriametrics-alerts.yml:/etc/vmalert/rules.yml:ro
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    profiles:
+      - alerts
     networks:
       - ftth-demo
 
@@ -106,6 +178,7 @@ services:
 
 volumes:
   postgres_demo_data:
+  victoriametrics_demo_data:
 
 networks:
   ftth-demo:

@@ -7,7 +7,7 @@
  * - Timeout and circuit breaker
  * - Fail-open fallback
  * - Shadow mode logging
- * - Prometheus metrics
+ * - Laya metrics for VictoriaMetrics
  *
  * Usage:
  *   const client = createLayaClient(config);

@@ -25,11 +25,13 @@
                  │
        ┌─────────┴──────────┐
        ▼                   ▼
-┌─────────────┐     ┌────────────────┐
-│ PostgreSQL  │     │ Prometheus /   │
-│  (:5432)   │     │ Phoenix LLM    │
-│ persistent  │     │ traces         │
-└─────────────┘     └────────────────┘
+┌─────────────┐     ┌─────────────────────────────────────┐
+│ PostgreSQL  │     │ VictoriaMetrics (:8428)              │
+│  (:5432)   │     │ • TSDB (drop-in Prometheus)          │
+│ persistent  │     │ • Built-in Grafana UI                │
+└─────────────┘     │ • Prometheus-compatible API           │
+                    │ • Phoenix LLM traces (OTLP :4317)    │
+                    └─────────────────────────────────────┘
        │
        │  (optional: Docker microservice)
        ▼
@@ -44,9 +46,27 @@
 | `postgres` | 5432/TCP | `postgres_data` | Base de datos multi-tenant |
 | `app` | 3001/TCP | — | Next.js (sin estado) |
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
+| `victoriametrics` | 8428/TCP | `victoriametrics_prod_data` | TSDB + VMUI + API Prometheus-compatible |
+| `vmalert` | 8880/TCP (interno) | — | Evalúa recording/alerting rules; escribe series vía remote write |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |
 | Syslog receiver | 5514/UDP | — | Solo si `SYSLOG_RECEIVER_ENABLED=true` |
 | `laya` | 8080/TCP | — | FastAPI microservicio (opcional, profile=laya) |
+
+---
+
+## 1.1 Licencia de VictoriaMetrics
+
+La imagen comunitaria `victoriametrics/victoria-metrics` se distribuye bajo
+**AGPL-3.0**. FTTH-Copilot es software **propietario**.
+
+Para mantener separación clara, la topología recomendada es la de la sección 1:
+VictoriaMetrics corre como **proceso independiente** que FTTH-Copilot solo
+consulta por HTTP (`:8428`), sin enlazarse ni embeberse en el binario de la app.
+
+> ⚠️ Esta nota no es asesoramiento legal. Antes de un despliegue comercial,
+> confirmá la forma de despliegue prevista con tu asesor legal. Si la
+> distribución comercial no es viable, las alternativas son una suscripción
+> corporativa de VictoriaMetrics o un TSDB con licencia permisiva.
 
 ---
 
@@ -267,38 +287,184 @@ curl -s http://localhost:3001/api/health | jq .
 }
 ```
 
-### 5.2 Prometheus metrics
+### 5.2 Métricas con VictoriaMetrics
 
-Con `METRICS_BEARER_TOKEN` configurado:
+VictoriaMetrics scrapea el endpoint `/api/metrics` de la app cada 30s. La
+frecuencia y el timeout se declaran en `docker/victoriametrics-scrape.yml`
+(`scrape_interval` / `scrape_timeout`), no en flags de línea de comandos.
 
+**Acceso a la UI de métricas:**
 ```bash
-curl -s -H "Authorization: Bearer <token>" \
-  http://localhost:3001/api/metrics
+# UI de VictoriaMetrics (VMUI, integrada — no requiere Grafana)
+open http://localhost:8428
+
+# Consulta Prometheus-compatible
+curl -G http://localhost:8428/api/v1/query \
+  --data-urlencode 'query=ftth_copilot_router_dispatches_total'
+
+# Estado del scrape (confirmá health=up y samples scrapeadas)
+curl -s http://localhost:8428/api/v1/targets | jq '.data.activeTargets[0] | {health, lastError, lastSamplesScraped}'
+
+# Series almacenadas
+curl -s http://localhost:8428/api/v1/label/__name__/values | jq '.data | length'
 ```
 
-**Métricas disponibles:**
+**Métricas publicadas por `/api/metrics`:**
 
 | Métrica | Labels | Descripción |
 |---|---|---|
-| `ftth_copilot_router_dispatches_total` | `mode=direct\|assisted\|investigation` | Dispatches por modo |
-| `ftth_copilot_llm_calls_total` | `provider`, `model` | Llamadas LLM por provider |
-| `ftth_copilot_tool_duration_ms` | `tool` | Latencia por tool |
-| `ftth_copilot_alert_count` | `severity`, `kind` | Alertas emitidas |
-| `ftth_copilot_verdict_total` | `code`, `severity` | Verdicts de TruthGate |
+| `ftth_copilot_process_uptime_seconds` | — | Uptime del proceso |
+| `ftth_copilot_process_memory_bytes` | `type` | Memoria por tipo (`rss`, `heap_total`, `heap_used`, `external`) |
+| `ftth_copilot_tenants_total` | — | Tenants registrados |
+| `ftth_copilot_metric_samples_total` | — | Muestras de métricas ingestadas |
+| `ftth_copilot_router_dispatches_total` | `mode` | Dispatches del Organic Diagnostic Router por modo |
+| `ftth_copilot_llm_requests_total` | `provider`, `status` | Llamadas LLM solicitadas |
+| `ftth_copilot_llm_tokens_total` | `provider`, `type` | Tokens consumidos por provider |
+| `ftth_copilot_llm_latency_seconds_count` | `provider` | Muestra de latencia LLM (usar con `_sum` para p50/p95) |
+| `ftth_copilot_llm_fallback_events_total` | `primary`, `fallback` | Caídas al proveedor de respaldo |
+| `ftth_copilot_nms_connections_total` | `provider` | Conexiones a NMS por proveedor |
+| `ftth_copilot_snmp_traps_total` | `status` | Trampas SNMP por `received`/`deduped`/`dropped` |
+| `ftth_copilot_active_alerts` | `severity`, `status` | Alertas activas |
+| `ftth_copilot_active_incidents` | — | Incidentes activos |
+| `ftth_copilot_rag_retrievals_total` | `status` | Recuperaciones RAG por estado |
+| `ftth_copilot_rag_latency_seconds_count` | — | Muestra de latencia RAG |
 
-### 5.3 Prometheus scraping config
+> Las series de **Laya Decision Layer** (`ftth_laya_*`) solo aparecen cuando la
+> capa registra decisiones. Con `LAYA_MODE=disabled` no se emiten; verificá el
+> modo efectivo antes de alertar sobre ellas.
 
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: 'ftth-copilot'
-    metrics_path: '/api/metrics'
-    bearer_token: '<METRICS_BEARER_TOKEN>'
-    static_configs:
-      - targets: ['localhost:3001']
+**Agregar como datasource en Grafana (si ya tenés Grafana):**
+```
+URL: http://victoriametrics:8428
+Access: Server (default)
+Auth: With credentials (si usás bearer)
+Custom HTTP Headers:
+  Header: Authorization
+  Value: Bearer <METRICS_BEARER_TOKEN>
 ```
 
-### 5.4 Phoenix LLM Tracing
+### 5.3 Configuración del scraping
+
+El scrape se define en un único lugar versionado:
+[`docker/victoriametrics-scrape.yml`](../docker/victoriametrics-scrape.yml).
+
+```yaml
+# docker/victoriametrics-scrape.yml (extracto)
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  external_labels:
+    service: ftth-copilot
+scrape_configs:
+  - job_name: ftth-copilot-app
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials: "__METRICS_BEARER_TOKEN__"
+    static_configs:
+      - targets: ["__SCRAPE_TARGET__"]
+```
+
+Dos cosas que conviene saber antes de editarlo:
+
+1. **El binario single-node no expande `${VAR}`.** Por eso el archivo usa
+   marcadores `__SCRAPE_TARGET__` / `__METRICS_BEARER_TOKEN__` / `__DEPLOY_ENV__`
+   que [`docker/victoriametrics-entrypoint.sh`](../docker/victoriametrics-entrypoint.sh)
+   renderiza con `awk` antes de arrancar el servidor. La imagen no incluye
+   `envsubst`.
+2. **Los atajos `-scrape.url` / `-scrape.interval` no existen en single-node.**
+   Son flags de `vmagent`. El servidor single-node acepta `-promscrape.config`
+   con este schema Prometheus.
+
+**Validar el config antes de desplegar:**
+```bash
+# Scrape config
+docker compose -f docker-compose.prod.yml run --rm --no-deps \
+  -e VM_CONFIG_DRYRUN=1 victoriametrics
+
+# Reglas (vmalert valida el PromQL y las expresiones)
+docker run --rm -v "$PWD/docker/victoriametrics-alerts.yml:/rules.yml:ro" \
+  --entrypoint /vmalert-prod victoriametrics/vmalert:v1.153.0 \
+  -rule=/rules.yml -datasource.url=http://victoriametrics:8428 -dryRun
+```
+
+**Si necesitás scrape a escala (miles de targets),** corré `vmagent` como
+servicio aparte y que envíe por remote write:
+```bash
+vmagent -promscrape.config=/etc/vmagent/scrape.yml \
+        -remoteWrite.url=http://victoriametrics:8428
+```
+
+### 5.4 Recording rules y alertas (vmalert)
+
+**VictoriaMetrics single-node no evalúa reglas PromQL.** Solo expone
+`-streamAggr.config` (downsampling) y puede proxear APIs de reglas a un
+`vmalert` externo. Por eso las reglas viven en
+[`docker/victoriametrics-alerts.yml`](../docker/victoriametrics-alerts.yml) y las
+corre el servicio `vmalert` (incluido en `docker-compose.prod.yml`, y en el
+demo con `--profile alerts`).
+
+```bash
+# Levantar con reglas en el demo
+docker compose -f docker-compose.demo.yml --profile alerts up -d
+
+# Ver reglas, su salud y valores evaluados
+docker exec ftth_demo_victoriametrics \
+  wget -qO- http://vmalert:8880/api/v1/rules
+```
+
+**8 recording rules** — pre-agregan lo que las alertas y los gráficos repiten:
+
+| Serie | Qué mide |
+|---|---|
+| `ftth_router_dispatch_ratio:mode15m` | Proporción de dispatches por modo del router |
+| `ftth_router_dispatches:rate1h` | Dispatches totales por hora |
+| `ftth_llm_requests:rate5m` | Tasa de llamadas LLM por provider y resultado |
+| `ftth_llm_latency_seconds:avg15m` | Latencia LLM media por provider |
+| `ftth_llm_fallback:rate15m` | Caídas al proveedor de respaldo |
+| `ftth_snmp_traps:rate15m` | Trampas SNMP por resultado |
+| `ftth_ops_active:alerts` | Alertas activas por severidad |
+| `ftth_ops_active:incidents` | Incidentes activos |
+
+**7 alerting rules** — la primera es la que protege a todas las demás:
+
+| Alerta | Severidad | Condición |
+|---|---|---|
+| `FTTHCopilotMetricsTargetDown` | critical | El scrape de `/api/metrics` lleva 2 min fallando |
+| `FTTHCopilotProcessRestarting` | warning | Uptime reinició >2 veces en 30 min |
+| `FTTHCopilotLLMFallbackSustained` | warning | >5 fallbacks de provider en 15 min |
+| `FTTHCopilotLLMErrors` | warning | Llamadas LLM con resultado no-ok en 10 min |
+| `FTTHCopilotRouterInvestigationDominant` | warning | >80% de dispatches van a `investigation` |
+| `FTTHCopilotSNMPTrapsDropped` | warning | Trampas descartadas en 15 min |
+| `FTTHCopilotActiveIncidentsHigh` | critical | >10 incidentes activos |
+
+> `FTTHCopilotRouterInvestigationDominant` vigila la premisa de diseño del
+> router: las consultas de un solo dispositivo deberían resolverse en `direct`
+> sin gastar LLM. Si `investigation` domina de forma sostenida, o la
+> clasificación de intención regresionó, o el tenant está preguntando cosas que
+> las tools directas no cubren.
+
+**Notificación.** `vmalert` corre sin canal de salida por defecto: las alertas se
+evalúan y quedan visibles en `/api/v1/rules`, pero no se envían a nadie. Para
+notificar, montá un notifier config y agregá el flag:
+
+```yaml
+# docker/vmalert-notifier.yml (ejemplo webhook)
+notifiers:
+  - notifier:
+      type: webhook
+      url: https://tu-webhook.example/hooks/xyz
+```
+
+```yaml
+# docker-compose.prod.yml → servicio vmalert
+volumes:
+  - ./docker/vmalert-notifier.yml:/etc/vmalert/notifier.yml:ro
+command:
+  - '-notifier.config=/etc/vmalert/notifier.yml'
+```
+
+### 5.5 Phoenix LLM Tracing
 
 ```bash
 # Activar trazas OpenInference
@@ -327,7 +493,7 @@ Trazas exportadas: `agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation
 | Puerto Syslog (5514) no expuesto a Internet | ☐ | Solo desde red de gestión |
 | `METRICS_BEARER_TOKEN` generado y almacenado de forma segura | ☐ | Rotar si se expone |
 | Conexión a PostgreSQL por red interna | ☐ | No exponer puerto 5432 a Internet |
-| Firewall: solo puertos 3001, 1162, 5514 разрешены | ☐ | Configurar según política de red |
+| Firewall: solo puertos 3001, 8428, 1162, 5514 разрешены | ☐ | 8428 = VictoriaMetrics UI; proteger con reverse proxy + auth si se expone |
 | HTTPS configurado con Caddy o reverse proxy propio | ☐ | Usar `docker-compose.https.yml` o terminación TLS propia |
 | `CADDY_EMAIL` configurado en `.env.prod` | ☐ | Para notificaciones de vencimiento de certificado |
 | Dominio apontado a DNS antes de levantar Caddy | ☐ | Caddy necesita DNS resuelto para generar certificados |
@@ -451,4 +617,6 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --scale app
 | Volumen de base destruido | Disaster recovery (sección 4.2) |
 | Puerto 3001 ocupado | Cambiar `PORT` en `.env.prod` y reiniciar |
 | Error "Refusing to seed in production" | Verificar `NODE_ENV=production` + `ALLOW_PRODUCTION_SEED=false` en `.env.prod` |
-| Métricas no responden | Verificar `METRICS_BEARER_TOKEN`; `curl` con el token |
+| Métricas no responden | Verificar que VictoriaMetrics esté corriendo (`docker compose ps`); `curl http://127.0.0.1:8428/health` desde el contenedor debe devolver `OK` (usar 127.0.0.1, no `localhost`: resuelve a `::1` y VM escucha solo IPv4); verificar que `METRICS_BEARER_TOKEN` coincide entre app y scrape config |
+| Alertas/rules no cargan | `docker exec ftth_prod_victoriametrics wget -qO- http://vmalert:8880/api/v1/rules`. Cada regla trae `health` y `lastError`. Ojo: el single-node de VictoriaMetrics NO evalúa reglas; si quitás `vmalert`, no hay recording ni alerting. |
+| Alertas evaluan pero no notifican | `vmalert` arranca sin canal de salida. Montá un notifier config y pasá `-notifier.config`; mientras tanto consultá `/api/v1/rules` directamente. |

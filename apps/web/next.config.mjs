@@ -39,6 +39,10 @@ const nextConfig = {
     images: { unoptimized: true },
     trailingSlash: false,
   }),
+  // Standalone output for Docker containers. Build with NEXT_OUTPUT_MODE=standalone.
+  ...(process.env.NEXT_OUTPUT_MODE === 'standalone' && {
+    output: 'standalone',
+  }),
   // Turbopack config — empty to silence the webpack/turbopack conflict warning.
   // @ducanh2912/next-pwa requires webpack, so we set an empty turbopack config
   // to tell Next.js to fall back to webpack for this build.
