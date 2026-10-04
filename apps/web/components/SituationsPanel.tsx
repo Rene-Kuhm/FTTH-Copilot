@@ -26,7 +26,7 @@ export function SituationsPanel() {
   const [hours, setHours] = useState(6);
 
   const fetchSituations = useCallback(async () => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoading(true); setError(null);
     try {
       const r = await fetch(`/api/ops/situations?hours=${hours}`, { credentials: 'include' });
@@ -37,7 +37,7 @@ export function SituationsPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error fetching situations');
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setLoading(false);
     }
   }, [hours]);

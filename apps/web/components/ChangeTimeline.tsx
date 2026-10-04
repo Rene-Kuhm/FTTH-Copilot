@@ -47,7 +47,7 @@ export function ChangeTimeline() {
   const [kindFilter, setKindFilter] = useState<string>('');
 
   const fetchTimeline = useCallback(async () => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams({ hours: String(hours), limit: '150' });
@@ -60,7 +60,7 @@ export function ChangeTimeline() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setLoading(false);
     }
   }, [hours, kindFilter]);

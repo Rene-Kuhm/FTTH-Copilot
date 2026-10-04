@@ -26,9 +26,9 @@ export function RunbookPanel() {
 
   const fetchRunbooks = useCallback(async () => {
     // Initialize state before async fetch (safe here — single update before await)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoading(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -43,7 +43,7 @@ export function RunbookPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setLoading(false);
     }
   }, [filterKind, filterAlert, selectedId]);

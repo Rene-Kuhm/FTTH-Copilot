@@ -159,7 +159,7 @@ export function NetworkTopologyMap() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoading(true); setError(null);
     try {
       const [topoRes, incRes] = await Promise.all([
@@ -175,7 +175,7 @@ export function NetworkTopologyMap() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading topology');
     } finally {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setLoading(false);
     }
   }, []);

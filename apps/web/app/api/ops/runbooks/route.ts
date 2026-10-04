@@ -45,7 +45,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     : undefined;
 
   // Build OR conditions for runbook matching
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const orConditions: any[] = [];
 
   if (deviceKind && deviceId && alertKind && severity) {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     orConditions.push({ deviceKind: null, deviceId: null, alertKind, severity });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const runbookWhere: any = orConditions.length > 0
     ? { tenantId: user.tenantId, OR: orConditions }
     : { tenantId: user.tenantId };
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   // Pull confirmed incident history as derived runbook content
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const confirmedWhere: any = deviceKind ? { tenantId: user.tenantId, deviceKind } : { tenantId: user.tenantId };
 
   const relatedConfirmed = await prisma.confirmedIncident.findMany({

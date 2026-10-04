@@ -212,15 +212,7 @@ function GoldenLatency({ series }: {
   series: Array<{ provider: string; p50: number; p95: number; p99: number; pts: TSPoint[] }>;
 }) {
   if (!series.length) return (
-    <div className="space-y-2">
-      {['Provider A', 'Provider B'].map((p) => (
-        <div key={p} className="flex items-center gap-3">
-          <span className="w-20 text-xs text-base-content/40">{p}</span>
-          <div className="h-2 flex-1 rounded-full bg-base-200" />
-          <span className="w-20 text-right font-mono text-xs text-base-content/30">—</span>
-        </div>
-      ))}
-    </div>
+    <span className="text-xs text-base-content/30">Sin datos de latencia LLM</span>
   );
   return (
     <div className="space-y-2.5">
@@ -282,7 +274,7 @@ const MODE_COL: Record<string, string> = { direct: '#10b981', assisted: '#3b82f6
 
 function DispatchDonut({ dispatches }: { dispatches: Series[] }) {
   const total = dispatches.reduce((s, d) => s + d.current, 0);
-  if (!total) return <span className="text-xs text-base-content/30">Sin tráfico</span>;
+  if (!total) return null;
   const slices = dispatches.reduce<Array<{ pct: number; start: number; end: number } & Series>>((acc, d) => {
     const pct = (d.current / total) * 100;
     const start = acc.length ? acc[acc.length - 1].end : 0;
