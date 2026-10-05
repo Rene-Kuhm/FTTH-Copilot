@@ -9,17 +9,33 @@
  * This is a simplified approach that doesn't require server-side storage.
  */
 
-import { randomBytes } from 'node:crypto';
-
 const CSRF_COOKIE_NAME = 'ftth_csrf';
 const CSRF_TOKEN_LENGTH = 32; // 256 bits of entropy
+
+/**
+ * Generate `byteLength` random bytes as a lowercase hex string.
+ *
+ * Uses Web Crypto (`globalThis.crypto`) instead of `node:crypto` so this
+ * module stays importable from the Edge runtime, where `node:crypto` is not
+ * available. The middleware imports `validateCsrfToken` from here, and a
+ * module-level `node:crypto` import breaks the Edge bundle at build time.
+ */
+function randomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  globalThis.crypto.getRandomValues(bytes);
+  let hex = '';
+  for (const byte of bytes) {
+    hex += byte.toString(16).padStart(2, '0');
+  }
+  return hex;
+}
 
 /**
  * Generate a new CSRF token.
  * Returns { token, cookie } where cookie is the Set-Cookie header value.
  */
 export function generateCsrfToken(): { token: string; cookie: string } {
-  const token = randomBytes(CSRF_TOKEN_LENGTH).toString('hex');
+  const token = randomHex(CSRF_TOKEN_LENGTH);
   const cookie = `${CSRF_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict`;
   return { token, cookie };
 }
