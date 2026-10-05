@@ -42,6 +42,9 @@
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
     "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts"
   },
+  "overrides": {
+    "brace-expansion": ">=1.1.20"
+  },
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",
     "@ftth-copilot/analytics": "workspace:*",
