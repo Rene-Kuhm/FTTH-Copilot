@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 /** Current UI phase of the MFA panel */
 type Phase =
@@ -45,7 +46,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
     setError(null);
     setLoad('loading');
     try {
-      const res = await fetch('/api/auth/mfa/setup', { method: 'POST' });
+      const res = await csrfFetch('/api/auth/mfa/setup', { method: 'POST' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? 'Error al iniciar configuración MFA');
@@ -69,7 +70,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
     setError(null);
     setLoad('verifying');
     try {
-      const res = await fetch('/api/auth/mfa/verify', {
+      const res = await csrfFetch('/api/auth/mfa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
@@ -98,7 +99,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
     setError(null);
     setLoad('disabling');
     try {
-      const res = await fetch('/api/auth/mfa/disable', {
+      const res = await csrfFetch('/api/auth/mfa/disable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: disableCode }),

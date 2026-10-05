@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission } from '@/lib/auth/permissions';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 import type {
   HypothesisSupportLevel,
   InvestigationCheckKind,
@@ -323,7 +324,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
+        const res = await csrfFetch(
           `/api/incidents/${encodeURIComponent(incidentId)}/investigate`,
           {
             method: 'POST',
@@ -385,7 +386,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
       setSubmittingFeedback(true);
       setFeedbackError(null);
       try {
-        const response = await fetch(
+        const response = await csrfFetch(
           `/api/investigations/${encodeURIComponent(runId)}/versions/${encodeURIComponent(
             versionId,
           )}/feedback`,

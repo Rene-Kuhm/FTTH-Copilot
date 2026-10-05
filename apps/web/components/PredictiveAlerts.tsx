@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { BellIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 interface Prediction {
   id: string;
@@ -60,7 +61,7 @@ export function PredictiveAlerts() {
   const ack = useCallback(
     async (id: string) => {
       try {
-        const response = await fetch(`/api/predictions/${id}`, {
+        const response = await csrfFetch(`/api/predictions/${id}`, {
           method: 'PATCH',
           credentials: 'include',
         });

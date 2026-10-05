@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { useConnectors, type ClientConnector } from '@/lib/connectors/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 import {
   CheckCircleIcon,
   KeyIcon,
@@ -76,7 +77,7 @@ const STATUS_STYLE: Record<
 };
 
 async function requestTest(id: string): Promise<{ ok: boolean; error?: string }> {
-  const response = await fetch(`/api/connectors/${id}/test`, {
+  const response = await csrfFetch(`/api/connectors/${id}/test`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -138,7 +139,7 @@ export function ConnectorManager() {
     setFeedback(null);
     setSubmitting(true);
     try {
-      const response = await fetch('/api/connectors/create', {
+      const response = await csrfFetch('/api/connectors/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -180,7 +181,7 @@ export function ConnectorManager() {
       return;
     }
     setFeedback(null);
-    const response = await fetch(`/api/connectors/${id}`, {
+    const response = await csrfFetch(`/api/connectors/${id}`, {
       method: 'DELETE',
       credentials: 'include',
     });

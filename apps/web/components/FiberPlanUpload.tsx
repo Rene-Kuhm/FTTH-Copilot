@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 interface FiberPlanUploadProps {
   onClose: () => void;
@@ -62,7 +63,7 @@ export default function FiberPlanUpload({ onClose, onUploaded }: FiberPlanUpload
       fd.append('description', description.trim());
       fd.append('file', file);
 
-      const res = await fetch('/api/fiber-plans', {
+      const res = await csrfFetch('/api/fiber-plans', {
         method: 'POST',
         credentials: 'include',
         body: fd,

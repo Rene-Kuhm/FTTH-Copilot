@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 interface Runbook {
   id: string; title: string; content: string;
@@ -53,7 +54,7 @@ export function RunbookPanel() {
       void fetchRunbooks(); }, [fetchRunbooks]);
 
   const recordUse = useCallback(async (id: string) => {
-    await fetch('/api/ops/runbooks', {
+    await csrfFetch('/api/ops/runbooks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),

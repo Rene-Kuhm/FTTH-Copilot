@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { ServerStackIcon } from './icons';
 import { FeedbackControls } from './FeedbackControls';
 import { InvestigationCard } from './InvestigationCard';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 // ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
 //
@@ -103,7 +104,7 @@ export function IncidentsPanel() {
     if (!confirm) return;
     setConfirm({ ...confirm, submitting: true, error: undefined });
     try {
-      const response = await fetch(
+      const response = await csrfFetch(
         `/api/incidents/${confirm.incident.id}/confirm`,
         {
           method: 'POST',

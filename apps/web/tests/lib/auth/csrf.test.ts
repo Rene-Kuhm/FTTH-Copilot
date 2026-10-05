@@ -14,8 +14,9 @@ describe('CSRF protection', () => {
       expect(token).toBeDefined();
       expect(token.length).toBe(64); // 32 bytes = 64 hex chars
       expect(cookie).toContain('ftth_csrf=');
-      expect(cookie).toContain('HttpOnly');
       expect(cookie).toContain('SameSite=Strict');
+      // The client must be able to read this cookie to echo it in the header.
+      expect(cookie).not.toContain('HttpOnly');
     });
 
     it('generates unique tokens each time', () => {
@@ -99,9 +100,10 @@ describe('CSRF protection', () => {
       const cookie = createCsrfCookie(token);
 
       expect(cookie).toContain(`ftth_csrf=${token}`);
-      expect(cookie).toContain('HttpOnly');
       expect(cookie).toContain('SameSite=Strict');
       expect(cookie).toContain('Max-Age=86400');
+      // Intentionally readable: the browser echoes it in X-CSRF-Token.
+      expect(cookie).not.toContain('HttpOnly');
     });
   });
 

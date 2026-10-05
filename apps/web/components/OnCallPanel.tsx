@@ -6,6 +6,7 @@
  * Displays current on-call assignments and allows managing schedules.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 interface OnCallSchedule {
   id: string;
@@ -125,7 +126,7 @@ export function OnCallPanel() {
     if (!confirm('Are you sure you want to delete this schedule?')) return;
 
     try {
-      const res = await fetch(`/api/ops/oncall?id=${id}`, { method: 'DELETE' });
+      const res = await csrfFetch(`/api/ops/oncall?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete schedule');
       fetchSchedules();
     } catch (err) {

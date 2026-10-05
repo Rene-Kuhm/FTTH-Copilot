@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import type { FiberPlan, PlanZone, PlanMarker, DeviceKind } from './FiberPlanViewer';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 const PRESET_COLORS = [
   '#f23077', '#a855f7', '#3b82f6', '#10b981',
@@ -49,7 +50,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/fiber-plans/${plan.id}/zones`, {
+      const res = await csrfFetch(`/api/fiber-plans/${plan.id}/zones`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +72,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
     if (!confirm('¿Eliminar esta zona? Los marcadores quedarán sin zona.')) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/fiber-plans/${plan.id}/zones/${zoneId}`, {
+      const res = await csrfFetch(`/api/fiber-plans/${plan.id}/zones/${zoneId}`, {
         method: 'DELETE', credentials: 'include',
       });
       if (!res.ok) { setError('Error al eliminar'); return; }
@@ -101,7 +102,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
         xPercent: parseFloat(markerForm.xPercent),
         yPercent: parseFloat(markerForm.yPercent),
       };
-      const res = await fetch(`/api/fiber-plans/${plan.id}/zones/${selectedZoneId}/markers`, {
+      const res = await csrfFetch(`/api/fiber-plans/${plan.id}/zones/${selectedZoneId}/markers`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -126,7 +127,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
     if (!confirm('¿Eliminar este marcador?')) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/fiber-plans/${plan.id}/zones/${zoneId}/markers/${markerId}`, {
+      const res = await csrfFetch(`/api/fiber-plans/${plan.id}/zones/${zoneId}/markers/${markerId}`, {
         method: 'DELETE', credentials: 'include',
       });
       if (!res.ok) { setError('Error al eliminar'); return; }
