@@ -193,7 +193,27 @@ gzip backup_20260920_120000.sql
   pg_dump -U ftth ftth_copilot | gzip > /var/backups/ftth-copilot/backup_$(date +\%Y\%m\%d_\%H\%M\%S).sql.gz
 ```
 
-### 3.2 Backup de configuración
+### 3.2 Backup automatizado (scripts)
+
+Usa los scripts de backup para automatización con retención:
+
+```bash
+# Backup local con retención (30 días + 12 semanas)
+./scripts/db-backup.sh
+
+# Backup + upload a S3
+./scripts/db-backup.sh s3://my-bucket/ftth-backups/
+
+# Restaurar desde backup
+./scripts/db-restore.sh ./backups/ftth_20241005_120000.sql.gz
+```
+
+**Crontab ejemplo (diario a las 02:00 UTC):**
+```cron
+0 2 * * * cd /opt/ftth-copilot && ./scripts/db-backup.sh s3://my-bucket/ftth-backups/ >> /var/log/ftth-backup.log 2>&1
+```
+
+### 3.3 Backup de configuración
 
 Los archivos que deben estar respaldados fuera del contenedor:
 
@@ -208,7 +228,7 @@ tar czf /var/backups/ftth-copilot/volumes_$(date +%Y%m%d).tar.gz \
   /var/lib/docker/volumes/ftth-copilot_postgres_data
 ```
 
-### 3.3 Verificación de backup
+### 3.4 Verificación de backup
 
 ```bash
 # Verificar integridad del dump
