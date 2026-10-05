@@ -51,8 +51,11 @@ export const RATE_LIMITS = {
     windowMs: 60 * 1000, // 1 minute
     keyPrefix: 'rl',
   },
+  // Raised for CI/E2E: Playwright runs 2 workers in parallel + retry=1,
+  // auth-real.spec.ts makes ~8 sequential requests per test, and multiple
+  // specs hit auth routes. 200 req/min gives enough headroom.
   auth: {
-    max: 10,
+    max: 200,
     windowMs: 60 * 1000, // 1 minute
     keyPrefix: 'rl-auth',
   },
