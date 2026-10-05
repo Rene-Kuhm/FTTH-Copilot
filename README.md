@@ -109,7 +109,11 @@ FTTH-Copilot preserva la evidencia original, separa los hechos de las hipótesis
 | **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante perfiles auditados para 12 fabricantes y dos interfaces estándar. |
 | **SOC perimetral** | Analiza syslog, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
 | **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; TruthGate rechaza afirmaciones que la evidencia no sostiene. |
-| **Automatización e integración** | Conecta SmartOLT, Mikrowisp y MikroTik, y entrega alertas mediante webhooks, Telegram, Slack y WhatsApp. |
+| **Dark / Light mode** | Toggle de tema en la barra de navegación. Paleta completa en CSS custom properties, sin flash en la carga. |
+| **MFA TOTP enrolamiento** | Autenticación de dos factores con TOTP (Google Authenticator, Authy). UI completa de enrolamiento, verificación y desactivación en `/settings`. |
+| **LDAP / Active Directory** | Autenticación enterprise contra LDAP/AD con mapeo automático de grupos a roles (OWNER, ADMIN, OPERATOR, MEMBER). Diagnóstico de conectividad integrado. |
+| **Ntfy push** | Canal de notificaciones push self-hosted, gratis y sin dependencias de Google/Apple. Despacho por severidad con prioridad y tags configurables. |
+| **Automatización e integración** | Conecta SmartOLT, Mikrowisp y MikroTik, y entrega alertas mediante webhooks, Telegram, Slack, WhatsApp y Ntfy. |
 
 ## Del dato a la decisión
 
@@ -504,11 +508,22 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 - **Webhooks & Telegram:** **Integrados en runtime.** Despacho automático de alertas tempranas e incidentes cognitivos por tenant vía `packages/alerts`.
 - **Slack (Block Kit):** **Integrado en runtime.** Formateador de payloads con bloques enriquecidos, barras de color por severidad y despacho HTTP en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 - **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
+- **Ntfy (self-hosted):** **Integrado en runtime.** Canal de push gratuito y self-hosted. POST REST a `{serverUrl}/{topic}` con prioridad y tags por severidad; mobile push sin Firebase ni costos. Configurable mediante `NTFY_SERVER_URL` y `NTFY_DEFAULT_TOPIC` en `.env`. Servidor listo en `docker-compose.demo.yml` y `docker-compose.prod.yml`.
 
 ### 3. Observabilidad y Métricas
 - **VictoriaMetrics (`/api/metrics` → :8428):** **Integrado en runtime.** El endpoint `/api/metrics` exporta métricas Prometheus-compatible que VictoriaMetrics scrapea automáticamente (cada 30s). VMUI —la UI integrada, sin Grafana externo— queda en `:8428`, con la API Prometheus-compatible en `:8428/api/v1/query`. Soporta autenticación Bearer mediante `METRICS_BEARER_TOKEN`; la retención se configura con `VICTORIAMETRICS_RETENTION` (en meses). La imagen está pineada a una versión concreta y el scrape se declara en `docker/victoriametrics-scrape.yml`.
 - **Recording rules y alertas (vmalert):** **Integrado en runtime.** 8 recording rules y 7 alerting rules sobre las métricas del router, LLM, SNMP y carga operativa, definidas en `docker/victoriametrics-alerts.yml` y evaluadas por el sidecar `vmalert`. Cubren, entre otras, caída del scrape, reinicios del proceso, caída sostenida del proveedor LLM de respaldo y el colapso del modo barato del router (`investigation` >80%). VMUI no tiene dashboards versionados ni evalúa reglas por sí misma; por eso el servicio `vmalert` va aparte. Ver [`docs/production-deployment.md`](docs/production-deployment.md#54-recording-rules-y-alertas-vmalert).
 - **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
+
+**Dashboard de métricas en tiempo real:**
+
+![Dashboard de métricas: rendimiento LLM, distribución de routing y clases de decisión Laya](docs/assets/ftth-copilot-metrics-dashboard.png)
+
+El dashboard accesible desde `/dashboard/metrics` presenta en tiempo real:
+- **Solicitudes totales** — serie temporal de las últimas 24 horas
+- **Rendimiento LLM** — proveedor activo, tasa de éxito y tiempo de respuesta promedio
+- **Distribución de modo de routing** — donut chart: Direct / Assisted / Investigation
+- **Laya Decision Layer** — 9 clases de decisión con distribución porcentual (CONGESTION, DEVICE_FAULT, MASS_OUTAGE, NORMAL, OPTICAL_DEGRADATION, OPTICAL_FAULT, POWER_FAULT, UPLINK_FAULT, UNKNOWN)
 
 > [!IMPORTANT]
 > El modo demostración se habilita únicamente con `DEMO_MODE_ENABLED=true`. En este modo, la UI y el copiloto advierten explícitamente que los datos son sintéticos. En producción debe permanecer siempre en `false`.
@@ -525,6 +540,54 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 
 ---
 
+## Tema visual (Dark / Light mode)
+
+FTTH-Copilot soporta **temas Dark y Light** configurables por el usuario. El tema se persistisce en `localStorage` y se aplica antes del primer paint mediante un script inline en `<head>`, eliminando el flash de contenido.
+
+El toggle Sun/Moon está integrado en la barra de navegación (`AuthBar`). La paleta se define como CSS custom properties en `[data-theme="light"]`, manteniendo el estilo visual consistente en ambas variantes.
+
+## Autenticación enterprise (LDAP / OIDC)
+
+Más allá de la autenticación local con credenciales en PostgreSQL, FTTH-Copilot soporta integración con基础设施 de identidad enterprise:
+
+| Método | Descripción | Estado |
+|---|---|---|
+| **LDAP / Active Directory** | Bind + búsqueda de usuario + mapeo de grupos a roles. Diagnóstico de conectividad en `/api/auth/ldap-test`. | ✅ Integrado en runtime |
+| **OIDC (OpenID Connect)** | Delegable a proveedores como Okta, Azure AD, Keycloak. Flujo Authorization Code + PKCE. | 📋 Documentado en `docs/enterprise-auth.md` |
+
+Los roles asignados desde LDAP u OIDC se mapean a roles internos de FTTH-Copilot: `OWNER`, `ADMIN`, `OPERATOR`, `MEMBER`. Ver [`docs/enterprise-auth.md`](docs/enterprise-auth.md) para configuración detallada.
+
+## Autenticación de dos factores (MFA / TOTP)
+
+Cada usuario puede habilitar **autenticación de dos factores con TOTP** (Time-based One-Time Password). La UI de enrolamiento accesible desde `/settings` incluye:
+
+- **Generación de secreto** con codificación Base32 para导入 en Google Authenticator, Authy u otros
+- **Verificación de setup** con código TOTP de 6 dígitos antes de activar
+- **Desactivación** con confirmación de TOTP (requiere sesión activa del administrador para ADMIN/OWNER)
+- **Persistencia** del secreto cifrado en PostgreSQL (`totpSecret`) y flag booleano (`mfaEnabled`)
+
+## Backup automatizado de base de datos
+
+El script `scripts/db-backup.sh` automatiza backups de PostgreSQL con política de retención configurable:
+
+```bash
+# Backup manual
+./scripts/db-backup.sh
+
+# Restauración (con confirmación interactiva)
+./scripts/db-restore.sh ./backups/ftth_copilot_YYYYMMDD_HHMMSS.dump.gz
+```
+
+Características:
+- **Formato:** pg_dump custom (comprimido con gzip), `.dump.gz`
+- **Retención:** 30 días diarios + 12 semanas de backups semanales (rotación automática)
+- **Upload opcional:** S3 compatible (MinIO, AWS S3) o rclone parastorage remoto
+- **Restore:** Script dedicado con verificación de integridad y confirmación antes de sobrescribir
+
+Variables de entorno relevantes: `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE`. Ver [`docs/production-deployment.md`](docs/production-deployment.md#32-backup-automatizado).
+
+---
+
 ## Variables de Entorno Clave
 
 Configuradas y documentadas en [`.env.example`](.env.example):
@@ -532,11 +595,13 @@ Configuradas y documentadas en [`.env.example`](.env.example):
 | Dominio | Variables principales | Propósito |
 |---|---|---|
 | **NOC Poller & Métricas** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_BEARER_TOKEN`, `VICTORIAMETRICS_RETENTION`, `VICTORIAMETRICS_SCRAPE_TARGET`, `VICTORIAMETRICS_IMAGE` | Polling; Bearer para el scrape; retención de series (meses); target del scrape; versión pineada de la imagen |
-| **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Despacho de incidentes predictivos por Webhook o Telegram |
+| **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `NTFY_SERVER_URL`, `NTFY_DEFAULT_TOPIC` | Despacho por Webhook, Telegram y Ntfy push |
 | **SOC Syslog** | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID` | Receptor y analizador UDP de eventos de red |
 | **SOC Firmware** | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS` | Auditoría de versiones con vulnerabilidades y CVEs conocidas |
 | **Red NMS** | `NMS_REQUEST_TIMEOUT_MS`, `NMS_ALLOWED_HOSTS`, `NMS_ALLOW_PRIVATE_NETWORKS` | Políticas de egreso y seguridad perimetral |
 | **Inferencia LLM** | `LLM_PROVIDER`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y llaves de inferencia |
+| **Enterprise Auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP` | Autenticación LDAP/AD con mapeo de grupos a roles |
+| **Backup DB** | `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE` | Automatización de backups PostgreSQL con retención y upload remoto |
 
 
 ---
@@ -609,6 +674,7 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 - **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.2.1.
 - **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (VictoriaMetrics + Phoenix), seguridad y runbook de emergencia.
 - **[Secret scan y rotación de credenciales](docs/secret-scan.md)** — Hallazgos de auditoría, estado del `.gitignore`, procedimientos de rotación, y acciones pendientes.
+- **[Guía de autenticación enterprise](docs/enterprise-auth.md)** — Configuración de LDAP/AD, OIDC (Okta, Azure AD, Keycloak), MFA TOTP y autenticación local.
 - **[Plan de distribución](docs/distribution.md)** — Comunidades objetivo, mensajes de outreach, checklist de launch, y tracking de conversión demo→contacto.
 - **[Roadmap público](ROADMAP.md)** — Estado actual, validación pendiente y evolución prevista del producto.
 - **[Arquitectura detallada del sistema](docs/architecture.md)** — Modelo relacional de datos, flujos entre subsistemas y garantías de aislamiento.
