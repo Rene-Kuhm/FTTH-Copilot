@@ -82,10 +82,10 @@ export function OnCallPanel() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchSchedules();
-    fetchUsers();
-  }, [fetchSchedules, fetchUsers]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetchSchedules(); }, [fetchSchedules]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetchUsers(); }, [fetchUsers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

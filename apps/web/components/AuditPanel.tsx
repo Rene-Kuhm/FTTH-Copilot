@@ -95,7 +95,8 @@ export function AuditPanel() {
     }
   }, [category, outcome]);
 
-  useEffect(() => { fetch_(); }, [fetch_]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void fetch_(); }, [fetch_]);
 
   const total = pagination.total;
 
