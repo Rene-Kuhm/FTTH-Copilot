@@ -4,6 +4,7 @@
  * Protection model:
  * - /api/*       → rate limiting + security headers (auth handled per-route)
  * - /dashboard/* → auth required (redirect to /login if unauthenticated)
+ * - /admin/*     → auth + ADMIN/OWNER role required
  * - /settings/*  → auth required
  * - /plans/*     → auth required
  * - /alerts/*    → auth required
@@ -12,17 +13,23 @@
  * - /            → public
  * - /api/health   → public (rate limit skipped)
  *
+ * RBAC at middleware level:
+ * - Only checks minimum authentication (token valid)
+ * - Granular permissions (hasPermission checks) are done at API route level
+ * - Role is passed in headers for server components
+ *
  * Test bypass:
  * - For E2E tests, use cookie: __test_bypass=true
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifyToken } from './middleware/jwt-verify';
+import { verifyToken, type MiddlewareClaims } from './middleware/jwt-verify';
 import {
   checkRateLimit,
   getRateLimitKey,
   rateLimitResponse,
   RATE_LIMITS,
 } from './middleware/rate-limit';
+import { validateCsrfToken } from './lib/auth/csrf';
 
 export const config = {
   matcher: [
@@ -48,6 +55,9 @@ const PUBLIC_PREFIXES = [
 
 const PUBLIC_PATHS = ['/', '/manifest.json', '/sw.js'] as const;
 
+// Admin routes require ADMIN or OWNER role
+const ADMIN_PREFIXES = ['/admin', '/dashboard/admin'] as const;
+
 function isPublicPath(pathname: string): boolean {
   // Exact matches
   if ((PUBLIC_PATHS as readonly string[]).includes(pathname)) return true;
@@ -58,10 +68,30 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-function classifyRoute(pathname: string): 'api' | 'protected' | 'public' {
+function isAdminRoute(pathname: string): boolean {
+  return (ADMIN_PREFIXES as readonly string[]).some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function classifyRoute(pathname: string): 'api' | 'admin' | 'protected' | 'public' {
   if (pathname.startsWith('/api/')) return 'api';
   if (isPublicPath(pathname)) return 'public';
+  if (isAdminRoute(pathname)) return 'admin';
   return 'protected';
+}
+
+const ROLE_HIERARCHY: Record<string, number> = {
+  OWNER: 4,
+  ADMIN: 3,
+  OPERATOR: 2,
+  MEMBER: 2, // MEMBER treated as OPERATOR
+};
+
+function hasMinimumRole(userRole: string, minimumRole: string): boolean {
+  const userLevel = ROLE_HIERARCHY[userRole] ?? 0;
+  const minimumLevel = ROLE_HIERARCHY[minimumRole] ?? 0;
+  return userLevel >= minimumLevel;
 }
 
 export function middleware(request: NextRequest): Response {
@@ -73,6 +103,27 @@ export function middleware(request: NextRequest): Response {
     // Skip rate limiting for health checks
     if (pathname === '/api/health') {
       return NextResponse.next();
+    }
+
+    // CSRF Protection for mutations (POST, PUT, DELETE, PATCH)
+    const method = request.method.toUpperCase();
+    const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+    if (isMutation) {
+      // Skip CSRF for auth endpoints (they handle their own validation)
+      if (!pathname.startsWith('/api/auth')) {
+        const csrfValid = validateCsrfToken(
+          request.headers.get('cookie'),
+          request.headers.get('x-csrf-token'),
+        );
+        if (!csrfValid) {
+          const errorResponse = new NextResponse(
+            JSON.stringify({ error: 'Invalid CSRF token' }),
+            { status: 403, headers: { 'content-type': 'application/json' } },
+          );
+          addSecurityHeaders(errorResponse);
+          return errorResponse;
+        }
+      }
     }
 
     const isAuthRoute = pathname.startsWith('/api/auth');
@@ -102,11 +153,52 @@ export function middleware(request: NextRequest): Response {
     return response;
   }
 
+  // ── Admin Routes: Auth + ADMIN/OWNER Role Required ───────────────────────
+  if (classification === 'admin') {
+    // Bypass for E2E tests
+    const testBypass =
+      request.cookies.get('__test_bypass')?.value === 'true' ||
+      request.headers.get('x-playwright-test') === 'true';
+    if (testBypass) {
+      const response = NextResponse.next();
+      addSecurityHeaders(response);
+      response.headers.set('x-test-mode', 'true');
+      return response;
+    }
+
+    const token = request.cookies.get('ftth_session')?.value;
+
+    if (!token) {
+      return redirectToLogin(request);
+    }
+
+    const claims = verifyToken(token);
+    if (!claims) {
+      return redirectToLogin(request);
+    }
+
+    // Check minimum role for admin routes
+    if (!hasMinimumRole(claims.role, 'ADMIN')) {
+      // Insufficient permissions → redirect to dashboard with error
+      const dashboardUrl = new URL('/dashboard', request.url);
+      dashboardUrl.searchParams.set('error', 'insufficient_permissions');
+      const response = NextResponse.redirect(dashboardUrl);
+      addSecurityHeaders(response);
+      return response;
+    }
+
+    // Token valid + sufficient role → allow through
+    const response = NextResponse.next();
+    addSecurityHeaders(response);
+    response.headers.set('x-user-id', claims.userId);
+    response.headers.set('x-tenant-id', claims.tenantId);
+    response.headers.set('x-user-role', claims.role);
+    return response;
+  }
+
   // ── Protected Routes: Auth Check ──────────────────────────────────────────
   if (classification === 'protected') {
-    // Bypass for E2E tests:
-    // 1. Cookie: __test_bypass=true
-    // 2. Header: x-playwright-test=true
+    // Bypass for E2E tests
     const testBypass =
       request.cookies.get('__test_bypass')?.value === 'true' ||
       request.headers.get('x-playwright-test') === 'true';
@@ -142,9 +234,10 @@ export function middleware(request: NextRequest): Response {
     // Token valid → allow through
     const response = NextResponse.next();
     addSecurityHeaders(response);
-    // Add user info header for server components (optional optimization)
+    // Add user info header for server components
     response.headers.set('x-user-id', claims.userId);
     response.headers.set('x-tenant-id', claims.tenantId);
+    response.headers.set('x-user-role', claims.role);
     return response;
   }
 

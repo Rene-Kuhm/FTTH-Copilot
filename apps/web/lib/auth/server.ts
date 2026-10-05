@@ -22,6 +22,11 @@ import {
   extractClientIp,
   decryptApiKey,
 } from '@ftth-copilot/db';
+import {
+  generateCsrfToken,
+  createCsrfCookie,
+  clearCsrfCookie,
+} from './csrf';
 import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
 
@@ -186,6 +191,9 @@ export async function handleSignup(req: Request) {
       },
     });
 
+    // Generate CSRF token for subsequent requests
+    const { cookie: csrfCookie } = generateCsrfToken();
+
     return jsonResponse(
       {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -193,7 +201,9 @@ export async function handleSignup(req: Request) {
       },
       {
         status: 201,
-        headers: { 'set-cookie': setSessionCookie(token) },
+        headers: {
+          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
+        },
       },
     );
   } catch (err) {
@@ -305,11 +315,16 @@ export async function handleLogin(req: Request) {
       true,
     );
 
+    // Generate CSRF token for subsequent requests
+    const { cookie: csrfCookie } = generateCsrfToken();
+
     return jsonResponse(
       { user: { id: user.id, email: user.email, name: user.name, role: user.role } },
       {
         status: 200,
-        headers: { 'set-cookie': setSessionCookie(token) },
+        headers: {
+          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
+        },
       },
     );
   } catch (err) {
@@ -335,7 +350,7 @@ export async function handleLogout(req: Request) {
     await prisma.session.deleteMany({ where: { tokenHash } }).catch(() => {});
   }
   const res = NextResponse.json({ ok: true });
-  // Clear cookie
+  // Clear session cookie
   const attrs = sessionCookieAttributes();
   const parts = [
     `${COOKIE_NAME}=`,
@@ -344,7 +359,10 @@ export async function handleLogout(req: Request) {
     'HttpOnly',
   ];
   if (attrs.sameSite === 'lax') parts.push('SameSite=Lax');
-  res.headers.set('set-cookie', parts.join('; '));
+
+  // Also clear CSRF cookie
+  const csrfClear = clearCsrfCookie();
+  res.headers.set('set-cookie', `${parts.join('; ')}, ${csrfClear}`);
   return res;
 }
 

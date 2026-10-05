@@ -1,22 +1,33 @@
 import { chromium, type FullConfig } from "@playwright/test";
-import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
 /**
  * Global setup for E2E tests.
- * Creates a storage state file with the test bypass cookie.
+ * Creates a storage state file with:
+ * - __test_bypass cookie (skips auth middleware)
+ * - ftth_csrf cookie (valid CSRF token for mutations)
  * Playwright will load this storage state for all tests.
  */
 export default async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch();
   const context = await browser.newContext();
 
+  // Generate a CSRF token for test bypass
+  const crypto = await import("crypto");
+  const csrfToken = crypto.randomBytes(32).toString("hex");
+
   // Add the test bypass cookie
   await context.addCookies([
     {
       name: "__test_bypass",
       value: "true",
+      domain: "localhost",
+      path: "/",
+    },
+    {
+      name: "ftth_csrf",
+      value: csrfToken,
       domain: "localhost",
       path: "/",
     },
