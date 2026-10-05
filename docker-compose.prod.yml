@@ -132,9 +132,63 @@ services:
     networks:
       - ftth-network
 
-volumes:
-  postgres_data:
-  victoriametrics_prod_data:
+# ─────────────────────────────────────────────────────────────────────────────
+# VictoriaMetrics Cluster mode (HA) — uncomment and configure for production HA
+# Minimum 3 nodes. See: https://docs.victoriametrics.com/Cluster-VictoriaMetrics.html
+# ─────────────────────────────────────────────────────────────────────────────
+# Uncomment all services below and set VICTORIAMETRICS_CLUSTER_MODE=true in .env.prod
+#
+# VICTORIAMETRICS_CLUSTER_MODE=true
+# VICTORIAMETRICS_REPLICATION_FACTOR=2
+# VICTORIAMETRICS_STORAGE_NODES=2
+#
+# vmstorage:
+#   image: victoriametrics/victoria-metrics:v1.153.0
+#   container_name: ftth_prod_vmstorage
+#   restart: unless-stopped
+#   command:
+#     - '-storageDataPath=/storage'
+#     - '-retentionPeriod=${VICTORIAMETRICS_RETENTION:-12}months'
+#     - '-clusterMode=true'
+#   volumes:
+#     - vmstorage_data:/storage
+#   networks:
+#     - ftth-network
+#
+# vmselect:
+#   image: victoriametrics/victoria-metrics:v1.153.0
+#   container_name: ftth_prod_vmselect
+#   restart: unless-stopped
+#   command:
+#     - '-search=true'
+#     - '-clusterMode=true'
+#     - '-storageNode=vmstorage:8401'
+#   ports:
+#     - '${VICTORIAMETRICS_PORT:-8428}:8481'
+#   depends_on:
+#     - vmstorage
+#   networks:
+#     - ftth-network
+#
+# vminsert:
+#   image: victoriametrics/victoria-metrics:v1.153.0
+#   container_name: ftth_prod_vminsert
+#   restart: unless-stopped
+#   command:
+#     - '-insert=true'
+#     - '-clusterMode=true'
+#     - '-storageNode=vmstorage:8400'
+#   environment:
+#     - VMINSERT_ADDR=vminsert:8400
+#   depends_on:
+#     - vmstorage
+#   networks:
+#     - ftth-network
+#
+# volumes:
+#   vmstorage_data:
+#   postgres_data:
+#   victoriametrics_prod_data:
 
 networks:
   ftth-network:
