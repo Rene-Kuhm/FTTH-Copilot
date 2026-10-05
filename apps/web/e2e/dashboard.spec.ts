@@ -29,6 +29,9 @@ test.describe('Dashboard', () => {
   });
 
   test('shows link back to chat', async ({ page }) => {
-    await expect(page.getByRole('link', { name: 'Volver al Copilot' })).toBeVisible();
+    // The dashboard renders a "Copilot" link that navigates back to /app.
+    // Note: the previous test text "Volver al Copilot" was incorrect — the
+    // actual link label is just "Copilot".
+    await expect(page.getByRole('link', { name: 'Copilot' })).toBeVisible();
   });
 });
