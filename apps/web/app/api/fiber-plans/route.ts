@@ -127,7 +127,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   // Save file to disk
-  const ext = file.name.includes('.') ? file.name.split('.').pop()! : '';
+  const ext = (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '');
   const storedFilename = `${randomUUID()}.${ext}`;
   const uploadDir = join(process.cwd(), 'public', 'uploads', 'fiber-plans');
 
