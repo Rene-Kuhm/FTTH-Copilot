@@ -1,6 +1,14 @@
 name: CI
 
-# Se dispara en cada push a cualquier rama y en cada Pull Request hacia main.
+# Se dispara en cada Pull Request hacia main, y en cada push a main.
+#
+# Ojo: NO se dispara en pushes a ramas de feature. Con `push: "**"`, cada
+# push a una branch con PR abierto lanzaría DOS runs completos de CI (uno por
+# `push` y otro por `pull_request`). Ambos compiten por los mismos runners,
+# la saturación cancela jobs del gate `ci-success`, y el merge queda
+# bloqueado aunque el código esté bien. Con un solo run por PR no hay
+# contención y el gate refleja el estado real.
+#
 # Todo corre 100% sobre GitHub Actions (2.000 min/mes gratis en repos privados),
 # sin ningún servicio de pago ni ninguna API key de proveedor de LLM.
 # El agente (Claude, GPT, DeepSeek, el que sea) NO se llama en este pipeline:
@@ -11,7 +19,7 @@ name: CI
 on:
   push:
     branches:
-      - "**"
+      - main
   pull_request:
     branches:
       - main
