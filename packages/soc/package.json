@@ -19,9 +19,11 @@
     "@ftth-copilot/alerts": "workspace:*",
     "@ftth-copilot/connectors-core": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
-    "@ftth-copilot/security": "workspace:*"
+    "@ftth-copilot/security": "workspace:*",
+    "ldapjs": "^3.0.7"
   },
   "devDependencies": {
+    "@types/ldapjs": "^3.0.6",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.11",

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
+import { ThemeToggle } from './ThemeToggle';
 import {
   ArrowLeftOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -85,21 +86,24 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setError(null);
-            void auth.logout().catch((caught) =>
-              setError(
-                caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.',
-              ),
-            );
-          }}
-          className="btn-ghost px-3"
-        >
-          <ArrowRightOnRectangleIcon className="h-4 w-4" />
-          Salir
-        </button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              void auth.logout().catch((caught) =>
+                setError(
+                  caught instanceof Error ? caught.message : 'No se pudo cerrar la sesión.',
+                ),
+              );
+            }}
+            className="btn-ghost px-3"
+          >
+            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+            Salir
+          </button>
+        </div>
       </div>
     );
   }

@@ -193,7 +193,27 @@ gzip backup_20260920_120000.sql
   pg_dump -U ftth ftth_copilot | gzip > /var/backups/ftth-copilot/backup_$(date +\%Y\%m\%d_\%H\%M\%S).sql.gz
 ```
 
-### 3.2 Backup de configuración
+### 3.2 Backup automatizado (scripts)
+
+Usa los scripts de backup para automatización con retención:
+
+```bash
+# Backup local con retención (30 días + 12 semanas)
+./scripts/db-backup.sh
+
+# Backup + upload a S3
+./scripts/db-backup.sh s3://my-bucket/ftth-backups/
+
+# Restaurar desde backup
+./scripts/db-restore.sh ./backups/ftth_20241005_120000.sql.gz
+```
+
+**Crontab ejemplo (diario a las 02:00 UTC):**
+```cron
+0 2 * * * cd /opt/ftth-copilot && ./scripts/db-backup.sh s3://my-bucket/ftth-backups/ >> /var/log/ftth-backup.log 2>&1
+```
+
+### 3.3 Backup de configuración
 
 Los archivos que deben estar respaldados fuera del contenedor:
 
@@ -208,7 +228,7 @@ tar czf /var/backups/ftth-copilot/volumes_$(date +%Y%m%d).tar.gz \
   /var/lib/docker/volumes/ftth-copilot_postgres_data
 ```
 
-### 3.3 Verificación de backup
+### 3.4 Verificación de backup
 
 ```bash
 # Verificar integridad del dump
@@ -473,6 +493,47 @@ PHOENIX_PROJECT_NAME=ftth-copilot
 ```
 
 Trazas exportadas: `agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`. Credenciales y secrets son redactados antes de la transmisión.
+
+---
+
+### 5.6 Alta disponibilidad (VictoriaMetrics Cluster)
+
+Single-node VictoriaMetrics suffices for teams under ~50 users ingesting <500K series. For production HA at scale, migrate to **VictoriaMetrics Cluster mode**.
+
+**Architecture:** 3 services — `vmstorage` (data), `vmselect` (queries), `vminsert` (writes). Each runs as an independent Docker service.
+
+**Requirements:** Minimum 3 nodes. Replication factor 2 provides fault tolerance against 1 node failure.
+
+**Enable cluster mode:**
+
+1. Set in `.env.prod`:
+```env
+VICTORIAMETRICS_CLUSTER_MODE=true
+VICTORIAMETRICS_REPLICATION_FACTOR=2
+VICTORIAMETRICS_STORAGE_NODES=2
+```
+
+2. Uncomment the `vmstorage`, `vmselect`, `vminsert` services in `docker-compose.prod.yml`.
+
+3. Update app config: `VICTORIAMETRICS_URL=http://vmselect:8481` (cluster uses port 8481, not 8428).
+
+4. Rebuild: `docker compose -f docker-compose.prod.yml up -d`
+
+**Data flow in cluster mode:**
+- App writes metrics → `vminsert:8400` → `vmstorage:8400` (replicated)
+- App queries metrics → `vmselect:8481` → queries `vmstorage` nodes
+- `vmalert` reads from `vmselect:8481`, writes to `vminsert:8400`
+
+**Monitoring cluster health:**
+```bash
+# Check vmstorage cluster state
+docker exec ftth_prod_vmstorage   wget -qO- 'http://localhost:8482/cluster/lookups' | jq
+
+# Check replication status
+docker exec ftth_prod_vmstorage   wget -qO- 'http://localhost:8482/cluster/replication'
+```
+
+For rolling updates, see: https://docs.victoriametrics.com/Cluster-VictoriaMetrics.html#updating-cluster
 
 ---
 

@@ -13,7 +13,7 @@
 
 export type NotificationSeverity = 'critical' | 'warning' | 'info';
 
-export type NotificationChannelType = 'slack' | 'webhook' | 'email';
+export type NotificationChannelType = 'slack' | 'webhook' | 'email' | 'ntfy';
 
 export interface NotificationChannel {
   id: string;
@@ -72,6 +72,8 @@ export function redactSecrets(input: string): string {
   return input
     // Slack/Discord style webhook paths: .../services/TOKEN/TOKEN/TOKEN or /hooks/ID
     .replace(/(https?:\/\/[^\s/]*\/(?:services|hooks|api\/webhooks)\/)[^\s/]+(?:\/[^\s/]+)*/gi, '$1***')
+    // Ntfy server URLs and topics: https://ntfy.sh/my-topic -> https://ntfy.sh/***
+    .replace(/(https?:\/\/[^\s/]+\/)[a-zA-Z0-9_-]+/gi, '$1***')
     // userinfo passwords: scheme://user:password@host
     .replace(/(https?:\/\/[^\s/:@]+):[^\s/@]+@/gi, '$1:***@')
     // Authorization headers
@@ -254,6 +256,55 @@ export async function dispatchToChannel(
         target: safeTarget,
         skipped: true,
         error: 'No SMTP relay configured',
+      };
+    }
+
+    if (channel.type === 'ntfy') {
+      // Ntfy: free self-hosted push (web + Android/iOS apps).
+      // Dispatch: POST {NTFY_SERVER_URL}/{topic} with body=message, headers=metadata.
+      // The NTFY_SERVER_URL env var sets the Ntfy server (default: https://ntfy.sh).
+      const serverUrl = process.env.NTFY_SERVER_URL ?? 'https://ntfy.sh';
+      const url = `${serverUrl.replace(/\/$/, '')}/${channel.target.replace(/^\//, '')}`;
+
+      const ntfySeverityTags: Record<NotificationSeverity, string[]> = {
+        critical: ['warning', 'red_alert'],
+        warning: ['warning', 'orange'],
+        info: ['information_source'],
+      };
+      const tags = ntfySeverityTags[ctx.severity] ?? ['info'];
+
+      const ntfyPriority: Record<NotificationSeverity, string> = {
+        critical: 'max',
+        warning: 'high',
+        info: 'default',
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'text/plain',
+        Tags: tags.join(','),
+        Priority: ntfyPriority[ctx.severity] ?? 'default',
+        Title: ctx.title,
+        'X-Tags': tags.join(','),
+      };
+
+      const body = [ctx.body, '', `Device: ${ctx.deviceKind} ${ctx.deviceId}`, `Kind: ${ctx.kind}`, `Key: ${ctx.dedupeKey}`]
+        .filter(Boolean)
+        .join('\n');
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      return {
+        channelId: channel.id,
+        type: 'ntfy',
+        ok: res.ok,
+        status: res.status,
+        target: safeTarget,
+        ...(res.ok ? {} : { error: `HTTP ${res.status}` }),
       };
     }
 

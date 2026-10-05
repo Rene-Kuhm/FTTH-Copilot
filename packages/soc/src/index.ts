@@ -11,6 +11,14 @@ export {
   type AuditEntry,
 } from './audit';
 export {
+  authenticateLdapUser,
+  diagnoseLdap,
+  type LdapConfig,
+  type LdapUser,
+  type LdapAuthResult,
+  type LdapRole,
+} from './auth-ldap';
+export {
   buildSlackPayload,
   buildWebhookPayload,
   buildEmailMessage,

@@ -13,7 +13,7 @@ import {
   SignalIcon,
 } from './icons';
 
-type AppSection = 'chat' | 'dashboard' | 'alerts' | 'plans' | 'management';
+type AppSection = 'chat' | 'dashboard' | 'alerts' | 'plans' | 'management' | 'settings';
 
 interface AppShellProps {
   active: AppSection;
@@ -85,8 +85,8 @@ export function AppShell({
           Espacio de trabajo
         </div>
         <Link
-          href={'/app#gestion' as Route}
-          className={`nav-item mt-3 ${active === 'management' ? 'nav-item-active' : ''}`}
+          href={'/settings' as Route}
+          className={`nav-item mt-3 ${active === 'settings' ? 'nav-item-active' : ''}`}
         >
           <Cog6ToothIcon className="h-[18px] w-[18px] shrink-0" />
           Configuración

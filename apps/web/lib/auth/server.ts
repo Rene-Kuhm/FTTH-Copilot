@@ -68,6 +68,7 @@ export interface CurrentUser {
   name: string | null;
   role: Role;
   tenantId: string;
+  mfaEnabled: boolean;
   tenant: { id: string; name: string; slug: string };
 }
 
@@ -375,6 +376,7 @@ async function getUserForSessionToken(token: string): Promise<CurrentUser | null
           name: true,
           role: true,
           tenantId: true,
+          mfaEnabled: true,
           tenant: { select: { id: true, name: true, slug: true } },
         },
       },

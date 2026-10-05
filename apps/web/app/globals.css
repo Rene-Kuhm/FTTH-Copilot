@@ -5,6 +5,66 @@
    Palette: #1a1218 / #20161e / #7b4d68 / #f6eff3 / #f23077
 ───────────────────────────────────────────────────────── */
 
+/* ── Dark mode (default) ─────────────────────────────── */
+@theme {
+  /* Brand colours — dark defaults */
+  --color-bg:           #1a1218;
+  --color-surface:       #20161e;
+  --color-surface-elev: #2a2028;
+  --color-muted:         #7b4d68;
+  --color-text:          #f6eff3;
+  --color-accent:        #f23077;
+
+  /* Semantic aliases */
+  --color-action:        var(--color-accent);
+  --color-focus:         var(--color-accent);
+  --color-border:        color-mix(in srgb, var(--color-muted) 42%, transparent);
+  --color-divider:       color-mix(in srgb, var(--color-muted) 28%, transparent);
+
+  /* Status */
+  --color-success:       #4ade80;
+  --color-warning:       #fbbf24;
+  --color-danger:        #f87171;
+  --color-info:          var(--color-accent);
+
+  /* Typography */
+  --font-display:  "Space Grotesk", Inter, system-ui, sans-serif;
+  --font-body:     "Inter", system-ui, sans-serif;
+  --font-mono:     "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --radius-card:    16px;
+  --radius-control: 12px;
+  --radius-pill:    999px;
+
+  /* Shadows */
+  --shadow-card:   0 16px 40px rgb(0 0 0 / 32%);
+  --shadow-float:  0 4px 24px rgb(0 0 0 / 28%);
+  --shadow-glow:   0 0 20px rgb(242 48 119 / 22%);
+}
+
+/* ── Light mode palette ───────────────────────────────── */
+[data-theme="light"] {
+  --color-bg:           #f8f7f9;
+  --color-surface:       #ffffff;
+  --color-surface-elev: #f1eff2;
+  --color-muted:         #9d8aa0;
+  --color-text:          #1a1218;
+  --color-accent:        #e8256b;
+
+  --color-border:        #e2d9e6;
+  --color-divider:       #ede9ef;
+
+  --color-success:       #16a34a;
+  --color-warning:       #d97706;
+  --color-danger:        #dc2626;
+  --color-info:          var(--color-accent);
+
+  --shadow-card:   0 8px 32px rgb(26 18 24 / 10%);
+  --shadow-float:  0 2px 16px rgb(26 18 24 / 8%);
+  --shadow-glow:   0 0 16px rgb(232 37 107 / 18%);
+}
+
 @theme {
   /* Brand colours */
   --color-bg:           #1a1218;  /* App shell / deepest background */
