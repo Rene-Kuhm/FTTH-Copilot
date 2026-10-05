@@ -178,17 +178,19 @@ model Tenant {
   InvestigationVersion      InvestigationVersion[]
   InvestigationFeedback     InvestigationFeedback[]
   maintenanceWindows        MaintenanceWindow[]
-  fiberPlans               FiberPlan[]
-  planZones                PlanZone[]
-  planMarkers              PlanMarker[]
+  fiberPlans                FiberPlan[]
+  planZones                 PlanZone[]
+  planMarkers               PlanMarker[]
 
   // Laya Decision Layer (ADR-042)
-  decisionEvaluations       DecisionEvaluation[]
+  decisionEvaluations DecisionEvaluation[]
 
   // NOC/SOC AIOps
-  geoZones      GeoZone[]
-  runbooks      Runbook[]
-  changeEvents  ChangeEvent[]
+  geoZones            GeoZone[]
+  runbooks            Runbook[]
+  changeEvents        ChangeEvent[]
+  correlationWeight   CorrelationWeight?
+  correlationOutcomes CorrelationOutcome[]
 
   @@map("tenants")
 }
@@ -253,7 +255,7 @@ model NmsConnection {
   deviceEvents       DeviceEvent[]
   confirmedIncidents ConfirmedIncident[]
   fiberPlans         FiberPlan[]
-  InvestigationRun  InvestigationRun[]
+  InvestigationRun   InvestigationRun[]
 
   @@unique([tenantId, provider, label])
   @@index([tenantId])
@@ -410,8 +412,8 @@ model DeviceEvent {
   createdAt    DateTime            @default(now())
 
   // Device context (resolved from SNMP trap OID / syslog parser)
-  deviceKind   String?
-  deviceId     String?
+  deviceKind String?
+  deviceId   String?
 
   @@index([tenantId, category, occurredAt])
   @@index([tenantId, occurredAt])
@@ -526,43 +528,43 @@ model PendingIncidentCandidate {
 //
 // NOT used for real-time routing until assisted/automatic modes are validated.
 model DecisionEvaluation {
-  id                  String    @id @default(cuid())
-  tenantId            String
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Event reference
-  eventId             String    @db.Text
-  eventSource         String?   // 'smartolt', 'snmp', 'syslog', etc.
-  eventRawSummary     String?   @db.Text // sanitized, no credentials
+  eventId         String  @db.Text
+  eventSource     String? // 'smartolt', 'snmp', 'syslog', etc.
+  eventRawSummary String? @db.Text // sanitized, no credentials
 
   // Laya model info
-  engine             String    @default("laya")
-  model              String    // e.g., 'laya-multilingual'
-  modelVersion       String?
+  engine       String  @default("laya")
+  model        String // e.g., 'laya-multilingual'
+  modelVersion String?
 
   // Laya decision (what Laya decided)
-  eventClass         String?   // LayaEventClass enum value
-  severity           String?   // LayaSeverity enum value
-  probableScope      String?   // LayaProbableScope enum value
-  suggestedRoute     String?   // LayaSuggestedRoute enum value
+  eventClass            String? // LayaEventClass enum value
+  severity              String? // LayaSeverity enum value
+  probableScope         String? // LayaProbableScope enum value
+  suggestedRoute        String? // LayaSuggestedRoute enum value
   requiresInvestigation Boolean?
 
   // Confidence scores as JSON
-  confidence         Json?
+  confidence Json?
 
   // Latency
-  latencyMs          Int?
+  latencyMs Int?
 
   // Actual routing (for shadow mode comparison)
-  actualRoute       String?   // What FTTH-Copilot actually did
-  actualDiagnosis    String?   @db.Text
-  operatorOutcome   String?   // Confirmed by operator later
+  actualRoute     String? // What FTTH-Copilot actually did
+  actualDiagnosis String? @db.Text
+  operatorOutcome String? // Confirmed by operator later
 
   // Shadow mode flag
-  shadow             Boolean   @default(true)
+  shadow Boolean @default(true)
 
   // Timestamps
-  createdAt          DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
   @@index([tenantId, eventClass])
@@ -773,25 +775,25 @@ model InvestigationFeedback {
 // off by default at the API layer: routes check the permission
 // before any write.
 model MaintenanceWindow {
-  id                String   @id @default(cuid())
-  tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  title             String
-  description       String?  @db.Text
+  id                 String    @id @default(cuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title              String
+  description        String?   @db.Text
   /// JSON scope descriptor: { kind: 'tenant' | 'connection' | 'device', ... }
-  scopeJson         String   @db.Text
-  startUtc          DateTime
-  endUtc            DateTime
+  scopeJson          String    @db.Text
+  startUtc           DateTime
+  endUtc             DateTime
   /// IANA timezone string for display only (the start/end above are UTC).
-  timezone          String
+  timezone           String
   /// 'scheduled' | 'cancelled' | 'completed'
-  status            String   @default("scheduled")
-  createdByUserId   String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  cancelledAt       DateTime?
-  cancelledByUserId String?
-  cancellationReason String?  @db.Text
+  status             String    @default("scheduled")
+  createdByUserId    String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  cancelledAt        DateTime?
+  cancelledByUserId  String?
+  cancellationReason String?   @db.Text
 
   @@index([tenantId, status, startUtc, endUtc])
   @@index([tenantId, startUtc, endUtc])
@@ -810,20 +812,20 @@ model MaintenanceWindow {
 //   PlanMarker also has a soft link to PlanZone via zoneId.
 
 model FiberPlan {
-  id            String        @id @default(cuid())
+  id            String         @id @default(cuid())
   tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connectionId  String?
   connection    NmsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   name          String
   description   String?
-  fileUrl       String        @map("file_url")
-  mimeType      String        @map("mime_type")
-  widthPx       Int?          @map("width_px")
-  heightPx      Int?          @map("height_px")
-  fileSizeBytes BigInt?       @map("file_size_bytes")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  fileUrl       String         @map("file_url")
+  mimeType      String         @map("mime_type")
+  widthPx       Int?           @map("width_px")
+  heightPx      Int?           @map("height_px")
+  fileSizeBytes BigInt?        @map("file_size_bytes")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
   zones PlanZone[]
 
@@ -833,15 +835,15 @@ model FiberPlan {
 }
 
 model PlanZone {
-  id          String     @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
-  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   planId      String
-  plan        FiberPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  plan        FiberPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  color       String     @default("#6366F1") // hex, e.g. #6366F1
-  createdAt   DateTime   @default(now()) @map("created_at")
+  color       String    @default("#6366F1") // hex, e.g. #6366F1
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   markers PlanMarker[]
 
@@ -851,17 +853,17 @@ model PlanZone {
 }
 
 model PlanMarker {
-  id          String    @id @default(cuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  zoneId      String?   @map("zone_id")
-  zone        PlanZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  label       String
-  deviceKind  String?   @map("device_kind") // TopologyNodeKind values: OLT, PON_PORT, SPLITTER, CTO, ONU
-  deviceId    String?   @map("device_id")
-  xPercent    Float     @map("x_percent")    // 0.0–100.0, resolution-independent
-  yPercent    Float     @map("y_percent")    // 0.0–100.0, resolution-independent
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  zoneId     String?   @map("zone_id")
+  zone       PlanZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  label      String
+  deviceKind String?   @map("device_kind") // TopologyNodeKind values: OLT, PON_PORT, SPLITTER, CTO, ONU
+  deviceId   String?   @map("device_id")
+  xPercent   Float     @map("x_percent") // 0.0–100.0, resolution-independent
+  yPercent   Float     @map("y_percent") // 0.0–100.0, resolution-independent
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([zoneId])
@@ -895,23 +897,23 @@ model GeoZone {
 }
 
 model Runbook {
-  id           String        @id @default(cuid())
-  tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  title        String
-  content      String        @db.Text
-  deviceKind   String?       // TopologyNodeKind — null = applies to all
-  deviceId     String?       // Specific device; null = applies to all devices of kind
-  alertKind    String?       // AlertKind — null = applies to all alert types
-  severity     String?       // AlertSeverity — null = applies to all severities
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title            String
+  content          String    @db.Text
+  deviceKind       String? // TopologyNodeKind — null = applies to all
+  deviceId         String? // Specific device; null = applies to all devices of kind
+  alertKind        String? // AlertKind — null = applies to all alert types
+  severity         String? // AlertSeverity — null = applies to all severities
   // Link to ConfirmedIncident that generated this runbook
   sourceIncidentId String?   @map("source_incident_id")
-  tags         String[]      @default([])
-  stepCount    Int           @default(0) @map("step_count")
-  lastUsedAt   DateTime?    @map("last_used_at")
-  useCount     Int           @default(0) @map("use_count")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  tags             String[]  @default([])
+  stepCount        Int       @default(0) @map("step_count")
+  lastUsedAt       DateTime? @map("last_used_at")
+  useCount         Int       @default(0) @map("use_count")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([deviceKind, deviceId])
@@ -919,24 +921,58 @@ model Runbook {
   @@map("runbooks")
 }
 
+model CorrelationWeight {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique @map("tenant_id")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Named logistic coefficients, one per extracted feature. Stored as a map so adding
+  // a feature does not need a migration; unknown keys are ignored by the scorer.
+  weights     Json     @default("{}")
+  // Number of labelled outcomes folded in so far; guards against trusting weights
+  // trained on a handful of examples.
+  sampleCount Int      @default(0) @map("sample_count")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("correlation_weights")
+}
+
+model CorrelationOutcome {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  groupId     String   @map("group_id")
+  // true = operator confirmed this grouping became a real incident.
+  confirmed   Boolean
+  windowStart DateTime @map("window_start")
+  windowEnd   DateTime @map("window_end")
+  metricKey   String?  @map("metric_key")
+  actor       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, windowStart])
+  @@index([tenantId, groupId])
+  @@map("correlation_outcomes")
+}
+
 model ChangeEvent {
-  id           String       @id @default(cuid())
-  tenantId     String
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  tenantId              String
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // Network events (from DeviceEvent category enum): maintenance, config_change, firmware_upgrade, power_event
-  category     String
-  deviceKind   String?
-  deviceId     String?
-  title        String
-  description  String?      @db.Text
-  severity     String       @default("info") // info | warning | critical
-  occurredAt   DateTime     @map("occurred_at")
-  resolvedAt   DateTime?    @map("resolved_at")
+  category              String
+  deviceKind            String?
+  deviceId              String?
+  title                 String
+  description           String?   @db.Text
+  severity              String    @default("info") // info | warning | critical
+  occurredAt            DateTime  @map("occurred_at")
+  resolvedAt            DateTime? @map("resolved_at")
   // Auto-correlate with incidents that started within ±30min of this event
-  correlatedIncidentIds String[] @default([]) @map("correlated_incident_ids")
-  actor        String?       // user/system identifier
-  metadata     Json?        @default("{}")
-  createdAt    DateTime     @default(now()) @map("created_at")
+  correlatedIncidentIds String[]  @default([]) @map("correlated_incident_ids")
+  actor                 String? // user/system identifier
+  metadata              Json?     @default("{}")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([occurredAt])

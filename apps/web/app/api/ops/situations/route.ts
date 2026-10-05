@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ftth-copilot/db';
 import { correlateByTopologyAndTime } from '@ftth-copilot/evidence';
+import {
+  extractFeatures,
+  scoreSituation,
+  defaultWeights,
+  type SituationFeatures,
+} from '@ftth-copilot/analytics';
 import { topologyNodeKindSchema, type TopologyCorrelationEvent, type TopologyCorrelationConfig } from '@ftth-copilot/shared';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
@@ -164,13 +170,102 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const situations = correlateByTopologyAndTime(events, topologyEdges, CORRELATION_CONFIG, user.tenantId);
 
+  // ── Learned confidence ──────────────────────────────────────────────
+  // The correlator says which events belong together; the scorer says how much to
+  // believe that grouping. Anomalies from the RBCD detector that overlap a situation
+  // window are fed in as independent corroboration, and the tenant's learned weights
+  // rank the result, so the ordering reflects this installation's own history rather
+  // than a fixed heuristic.
+  const [weightsRow, anomalies] = await Promise.all([
+    prisma.correlationWeight.findUnique({ where: { tenantId: user.tenantId } }),
+    prisma.correlationOutcome.findMany({
+      where: { tenantId: user.tenantId, windowStart: { gte: from } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { windowStart: true, windowEnd: true, confirmed: true, metricKey: true },
+    }),
+  ]);
+
+  // Prisma types a Json column as any JSON value, so narrow it before spreading:
+  // a stored primitive would otherwise blow up the spread.
+  const storedWeights = (weightsRow?.weights ?? {}) as Partial<Record<keyof SituationFeatures, number>>;
+  const weights: Record<keyof SituationFeatures, number> = {
+    ...defaultWeights(),
+    ...Object.fromEntries(
+      Object.entries(storedWeights).filter(
+        (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+      ),
+    ),
+  };
+
+  const scored = situations.map((s) => {
+    const start = new Date(s.windowStart).getTime();
+    const end = new Date(s.windowEnd).getTime();
+
+    // Anomalies that overlap the situation window in time.
+    const overlapping = anomalies
+      .filter((a) => {
+        const aStart = new Date(a.windowStart).getTime();
+        const aEnd = new Date(a.windowEnd).getTime();
+        return aStart <= end && aEnd >= start;
+      })
+      .map((a, i) => ({ key: a.metricKey ?? 'unknown', startIndex: i, endIndex: i }));
+
+    const features = extractFeatures(
+      {
+        ancestorKind: s.ancestorKind,
+        ancestorId: s.ancestorId,
+        windowStart: s.windowStart,
+        windowEnd: s.windowEnd,
+        affectedRatio: s.affectedRatio,
+        affectedCount: s.affectedCount,
+        totalPopulation: s.totalPopulation,
+        events: events
+          .filter((e) => e.sourceEventId && s.evidenceEventIds.includes(e.sourceEventId))
+          .map((e) => ({
+            sourceEventId: e.sourceEventId!,
+            deviceId: e.deviceId,
+            deviceKind: e.deviceKind,
+            timestamp: e.timestamp,
+            // TopologyCorrelationEvent carries `category` rather than a typed
+            // source/alert pair. It serves both roles here: distinct categories give
+            // evidence diversity, and agreement on one category gives kind agreement.
+            sourceKind: e.category ?? 'unknown',
+            alertKind: e.category ?? undefined,
+            severity: e.severity,
+          })),
+      },
+      overlapping,
+    );
+
+    const score = scoreSituation(features, weights);
+
+    return {
+      ...s,
+      confidence: Number(score.confidence.toFixed(4)),
+      scoreSeverity: score.severity,
+      anomalyCorroboration: overlapping.length,
+      topContributions: score.contributions
+        .filter((c) => c.contribution > 0)
+        .sort((a, b) => b.contribution - a.contribution)
+        .slice(0, 3)
+        .map((c) => ({ feature: c.feature, contribution: Number(c.contribution.toFixed(4)) })),
+    };
+  });
+
+  // Most trusted situation first.
+  scored.sort((a, b) => b.confidence - a.confidence);
+
   return NextResponse.json({
-    situations,
+    situations: scored,
     summary: {
-      totalSituations: situations.length,
-      criticalSituations: situations.filter(s => s.affectedRatio >= 0.2).length,
+      totalSituations: scored.length,
+      criticalSituations: scored.filter(s => s.scoreSeverity === 'critical' || s.affectedRatio >= 0.2).length,
+      highConfidence: scored.filter(s => s.confidence >= 0.7).length,
       totalEvents: events.length,
       windowHours: hours,
+      /** How many labelled outcomes the tenant's weights have been trained on. */
+      learnedFrom: weightsRow?.sampleCount ?? 0,
     },
   });
 }

@@ -22,6 +22,18 @@ export {
   type DetectAnomaliesOptions,
   type RobustZResult,
 } from './anomaly';
+export {
+  extractFeatures,
+  scoreSituation,
+  updateWeights,
+  defaultWeights,
+  sigmoid,
+  type SituationFeatures,
+  type SituationGroup,
+  type SituationEvent,
+  type SituationScore,
+  type CorrelationWeights,
+} from './correlation-score';
 export { buildNocDegradationScenario, type ScenarioOptions } from './scenario';
 export {
   pickFecFanOutSlice,
