@@ -443,7 +443,7 @@ function IncidentsPanel({ incidents, now }: { incidents: Incident[]; now: number
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TopologyTree({ roots }: { roots: TopologyNode[] }) {
-  if (!roots.length) return <span className="text-xs text-base-content/30">Sin datos de topología</span>;
+  if (!roots.length) return null;
   function render(node: TopologyNode, depth = 0): React.ReactNode {
     const icon = node.kind === 'OLT' ? '🔵' : node.kind === 'PON_PORT' ? '⚪' : node.kind === 'SPLITTER' ? '◐' : node.kind === 'CTO' ? '🔶' : node.kind === 'ONU' ? '🔴' : '◽';
     return (
@@ -805,10 +805,9 @@ export default function MetricsDashboard() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {nmsConn.length ? nmsConn.map((c) => (
-                  <div key={c.provider} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 ${c.up ? 'border-success/30 bg-success/5' : 'border-error/30 bg-error/5'}`}>
+                  <div key={c.provider} className={`flex items-center gap-1.5 rounded-md border px-2 py-1 ${c.up ? 'border-success/30 bg-success/5' : 'border-error/30 bg-error/5'}`}>
                     <span className={`h-2 w-2 rounded-full ${c.up ? 'bg-success animate-pulse' : 'bg-error'}`} />
                     <span className="text-xs font-medium capitalize">{c.provider}</span>
-                    <span className="text-xs text-base-content/40">{c.up ? 'up' : 'down'}</span>
                     {c.count > 0 && <span className="font-mono text-[10px] text-base-content/40">×{c.count}</span>}
                   </div>
                 )) : <span className="text-xs text-base-content/30">Sin conexiones NMS</span>}
@@ -822,9 +821,8 @@ export default function MetricsDashboard() {
                   <div className="text-sm font-semibold">Router · Dispatch</div>
                   <div className="text-xs text-base-content/40">{dispatchTotal > 0 ? `${dispatchTotal.toLocaleString('es-ES')} dispatches totales` : 'Sin tráfico'}</div>
                 </div>
-                <DispatchDonut dispatches={dispatches} />
-              </div>
-              {dispatches.map((d) => {
+                </div>
+              {dispatchTotal > 0 && dispatches.map((d) => {
                 const col = MODE_COL[d.labels.mode ?? 'unknown'];
                 return (
                   <div key={d.labels.mode} className="mt-2 flex items-center gap-2">
@@ -842,17 +840,23 @@ export default function MetricsDashboard() {
                 <span className="text-sm font-semibold">SNMP Traps</span>
                 <span className="text-xs text-base-content/40">últimas {tr}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[['Recibidos', (snmpTraps.find(t => t.labels.status === 'received')?.current ?? 0), '#10b981'],
-                  ['Dedupidos', (snmpTraps.find(t => t.labels.status === 'deduped')?.current ?? 0), '#3b82f6'],
-                  ['Descartados', (snmpTraps.find(t => t.labels.status === 'dropped')?.current ?? 0), '#ef4444'],
-                ].map(([l, v, c]) => (
-                  <div key={l as string} className={`rounded-lg border p-3 text-center ${(v as number) > 0 ? 'border-error/40 bg-error/5' : 'border-base-200'}`}>
-                    <div className="font-mono text-lg font-black" style={{ color: v === 0 ? undefined : c as string }}>{fmt(v as number)}</div>
-                    <div className="text-[9px] text-base-content/50">{l as string}</div>
-                  </div>
-                ))}
-              </div>
+              {(snmpTraps.find(t => t.labels.status === 'received')?.current ?? 0) +
+                (snmpTraps.find(t => t.labels.status === 'deduped')?.current ?? 0) +
+                (snmpTraps.find(t => t.labels.status === 'dropped')?.current ?? 0) === 0 ? (
+                <span className="text-xs text-base-content/30">Sin traps en este período</span>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {[['Recibidos', (snmpTraps.find(t => t.labels.status === 'received')?.current ?? 0), '#10b981'],
+                    ['Dedupidos', (snmpTraps.find(t => t.labels.status === 'deduped')?.current ?? 0), '#3b82f6'],
+                    ['Descartados', (snmpTraps.find(t => t.labels.status === 'dropped')?.current ?? 0), '#ef4444'],
+                  ].map(([l, v, c]) => (
+                    <div key={l as string} className={`rounded-lg border p-3 text-center ${(v as number) > 0 ? 'border-error/40 bg-error/5' : 'border-base-200'}`}>
+                      <div className="font-mono text-lg font-black" style={{ color: v === 0 ? undefined : c as string }}>{fmt(v as number)}</div>
+                      <div className="text-[9px] text-base-content/50">{l as string}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* LLM Fallback */}
@@ -863,26 +867,19 @@ export default function MetricsDashboard() {
                   {llmFallback > 0 ? `${llmFallback.toFixed(1)}/15m` : 'sin fallbacks'}
                 </span>
               </div>
-              <div className="space-y-1.5">
-                {fbBreakdown.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-28 truncate text-[10px] text-base-content/60">{s.provider}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-                      <div className="h-full rounded-full bg-warning transition-all" style={{ width: `${Math.min(s.rate * 20, 100)}%` }} />
+              {llmFallback > 0 || fbBreakdown.length > 0 ? (
+                <div className="space-y-1.5">
+                  {fbBreakdown.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-28 truncate text-[10px] text-base-content/60">{s.provider}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
+                        <div className="h-full rounded-full bg-warning transition-all" style={{ width: `${Math.min(s.rate * 20, 100)}%` }} />
+                      </div>
+                      <span className="font-mono text-xs text-warning">{s.rate.toFixed(1)}/h</span>
                     </div>
-                    <span className="font-mono text-xs text-warning">{s.rate.toFixed(1)}/h</span>
-                  </div>
-                ))}
-                {tokBreakdown.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-28 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4] }} />
-                    </div>
-                    <span className="font-mono text-xs">{fmt(s.current)}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             {/* Topology mini-tree */}
@@ -1015,20 +1012,22 @@ export default function MetricsDashboard() {
                 <span className="text-sm font-semibold">Tokens consumidos</span>
                 <span className="font-mono text-sm font-bold">{fmt(llmTokens)} total</span>
               </div>
-              <div className="space-y-1.5">
-                {tokBreakdown.map((s, i) => {
-                  const col = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4];
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-16 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-base-200">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: col }} />
+              {tokBreakdown.length > 0 ? (
+                <div className="space-y-1.5">
+                  {tokBreakdown.map((s, i) => {
+                    const col = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4];
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-16 truncate text-[10px] text-base-content/60">{s.labels.type ?? '?'}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-base-200">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100)}%`, backgroundColor: col }} />
+                        </div>
+                        <span className="font-mono text-xs">{fmt(s.current)}</span>
                       </div>
-                      <span className="font-mono text-xs">{fmt(s.current)}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : <span className="text-xs text-base-content/30">Sin datos de tokens</span>}
             </div>
           </div>
         </div>
