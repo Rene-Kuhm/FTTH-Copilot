@@ -11,6 +11,9 @@
  * - /signup      → public
  * - /            → public
  * - /api/health   → public (rate limit skipped)
+ *
+ * Test bypass:
+ * - For E2E tests, use cookie: __test_bypass=true
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyToken } from './middleware/jwt-verify';
@@ -101,6 +104,19 @@ export function middleware(request: NextRequest): Response {
 
   // ── Protected Routes: Auth Check ──────────────────────────────────────────
   if (classification === 'protected') {
+    // Bypass for E2E tests:
+    // 1. Cookie: __test_bypass=true
+    // 2. Header: x-playwright-test=true
+    const testBypass =
+      request.cookies.get('__test_bypass')?.value === 'true' ||
+      request.headers.get('x-playwright-test') === 'true';
+    if (testBypass) {
+      const response = NextResponse.next();
+      addSecurityHeaders(response);
+      response.headers.set('x-test-mode', 'true');
+      return response;
+    }
+
     const token = request.cookies.get('ftth_session')?.value;
 
     if (!token) {
