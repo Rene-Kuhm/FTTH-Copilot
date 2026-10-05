@@ -13,9 +13,17 @@ export default async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch();
   const context = await browser.newContext();
 
-  // Generate a CSRF token for test bypass
-  const crypto = await import("crypto");
-  const csrfToken = crypto.randomBytes(32).toString("hex");
+  // Generate a CSRF token using a simple random hex string
+  // (Playwright doesn't have access to node:crypto)
+  const generateHex = (length: number): string => {
+    const chars = "0123456789abcdef";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+  };
+  const csrfToken = generateHex(64);
 
   // Add the test bypass cookie
   await context.addCookies([
