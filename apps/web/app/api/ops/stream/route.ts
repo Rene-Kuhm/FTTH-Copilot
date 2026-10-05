@@ -99,13 +99,16 @@ async function sendSnapshot(controller: ReadableStreamDefaultController, encoder
     fetchVMMetrics(),
   ]);
 
+  // NOTE: vmMetrics is spread first so its scalar counters (notably `incidents`,
+  // a number) cannot shadow the `activeIncidents` / `activeAlerts` arrays below.
+  // The previous ordering let `...vmMetrics.incidents` overwrite the incident array.
   const event: StreamEvent = {
     type: 'heartbeat',
     timestamp: new Date().toISOString(),
     data: {
-      alerts: alerts.map(a => ({ ...a, lastSeenAt: a.lastSeenAt.toISOString() })),
-      incidents: incidents.map(i => ({ ...i, lastSeenAt: i.lastSeenAt.toISOString() })),
       ...vmMetrics,
+      activeAlerts: alerts.map(a => ({ ...a, lastSeenAt: a.lastSeenAt.toISOString() })),
+      activeIncidents: incidents.map(i => ({ ...i, lastSeenAt: i.lastSeenAt.toISOString() })),
     },
   };
 
@@ -131,7 +134,10 @@ async function sendDelta(controller: ReadableStreamDefaultController, encoder: T
   const event: StreamEvent = {
     type: 'incident',
     timestamp: new Date().toISOString(),
-    data: { alerts, incidents },
+    data: {
+      alerts: alerts.map(a => ({ ...a, lastSeenAt: a.lastSeenAt.toISOString() })),
+      incidents: incidents.map(i => ({ ...i, lastSeenAt: i.lastSeenAt.toISOString() })),
+    },
   };
 
   controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify(event)}\n\n`));
@@ -147,8 +153,12 @@ async function fetchVMMetrics(): Promise<Record<string, unknown>> {
       });
       if (!res.ok) return 0;
       const d = await res.json();
-      return d.status === 'success' && d.data.result.length
-        ? parseFloat(d.data.result[0].values[0][1]) || 0 : 0;
+      // An instant query returns `value: [ts, "val"]` per series. `values` only exists
+      // on a range query, so reading `values` here silently threw and dropped every
+      // metric from the stream payload.
+      const series = d?.data?.result?.[0];
+      const raw = series?.value?.[1] ?? series?.values?.[0]?.[1];
+      return raw === undefined ? 0 : parseFloat(raw) || 0;
     };
 
     const [up, crit, warn, inc, memRss, uptime] = await Promise.all([

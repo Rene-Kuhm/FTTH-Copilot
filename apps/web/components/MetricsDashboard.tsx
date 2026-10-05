@@ -99,33 +99,125 @@ const fmtMs = (s: number) =>
   : `${s.toFixed(2)}s`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SSE Hook — replaces polling
+// Stream connection badge
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useSSE<T>(url: string | null, enabled = true) {
-  const [data, setData] = useState<T | null>(null);
-  // Loading is true by default when URL is set; cleared on first message or error.
-  const [loading, setLoading] = useState(url !== null && enabled);
-  const [error, setError] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+const STREAM_UI: Record<StreamStatus, { label: string; dot: string; text: string; pulse: boolean }> = {
+  idle:        { label: 'inactivo',  dot: 'bg-base-content/30',      text: 'text-base-content/40', pulse: false },
+  connecting:  { label: 'conectando', dot: 'bg-warning',            text: 'text-warning',        pulse: true },
+  live:        { label: 'live',      dot: 'bg-success animate-pulse', text: 'text-success',      pulse: false },
+  reconnecting:{ label: 'reconectando', dot: 'bg-warning animate-pulse', text: 'text-warning',    pulse: false },
+  error:       { label: 'sin stream', dot: 'bg-error',              text: 'text-error',          pulse: false },
+};
+
+function StreamBadge({ status }: { status: StreamStatus }) {
+  const ui = STREAM_UI[status];
+  return (
+    <span className={`ml-2 inline-flex items-center gap-1.5 ${ui.text}`} title={`SSE: ${status}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${ui.dot}`} />
+      <span className="text-[11px] font-medium">{ui.label}</span>
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SSE Hook — named-event aware, with exponential backoff reconnect
+// ─────────────────────────────────────────────────────────────────────────────
+
+type StreamStatus = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'error';
+
+/** Shape of the `data` field carried by the server's `snapshot` stream event. */
+interface StreamSnapshot {
+  healthScore?: number;
+  up?: boolean;
+  criticalAlerts?: number;
+  warningAlerts?: number;
+  incidents?: number;
+  memRss?: number;
+  uptime?: number;
+  activeAlerts?: unknown[];
+  activeIncidents?: unknown[];
+}
+
+interface SseHandlers {
+  snapshot?: (payload: unknown) => void;
+  delta?: (payload: unknown) => void;
+  heartbeat?: (payload: unknown) => void;
+}
+
+/**
+ * Opens an EventSource and routes the server's named events (`snapshot`, `delta`,
+ * `heartbeat`) to their handlers. EventSource reconnects on its own, but it does so
+ * eagerly and without backoff, so we close and re-open on a growing delay whenever a
+ * connection errors, and reset the delay once a real payload arrives.
+ *
+ * The `event` name is not part of the SSE spec contract for a bare `onmessage`, so
+ * `addEventListener` per known name is the only way to receive them.
+ */
+function useSSE(url: string | null, handlers: SseHandlers, enabled = true) {
+  // Status is keyed by URL and derived during render, so a URL change can never leave a
+  // stale "live" label behind, and no setState is needed inside the effect.
+  const [live, setLive] = useState<{ url: string | null; status: StreamStatus }>({ url, status: 'idle' });
+  const status: StreamStatus = live.url === url
+    ? live.status
+    : (url && enabled ? 'connecting' : 'idle');
+
+  const handlersRef = useRef<SseHandlers>(handlers);
+  // Synced in an effect (not during render) and declared before the connect effect, so
+  // it is always populated by the time any message arrives.
+  useEffect(() => { handlersRef.current = handlers; });
 
   useEffect(() => {
     if (!url || !enabled) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSE handshake is synchronous; state is required to clear prior stale data
-    setLoading(true);
-    setError(null);
-    if (esRef.current) esRef.current.close();
-    const es = new EventSource(url);
-    esRef.current = es;
-    es.onmessage = (e) => {
-      try { setData(JSON.parse(e.data)); setLoading(false); }
-      catch { setError('Parse error'); }
+
+    let closed = false;
+    let attempt = 0;
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const publish = (s: StreamStatus) => setLive({ url, status: s });
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(url);
+
+      const onPayload = (kind: 'snapshot' | 'delta' | 'heartbeat') => (ev: MessageEvent) => {
+        // A payload means the connection is healthy again — reset backoff.
+        attempt = 0;
+        publish('live');
+        try {
+          handlersRef.current[kind]?.(JSON.parse(ev.data));
+        } catch {
+          // A malformed frame must not tear down a working stream.
+        }
+      };
+
+      es.addEventListener('snapshot', onPayload('snapshot'));
+      es.addEventListener('delta', onPayload('delta'));
+      es.addEventListener('heartbeat', onPayload('heartbeat'));
+
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        if (closed) return;
+        attempt += 1;
+        publish(attempt > 5 ? 'error' : 'reconnecting');
+        // 1s, 2s, 4s, 8s, 16s, capped at 30s.
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+        retryTimer = setTimeout(connect, delay);
+      };
     };
-    es.onerror = () => { setError('Connection error'); setLoading(false); };
-    return () => es.close();
+
+    connect();
+
+    return () => {
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      es?.close();
+    };
   }, [url, enabled]);
 
-  return { data, loading, error, reconnect: () => {} };
+  return { status };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -640,18 +732,56 @@ export default function MetricsDashboard() {
     }
   }, [query, instant, fetchApi]);
 
-  // ── Initial load + polling ──────────────────────────────────────────
+  // ── SSE live counters (replaces the 30s poll for fast-moving values) ──
+  // The stream carries the same scalars the Overview tiles render, so a pushed
+  // snapshot updates them without a full 15-query refresh. Range series and the
+  // authenticated API panels still come from `refresh()` on the slow cadence.
+  //
+  // The handlers must exist on the very first render: `useSSE` copies them into its
+  // own ref during that render, so building them in a later effect would leave it
+  // holding an empty object. `useCallback` with stable setters keeps them referentially
+  // stable, so the object identity changing per render is harmless.
+  const onStreamSnapshot = useCallback((raw: unknown) => {
+    const p = (raw as { data?: StreamSnapshot })?.data;
+    if (!p) return;
+    if (typeof p.healthScore === 'number') setHealthScore(p.healthScore);
+    if (typeof p.up === 'boolean') setUp(p.up);
+    if (typeof p.criticalAlerts === 'number') setCriticalAlerts(p.criticalAlerts);
+    if (typeof p.warningAlerts === 'number') setWarningAlerts(p.warningAlerts);
+    if (typeof p.incidents === 'number') setIncidents(p.incidents);
+    if (typeof p.memRss === 'number') setMemRss(p.memRss);
+    if (typeof p.uptime === 'number') setUptime(p.uptime);
+    setLastPoll(Date.now());
+  }, []);
+
+  const onStreamDelta = useCallback((raw: unknown) => {
+    const d = (raw as { data?: { alerts?: unknown[]; incidents?: unknown[] } })?.data;
+    if (!d) return;
+    // Any new alert or incident invalidates the AIOps panels, so pull the backfill
+    // forward instead of waiting for the slow cadence. Calling refresh from the stream
+    // handler (an event callback) also keeps setState out of an effect.
+    if ((d.alerts?.length ?? 0) > 0 || (d.incidents?.length ?? 0) > 0) {
+      void refresh();
+    }
+  }, [refresh]);
+
+  const { status: streamStatus } = useSSE(
+    tenantId ? '/api/ops/stream' : null,
+    { snapshot: onStreamSnapshot, delta: onStreamDelta },
+    !!tenantId,
+  );
+
+  // ── Initial load + slow backfill ─────────────────────────────────────
+  // VM range series and the authenticated API panels cannot be pushed over SSE
+  // (they are multi-query range fetches), so they refresh on a slow cadence. Stream
+  // pushes cover the fast-moving scalars and pull this forward when something changes.
   useEffect(() => {
     let running = true;
     const poll = async () => { if (running) await refresh(); };
     void poll();
-    const id = setInterval(() => { void poll(); }, 30_000);
+    const id = setInterval(() => { void poll(); }, 120_000);
     return () => { running = false; clearInterval(id); };
   }, [refresh]);
-
-  // ── SSE streaming for live VM data ────────────────────────────────
-  // TODO: wire up SSE endpoint /api/vm/stream once implemented
-  // useSSE('/api/vm/stream', !!tenantId);
 
   // ── Derived ──────────────────────────────────────────────────────────
   const dispatchTotal = dispatches.reduce((s, d) => s + d.current, 0);
@@ -689,7 +819,7 @@ export default function MetricsDashboard() {
               VictoriaMetrics TSDB · Prometheus API
               {updated && <span className="ml-2">· {updated.toLocaleTimeString('es-ES')}</span>}
               <span className="ml-2">· {tr}</span>
-              {tab === 'overview' && <span className="ml-2">· streaming live</span>}
+              {tab === 'overview' && <StreamBadge status={streamStatus} />}
             </p>
           </div>
           <div className="flex items-center gap-2">
