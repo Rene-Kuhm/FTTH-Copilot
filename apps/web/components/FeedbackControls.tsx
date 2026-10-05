@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission } from '@/lib/auth/permissions';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 // ── Cognitive investigation feedback controls (Fase 1 PR #4) ───────────
 //
@@ -64,7 +65,7 @@ export function FeedbackControls({ incidentId }: FeedbackControlsProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await csrfFetch(
         `/api/incidents/${encodeURIComponent(incidentId)}/investigate`,
         {
           method: 'POST',
@@ -140,7 +141,7 @@ export function FeedbackControls({ incidentId }: FeedbackControlsProps) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
+        const response = await csrfFetch(
           `/api/investigations/${encodeURIComponent(
             investigation.runId,
           )}/versions/${encodeURIComponent(investigation.versionId)}/feedback`,

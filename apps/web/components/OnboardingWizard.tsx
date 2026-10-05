@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { useConnectors, type ClientConnector } from '@/lib/connectors/client';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 
 type Provider = 'SMARTOLT' | 'MIKROWISP';
 type Step = 'welcome' | 'connector' | 'test' | 'done';
@@ -223,7 +224,7 @@ function ConnectorForm({
     setError(null);
     setSubmitting(true);
     try {
-      const response = await fetch('/api/connectors/create', {
+      const response = await csrfFetch('/api/connectors/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -384,7 +385,7 @@ function TestStep({
     setRunning(true);
     setResult(null);
     try {
-      const response = await fetch(`/api/connectors/${connector.id}/test`, {
+      const response = await csrfFetch(`/api/connectors/${connector.id}/test`, {
         method: 'POST',
         credentials: 'include',
       });

@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth/client';
 import { useConnectors } from '@/lib/connectors/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { HistorySidebar, loadConversation } from './HistorySidebar';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 import {
   ChartBarSquareIcon,
   ChatBubbleLeftRightIcon,
@@ -147,7 +148,7 @@ export default function ChatUI() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await csrfFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

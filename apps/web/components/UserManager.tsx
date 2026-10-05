@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
+import { csrfFetch } from '@/lib/auth/csrf-client';
 import {
   CheckCircleIcon,
   PlusIcon,
@@ -92,7 +93,7 @@ export function UserManager() {
     setError(null);
     setSubmitting(true);
     try {
-      const r = await fetch('/api/users', {
+      const r = await csrfFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -122,7 +123,7 @@ export function UserManager() {
 
   async function changeRole(userId: string, newRole: string) {
     try {
-      const r = await fetch(`/api/users/${userId}`, {
+      const r = await csrfFetch(`/api/users/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -141,7 +142,7 @@ export function UserManager() {
   async function deleteUser(userId: string) {
     if (!confirm('¿Seguro que querés eliminar este usuario?')) return;
     try {
-      const r = await fetch(`/api/users/${userId}`, {
+      const r = await csrfFetch(`/api/users/${userId}`, {
         method: 'DELETE',
         credentials: 'include',
       });

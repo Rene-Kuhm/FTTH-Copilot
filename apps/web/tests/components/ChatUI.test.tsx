@@ -28,6 +28,11 @@ vi.mock('../../components/HistorySidebar', () => ({
 describe('ChatUI error handling & kind/hint rendering', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // csrfFetch reads this cookie to build the X-CSRF-Token header; a real
+    // signed-in browser always has it alongside the session cookie.
+    vi.spyOn(document, 'cookie', 'get').mockReturnValue(
+      'ftth_csrf=' + 'a'.repeat(64),
+    );
   });
 
   afterEach(() => {

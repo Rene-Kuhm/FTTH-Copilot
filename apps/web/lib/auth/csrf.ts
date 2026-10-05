@@ -7,6 +7,15 @@
  * 3. Server validates token matches cookie
  *
  * This is a simplified approach that doesn't require server-side storage.
+ *
+ * SECURITY: the CSRF cookie is deliberately NOT `HttpOnly`.
+ *
+ * In this pattern the token is not a credential: the protection comes from an
+ * attacker cross-site being unable to read the victim's cookie or set a custom
+ * request header. Marking it `HttpOnly` makes the client unable to complete the
+ * handshake and locks out legitimate traffic, so the defence can only fail
+ * closed. `HttpOnly` belongs on the session cookie (`ftth_session`), which is a
+ * real credential and does set it.
  */
 
 const CSRF_COOKIE_NAME = 'ftth_csrf';
@@ -36,8 +45,7 @@ function randomHex(byteLength: number): string {
  */
 export function generateCsrfToken(): { token: string; cookie: string } {
   const token = randomHex(CSRF_TOKEN_LENGTH);
-  const cookie = `${CSRF_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict`;
-  return { token, cookie };
+  return { token, cookie: createCsrfCookie(token) };
 }
 
 /**
@@ -91,16 +99,22 @@ export function getCsrfTokenFromCookie(cookieHeader: string | null): string | nu
 
 /**
  * Create the CSRF cookie string for Set-Cookie header.
+ *
+ * Intentionally omits `HttpOnly` so the browser can read it and echo the value
+ * in `X-CSRF-Token`. See the module header for the reasoning.
  */
 export function createCsrfCookie(token: string): string {
-  return `${CSRF_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`;
+  return `${CSRF_COOKIE_NAME}=${token}; Path=/; SameSite=Strict; Max-Age=86400`;
 }
 
 /**
  * Create an expired CSRF cookie (for logout).
+ *
+ * The attribute set must match `createCsrfCookie` so the browser replaces the
+ * original cookie instead of storing a second one under a different shape.
  */
 export function clearCsrfCookie(): string {
-  return `${CSRF_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+  return `${CSRF_COOKIE_NAME}=; Path=/; SameSite=Strict; Max-Age=0`;
 }
 
 export { CSRF_COOKIE_NAME };
