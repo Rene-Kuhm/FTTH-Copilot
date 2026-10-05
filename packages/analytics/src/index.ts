@@ -9,6 +9,19 @@ export {
   type UptimeResult,
   type UptimeWindow,
 } from './sla';
+export {
+  median,
+  medianAbsoluteDeviation,
+  robustZScore,
+  seasonalDecompose,
+  detectAnomalies,
+  groupAnomalies,
+  type Anomaly,
+  type AnomalyGroup,
+  type Decomposition,
+  type DetectAnomaliesOptions,
+  type RobustZResult,
+} from './anomaly';
 export { buildNocDegradationScenario, type ScenarioOptions } from './scenario';
 export {
   pickFecFanOutSlice,
