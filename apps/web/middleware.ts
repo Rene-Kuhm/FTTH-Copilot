@@ -33,7 +33,7 @@ export function middleware(request: NextRequest): Response {
 
   // Extract tenant ID from JWT if available
   let tenantId: string | undefined;
-  const token = request.cookies.get('auth-token')?.value;
+  const token = request.cookies.get('ftth_session')?.value;
   if (token) {
     const claims = verifyToken(token);
     if (claims) {
