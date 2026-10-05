@@ -19,6 +19,7 @@ export interface SessionUser {
   name: string | null;
   role: ClientRole;
   tenantId: string;
+  mfaEnabled: boolean;
   tenant: { id: string; name: string; slug: string };
 }
 
