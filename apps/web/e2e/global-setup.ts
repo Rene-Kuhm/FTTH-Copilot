@@ -1,6 +1,7 @@
 import { chromium, type FullConfig } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 /**
  * Global setup for E2E tests.
@@ -21,7 +22,9 @@ export default async function globalSetup(_config: FullConfig) {
     },
   ]);
 
-  // Save storage state to a file
+  // Save storage state to a file (ESM compatible)
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
   const storageStatePath = path.join(__dirname, ".auth.json");
   await context.storageState({ path: storageStatePath });
 
