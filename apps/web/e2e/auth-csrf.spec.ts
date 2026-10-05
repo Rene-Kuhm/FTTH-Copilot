@@ -1,68 +1,88 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * E2E tests for CSRF protection.
- * These tests verify that the CSRF token mechanism is working correctly.
+ * E2E coverage for the CSRF gate in `middleware.ts` and the auth redirect.
+ *
+ * The probe path below has no route handler on purpose. The CSRF check runs in
+ * the middleware *before* routing, so probing it isolates the security layer:
+ * no database, no upstream API, no auth secret required.
  */
-test.describe("CSRF Protection", () => {
-  test("CSRF token is set on login", async ({ page }) => {
-    // Navigate to login page
-    await page.goto("/login");
+const PROBE = "/api/__csrf-probe__";
 
-    // Fill in login form with test credentials
-    await page.fill('input[name="email"]', "test@example.com");
-    await page.fill('input[name="password"]', "wrongpassword");
+test.describe("CSRF protection", () => {
+  test("rejects a mutation sent without a CSRF header", async ({ page }) => {
+    const response = await page.request.post(PROBE, { data: {} });
 
-    // Submit form
-    await page.click('button[type="submit"]');
+    expect(response.status()).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Invalid CSRF token",
+    });
+  });
 
-    // Wait for response (either error or redirect)
-    await page.waitForResponse(
-      (response) => response.url().includes("/api/auth/login"),
-      { timeout: 10000 }
+  test("rejects a mutation whose header does not match the cookie", async ({ page }) => {
+    const response = await page.request.post(PROBE, {
+      data: {},
+      headers: { "x-csrf-token": "deadbeef".repeat(8) },
+    });
+
+    expect(response.status()).toBe(403);
+  });
+
+  test("lets a mutation through when the header matches the cookie", async ({
+    page,
+    context,
+  }) => {
+    const csrf = (await context.cookies()).find(
+      (cookie) => cookie.name === "ftth_csrf",
     );
+    // global-setup seeds this cookie for every test run.
+    expect(csrf, "global-setup must seed the ftth_csrf cookie").toBeTruthy();
 
-    // Check that CSRF cookie was set
-    const csrfCookie = await page.context().cookies("localhost");
-    const csrf = csrfCookie.find((c) => c.name === "ftth_csrf");
+    const response = await page.request.post(PROBE, {
+      data: {},
+      headers: { "x-csrf-token": csrf!.value },
+    });
 
-    // If login fails with "invalid credentials", we still get a CSRF cookie
-    // because the server generates one on every login attempt
-    expect(csrf).toBeDefined();
+    // Past the CSRF gate: the probe path itself resolves to 404.
+    expect(response.status()).not.toBe(403);
   });
 
-  test("authenticated requests include CSRF header", async ({ page }) => {
-    // This test verifies that the CSRF token from the cookie
-    // can be read and used in requests
+  test("does not gate safe methods", async ({ page }) => {
+    const response = await page.request.get(PROBE);
 
-    // Get CSRF token from cookie
-    const cookies = await page.context().cookies("localhost");
-    const csrfCookie = cookies.find((c) => c.name === "ftth_csrf");
-
-    expect(csrfCookie).toBeDefined();
-    expect(csrfCookie?.value).toHaveLength(64); // 32 bytes = 64 hex chars
+    expect(response.status()).not.toBe(403);
   });
 
-  test("unauthenticated page redirects to login", async ({ page }) => {
-    // Clear all cookies to simulate unauthenticated state
+  test("exempts the auth endpoints, which validate their own input", async ({
+    page,
+  }) => {
+    // /api/auth/* is intentionally skipped by the CSRF gate, so a malformed
+    // login must fail as bad input (400/401), never as "Invalid CSRF token".
+    const response = await page.request.post("/api/auth/login", {
+      data: {},
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status()).not.toBe(403);
+  });
+});
+
+test.describe("auth redirect", () => {
+  test("protected page redirects to login once the session is gone", async ({
+    page,
+  }) => {
     await page.context().clearCookies();
 
-    // Try to access a protected page
     await page.goto("/dashboard");
 
-    // Should redirect to login
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("admin page requires admin role", async ({ page }) => {
-    // The middleware should block non-admin users from /admin/* routes
-    // This test uses the __test_bypass cookie which skips auth but not role check
+  test("keeps the original destination in the redirect", async ({ page }) => {
+    await page.context().clearCookies();
 
-    // Navigate to admin page (will work because of test bypass)
-    // Note: In a real scenario, we'd need to mock an ADMIN user
-    // For now, this test documents the expected behavior
-    await page.goto("/admin");
-    // The page should either load or redirect based on role
-    // This is a placeholder for role-based access control testing
+    await page.goto("/settings");
+
+    await expect(page).toHaveURL(/redirect=/);
   });
 });
