@@ -1,0 +1,43 @@
+# FTTH-Copilot — VictoriaMetrics vmbackup sidecar configuration
+# Runs alongside single-node VictoriaMetrics to create point-in-time backups.
+#
+# Usage: mount this file as a systemd unit or run directly.
+# The backup runs on a schedule (default: every 6h) and stores snapshots
+# to a local directory or S3-compatible storage.
+#
+# Key env vars:
+#   BACKUP_INTERVAL   — cron expression or duration (default: every 6h)
+#   BACKUP_DEST       — local path or s3://bucket/path
+#   RETENTION_DAYS    — keep backups for N days (default: 7)
+#
+# For multi-node HA (production at scale):
+#   - Replace single-node VM with VictoriaMetrics Cluster (3+ nodes)
+#   - Use vminsert/vmselect components behind a load balancer
+#   - Configure replication factor = 2
+#   See: https://docs.victoriametrics.com/Cluster-VictoriaMetrics.html
+
+[Unit]
+Description=VictoriaMetrics Backup Sidecar
+After=network.target
+
+[Service]
+Type=oneshot
+# Set RemountSpawned=true if you want systemd to restart this on failure.
+# For cron-based scheduling, use a systemd timer instead.
+
+ExecStart=/bin/sh -c '\
+  echo "Starting VictoriaMetrics backup..."; \
+  /vmbackup-prod \
+    -storageDataPath=/storage \
+    -dest=${BACKUP_DEST:-file:///backups} \
+    -loggerLevel=INFO \
+    -loggerFormat=json; \
+  echo "Backup complete at $$(date -Iseconds)"'
+
+# For scheduled backups, create a matching .timer unit:
+# [Timer]
+# OnCalendar=*-*/06:00  # every 6 hours
+# Persistent=true
+
+[Install]
+WantedBy=multi-user.target

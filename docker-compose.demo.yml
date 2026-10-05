@@ -40,6 +40,33 @@ services:
     networks:
       - ftth-demo
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # PgBouncer — connection pooling between app and postgres.
+  # Session mode: required for Prisma (prepared statements + LISTEN/NOTIFY).
+  # Reduces postgres connections from N×M to N+M under heavy load.
+  # ─────────────────────────────────────────────────────────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:1.24
+    container_name: ftth_demo_pgbouncer
+    restart: unless-stopped
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:6432"
+    volumes:
+      - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./docker/pgbouncer-users.txt:/etc/pgbouncer/userlist.txt:ro
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgbouncer -V && pgrep pgbouncer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ftth-demo
+
   db-migrate:
     build:
       context: .
@@ -70,10 +97,13 @@ services:
       PORT: 3001
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
+      # Route through PgBouncer for connection pooling.
+      # db-migrate bypasses pgbouncer and connects directly to postgres.
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@pgbouncer:6432/ftth_copilot"
     ports:
       - "${PORT:-3001}:3001"
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
