@@ -186,11 +186,13 @@ model Tenant {
   decisionEvaluations DecisionEvaluation[]
 
   // NOC/SOC AIOps
-  geoZones            GeoZone[]
-  runbooks            Runbook[]
-  changeEvents        ChangeEvent[]
-  correlationWeight   CorrelationWeight?
-  correlationOutcomes CorrelationOutcome[]
+  geoZones               GeoZone[]
+  runbooks               Runbook[]
+  changeEvents           ChangeEvent[]
+  correlationWeight      CorrelationWeight?
+  correlationOutcomes    CorrelationOutcome[]
+  notificationChannels   NotificationChannel[]
+  notificationDeliveries NotificationDelivery[]
 
   @@map("tenants")
 }
@@ -919,6 +921,50 @@ model Runbook {
   @@index([deviceKind, deviceId])
   @@index([alertKind, severity])
   @@map("runbooks")
+}
+
+model NotificationChannel {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type            String // slack | webhook | email
+  // Slack/webhook URL or user@host. Treated as a secret: always redacted in logs, API
+  // responses and error messages — see redactSecrets() in @ftth-copilot/soc.
+  target          String
+  enabled         Boolean   @default(true)
+  minSeverity     String    @default("warning") @map("min_severity") // info | warning | critical
+  labels          String[]  @default([])
+  // A repeat of the same dedupeKey inside this window is dropped, so a flapping link
+  // does not page someone once per scrape.
+  cooldownSeconds Int       @default(300) @map("cooldown_seconds")
+  lastSentAt      DateTime? @map("last_sent_at")
+  lastError       String?   @map("last_error")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  deliveries NotificationDelivery[]
+
+  @@index([tenantId, enabled])
+  @@map("notification_channels")
+}
+
+model NotificationDelivery {
+  id        String              @id @default(cuid())
+  tenantId  String              @map("tenant_id")
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channelId String              @map("channel_id")
+  channel   NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  dedupeKey String              @map("dedupe_key")
+  severity  String
+  title     String
+  ok        Boolean
+  status    Int?
+  error     String?
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([dedupeKey, channelId])
+  @@map("notification_deliveries")
 }
 
 model CorrelationWeight {
