@@ -131,3 +131,23 @@ describe('http dispatch', () => {
     expect(send).toHaveBeenCalledOnce();
   });
 });
+
+describe('redactSecrets — Ntfy', () => {
+  it('masks the topic in a Ntfy URL', () => {
+    const out = redactSecrets('https://ntfy.sh/my-private-topic');
+    expect(out).not.toContain('my-private-topic');
+    expect(out).toContain('ntfy.sh');
+  });
+
+  it('masks self-hosted Ntfy topics', () => {
+    const out = redactSecrets('http://localhost:8125/mytenant-alerts');
+    expect(out).not.toContain('mytenant-alerts');
+    expect(out).toContain('localhost');
+  });
+
+  it('does not redact the server base URL without a topic', () => {
+    const out = redactSecrets('https://ntfy.sh/');
+    // Only topics are redacted, not the server root
+    expect(out).toContain('ntfy.sh');
+  });
+});

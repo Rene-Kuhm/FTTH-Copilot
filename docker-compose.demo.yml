@@ -181,6 +181,27 @@ services:
     networks:
       - ftth-demo
 
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ntfy — free self-hosted push notifications (web, Android, iOS, Linux).
+  # Alternative to Firebase Cloud Messaging (FCM) without vendor lock-in.
+  # Default: https://ntfy.sh (public, no account needed).
+  # For self-hosted: docker run -p 8125:80 binwiederhier/ntfy
+  # ─────────────────────────────────────────────────────────────────────
+  ntfy:
+    image: binwiederhier/ntfy:v3.3.0
+    container_name: ftth_demo_ntfy
+    restart: unless-stopped
+    ports:
+      - "${NTFY_PORT:-8125}:80"
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+    environment:
+      - NTFY_CACHE_DURATION=1h
+      - NTFY_AUTH_STATIC=none
+    networks:
+      - ftth-demo
+
   # Seeds demo account + synthetic ONU metrics and alerts.
   # Runs after app is reachable so the UI can show immediately.
   db-seed:
@@ -209,6 +230,7 @@ services:
 volumes:
   postgres_demo_data:
   victoriametrics_demo_data:
+  ntfy_cache:
 
 networks:
   ftth-demo:

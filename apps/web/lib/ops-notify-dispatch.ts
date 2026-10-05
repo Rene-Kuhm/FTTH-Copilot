@@ -7,7 +7,7 @@ import {
   type NotificationChannelType,
 } from '@ftth-copilot/soc';
 
-const CHANNEL_TYPES = new Set<string>(['slack', 'webhook', 'email']);
+const CHANNEL_TYPES = new Set<string>(['slack', 'webhook', 'email', 'ntfy']);
 const SEVERITIES = new Set<string>(['info', 'warning', 'critical']);
 
 export interface DispatchSummary {
