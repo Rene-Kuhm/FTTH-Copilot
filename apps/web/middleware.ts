@@ -6,7 +6,8 @@
  * - Auth routes (/api/auth/*): 10 req/min (stricter)
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifyToken } from '@ftth-copilot/db';
+// Edge-runtime safe: no Prisma, no node:fs — only jsonwebtoken + process.env
+import { verifyToken } from './middleware/jwt-verify';
 import {
   checkRateLimit,
   getRateLimitKey,
