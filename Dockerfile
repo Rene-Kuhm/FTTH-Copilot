@@ -31,7 +31,7 @@ COPY --from=dependencies /app ./
 ENV NODE_ENV=production
 
 RUN pnpm --filter @ftth-copilot/db db:generate
-RUN pnpm --filter @ftth-copilot/web build
+RUN NEXT_OUTPUT_MODE=standalone pnpm --filter @ftth-copilot/web build
 
 # ------------------------------------------------------------------------------
 # 4. Production runner stage (minimal, secure, non-root)

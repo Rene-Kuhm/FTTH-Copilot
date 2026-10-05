@@ -16,6 +16,19 @@ const isStaticExport = process.env.NEXT_OUTPUT_MODE === 'export';
 
 const nextConfig = {
   reactStrictMode: true,
+  // Handle Prisma 6 generated client that uses `require("node:os")` style imports.
+  // webpack cannot resolve the `node:` protocol, so we resolve it to the actual module.
+  webpack: (config, { isServer }) => {
+    // Mark all node: protocol requires as externals — they exist at runtime.
+    config.externals = config.externals || [];
+    config.externals.push(function({ request }, callback) {
+      if (request && request.startsWith('node:')) {
+        return callback(null, 'commonjs ' + request);
+      }
+      callback();
+    });
+    return config;
+  },
   transpilePackages: [
     '@ftth-copilot/agent-core',
     '@ftth-copilot/shared',
@@ -38,6 +51,10 @@ const nextConfig = {
     output: 'export',
     images: { unoptimized: true },
     trailingSlash: false,
+  }),
+  // Standalone output for Docker containers. Build with NEXT_OUTPUT_MODE=standalone.
+  ...(process.env.NEXT_OUTPUT_MODE === 'standalone' && {
+    output: 'standalone',
   }),
   // Turbopack config — empty to silence the webpack/turbopack conflict warning.
   // @ducanh2912/next-pwa requires webpack, so we set an empty turbopack config

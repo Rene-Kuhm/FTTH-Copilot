@@ -15,6 +15,7 @@ export type Role = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
 export type Permission =
   | 'manage_users'
   | 'manage_connectors'
+  | 'manage_incidents'
   | 'view_all_conversations'
   | 'chat'
   | 'view_own_conversations'
@@ -28,6 +29,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   OWNER: [
     'manage_users',
     'manage_connectors',
+    'manage_incidents',
     'view_all_conversations',
     'chat',
     'view_own_conversations',
@@ -40,6 +42,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ADMIN: [
     'manage_users',
     'manage_connectors',
+    'manage_incidents',
     'view_all_conversations',
     'chat',
     'view_own_conversations',
@@ -54,6 +57,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'delete_conversations',
     'view_network',
     'ack_alerts',
+    'manage_incidents',
   ],
   MEMBER: [
     // Legacy role — treated as OPERATOR
@@ -62,6 +66,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'delete_conversations',
     'view_network',
     'ack_alerts',
+    'manage_incidents',
   ],
 };
 

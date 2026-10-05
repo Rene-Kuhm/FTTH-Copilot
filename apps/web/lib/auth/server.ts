@@ -20,8 +20,10 @@ import {
   recordAuthAttempt,
   authRateLimitKeys,
   extractClientIp,
+  decryptApiKey,
 } from '@ftth-copilot/db';
 import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
+import { auditAuth } from '@ftth-copilot/soc';
 
 export const runtime = 'nodejs';
 
@@ -243,12 +245,44 @@ export async function handleLogin(req: Request) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       await recordFailedLogins(rateKeys);
+      const ip = extractClientIp(req.headers.get('x-forwarded-for'));
+      await auditAuth.login({ tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined }, email, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
     }
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       await recordFailedLogins(rateKeys);
+      const ip = extractClientIp(req.headers.get('x-forwarded-for'));
+      await auditAuth.login({ tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined }, user.id, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // Check if MFA is enabled
+    if (user.mfaEnabled && user.totpSecret) {
+      // Generate temp token for MFA verification step
+      const { totp, verifyTOTP } = await import('@/lib/auth/totp');
+      const secret = decryptApiKey(user.totpSecret);
+
+      // If code provided in request, verify it
+      let body: { code?: string } = {};
+      try {
+        body = await req.json().catch(() => ({}));
+      } catch {
+        // Ignore parse errors
+      }
+
+      if (body.code) {
+        if (!verifyTOTP(secret, body.code)) {
+          return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
+        }
+      } else {
+        // Return mfaRequired to prompt for MFA verification
+        const { token: tempToken } = issueToken(user.id, user.tenantId, user.role, true);
+        return jsonResponse(
+          { mfaRequired: true, tempToken },
+          { status: 200 },
+        );
+      }
     }
 
     const { token, tokenHash, expiresAt } = issueToken(user.id, user.tenantId, user.role);
@@ -261,6 +295,14 @@ export async function handleLogin(req: Request) {
         ipAddress: extractClientIp(req.headers.get('x-forwarded-for')),
       },
     });
+
+    // Audit successful login
+    const ip = extractClientIp(req.headers.get('x-forwarded-for'));
+    await auditAuth.login(
+      { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, actorRole: user.role, ipAddress: ip ?? undefined },
+      user.id,
+      true,
+    );
 
     return jsonResponse(
       { user: { id: user.id, email: user.email, name: user.name, role: user.role } },

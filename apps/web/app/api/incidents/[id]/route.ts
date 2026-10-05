@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { auditIncident } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 /**
  * GET /api/incidents/:id — fetch one incident, with the related
@@ -85,4 +88,57 @@ export async function GET(
       status: w.status,
     })),
   });
+}
+
+const updateSchema = z.object({
+  status: z.enum(['open', 'acknowledged', 'resolved']).optional(),
+  severity: z.enum(['warning', 'critical']).optional(),
+  title: z.string().min(1).max(256).optional(),
+  description: z.string().max(4096).optional(),
+});
+
+/**
+ * PATCH /api/incidents/:id — update incident fields (status, severity, etc.).
+ * Requires view_network permission.
+ */
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (!hasPermission(user.role, 'view_network')) {
+    return NextResponse.json({ error: 'forbidden', missing: 'view_network' }, { status: 403 });
+  }
+  const { id } = await ctx.params;
+
+  const body = await req.json().catch(() => null);
+  const parsed = updateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid_body', details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const incident = await prisma.incident.findFirst({ where: { id, tenantId: user.tenantId } });
+  if (!incident) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.status === 'resolved' && !incident.resolvedAt) {
+    updateData.resolvedAt = new Date();
+  }
+
+  const updated = await prisma.incident.update({ where: { id }, data: updateData });
+
+  // Audit for incident confirmation (status -> resolved)
+  if (parsed.data.status === 'resolved' && incident.status !== 'resolved') {
+    await auditIncident.confirmed(
+      buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+      id,
+    );
+  }
+
+  return NextResponse.json({ incident: updated });
 }

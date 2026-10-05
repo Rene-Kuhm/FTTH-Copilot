@@ -1,0 +1,34 @@
+# VictoriaMetrics scrape configuration template (single-node).
+#
+# Rendered at container start by docker/victoriametrics-entrypoint.sh, which
+# substitutes __SCRAPE_TARGET__ and __METRICS_BEARER_TOKEN__. Do not add other
+# `${VAR}` placeholders here: the single-node binary does not expand them.
+#
+# Loaded via `-promscrape.config`. The single-node server uses the standard
+# Prometheus `scrape_configs` schema; the `-scrape.*` flag shortcuts documented
+# for vmagent are not accepted by the single-node binary.
+#
+# Docs: https://docs.victoriametrics.com/victoriametrics/single-server-victoriametrics/
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  external_labels:
+    service: ftth-copilot
+
+scrape_configs:
+  - job_name: ftth-copilot-app
+    metrics_path: /api/metrics
+    scheme: http
+    honor_labels: true
+    # The app only enforces auth when METRICS_BEARER_TOKEN is set. A blank
+    # credentials value leaves the Authorization header off, which matches
+    # the app's own "no token configured" behaviour.
+    authorization:
+      type: Bearer
+      credentials: "__METRICS_BEARER_TOKEN__"
+    static_configs:
+      - targets:
+          - "__SCRAPE_TARGET__"
+        labels:
+          env: "__DEPLOY_ENV__"

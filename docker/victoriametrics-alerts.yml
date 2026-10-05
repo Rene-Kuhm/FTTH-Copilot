@@ -1,0 +1,160 @@
+# Recording and alerting rules for FTTH-Copilot on VictoriaMetrics.
+#
+# Loaded via `-notifier.config`. Single-node VictoriaMetrics evaluates these
+# rules internally, so no Prometheus/vmalert sidecar is required.
+#
+# Naming:
+#   record:  ftth_router_dispatch_ratio_*      derived series for dashboards
+#   alert:   FTTHCopilot*                     operator-facing conditions
+#
+# Every expression below is written against the metric names actually exported
+# by `/api/metrics`. Verify before relying on it in production:
+#
+#   curl -s http://localhost:8428/api/v1/label/__name__/values | jq '.data'
+#
+# Note on Laya: `ftth_laya_*` series are only emitted when the Laya Decision
+# Layer records a decision (LAYA_MODE != disabled). Alerts on those series stay
+# INACTIVE rather than firing when the layer is off, which is intentional.
+
+groups:
+  # ── Recording rules ───────────────────────────────────────────────────────
+  # These pre-aggregate the router and LLM paths so dashboard queries stay cheap
+  # and so alert expressions do not repeat the same sum() over a long window.
+  - name: ftth-copilot-recording
+    interval: 30s
+    rules:
+      # Share of dispatches resolved by each router mode over 15m.
+      # The router's whole point is that cheap modes should dominate; a rising
+      # investigation share is the signal that the cheap paths stopped working.
+      - record: ftth_router_dispatch_ratio:mode15m
+        expr: |
+          sum by (mode) (increase(ftth_copilot_router_dispatches_total[15m]))
+            / clamp_min(sum(increase(ftth_copilot_router_dispatches_total[15m])), 1)
+
+      # Total dispatches per hour, any mode.
+      - record: ftth_router_dispatches:rate1h
+        expr: sum(increase(ftth_copilot_router_dispatches_total[1h]))
+
+      # LLM request rate per provider and outcome.
+      - record: ftth_llm_requests:rate5m
+        expr: sum by (provider, status) (increase(ftth_copilot_llm_requests_total[5m]))
+
+      # Mean LLM latency per provider over 15m.
+      # The app exports histogram-style counters as _total (sum of durations)
+      # and _count (number of observations), so the ratio is the average.
+      # Use histogram_quantile on le buckets for p95 once the app emits them.
+      - record: ftth_llm_latency_seconds:avg15m
+        expr: |
+          sum by (provider) (rate(ftth_copilot_llm_latency_seconds_total[15m]))
+            / clamp_min(sum by (provider) (rate(ftth_copilot_llm_latency_seconds_count[15m])), 1)
+
+      # LLM provider fallback pressure: how often the chain degraded to a
+      # backup provider. A sustained non-zero rate means the primary key is
+      # failing, which is a cost and latency problem before it is an outage.
+      - record: ftth_llm_fallback:rate15m
+        expr: sum by (primary, fallback) (increase(ftth_copilot_llm_fallback_events_total[15m]))
+
+      # SNMP ingestion outcomes over 15m. A rising drop count means the token
+      # bucket or dedup window is rejecting real traps.
+      - record: ftth_snmp_traps:rate15m
+        expr: sum by (status) (increase(ftth_copilot_snmp_traps_total[15m]))
+
+      # Active operational load: alerts and incidents.
+      - record: ftth_ops_active:alerts
+        expr: sum by (severity) (ftth_copilot_active_alerts)
+
+      - record: ftth_ops_active:incidents
+        expr: sum(ftth_copilot_active_incidents)
+
+  # ── Alerting rules ────────────────────────────────────────────────────────
+  - name: ftth-copilot-alerts
+    interval: 30s
+    rules:
+      # The app stopped answering scrapes. This is the most important rule:
+      # every other alert below is meaningless while the target is down.
+      - alert: FTTHCopilotMetricsTargetDown
+        expr: up{job="ftth-copilot-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FTTH-Copilot /api/metrics is not being scraped"
+          description: >-
+            VictoriaMetrics has failed to scrape the app for 2 minutes.
+            Observability data is stale; diagnosis is unaffected.
+
+      - alert: FTTHCopilotProcessRestarting
+        expr: resets(ftth_copilot_process_uptime_seconds[30m]) > 2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FTTH-Copilot process restarted more than twice in 30m"
+          description: >-
+            Uptime counter reset repeatedly. Check container logs and the
+            deploy history for a crash loop.
+
+      # The primary LLM provider is failing over to the backup provider.
+      - alert: FTTHCopilotLLMFallbackSustained
+        expr: sum(increase(ftth_copilot_llm_fallback_events_total[15m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM provider chain is falling back repeatedly"
+          description: >-
+            More than 5 fallbacks in 15 minutes. The primary provider is likely
+            rate-limited or erroring. Expect higher latency and cost.
+
+      - alert: FTTHCopilotLLMErrors
+        expr: sum(increase(ftth_copilot_llm_requests_total{status!="ok"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FTTH-Copilot is recording failed LLM requests"
+          description: >-
+            Non-ok LLM request outcomes over 10 minutes. Inspect
+            ftth_copilot_llm_requests_total by status and provider.
+
+      # Cheap router paths should carry most of the load. If investigation
+      # dominates, either the intent classifier regressed or tenants are asking
+      # broader questions than the direct tools can answer.
+      - alert: FTTHCopilotRouterInvestigationDominant
+        expr: |
+          (
+            sum(increase(ftth_copilot_router_dispatches_total{mode="investigation"}[30m]))
+            / clamp_min(sum(increase(ftth_copilot_router_dispatches_total[30m])), 1)
+          ) > 0.8
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Organic Diagnostic Router is routing >80% to investigation"
+          description: >-
+            The direct and assisted paths should absorb routine questions. A
+            sustained high investigation share raises LLM cost and latency;
+            review intent classification and the single-device tool coverage.
+
+      - alert: FTTHCopilotSNMPTrapsDropped
+        expr: sum(increase(ftth_copilot_snmp_traps_total{status="dropped"}[15m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SNMP traps are being dropped"
+          description: >-
+            Non-zero dropped traps over 15 minutes. The token bucket or dedup
+            window is shedding load, so OLT events are being lost before the
+            detection pipeline sees them.
+
+      - alert: FTTHCopilotActiveIncidentsHigh
+        expr: sum(ftth_copilot_active_incidents) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 10 active NOC incidents"
+          description: >-
+            Sustained incident count above 10. Confirm whether this reflects a
+            real network event or a detector/calibration problem.

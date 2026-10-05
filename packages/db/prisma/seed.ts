@@ -385,6 +385,7 @@ async function main(): Promise<void> {
     process.env.SEED_FORCE_ALLOW_PRODUCTION === 'true';
   const result = await seed({ forceAllowProduction: force });
   console.log(`✓ Tenant ready: ${DEFAULT_TENANT_NAME} (${result.tenantId})`);
+  await seedTopology(result.tenantId);
   console.log(`✓ Admin user ready: ${result.adminEmail}`);
   if (result.adminPassword) {
     console.log(`🔑 One-time admin password: ${result.adminPassword}`);
@@ -393,6 +394,56 @@ async function main(): Promise<void> {
   }
   console.log(`✓ Connection ready: Demo SmartOLT (Mock) (${result.connectionId})`);
   console.log('🎉 Seed completed successfully!');
+}
+
+/**
+ * Seed a small but real FTTH topology.
+ *
+ * Without edges the topology correlator has no shared ancestor to group on, so every
+ * situation query returns empty and the correlation/ML scoring path is never
+ * exercised. A realistic OLT → PON port → splitter → CTO → ONU tree lets the demo show
+ * a genuine correlated outage rather than a vacuous "no situations" panel.
+ */
+async function seedTopology(tenantId: string): Promise<void> {
+  const existing = await prisma.topologyEdge.count({ where: { tenantId } });
+  if (existing > 0) {
+    console.log(`✓ Topology already seeded (${existing} edges)`);
+    return;
+  }
+
+  const source = 'seed';
+  const edges: Array<{
+    parentKind: 'OLT' | 'PON_PORT' | 'SPLITTER' | 'CTO';
+    parentId: string;
+    childKind: 'PON_PORT' | 'SPLITTER' | 'CTO' | 'ONU';
+    childId: string;
+  }> = [];
+
+  // Two OLTs, four PON ports, two splitters per port, one CTO per splitter, four ONUs
+  // per CTO. 2 + 4 + 4 + 4 + 16 = 30 edges.
+  for (const olt of ['OLT-Este-01', 'OLT-Oeste-01']) {
+    for (let pon = 1; pon <= 2; pon += 1) {
+      const ponId = `${olt}/pon${pon}`;
+      edges.push({ parentKind: 'OLT', parentId: olt, childKind: 'PON_PORT', childId: ponId });
+
+      for (let spl = 1; spl <= 2; spl += 1) {
+        const splId = `${ponId}/spl${spl}`;
+        edges.push({ parentKind: 'PON_PORT', parentId: ponId, childKind: 'SPLITTER', childId: splId });
+
+        const ctoId = `${splId}/cto1`;
+        edges.push({ parentKind: 'SPLITTER', parentId: splId, childKind: 'CTO', childId: ctoId });
+
+        for (let onu = 1; onu <= 4; onu += 1) {
+          edges.push({ parentKind: 'CTO', parentId: ctoId, childKind: 'ONU', childId: `${ctoId}/onu${onu}` });
+        }
+      }
+    }
+  }
+
+  await prisma.topologyEdge.createMany({
+    data: edges.map((e) => ({ ...e, tenantId, source })),
+  });
+  console.log(`✓ Topology seeded: ${edges.length} edges across 2 OLTs`);
 }
 
 if (process.argv[1]?.endsWith('seed.ts') || process.argv[1]?.endsWith('seed.js')) {

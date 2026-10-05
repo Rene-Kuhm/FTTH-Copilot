@@ -1,5 +1,32 @@
 export { ingestEvent, type IngestEventInput } from './ingest';
 export {
+  audit,
+  auditAuth,
+  auditIncident,
+  auditConnector,
+  auditNotification,
+  auditMaintenance,
+  auditUser,
+  type AuditContext,
+  type AuditEntry,
+} from './audit';
+export {
+  buildSlackPayload,
+  buildWebhookPayload,
+  buildEmailMessage,
+  resolveRouting,
+  dispatchToChannel,
+  redactSecrets,
+  type NotificationChannel,
+  type NotificationChannelType,
+  type NotificationContext,
+  type NotificationSeverity,
+  type WebhookPayload,
+  type EmailMessage,
+  type RoutedChannel,
+  type DispatchResult,
+} from './notify';
+export {
   runSecurityDetection,
   buildSecurityPayload,
   buildSecurityText,

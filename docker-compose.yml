@@ -2,6 +2,10 @@
 # For a full demo with synthetic data and demo account, use:
 #   ./scripts/run-demo.sh
 #   # or: cp docs/demo-env-template.md .env && docker compose -f docker-compose.demo.yml up
+#
+# For observability (metrics, dashboards), use docker-compose.demo.yml or
+# docker-compose.prod.yml which include the VictoriaMetrics service.
+# This base compose provides postgres + optional laya only.
 ---
 services:
   postgres:

@@ -411,7 +411,7 @@ El sistema articula cuatro planos cooperativos sobre una base multi-tenant compa
   ┌────────────────────────────────────────────────────────────────┐
   │                    CAPA 5 — OBSERVABILIDAD                      │
   │                                                                │
-  │  /api/metrics (Prometheus)      /dashboard/laya (UI)          │
+  │  /api/metrics → VictoriaMetrics  /dashboard/laya (UI)       │
   │  • process · SNMP · LLM         • decisiones · latencia       │
   │  • RAG · router dispatches      • confianza por clase          │
   │  • Laya: requests · latency     • auto-refresh 30s           │
@@ -456,7 +456,7 @@ Cada consulta del operador se clasifica en uno de tres modos de despacho. El mod
 | `assisted` | **1** (o 2 si la primera emite tool call) | 1 | 2–4 | Pregunta con device ID, o consulta histórica. Ej.: `qué pasó ayer con ONU-342?` |
 | `investigation` | **hasta 6** | 6 | todas | Multi-device, análisis de causa raíz, advisory. Ej.: `caída progresiva en 28 ONUs, cuál es la causa raíz?` |
 
-**Cómo se mide.** Cada `runAgent` expone un campo opcional `route` en `AgentResult` y un contador Prometheus `ftth_copilot_router_dispatches_total{mode="..."}` en `/api/metrics`. Esto permite comparar antes/después desde Grafana o cualquier scraper compatible.
+**Cómo se mide.** Cada `runAgent` expone un campo opcional `route` en `AgentResult` y un contador `ftth_copilot_router_dispatches_total{mode="..."}` en `/api/metrics`. VictoriaMetrics scrapea el endpoint automáticamente y expone la UI en `:8428`; compatible con cualquier datasource Prometheus/Grafana.
 
 **Por qué importa.** Una consulta que antes hacía `LLM → tool → LLM → tool → respuesta` puede resolverse como `tool → formatter`, sin invocación al LLM. Para una flota de decenas de operadores preguntando por estado y potencia, el ahorro de tokens es medible desde el primer día.
 
@@ -506,7 +506,8 @@ Para evitar ambigüedades entre código empaquetado y capacidades activas en pro
 - **WhatsApp (Evolution / Z-API / Cloud API):** **Integrado en runtime.** Formateador de texto Markdown para mensajería y despacho HTTP autenticado en el runner de alertas por tenant en Next.js (`@ftth-copilot/alerts`, PR #189).
 
 ### 3. Observabilidad y Métricas
-- **Prometheus Exporter (`/api/metrics`):** **Integrado en runtime.** Endpoint HTTP que expone métricas de proceso, OLT, SNMP, LLM tokens, dispatch del Organic Diagnostic Router y **Laya Decision Layer** (`ftth_laya_requests_total{mode,event_class}`, `ftth_laya_latency_ms{mode,quantile}`, `ftth_laya_confidence{event_class}`). Dashboard visual en `/dashboard/laya`. Soporta autenticación Bearer opcional mediante `METRICS_BEARER_TOKEN`.
+- **VictoriaMetrics (`/api/metrics` → :8428):** **Integrado en runtime.** El endpoint `/api/metrics` exporta métricas Prometheus-compatible que VictoriaMetrics scrapea automáticamente (cada 30s). VMUI —la UI integrada, sin Grafana externo— queda en `:8428`, con la API Prometheus-compatible en `:8428/api/v1/query`. Soporta autenticación Bearer mediante `METRICS_BEARER_TOKEN`; la retención se configura con `VICTORIAMETRICS_RETENTION` (en meses). La imagen está pineada a una versión concreta y el scrape se declara en `docker/victoriametrics-scrape.yml`.
+- **Recording rules y alertas (vmalert):** **Integrado en runtime.** 8 recording rules y 7 alerting rules sobre las métricas del router, LLM, SNMP y carga operativa, definidas en `docker/victoriametrics-alerts.yml` y evaluadas por el sidecar `vmalert`. Cubren, entre otras, caída del scrape, reinicios del proceso, caída sostenida del proveedor LLM de respaldo y el colapso del modo barato del router (`investigation` >80%). VMUI no tiene dashboards versionados ni evalúa reglas por sí misma; por eso el servicio `vmalert` va aparte. Ver [`docs/production-deployment.md`](docs/production-deployment.md#54-recording-rules-y-alertas-vmalert).
 - **Phoenix LLM Tracing (OpenInference):** **Integrado en runtime.** Instrumentación OpenInference / OpenTelemetry de cadenas cognitivas (`agent.run`, `llm.*`, `retrieval.*`, `tool.*`, `investigation.engine`), redactor estricto de secretos y exportador OTLP (`POST /v1/traces`) a Arize Phoenix vía `PHOENIX_COLLECTOR_ENDPOINT` (PR 3).
 
 > [!IMPORTANT]
@@ -530,7 +531,7 @@ Configuradas y documentadas en [`.env.example`](.env.example):
 
 | Dominio | Variables principales | Propósito |
 |---|---|---|
-| **NOC Poller & Métricas** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_RETENTION_DAYS`, `METRICS_BEARER_TOKEN` | Intervalo y retención de series temporales; autenticación Bearer para `/api/metrics` (Prometheus) |
+| **NOC Poller & Métricas** | `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_MS`, `METRICS_BEARER_TOKEN`, `VICTORIAMETRICS_RETENTION`, `VICTORIAMETRICS_SCRAPE_TARGET`, `VICTORIAMETRICS_IMAGE` | Polling; Bearer para el scrape; retención de series (meses); target del scrape; versión pineada de la imagen |
 | **NOC Alertas** | `ALERT_WEBHOOK_URL`, `ALERT_COOLDOWN_MS`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Despacho de incidentes predictivos por Webhook o Telegram |
 | **SOC Syslog** | `SYSLOG_RECEIVER_ENABLED`, `SYSLOG_UDP_PORT`, `SYSLOG_TENANT_ID` | Receptor y analizador UDP de eventos de red |
 | **SOC Firmware** | `FIRMWARE_AUDIT_ENABLED`, `FIRMWARE_AUDIT_INTERVAL_MS` | Auditoría de versiones con vulnerabilidades y CVEs conocidas |
@@ -606,7 +607,7 @@ La especificación fuente (`ftth-copilot.architecture.json`) queda junto al HTML
 - **[Benchmarks documentados](docs/benchmarks.md)** — Latencia de diagnóstico, rendimiento SNMP, accuracy del classifier, y métricas de piloto.
 - **[Caso de estudio reproducible](docs/case-study-synthetic.md)** — 4 escenarios de diagnóstico reproducibles paso a paso con datos sintéticos y métricas observadas.
 - **[Changelog](CHANGELOG.md)** — Histórico de cambios, features, fixes, límites conocidos y notas de upgrade de v0.2.1.
-- **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (Prometheus, Phoenix), seguridad y runbook de emergencia.
+- **[Guía de despliegue en producción](docs/production-deployment.md)** — Backup, restore, observabilidad (VictoriaMetrics + Phoenix), seguridad y runbook de emergencia.
 - **[Secret scan y rotación de credenciales](docs/secret-scan.md)** — Hallazgos de auditoría, estado del `.gitignore`, procedimientos de rotación, y acciones pendientes.
 - **[Plan de distribución](docs/distribution.md)** — Comunidades objetivo, mensajes de outreach, checklist de launch, y tracking de conversión demo→contacto.
 - **[Roadmap público](ROADMAP.md)** — Estado actual, validación pendiente y evolución prevista del producto.

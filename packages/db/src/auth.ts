@@ -62,18 +62,20 @@ export async function verifyPassword(plaintext: string, hash: string): Promise<b
 
 // ── Session tokens ──
 
-export function issueToken(userId: string, tenantId: string, role: Role): {
+export function issueToken(userId: string, tenantId: string, role: Role, isTemp = false): {
   token: string;
   tokenHash: string;
   expiresAt: Date;
 } {
+  // Temp tokens expire in 5 minutes, session tokens use TOKEN_TTL_SECONDS
+  const ttl = isTemp ? 5 * 60 : TOKEN_TTL_SECONDS;
   const token = jwt.sign(
-    { sub: userId, tenantId, role } as Omit<SessionClaims, 'iat' | 'exp'>,
+    { sub: userId, tenantId, role, isTemp } as Omit<SessionClaims, 'iat' | 'exp'>,
     getJwtSecret(),
-    { algorithm: 'HS256', expiresIn: TOKEN_TTL_SECONDS },
+    { algorithm: 'HS256', expiresIn: ttl },
   );
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000);
+  const expiresAt = new Date(Date.now() + ttl * 1000);
   return { token, tokenHash, expiresAt };
 }
 
