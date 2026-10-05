@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertSafeNmsBaseUrl, UnsafeNmsUrlError } from '@ftth-copilot/connectors-core';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createConnector } from '@/lib/connectors/server';
+import { auditConnector } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 export const runtime = 'nodejs';
 
@@ -51,5 +53,13 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!result) {
     return NextResponse.json({ error: 'Not authenticated or not authorized' }, { status: 403 });
   }
+
+  // Audit log
+  await auditConnector.created(
+    buildAuditContext(req as unknown as NextRequest, user),
+    result.id,
+    provider,
+  );
+
   return NextResponse.json({ connector: result }, { status: 201 });
 }

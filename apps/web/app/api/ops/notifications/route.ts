@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
-import { redactSecrets, type NotificationChannel as Channel } from '@ftth-copilot/soc';
+import { redactSecrets, auditNotification, type NotificationChannel as Channel } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -102,6 +103,14 @@ export async function POST(req: NextRequest): Promise<Response> {
   const row = await prisma.notificationChannel.create({
     data: { ...data, tenantId: user.tenantId },
   });
+
+  // Audit log
+  await auditNotification.channelCreated(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    row.id,
+    row.type,
+  );
+
   return Response.json({ channel: present(row) }, { status: 201 });
 }
 
@@ -124,6 +133,13 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   if (!existing) return Response.json({ error: 'Not found' }, { status: 404 });
 
   const row = await prisma.notificationChannel.update({ where: { id }, data: parsed.data });
+
+  // Audit log
+  await auditNotification.channelUpdated(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+  );
+
   return Response.json({ channel: present(row) });
 }
 
@@ -140,6 +156,12 @@ export async function DELETE(req: NextRequest): Promise<Response> {
   // Scoped by tenantId: a guessed id from another tenant must not be deletable.
   const deleted = await prisma.notificationChannel.deleteMany({ where: { id, tenantId: user.tenantId } });
   if (deleted.count === 0) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  // Audit log
+  await auditNotification.channelDeleted(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+  );
 
   return Response.json({ ok: true });
 }

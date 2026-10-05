@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -8,6 +8,8 @@ import {
   validateMaintenanceInput,
   type MaintenanceWindowInput,
 } from '@/lib/maintenance/overlap';
+import { auditMaintenance } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 /**
  * POST /api/maintenance-windows — create a maintenance window.
@@ -122,6 +124,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       createdByUserId: user.id,
     },
   });
+
+  // Audit log
+  await auditMaintenance.created(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    created.id,
+  );
 
   return NextResponse.json(
     {

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
+import { auditUser } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,6 +53,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  const oldRole = target.role;
   const updated = await prisma.user.update({
     where: { id },
     data: { role: parsed.data.role },
@@ -63,11 +66,19 @@ export async function PATCH(
     },
   });
 
+  // Audit log for role change
+  await auditUser.roleChanged(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+    oldRole,
+    updated.role,
+  );
+
   return NextResponse.json({ user: updated });
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
@@ -98,6 +109,12 @@ export async function DELETE(
   }
 
   await prisma.user.delete({ where: { id } });
+
+  // Audit log
+  await auditUser.deleted(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+  );
 
   return NextResponse.json({ ok: true });
 }

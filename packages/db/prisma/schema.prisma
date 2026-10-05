@@ -193,6 +193,10 @@ model Tenant {
   correlationOutcomes    CorrelationOutcome[]
   notificationChannels   NotificationChannel[]
   notificationDeliveries NotificationDelivery[]
+  auditLogs             AuditLog[]
+
+  // Enterprise: On-Call Scheduling
+  onCallSchedules       OnCallSchedule[]
 
   @@map("tenants")
 }
@@ -208,6 +212,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // MFA (TOTP) fields
+  totpSecret  String?  @map("totp_secret") // Base32-encoded TOTP secret, encrypted at rest
+  mfaEnabled  Boolean  @default(false) @map("mfa_enabled")
+
   sessions               Session[]
   conversations          Conversation[]
   rateLimitBuckets       RateLimitBucket[]
@@ -215,6 +223,7 @@ model User {
   investigationRuns      InvestigationRun[]      @relation("InvestigationRunRequestedBy")
   investigationFeedbacks InvestigationFeedback[] @relation("InvestigationFeedbackAuthor")
 
+  // Enterprise: On-Call Scheduling (one-way reference only)
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
@@ -1024,4 +1033,115 @@ model ChangeEvent {
   @@index([occurredAt])
   @@index([deviceKind, deviceId])
   @@map("change_events")
+}
+
+// ─── Enterprise: Audit Log ──────────────────────────────────────────────────
+// Every mutation that touches security-sensitive resources is recorded here.
+// The actor is the userId when a human is involved, or "system" when a
+// background job or external integration wrote the record.
+model AuditLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorId      String   @map("actor_id") // user.id | "system" | "<service-name>"
+  actorEmail   String?  @map("actor_email") // denormalised for display
+  actorRole    String?  @map("actor_role") // role at the time of the action
+  // High-level category matching the left-nav sections.
+  category     AuditCategory
+  // Human-readable verb phrase; rendered directly in the UI.
+  action       String   // "created connector", "promoted incident", "updated runbook"
+  resourceType String   @map("resource_type") // "Connector", "Incident", "User", "NotificationChannel"
+  resourceId   String   @map("resource_id") // primary key of the affected row (redacted: only type + id stored)
+  outcome      AuditOutcome
+  metadata     Json     @default("{}") // extra context; never contains credentials
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, category])
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
+
+enum AuditCategory {
+  AUTH
+  USER_MANAGEMENT
+  INCIDENT
+  MAINTENANCE
+  CONNECTOR
+  NETWORK
+  NOTIFICATION
+  CONFIGURATION
+  AI
+  SYSTEM
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
+// ─── Enterprise: On-Call Scheduling ─────────────────────────────────────────
+// Lightweight on-call schedule model for NOC operations.
+// Supports weekly rotation with primary/backup assignments.
+
+model OnCallSchedule {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Schedule metadata
+  name        String   // e.g., "Primary NOC", "Escalation Level 2"
+  description String?  @db.Text
+
+  // Rotation settings
+  rotationType String  @default("weekly") // "weekly" | "daily" | "custom"
+  startOfWeek  Int     @default(1)        @map("start_of_week") // 1=Monday, 7=Sunday
+
+  // Active assignments (current schedule entries)
+  primaryUserId   String?  @map("primary_user_id")
+  backupUserId    String?  @map("backup_user_id")
+  escalationUserId String?  @map("escalation_user_id")
+
+  // Schedule entries for rotation
+  entries OnCallEntry[]
+
+  // Handoff settings
+  handoffTime  String   @default("09:00") @map("handoff_time") // HH:mm in tenant timezone
+  timezone     String   @default("UTC")
+
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, enabled])
+  @@map("on_call_schedules")
+}
+
+model OnCallEntry {
+  id          String   @id @default(cuid())
+  scheduleId  String   @map("schedule_id")
+  schedule    OnCallSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  // Who is on-call (soft reference to User.id, no FK constraint)
+  userId      String   @map("user_id")
+
+  // Role in this entry
+  role        String   @default("primary") // "primary" | "backup" | "escalation"
+
+  // Time bounds (UTC)
+  startUtc    DateTime @map("start_utc")
+  endUtc      DateTime @map("end_utc")
+
+  // Optional notes
+  notes       String?  @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([scheduleId, startUtc])
+  @@index([userId, startUtc])
+  @@map("on_call_entries")
 }

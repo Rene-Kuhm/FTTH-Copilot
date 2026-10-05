@@ -1,5 +1,16 @@
 export { ingestEvent, type IngestEventInput } from './ingest';
 export {
+  audit,
+  auditAuth,
+  auditIncident,
+  auditConnector,
+  auditNotification,
+  auditMaintenance,
+  auditUser,
+  type AuditContext,
+  type AuditEntry,
+} from './audit';
+export {
   buildSlackPayload,
   buildWebhookPayload,
   buildEmailMessage,

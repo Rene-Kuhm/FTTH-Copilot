@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
@@ -6,11 +6,13 @@ import {
   buildConnectorFromConnection,
   ConnectorResolutionError,
 } from '@/lib/connectors/chat-client';
+import { auditConnector } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 export const runtime = 'nodejs';
 
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await ctx.params;
@@ -47,6 +49,13 @@ export async function POST(
       lastError: result.ok ? null : (result.error ?? '').slice(0, 500),
     },
   });
+
+  // Audit log for connector test
+  await auditConnector.tested(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+    result.ok,
+  );
 
   return NextResponse.json(result, { status: result.ok ? 200 : 502 });
 }

@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { auditMaintenance } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 /**
  * DELETE /api/maintenance-windows/:id — cancel a maintenance window.
@@ -76,6 +78,12 @@ export async function DELETE(
       cancellationReason: body.cancellationReason,
     },
   });
+
+  // Audit log
+  await auditMaintenance.deleted(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    id,
+  );
 
   return NextResponse.json({
     id: cancelled.id,

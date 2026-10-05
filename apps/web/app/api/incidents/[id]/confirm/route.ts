@@ -4,6 +4,8 @@ import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { tokenize } from '@ftth-copilot/evidence';
+import { auditIncident } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 /**
  * POST /api/incidents/:id/confirm — operator confirmation path for Fase D.
@@ -155,6 +157,12 @@ export async function POST(
       durationMs: 0,
     },
   });
+
+  // ── Audit log ─────────────────────────────────────────────────────────
+  await auditIncident.confirmed(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    created.id,
+  );
 
   return NextResponse.json(created, { status: 201 });
 }

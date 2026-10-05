@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
+import { auditUser } from '@ftth-copilot/soc';
+import { buildAuditContext } from '@/lib/audit-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -90,6 +92,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       createdAt: true,
     },
   });
+
+  // Audit log
+  await auditUser.created(
+    buildAuditContext(req as unknown as import('next/server').NextRequest, user),
+    created.id,
+  );
 
   return NextResponse.json({ user: created }, { status: 201 });
 }
