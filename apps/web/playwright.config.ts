@@ -6,10 +6,13 @@ export default defineConfig({
   retries: 1,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
+  globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: "http://localhost:3001",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Load auth state from globalSetup (sets __test_bypass cookie)
+    storageState: "./e2e/.auth.json",
     // Block the PWA service worker so it doesn't intercept /api/* requests
     // with its NetworkFirst strategy. Without this, mocks via page.route()
     // are short-circuited by the SW cache and tests flake.
