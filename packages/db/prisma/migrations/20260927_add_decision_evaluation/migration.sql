@@ -25,13 +25,16 @@ CREATE TABLE IF NOT EXISTS "decision_evaluations" (
     CONSTRAINT "decision_evaluations_pkey" PRIMARY KEY ("id")
 );
 
--- Postgres requires the table-qualified form for any column that carries an
--- ordering clause. Without it this migration failed with SQLSTATE 42601
--- ("column name must be qualified"), which CI never caught because CI built the
--- schema with `prisma db push` instead of applying migrations.
-CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_createdAt_idx" ON "decision_evaluations"("tenantId", "decision_evaluations"."createdAt" DESC);
+-- Matching schema.prisma's `@@index([tenantId, createdAt])`. The DESC here was
+-- drift: it made the statement fail with SQLSTATE 42601, which CI never caught
+-- because CI built the schema with `prisma db push` instead of applying
+-- migrations. Postgres can scan this index backwards when only createdAt is
+-- ordered, so the ordering clause bought nothing.
+CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_createdAt_idx" ON "decision_evaluations"("tenantId", "createdAt");
 CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_eventClass_idx" ON "decision_evaluations"("tenantId", "eventClass");
 CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_shadow_idx" ON "decision_evaluations"("tenantId", "shadow");
+-- Present in schema.prisma but never created by this migration.
+CREATE INDEX IF NOT EXISTS "decision_evaluations_model_eventClass_idx" ON "decision_evaluations"("model", "eventClass");
 
 ALTER TABLE "decision_evaluations" ADD CONSTRAINT "decision_evaluations_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
