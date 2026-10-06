@@ -205,9 +205,12 @@ describe('the constraint that backs the race', () => {
     );
 
     expect(sql).toContain('CREATE UNIQUE INDEX');
-    expect(sql).toContain('"ConfirmedIncident_tenantId_sourceIncidentId_key"');
+    // The mapped table name, not the Prisma model name: @@map sends
+    // ConfirmedIncident to confirmed_incidents, and SQL only knows the table.
+    expect(sql).toContain('"confirmed_incidents_tenantId_sourceIncidentId_key"');
+    expect(sql).not.toContain('"ConfirmedIncident');
     // Duplicates from before the constraint are collapsed, not ignored.
-    expect(sql).toMatch(/DELETE FROM "ConfirmedIncident"/);
+    expect(sql).toMatch(/DELETE FROM "confirmed_incidents"/);
   });
 
   it('keeps nullable sourceIncidentId rows unaffected', async () => {
