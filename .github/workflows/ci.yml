@@ -333,6 +333,13 @@ jobs:
       - name: Run database tests
         run: pnpm --filter @ftth-copilot/db test
 
+      # These specs are excluded from `vitest run` so unit and coverage runs stay
+      # hermetic. Without this step they never run at all, and the Prisma models
+      # and store are only covered by mocks. Requires the Postgres service and
+      # the schema pushed above.
+      - name: Run database integration tests
+        run: pnpm --filter @ftth-copilot/db test:integration
+
       - name: Run integration tests
         run: pnpm --filter @ftth-copilot/alerts test:integration
 
