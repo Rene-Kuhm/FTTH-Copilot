@@ -27,6 +27,12 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
+# The Edge middleware inlines process.env at build time, so JWT_SECRET has to be
+# present here or every session fails verification and protected routes redirect
+# to /login even though the Node API accepts the same cookie.
+ARG JWT_SECRET
+ENV JWT_SECRET=${JWT_SECRET}
+
 COPY --from=dependencies /app ./
 ENV NODE_ENV=production
 
