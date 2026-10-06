@@ -111,7 +111,7 @@ function hasMinimumRole(userRole: string, minimumRole: string): boolean {
   return userLevel >= minimumLevel;
 }
 
-export function middleware(request: NextRequest): Response {
+export async function middleware(request: NextRequest): Promise<Response> {
   const pathname = request.nextUrl.pathname;
   const classification = classifyRoute(pathname);
 
@@ -150,7 +150,7 @@ export function middleware(request: NextRequest): Response {
     let tenantId: string | undefined;
     const token = request.cookies.get('ftth_session')?.value;
     if (token) {
-      const claims = verifyToken(token);
+      const claims = await verifyToken(token);
       if (claims) {
         tenantId = claims.tenantId;
       }
@@ -186,7 +186,7 @@ export function middleware(request: NextRequest): Response {
       return redirectToLogin(request);
     }
 
-    const claims = verifyToken(token);
+    const claims = await verifyToken(token);
     if (!claims) {
       return redirectToLogin(request);
     }
@@ -226,7 +226,7 @@ export function middleware(request: NextRequest): Response {
       return redirectToLogin(request);
     }
 
-    const claims = verifyToken(token);
+    const claims = await verifyToken(token);
     if (!claims) {
       // Invalid or expired token → clear cookie and redirect
       const loginUrl = new URL('/login', request.url);

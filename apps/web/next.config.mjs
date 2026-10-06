@@ -16,6 +16,22 @@ const isStaticExport = process.env.NEXT_OUTPUT_MODE === 'export';
 
 const nextConfig = {
   reactStrictMode: true,
+  /**
+   * Explicitly expose the JWT secret to the Edge middleware.
+   *
+   * Middleware runs in the Edge runtime, where `process.env` is not reliably
+   * available. Declaring it here makes Next inline the value into the middleware
+   * bundle at build time. Without this the bundle ships without the secret,
+   * `jwt.verify` throws, `verifyToken` returns null, and every protected route
+   * redirects to /login even though the Node API accepts the same cookie.
+   *
+   * This inlines the value into the build output. That is acceptable here only
+   * because the middleware verifies rather than signs; see the RS256 migration
+   * note in apps/web/middleware/jwt-verify.ts for the hardened alternative.
+   */
+  env: {
+    JWT_SECRET: process.env.JWT_SECRET ?? '',
+  },
   // Handle Prisma 6 generated client that uses `require("node:os")` style imports.
   // webpack cannot resolve the `node:` protocol, so we resolve it to the actual module.
   webpack: (config, { isServer }) => {

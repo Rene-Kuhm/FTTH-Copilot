@@ -88,6 +88,11 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runner
+      # Needed so the Edge middleware can verify sessions. Edge inlines
+      # process.env at build time; without this the bundle ships without the
+      # secret and every protected route redirects to /login.
+      args:
+        JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     container_name: ftth_demo_app
     restart: unless-stopped
     env_file:
@@ -97,9 +102,13 @@ services:
       PORT: 3001
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
-      # Route through PgBouncer for connection pooling.
-      # db-migrate bypasses pgbouncer and connects directly to postgres.
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@pgbouncer:6432/ftth_copilot"
+      # Connect directly to postgres.
+      #
+      # This used to route through PgBouncer, but that service is not on the
+      # demo network and its image (edoburu/pgbouncer:1.24) is gone from Docker
+      # Hub, so it could not be started and the app could not reach the
+      # database at all. Pooling is not needed at demo traffic levels.
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
     ports:
       - "${PORT:-3001}:3001"
     depends_on:

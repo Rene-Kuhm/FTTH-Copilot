@@ -50,6 +50,7 @@
     "@ftth-copilot/security": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
     "@ftth-copilot/soc": "workspace:*",
+    "jose": "^6.2.12",
     "next": "16.3.6",
     "react": "19.0.0",
     "react-dom": "19.0.0",
