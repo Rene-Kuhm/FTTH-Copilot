@@ -35,7 +35,8 @@ y solo con la suite de integracion de `packages/db`.
 ### Tier 2 — siguiente
 
 - [ ] T4 Matriz ruta x metodo x rol del middleware
-- [ ] T5 Rafagas: muchos datagramas rapido, crecimiento de backlog, techo de disco
+- [x] T5 Rafagas: 300 datagramas por UDP, backlog de 600 eventos con la base
+      caida, techo de disco, escritura partida a mitad de rafaga
 - [ ] T6 Adaptadores de vendor con payloads sinteticos por fabricante
 
 ### Tier 3 — posterior
@@ -100,3 +101,32 @@ Las ramas de `clearsCategory` por nombre (`hwGponOntOnline`, `hwGponOntLosClear`
 `hwGponPortUp` en Huawei, y equivalentes en otros) solo se disparan cuando la
 entrada del catalogo **no** tiene `clears_trap_oid`. Las tres lo tienen, asi que
 son inalcanzables con el catalogo actual. No se testearon.
+
+## T5 - Rafagas y backpressure (hecho)
+
+### Hallazgo: `/api/health` reportaba backlog cero tras un reinicio
+
+`stats().backlog` contaba un contador en memoria que soloavasena para los
+registros escritos por esa instancia del proceso. Al reabrir el spool tras un
+reinicio, el backlog real era 300 y el reporte era **0**.
+
+Consecuencia: durante una caida, un operador mirando `/api/health` veia la cola
+vacia mientras los eventos seguian en disco.
+
+Correccion: el pending se deriva del disco de forma perezosa en la primera
+llamada a `stats()` y se cachea. Es un escaneo por proceso, no por health check,
+porque `/api/health` llama a `stats()` en cada request.
+
+### Cobertura de T5
+
+- Rafaga de 2000 registros en el spool, sin perdida y **en orden**
+- Backlog de 600 eventos con la base caida, drenado completo y en orden al
+  recuperar
+- Reinicio a mitad de caida: los 300 eventos se recuperan sin duplicar
+- Techo de disco: rechazo contado, datos previos intactos, rotacion al drenar
+- Escritura partida (crash a mitad de linea): se descarta solo la cola incompleta
+- 300 datagramas UDP reales contra el socket bindeado
+
+Nota: en la rafaga UDP se afirma que lo encolado sea lo que realmente llego, y
+que la perdida en el socket no sea total ni silenciosa. No se afirma perdida
+cero: UDP no tiene control de flujo.
