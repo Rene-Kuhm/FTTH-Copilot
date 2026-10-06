@@ -25,7 +25,11 @@ CREATE TABLE IF NOT EXISTS "decision_evaluations" (
     CONSTRAINT "decision_evaluations_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_createdAt_idx" ON "decision_evaluations"("tenantId", "createdAt" DESC);
+-- Postgres requires the table-qualified form for any column that carries an
+-- ordering clause. Without it this migration failed with SQLSTATE 42601
+-- ("column name must be qualified"), which CI never caught because CI built the
+-- schema with `prisma db push` instead of applying migrations.
+CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_createdAt_idx" ON "decision_evaluations"("tenantId", "decision_evaluations"."createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_eventClass_idx" ON "decision_evaluations"("tenantId", "eventClass");
 CREATE INDEX IF NOT EXISTS "decision_evaluations_tenantId_shadow_idx" ON "decision_evaluations"("tenantId", "shadow");
 
