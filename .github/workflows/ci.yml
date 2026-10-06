@@ -240,6 +240,10 @@ jobs:
       # and hits the "JWT_SECRET is not set" guard.
       JWT_SECRET: e2e-jwt-secret-for-playwright-only
       KMS_MASTER_KEY: e2e-kms-master-key-for-playwright-only
+      # The middleware auth bypass is off unless this is explicitly set. It was
+      # previously unconditional, which meant one header skipped authentication
+      # and RBAC on any deployment.
+      ENABLE_TEST_AUTH_BYPASS: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7

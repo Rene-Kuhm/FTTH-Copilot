@@ -19,7 +19,9 @@
  * - Role is passed in headers for server components
  *
  * Test bypass:
- * - For E2E tests, use cookie: __test_bypass=true
+ * - For E2E tests, set ENABLE_TEST_AUTH_BYPASS=true and send cookie:
+ *   __test_bypass=true. The flag defaults to off, so production cannot be
+ *   walked into the bypass with a single header.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyToken, type MiddlewareClaims } from './middleware/jwt-verify';
@@ -54,6 +56,21 @@ const PUBLIC_PREFIXES = [
 ] as const;
 
 const PUBLIC_PATHS = ['/', '/manifest.json', '/sw.js'] as const;
+
+/**
+ * Test-only auth bypass.
+ *
+ * Off unless ENABLE_TEST_AUTH_BYPASS is explicitly set to 'true'. Reading the
+ * flag per request rather than at module scope keeps it fail-closed and avoids
+ * baking a decision into the Edge bundle at build time.
+ */
+function hasTestAuthBypass(request: NextRequest): boolean {
+  if (process.env['ENABLE_TEST_AUTH_BYPASS'] !== 'true') return false;
+  return (
+    request.cookies.get('__test_bypass')?.value === 'true' ||
+    request.headers.get('x-playwright-test') === 'true'
+  );
+}
 
 // Admin routes require ADMIN or OWNER role
 const ADMIN_PREFIXES = ['/admin', '/dashboard/admin'] as const;
@@ -155,11 +172,8 @@ export function middleware(request: NextRequest): Response {
 
   // ── Admin Routes: Auth + ADMIN/OWNER Role Required ───────────────────────
   if (classification === 'admin') {
-    // Bypass for E2E tests
-    const testBypass =
-      request.cookies.get('__test_bypass')?.value === 'true' ||
-      request.headers.get('x-playwright-test') === 'true';
-    if (testBypass) {
+    // Bypass for E2E tests, only when explicitly enabled.
+    if (hasTestAuthBypass(request)) {
       const response = NextResponse.next();
       addSecurityHeaders(response);
       response.headers.set('x-test-mode', 'true');
@@ -198,11 +212,8 @@ export function middleware(request: NextRequest): Response {
 
   // ── Protected Routes: Auth Check ──────────────────────────────────────────
   if (classification === 'protected') {
-    // Bypass for E2E tests
-    const testBypass =
-      request.cookies.get('__test_bypass')?.value === 'true' ||
-      request.headers.get('x-playwright-test') === 'true';
-    if (testBypass) {
+    // Bypass for E2E tests, only when explicitly enabled.
+    if (hasTestAuthBypass(request)) {
       const response = NextResponse.next();
       addSecurityHeaders(response);
       response.headers.set('x-test-mode', 'true');
@@ -251,7 +262,11 @@ function redirectToLogin(request: NextRequest): Response {
   const loginUrl = new URL('/login', request.url);
   // Preserve the original URL to redirect back after login
   loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
-  return NextResponse.redirect(loginUrl);
+  const response = NextResponse.redirect(loginUrl);
+  // The unauthenticated redirect is the most common response the middleware
+  // produces, so it must carry the same hardening as every other branch.
+  addSecurityHeaders(response);
+  return response;
 }
 
 function addSecurityHeaders(response: NextResponse): void {
