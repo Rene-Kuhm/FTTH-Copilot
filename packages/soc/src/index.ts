@@ -1,4 +1,4 @@
-export { ingestEvent, type IngestEventInput } from './ingest';
+export { ingestEvent, ingestEvents, type IngestEventInput } from './ingest';
 export {
   audit,
   auditAuth,

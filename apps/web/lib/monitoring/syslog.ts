@@ -6,7 +6,8 @@ import {
   createRateWindowCounter,
   extractSourceIpFromMessage,
 } from '@ftth-copilot/security';
-import { ingestEvent, runSecurityDetection } from '@ftth-copilot/soc';
+import { runSecurityDetection } from '@ftth-copilot/soc';
+import { spoolEvent, recordDroppedEvent, startEventDrainer } from './event-ingest';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
@@ -46,6 +47,22 @@ export function startSyslogReceiver(): () => void {
   const port = positiveInt(process.env['SYSLOG_UDP_PORT'], 5514);
   const socket = dgram.createSocket('udp4');
 
+  // UDP has no flow control: when the kernel receive buffer fills, it silently
+  // drops datagrams with no error and no event. A burst (a link flap produces
+  // thousands of messages) has to be absorbed before anything else, so the
+  // buffer is enlarged before binding.
+  const recvBufferBytes = positiveInt(
+    process.env['SYSLOG_RECV_BUFFER_BYTES'],
+    4 * 1024 * 1024,
+  );
+  try {
+    socket.setRecvBufferSize(recvBufferBytes);
+  } catch (err) {
+    // Not fatal: the default buffer still works, just with less headroom.
+    const detail = err instanceof Error ? err.message : String(err);
+    recordSchedulerError('syslog', `could not enlarge recv buffer: ${detail}`);
+  }
+
   // Bound message size and ingest rate so a flood of UDP datagrams cannot
   // bloat the events table or exhaust the database connection pool.
   const maxMessageLength = positiveInt(process.env['SYSLOG_MAX_MESSAGE_LENGTH'], 2000);
@@ -57,7 +74,13 @@ export function startSyslogReceiver(): () => void {
   socket.on('message', (msg, rinfo) => {
     const parsed = parseSyslogMessage(msg.toString('utf8'));
     if (!parsed) return;
-    if (!rateCounter.allow(Date.now())) return;
+    if (!rateCounter.allow(Date.now())) {
+      // Rate limiting protects the database, but a dropped event is still a
+      // lost event. Count it so the loss is visible in /api/health instead of
+      // silent.
+      recordDroppedEvent();
+      return;
+    }
     const message = truncateSyslogMessage(
       `${parsed.tag ? `${parsed.tag}: ` : ''}${parsed.message}`.trim(),
       maxMessageLength,
@@ -69,20 +92,23 @@ export function startSyslogReceiver(): () => void {
     // the IP from the message body instead, and fall back to the
     // UDP source address only when the message has no IP literal.
     const sourceIp = extractSourceIpFromMessage(parsed.message, rinfo.address);
-    ingestEvent({
-      tenantId,
-      sourceIp,
-      facility: parsed.facility,
-      severity: parsed.severity,
-      category: classifyEvent(parsed),
-      message,
-    }).catch((err: unknown) => {
-      // Swallow the ingest error to keep the socket listener alive
-      // (matching the previous `.catch(() => {})` semantics), but
-      // record it in the health registry so the operator can see it.
-      const msg = err instanceof Error ? err.message : String(err);
-      recordSchedulerError('syslog', `ingest failed: ${msg}`);
-    });
+
+    // Durable enqueue, not a database write. A failed write now delays
+    // persistence instead of discarding the datagram, which is already gone
+    // from the network by the time we get here.
+    try {
+      spoolEvent({
+        tenantId,
+        sourceIp,
+        facility: parsed.facility,
+        severity: parsed.severity,
+        category: classifyEvent(parsed),
+        message,
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      recordSchedulerError('syslog', `spool write failed: ${detail}`);
+    }
   });
 
   // The previous implementation swallowed socket errors with
@@ -98,6 +124,7 @@ export function startSyslogReceiver(): () => void {
   });
   socket.bind(port, () => {
     recordSyslogBound(true);
+    startEventDrainer();
   });
 
   const intervalMs = positiveInt(process.env['SYSLOG_DETECTION_INTERVAL_MS'], 60 * 1000);

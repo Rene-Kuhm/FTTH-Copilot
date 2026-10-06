@@ -422,6 +422,12 @@ model DeviceEvent {
   occurredAt   DateTime            @default(now())
   createdAt    DateTime            @default(now())
 
+  // Stable id assigned by the ingest spool when the event is received, so a
+  // retry after a crash is deduplicated instead of creating a second row.
+  // Null on rows written before durable ingest; Postgres treats NULLs as
+  // distinct, so the unique index allows any number of them.
+  ingestId String? @unique
+
   // Device context (resolved from SNMP trap OID / syslog parser)
   deviceKind String?
   deviceId   String?
