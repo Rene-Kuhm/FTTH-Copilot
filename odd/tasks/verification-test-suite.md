@@ -28,11 +28,9 @@ y solo con la suite de integracion de `packages/db`.
 
 ### Tier 1 — critico
 
-- [ ] T1 Circuito completo spool -> drainer -> Postgres, con un doble que
-      modela `createMany` + `skipDuplicates` de forma fiel
-- [ ] T2 Ramas de error de `syslog.ts` (escritura fallida, mensaje corrupto,
-      rate limit, error de socket)
-- [ ] T3 `lib/auth` en 15%: caminos del servidor de autenticacion
+- [x] T1 Circuito completo spool -> drainer -> Postgres (PR #280)
+- [x] T2 Ramas de error de `syslog.ts` (PR #280)
+- [x] T3 `lib/auth`: `server.ts` y `totp.ts` (este PR)
 
 ### Tier 2 — siguiente
 
@@ -44,6 +42,17 @@ y solo con la suite de integracion de `packages/db`.
 
 - [ ] T7 Capa de AI/agente
 - [ ] T8 Performance y concurrencia
+
+## Bugs encontrados por los tests
+
+1. **`base32Encode` alineaba los bits a 8 en vez de 5** (RFC 4648). 224 de 256
+   valores de un byte colapsaban a 32 cadenas. Corregido en el PR #280. No era
+   explotable porque `generateSecret` usa 10 bytes, multiplo de 5.
+2. **El login con MFA no podia completarse.** `handleLogin` parseaba el body y
+   despues lo volvia a leer en la rama MFA; el segundo `req.json()` lanza
+   "Body is unusable" y el `.catch(() => ({}))` lo convertia en un objeto vacio,
+   asi que el codigo nunca se leia y la respuesta era siempre `mfaRequired`.
+   Cualquier usuario con MFA activated quedaba bloqueado.
 
 ## Decision sobre Postgres
 
