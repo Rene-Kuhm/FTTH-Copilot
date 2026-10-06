@@ -211,3 +211,53 @@ ven afectadas: Postgres trata los NULL como distintos en un indice unico.
 ### Otros puntos de T8 aun sin cubrir
 
 N+1, indices faltantes y paginacion sin limite siguen sin auditar.
+
+## Pendientes atacados (2026-10-06)
+
+### 1. CI nunca ejecutaba migraciones
+
+El job de integracion (y el de E2E) usaban `prisma db push --accept-data-loss`,
+que construye el schema directo desde `schema.prisma` y **nunca ejecuta el SQL
+de `prisma/migrations`**. El step se llamaba "Apply migrations", que era
+falso: no aplicaba migraciones.
+
+Produccion si usa `db:deploy` (`migrate deploy`, en `db-migrate` del compose),
+o sea CI validaba un camino que produccion nunca recorre. Una migracion con
+logica —como la deduplicacion de #287— podia estar rota y el CI seguia verde.
+
+Ambos jobs ahora corren `pnpm --filter @ftth-copilot/db db:deploy`, el mismo
+comando que produccion.
+
+### 2. Guard de CSRF ampliado a `lib/`
+
+Escaneaba solo `components/*.tsx`. Ahora recorre `components/` y `lib/`
+recursivamente, saltando arboles de test.
+
+Al ampliarlo aparecieron las 3 llamadas de `lib/auth/client.ts` (login, signup,
+logout). **No son un bypass**: el middleware exime `/api/auth/*` de la gate
+porque deben funcionar justo cuando todavia no hay cookie de sesion. El guard
+codifica esa exencion explicitamente para que no se vuelva a reportar.
+
+### 3. Serial de ONU en Ubiquiti corregido
+
+Reutiliza `ONT_SN_REGEX` del parser (ahora exportado) para identificar el serial
+por la **forma del valor** del varbind, en vez de buscar las palabras
+'serial'/'onu'/'gpon' dentro del OID, que el decoder nunca produce por ser
+numerico.
+
+Dos ONUs del mismo OLT ahora producen deviceIds distintos. Los tests que
+documentaban el bug se invirtieron a afirmar el comportamiento correcto.
+
+### Pendiente de T8b que NO se toco
+
+`GET /api/incidents` devuelve **todos** los incidentes del tenant, incluidos los
+resueltos, sin `take`. Los resueltos se acumulan para siempre, asi que el
+endpoint crece sin cota. Lo mismo con `GET /api/predictions` sobre alertas
+abiertas y confirmadas.
+
+No se aplico un `take` porque truncar en silencio puede **ocultar incidentes
+abiertos** al operador, que es peor que el problema que resuelve. Requiere una
+decision de producto: limite generoso con flag de truncado visible, o paginacion
+con cursor que el frontend consuma.
+
+`GET /api/topology/tree` sin limite es intencional: es un grafo completo.

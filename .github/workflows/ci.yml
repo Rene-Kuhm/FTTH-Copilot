@@ -280,8 +280,13 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @ftth-copilot/db exec prisma generate
 
+      # migrate deploy, not db push. db push builds a schema straight from
+      # schema.prisma and never touches the SQL in prisma/migrations, so a
+      # broken migration shipped green. This is also the command production runs
+      # (db-migrate in docker-compose.prod.yml), so CI now exercises the same
+      # path as a real deployment.
       - name: Apply migrations
-        run: pnpm --filter @ftth-copilot/db exec prisma db push --accept-data-loss
+        run: pnpm --filter @ftth-copilot/db db:deploy
 
       - name: Run E2E tests
         run: pnpm test:e2e
@@ -329,8 +334,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # See the E2E job: db push would never run the migration SQL, so a broken
+      # or drifted migration would pass here.
       - name: Bootstrap environment
-        run: pnpm --filter @ftth-copilot/db exec prisma db push --accept-data-loss
+        run: pnpm --filter @ftth-copilot/db db:deploy
 
       # Seeding is intentionally NOT run here. It is not idempotent (it uses
       # prisma create, not upsert) and it was guarded with `|| true`, so a

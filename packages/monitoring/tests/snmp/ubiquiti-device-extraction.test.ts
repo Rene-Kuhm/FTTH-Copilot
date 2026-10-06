@@ -104,18 +104,22 @@ describe('Ubiquiti device extraction', () => {
     });
   });
 
-  describe('serial extraction, currently unreachable', () => {
-    it('does not pick up a serial from a numeric varbind', () => {
-      // KNOWN GAP: the adapter looks for the words 'serial', 'onu' or 'gpon'
-      // inside the varbind OID, which is numeric in every real trap.
-      const event = parse([{ oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 'HWTC12345678' }]);
+  describe('serial extraction', () => {
+    it('identifies the serial by the shape of the varbind value', () => {
+      // The adapter used to match the words 'serial', 'onu' or 'gpon' inside
+      // the varbind OID, which the decoder never produces: it emits numeric
+      // OIDs, so the branch was unreachable and every ONU on the OLT collapsed
+      // onto ufiber-edge-01:onu:0/0.
+      const event = parse([
+        { oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 'HWTC12345678' },
+      ]);
 
-      expect(event.deviceId).toBe('ufiber-edge-01:onu:0/0');
+      expect(event.deviceId).toBe('HWTC12345678');
     });
 
-    it('collapses every ONU of the OLT onto the same device id', () => {
-      // The operational consequence: two different ONUs reporting a fault are
-      // indistinguishable, so a NOC cannot tell which one dropped.
+    it('tells two ONUs of the same OLT apart', () => {
+      // The operational consequence of the old behaviour: two ONUs reporting a
+      // fault were indistinguishable, so a NOC could not tell which dropped.
       const first = parse([
         { oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 'HWTCAAAAAAAA' },
       ]);
@@ -123,15 +127,34 @@ describe('Ubiquiti device extraction', () => {
         { oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 'HWTCBBBBBBBB' },
       ]);
 
-      expect(first.deviceId).toBe(second.deviceId);
+      expect(first.deviceId).toBe('HWTCAAAAAAAA');
+      expect(second.deviceId).toBe('HWTCBBBBBBBB');
     });
 
-    it('would pick it up if the OID were ever symbolic', () => {
-      // Guards the intent: given a symbolic OID the branch does fire, so the
-      // only thing missing is that real traps are numeric.
+    it('still works when the serial arrives on a symbolic OID', () => {
       const event = parse([{ oid: 'ponSerialNumber', value: 'HWTC12345678' }]);
 
       expect(event.deviceId).toContain('HWTC12345678');
+    });
+
+    it('ignores a value that is not an ONU serial', () => {
+      const event = parse([
+        { oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 'ge-0/0/1' },
+      ]);
+
+      expect(event.deviceId).not.toContain('ge-0/0/1');
+    });
+
+    it('ignores a non-string varbind', () => {
+      const event = parse([{ oid: '1.3.6.1.4.1.41112.1.5.1.2.1.0', value: 42 }]);
+
+      expect(String(event.deviceId)).not.toBe('42');
+    });
+
+    it('falls back to the OLT identity when no serial is present', () => {
+      const event = parse([]);
+
+      expect(event.deviceId).toBe('ufiber-edge-01:onu:0/0');
     });
   });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { csrfFetch, getCsrfToken } from '@/lib/auth/csrf-client';
 
@@ -106,8 +106,30 @@ describe('csrfFetch', () => {
  * themselves.
  */
 describe('client mutation call sites', () => {
-  const componentsDir = join(process.cwd(), 'components');
+  // components/ holds the UI, lib/ holds client modules. Both make requests
+  // from the browser, so both need the guard. API routes under app/ are server
+  // side and cannot be bypassed by a client header anyway.
+  const SCANNED = ['components', 'lib'];
   const MUTATION = /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/;
+
+  /**
+   * The middleware deliberately skips the CSRF gate for `/api/auth/*`, so a
+   * bare fetch there is not a bypass. login/signup/logout must stay reachable
+   * before a session exists, which is exactly when the CSRF cookie is absent.
+   */
+  const CSRF_EXEMPT = /\/api\/auth(\/|['"`?])/;
+
+  /** Recursively list files under a directory. */
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      // Skip test trees: their fixtures call fetch() on purpose.
+      if (entry.isDirectory()) {
+        return entry.name === 'tests' || entry.name === '__tests__' ? [] : walk(full);
+      }
+      return [full];
+    });
+  }
 
   /**
    * Return the full argument list of a call whose opening paren is at `start`.
@@ -140,22 +162,31 @@ describe('client mutation call sites', () => {
   }
 
   it('route state-changing requests through csrfFetch', () => {
-    const files = readdirSync(componentsDir).filter((f) => f.endsWith('.tsx'));
     const violations: string[] = [];
 
-    for (const file of files) {
-      const source = readFileSync(join(componentsDir, file), 'utf8');
+    for (const dir of SCANNED) {
+      const absolute = join(process.cwd(), dir);
+      if (!existsSync(absolute)) continue;
 
-      // Only bare fetch() calls can bypass the gate.
-      const bareCalls = [...source.matchAll(/(?<![a-zA-Z])fetch\s*\(/g)];
-      for (const call of bareCalls) {
-        const openParen = call.index + call[0].length - 1;
-        if (!MUTATION.test(extractArgs(source, openParen))) continue;
+      for (const file of walk(absolute)) {
+        if (!/\.(ts|tsx)$/.test(file)) continue;
+        const source = readFileSync(file, 'utf8');
 
-        const line = source.slice(0, call.index).split('\n').length;
-        violations.push(
-          `${file}:${line} calls fetch() with a mutating method but not csrfFetch()`,
-        );
+        // Only bare fetch() calls can bypass the gate.
+        const bareCalls = [...source.matchAll(/(?<![a-zA-Z])fetch\s*\(/g)];
+        for (const call of bareCalls) {
+          const openParen = call.index + call[0].length - 1;
+          const args = extractArgs(source, openParen);
+          if (!MUTATION.test(args)) continue;
+
+          if (CSRF_EXEMPT.test(args)) continue;
+
+          const line = source.slice(0, call.index).split('\n').length;
+          violations.push(
+            `${file.replace(`${process.cwd()}/`, '')}:${line} calls fetch() with ` +
+              'a mutating method but not csrfFetch()',
+          );
+        }
       }
     }
 
