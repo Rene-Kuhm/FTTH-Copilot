@@ -513,6 +513,12 @@ model ConfirmedIncident {
   @@index([tenantId, resolvedAt])
   @@index([tenantId, connectionId])
   @@index([tenantId, investigationFeedbackId])
+  // Enforces the one-per-source-incident rule the code already assumes.
+  // Without it, the confirm route and the promote loop can both race past
+  // their existence check and store the same incident twice. Nullable, so
+  // rows without a source incident are unaffected (Postgres treats NULLs as
+  // distinct).
+  @@unique([tenantId, sourceIncidentId])
   @@map("confirmed_incidents")
 }
 

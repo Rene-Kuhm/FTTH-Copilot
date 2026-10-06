@@ -172,3 +172,42 @@ El guard test de CSRF escanea `components/*.tsx`. Revise `lib/` y `app/`:
 las unicas mutaciones fuera de components son a `/api/auth/login`, `/signup` y
 `/logout`, que estan **exentas** por diseno. No hay gap, pero el guard podria
 ampliarse a `lib/` como proteccion futura.
+
+## T8 - Concurrencia (hecho)
+
+### Hallazgo: carrera TOCTOU al confirmar incidentes
+
+`POST /api/incidents/:id/confirm` hacia check-then-act:
+
+```
+findFirst({ tenantId, sourceIncidentId })  -> si existe, 200
+confirmedIncident.create({ ... })          -> 201
+```
+
+Y `ConfirmedIncident` **no tenia ninguna restriccion unica** sobre
+`sourceIncidentId`: sus unicos indices eran
+`[tenantId, deviceKind, deviceId]`, `[tenantId, resolvedAt]`,
+`[tenantId, connectionId]` y `[tenantId, investigationFeedbackId]`.
+
+Dos operadores confirmando el mismo incidente al mismo tiempo (escenario
+rutinario en un NOC) pasan ambos el chequeo y ambos insertan: el incidente
+queda duplicado en los post-mortems, con dos entradas de auditoria.
+
+`promotePendingIncidents` era el caso peor: **no chequeaba existencia en
+absoluto**, dependia del update de estado del candidato que ocurre despues.
+
+### Correccion en dos capas
+
+1. `@@unique([tenantId, sourceIncidentId])` + migracion que colapsa duplicados
+   previos (manteniendo el mas antiguo, con desempate por id) y reporta el
+   numero de grupos afectados via `RAISE NOTICE`, en vez de borrar en silencio.
+2. Manejo de `P2002` como segunda linea de defensa en ambas rutas, siguiendo el
+   patron que ya existe en `feedback/route.ts`. En confirm devuelve la fila
+   ganadora con 200; en promote cuenta como promovido.
+
+`sourceIncidentId` es nullable, asi que las filas sin incidente de origen no se
+ven afectadas: Postgres trata los NULL como distintos en un indice unico.
+
+### Otros puntos de T8 aun sin cubrir
+
+N+1, indices faltantes y paginacion sin limite siguen sin auditar.

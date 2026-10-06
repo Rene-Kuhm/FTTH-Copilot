@@ -11,7 +11,7 @@
  * `promotionMinAgeMs` override without an N+1 DB round-trip. The loader
  * is called AT MOST once (batched `findMany` → `Map<tenantId, TenantPolicy>`).
  */
-import { prisma } from '@ftth-copilot/db';
+import { prisma, Prisma } from '@ftth-copilot/db';
 import { PROMOTION_MIN_AGE_MS, eligibleForPromotion } from '@ftth-copilot/evidence';
 import type { TenantPolicy } from '@ftth-copilot/shared';
 
@@ -141,24 +141,40 @@ export async function promotePendingIncidents(
       .filter((t) => t.length > 0)
       .join(' ');
 
-    const created = await prisma.confirmedIncident.create({
-      data: {
-        tenantId: candidate.tenantId,
-        deviceKind: sourceIncident.deviceKind,
-        deviceId: sourceIncident.deviceId,
-        severity: sourceIncident.severity,
-        sourceIncidentId: candidate.sourceIncidentId,
-        sourceTool: '__agent_promote__',
-        summary: candidate.summary,
-        symptoms: {} as object,
-        rootCause: candidate.summary,
-        fix: 'Promovido desde el run del agente.',
-        observedAt,
-        resolvedAt,
-        confirmedBy: 'agent',
-        searchTokens,
-      },
-    });
+    let created;
+    try {
+      created = await prisma.confirmedIncident.create({
+        data: {
+          tenantId: candidate.tenantId,
+          deviceKind: sourceIncident.deviceKind,
+          deviceId: sourceIncident.deviceId,
+          severity: sourceIncident.severity,
+          sourceIncidentId: candidate.sourceIncidentId,
+          sourceTool: '__agent_promote__',
+          summary: candidate.summary,
+          symptoms: {} as object,
+          rootCause: candidate.summary,
+          fix: 'Promovido desde el run del agente.',
+          observedAt,
+          resolvedAt,
+          confirmedBy: 'agent',
+          searchTokens,
+        },
+      });
+    } catch (err) {
+      // The scheduler and a manual run can promote the same candidate at the
+      // same time. This loop never checked for an existing row, so the
+      // @@unique constraint is what prevents a duplicated confirmed incident.
+      // Losing that race is a successful promotion, not an error.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        promoted += 1;
+        continue;
+      }
+      throw err;
+    }
 
     await prisma.agentActionLog.create({
       data: {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@ftth-copilot/db';
+import { prisma, Prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { tokenize } from '@ftth-copilot/evidence';
@@ -122,26 +122,41 @@ export async function POST(
   const now = new Date();
   const searchTokens = buildSearchTokens(parsed.data.rootCause, parsed.data.fix, parsed.data.summary);
 
-  const created = await prisma.confirmedIncident.create({
-    data: {
-      tenantId: user.tenantId,
-      deviceKind: incident.deviceKind,
-      deviceId: incident.deviceId,
-      severity: incident.severity,
-      sourceIncidentId: incident.id,
-      investigationFeedbackId: linkedFeedbackId,
-      sourceTool: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
-      summary: parsed.data.summary,
-      symptoms: {} as object,
-      rootCause: parsed.data.rootCause,
-      fix: parsed.data.fix,
-      observedAt: incident.firstSeenAt,
-      resolvedAt: incident.resolvedAt ?? now,
-      confirmedBy: 'operator',
-      confirmedByUserId: user.id,
-      searchTokens,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.confirmedIncident.create({
+      data: {
+        tenantId: user.tenantId,
+        deviceKind: incident.deviceKind,
+        deviceId: incident.deviceId,
+        severity: incident.severity,
+        sourceIncidentId: incident.id,
+        investigationFeedbackId: linkedFeedbackId,
+        sourceTool: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
+        summary: parsed.data.summary,
+        symptoms: {} as object,
+        rootCause: parsed.data.rootCause,
+        fix: parsed.data.fix,
+        observedAt: incident.firstSeenAt,
+        resolvedAt: incident.resolvedAt ?? now,
+        confirmedBy: 'operator',
+        confirmedByUserId: user.id,
+        searchTokens,
+      },
+    });
+  } catch (err) {
+    // The @@unique constraint is the second line of defence: two operators can
+    // confirm the same incident at once, both pass the existence check above,
+    // and the database collapses them. Losing the race is not an error, it is
+    // the idempotent answer, so return the row the winner stored.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const winner = await prisma.confirmedIncident.findFirst({
+        where: { tenantId: user.tenantId, sourceIncidentId: incident.id },
+      });
+      if (winner) return NextResponse.json(winner, { status: 200 });
+    }
+    throw err;
+  }
 
   await prisma.agentActionLog.create({
     data: {
