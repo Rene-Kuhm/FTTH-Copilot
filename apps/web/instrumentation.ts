@@ -1,10 +1,10 @@
 /**
  * Next.js server instrumentation — runs once when the Node.js server starts.
  * Boots the proactive metrics poller, the firmware audit loop, the FEC
- * collection loop, and the syslog (SOC) receiver. All stay off unless their
- * env flags are set, so dev, preview and test instances never poll the NMS,
- * scan firmware, fetch FEC telemetry, or bind a UDP socket in the
- * background.
+ * collection loop, the syslog (SOC) receiver and the SNMP trap receiver. All
+ * stay off unless their env flags are set, so dev, preview and test instances
+ * never poll the NMS, scan firmware, fetch FEC telemetry, or bind a UDP socket
+ * in the background.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -16,5 +16,26 @@ export async function register(): Promise<void> {
 
     const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
     startSyslogReceiver();
+
+    // The SNMP receiver was implemented and unit-tested but never wired here,
+    // so SNMP_RECEIVER_ENABLED=true used to expose port 1162 with nothing
+    // binding it. It stays off by default; this only honours the existing flag.
+    if (process.env.SNMP_RECEIVER_ENABLED === 'true') {
+      const [{ startSnmpReceiver }, { spoolSnmpTrap }, { startEventDrainer }] =
+        await Promise.all([
+          import('@/lib/monitoring/snmp'),
+          import('@/lib/monitoring/snmp-ingest'),
+          import('@/lib/monitoring/event-ingest'),
+        ]);
+
+      // Shared with syslog and idempotent, so enabling only SNMP still drains.
+      startEventDrainer();
+
+      startSnmpReceiver({
+        onEvent: (event) => {
+          spoolSnmpTrap(event);
+        },
+      });
+    }
   }
 }

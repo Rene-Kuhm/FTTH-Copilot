@@ -1,6 +1,6 @@
 # CSRF Client Header Fix
 
-**Status**: In Progress
+**Status**: Completed — merged in PR #275 (`9dd69ed`)
 **Created**: 2026-10-05
 **Origin**: Regresión introducida por PR #274 (SEC-010)
 
@@ -51,12 +51,12 @@ handshake y deja la defensa fail-closed frente al propio tráfico legítimo. Es 
 
 ## Tareas
 
-- [ ] T1 Quitar `HttpOnly` de la cookie CSRF y documentar el criterio
-- [ ] T2 Helper de cliente `csrfFetch()`
-- [ ] T3 Test de guarda que falle si una mutación no pasa por el helper (RED)
-- [ ] T4 Migrar los 13 componentes al helper
-- [ ] T5 Tests del middleware: sin header → 403, con header → pasa
-- [ ] T6 Verificación completa y actualización del doc de security
+- [x] T1 Quitar `HttpOnly` de la cookie CSRF y documentar el criterio
+- [x] T2 Helper de cliente `csrfFetch()`
+- [x] T3 Test de guarda que falle si una mutación no pasa por el helper
+- [x] T4 Migrar los 25 call sites en 13 componentes al helper
+- [x] T5 Tests del middleware: sin header → 403, con header → pasa
+- [x] T6 Verificación completa y actualización del doc de security
 
 ## Criterio de cierre
 

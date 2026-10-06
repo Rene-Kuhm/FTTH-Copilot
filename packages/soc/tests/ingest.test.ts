@@ -44,6 +44,8 @@ describe('ingestEvent', () => {
         message: 'failed password',
         occurredAt: at,
         ingestId: null,
+        deviceKind: null,
+        deviceId: null,
       },
     });
   });

@@ -4,6 +4,7 @@ import {
   type SnmpSenderRegistration,
   type RawSnmpEvidenceEnvelope,
 } from '@ftth-copilot/monitoring';
+import type { TelemetryEvent } from '@ftth-copilot/shared';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
@@ -20,7 +21,8 @@ function positiveInt(value: string | undefined, fallback: number): number {
 export interface SnmpReceiverOptions {
   address?: string;
   registrations?: SnmpSenderRegistration[];
-  onEvent?: (event: unknown) => void;
+  /** Receives the normalised trap. Persist it here or it is gone. */
+  onEvent?: (event: TelemetryEvent) => void;
   onEvidence?: (evidence: RawSnmpEvidenceEnvelope) => void;
   onError?: (error: Error) => void;
   onReady?: () => void;

@@ -15,6 +15,9 @@ export interface IngestEventInput {
    * no-op instead of a duplicate row.
    */
   ingestId?: string | null;
+  /** Device the event came from, when the source identifies one. */
+  deviceKind?: string | null;
+  deviceId?: string | null;
 }
 
 function toRow(input: IngestEventInput) {
@@ -28,6 +31,8 @@ function toRow(input: IngestEventInput) {
     message: input.message,
     occurredAt: input.occurredAt ?? new Date(),
     ingestId: input.ingestId ?? null,
+    deviceKind: input.deviceKind ?? null,
+    deviceId: input.deviceId ?? null,
   };
 }
 
