@@ -21,12 +21,17 @@ export async function register(): Promise<void> {
     // so SNMP_RECEIVER_ENABLED=true used to expose port 1162 with nothing
     // binding it. It stays off by default; this only honours the existing flag.
     if (process.env.SNMP_RECEIVER_ENABLED === 'true') {
-      const [{ startSnmpReceiver }, { spoolSnmpTrap }, { startEventDrainer }] =
-        await Promise.all([
-          import('@/lib/monitoring/snmp'),
-          import('@/lib/monitoring/snmp-ingest'),
-          import('@/lib/monitoring/event-ingest'),
-        ]);
+      const [
+        { startSnmpReceiver },
+        { spoolSnmpTrap },
+        { startEventDrainer },
+        { storeEvidence },
+      ] = await Promise.all([
+        import('@/lib/monitoring/snmp'),
+        import('@/lib/monitoring/snmp-ingest'),
+        import('@/lib/monitoring/event-ingest'),
+        import('@/lib/monitoring/snmp-evidence'),
+      ]);
 
       // Shared with syslog and idempotent, so enabling only SNMP still drains.
       startEventDrainer();
@@ -34,6 +39,14 @@ export async function register(): Promise<void> {
       startSnmpReceiver({
         onEvent: (event) => {
           spoolSnmpTrap(event);
+        },
+        onEvidence: (envelope) => {
+          // Raw evidence goes to its own store under the retention policy, not
+          // through the ingest spool: it is for forensics, not for the
+          // dashboard, and it carries a different lifecycle.
+          void storeEvidence('default-tenant', envelope).catch(() => {
+            // Never let evidence persistence disturb trap reception.
+          });
         },
       });
     }

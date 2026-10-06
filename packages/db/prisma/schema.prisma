@@ -184,6 +184,7 @@ model Tenant {
 
   // Laya Decision Layer (ADR-042)
   decisionEvaluations DecisionEvaluation[]
+  snmpEvidence SnmpEvidence[]
 
   // NOC/SOC AIOps
   geoZones               GeoZone[]
@@ -1156,4 +1157,42 @@ model OnCallEntry {
   @@index([scheduleId, startUtc])
   @@index([userId, startUtc])
   @@map("on_call_entries")
+}
+
+/// Raw SNMP trap evidence, kept for forensics rather than for the dashboard.
+///
+/// Policy decisions, taken deliberately:
+///   - Non-identifying varbinds are stored normalised and in plain text, because
+///     they are what analysis actually reads.
+///   - Identifying varbinds (MAC addresses, ONU serials) are personal data, so
+///     they are encrypted at rest and dropped wholesale on tenant offboarding.
+///   - `expiresAt` carries the retention boundary so a scheduled purge does not
+///     need to re-derive it from a policy constant on every row.
+model SnmpEvidence {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  evidenceId  String
+  fingerprint String
+  senderIp    String
+  snmpVersion String
+  pduType     String
+  trapOid     String
+  sysUpTime   Int?
+  eventTime   DateTime?
+  receivedAt  DateTime @default(now())
+  expiresAt   DateTime
+
+  /// Normalised, non-identifying varbind values.
+  varbinds Json
+
+  /// Identifying varbinds, AES-256-GCM with the KMS master key. Null when the
+  /// trap carried none, which is the common case.
+  identifyingVarsEncrypted String?
+
+  @@unique([tenantId, evidenceId])
+  @@index([tenantId, receivedAt])
+  @@index([expiresAt])
+  @@index([fingerprint])
+  @@map("snmp_evidence")
 }
