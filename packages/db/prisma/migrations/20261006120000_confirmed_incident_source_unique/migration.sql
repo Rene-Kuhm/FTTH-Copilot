@@ -9,12 +9,14 @@
 -- createdAt and breaking ties on id so the choice is deterministic. The
 -- removal is reported through RAISE NOTICE rather than done silently.
 
+-- The Prisma model is ConfirmedIncident but @@map sends it to confirmed_incidents; SQL must use the
+-- mapped table name.
 DO $$
 DECLARE
   duplicate_groups integer;
 BEGIN
   SELECT COUNT(*) INTO duplicate_groups FROM (
-    SELECT 1 FROM "ConfirmedIncident"
+    SELECT 1 FROM "confirmed_incidents"
     WHERE "sourceIncidentId" IS NOT NULL
     GROUP BY "tenantId", "sourceIncidentId"
     HAVING COUNT(*) > 1
@@ -23,8 +25,8 @@ BEGIN
   IF duplicate_groups > 0 THEN
     RAISE NOTICE 'Collapsing % confirmed incident group(s) with duplicates', duplicate_groups;
 
-    DELETE FROM "ConfirmedIncident" duplicate
-    USING "ConfirmedIncident" keeper
+    DELETE FROM "confirmed_incidents" duplicate
+    USING "confirmed_incidents" keeper
     WHERE duplicate."tenantId" = keeper."tenantId"
       AND duplicate."sourceIncidentId" = keeper."sourceIncidentId"
       AND duplicate."sourceIncidentId" IS NOT NULL
@@ -40,5 +42,5 @@ END $$;
 
 -- Nullable, so rows without a source incident are unaffected: Postgres treats
 -- NULLs as distinct inside a unique index.
-CREATE UNIQUE INDEX "ConfirmedIncident_tenantId_sourceIncidentId_key"
-  ON "ConfirmedIncident"("tenantId", "sourceIncidentId");
+CREATE UNIQUE INDEX "confirmed_incidents_tenantId_sourceIncidentId_key"
+  ON "confirmed_incidents"("tenantId", "sourceIncidentId");

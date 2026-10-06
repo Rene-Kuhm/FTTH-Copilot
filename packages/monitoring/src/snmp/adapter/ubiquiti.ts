@@ -10,6 +10,7 @@
 
 import { type TelemetryEvent } from '@ftth-copilot/shared';
 import { lookupTrapDefinition } from '../catalog';
+import { ONT_SN_REGEX } from '../parser';
 import { extractIfMibVarbinds } from '../extractors/if-mib';
 import type { ResolvedDeviceIdentity } from '../identity';
 import type { DecodedSnmpNotification, RawSnmpEvidenceEnvelope } from '../types';
@@ -169,19 +170,17 @@ export class UbiquitiOltAdapter implements OltVendorAdapter {
       serial?: string;
     } = {};
 
-    // Look for serial number in varbinds
+    // Identify the serial by the shape of the varbind *value*. The previous
+    // implementation looked for the words 'serial', 'onu' or 'gpon' inside the
+    // varbind OID, which the decoder never produces: it emits numeric OIDs, so
+    // the branch was unreachable and every ONU on the OLT collapsed onto the
+    // same deviceId.
     for (const vb of notification.varbinds) {
-      const oid = vb.oid.toLowerCase();
-
-      // Look for serial number in OID or value
-      if (
-        oid.includes('serial') ||
-        oid.includes('onu') ||
-        oid.includes('gpon')
-      ) {
-        if (typeof vb.value === 'string' && vb.value.length >= 8) {
-          result.serial = vb.value;
-        }
+      if (typeof vb.value !== 'string') continue;
+      const candidate = vb.value.trim();
+      if (ONT_SN_REGEX.test(candidate)) {
+        result.serial = candidate;
+        break;
       }
     }
 

@@ -30,7 +30,14 @@ export interface RawSnmpTrapPacket {
 }
 
 /** Regex for typical GPON ONT Serial Numbers (e.g. HWTC12345678, ZTEGC1234567). */
-const ONT_SN_REGEX = /^[A-Z]{4}[0-9A-Fa-f]{8}$/;
+/**
+ * ONU serial format: four uppercase letters followed by eight hex digits.
+ *
+ * Exported so the vendor adapters identify a serial the same way the parser
+ * does, by inspecting varbind *values*. Matching words inside the varbind OID
+ * cannot work: the decoder emits numeric OIDs.
+ */
+export const ONT_SN_REGEX = /^[A-Z]{4}[0-9A-Fa-f]{8}$/;
 
 /**
  * Parses and normalizes an SNMP trap packet into a canonical TelemetryEvent.
