@@ -271,19 +271,16 @@ export async function handleLogin(req: Request) {
     // Check if MFA is enabled
     if (user.mfaEnabled && user.totpSecret) {
       // Generate temp token for MFA verification step
-      const { totp, verifyTOTP } = await import('@/lib/auth/totp');
+      const { verifyTOTP } = await import('@/lib/auth/totp');
       const secret = decryptApiKey(user.totpSecret);
 
-      // If code provided in request, verify it
-      let body: { code?: string } = {};
-      try {
-        body = await req.json().catch(() => ({}));
-      } catch {
-        // Ignore parse errors
-      }
+      // Read the code from the body already parsed above. Re-reading it here
+      // threw "Body is unusable", which the catch swallowed into an empty
+      // object, so the code was never seen and MFA login could never finish.
+      const code = (body as { code?: string } | null)?.code;
 
-      if (body.code) {
-        if (!verifyTOTP(secret, body.code)) {
+      if (code) {
+        if (!verifyTOTP(secret, code)) {
           return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
         }
       } else {
