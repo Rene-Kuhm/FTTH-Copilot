@@ -244,6 +244,11 @@ jobs:
       # previously unconditional, which meant one header skipped authentication
       # and RBAC on any deployment.
       ENABLE_TEST_AUTH_BYPASS: 'true'
+      # Used by middleware-auth.spec.ts, which clears the bypass cookie and
+      # exercises the real middleware. Same account the demo seeds.
+      SEED_ADMIN_PASSWORD: e2e-demo-password-12345
+      E2E_LOGIN_EMAIL: admin@ftth-copilot.local
+      E2E_LOGIN_PASSWORD: e2e-demo-password-12345
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -287,6 +292,12 @@ jobs:
       # path as a real deployment.
       - name: Apply migrations
         run: pnpm --filter @ftth-copilot/db db:deploy
+
+      # middleware-auth.spec.ts logs in for real, so the admin account has to
+      # exist. Every other E2E test uses the bypass cookie and never needed it,
+      # which is why the middleware could be broken and the suite stay green.
+      - name: Seed the admin account
+        run: pnpm --filter @ftth-copilot/db db:seed
 
       - name: Run E2E tests
         run: pnpm test:e2e
