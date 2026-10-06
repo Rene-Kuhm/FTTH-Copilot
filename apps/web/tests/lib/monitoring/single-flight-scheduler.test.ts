@@ -21,7 +21,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * The tests drive `tryStart` directly to avoid pulling the entire
  * `startPollingLoop` boot path (which needs Prisma, the connector
  * factory, and Telegram env vars).
+ *
+ * Prisma is mocked because `tryStart` now takes a Postgres advisory lock
+ * before running the tick. Without the mock that await is a real connection
+ * attempt, and "the first run has started" stops being true the moment
+ * `tryStart` is called, which is what these tests assert. The single-flight
+ * contract has nothing to do with the database, so mocking keeps the test
+ * deterministic and instant. Lock behaviour is covered in
+ * scheduler-advisory-lock.test.ts.
  */
+
+const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+
+vi.mock('@ftth-copilot/db', () => ({
+  prisma: {
+    $transaction: async (fn: (tx: unknown) => unknown) =>
+      fn({ $queryRaw: mocks.queryRaw }),
+    nmsConnection: { findMany: vi.fn().mockResolvedValue([]) },
+  },
+}));
+
+beforeEach(() => {
+  mocks.queryRaw.mockReset();
+  mocks.queryRaw.mockResolvedValue([{ locked: true }]);
+});
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -58,6 +81,12 @@ describe('single-flight scheduler guard', () => {
     const first = tryStart('overlap', run1);
     // While the first is still in flight, start the second.
     const second = await tryStart('overlap', run2);
+
+    // tryStart now acquires the advisory lock before running, so the first run
+    // starts after a couple of microtasks rather than synchronously.
+    await vi.waitFor(() => {
+      expect(run1).toHaveBeenCalledTimes(1);
+    });
 
     // First call started running; second call was skipped.
     expect(run1).toHaveBeenCalledTimes(1);

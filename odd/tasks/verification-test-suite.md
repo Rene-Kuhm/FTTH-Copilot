@@ -324,3 +324,52 @@ Prisma generados son especificos por modelo, asi que anotarlo para `Incident` lo
 volvia inusable para `DetectedAlert`. La forma es estructuralmente identica.
 
 14 tests para predictions; los 16 de incidents siguen verdes tras el refactor.
+
+## SEC-008b - Advisory lock en schedulers (hecho)
+
+### Problema
+
+Los loops (`startPollingLoop`, `startFirmwareAuditLoop`,
+`startFecCollectionLoop`) solo tenian guardia in-process (`IN_FLIGHT`, un Map).
+Con N instancias de la app, **N** pollers consultando el NMS y **N** escrituras
+del mismo sample. El propio codigo lo reconocia: el comentario de
+`scheduler.ts` decia que un advisory lock de Postgres era el target de
+produccion.
+
+### Decision: lock de ambito de transaccion, no de sesion
+
+`pg_try_advisory_xact_lock` dentro de `prisma.$transaction`, **no**
+`pg_advisory_lock`. Prisma hace pool de conexiones: un lock de sesion
+quedaria tomado en una conexion devuelta al pool y nunca se liberaria. El de
+transaccion se libera en commit, rollback o crash.
+
+La clave es un hash FNV-1a de 63 bits del nombre del loop, con namespace, para
+que dos loops distintos no colisionen y ningun otro advisory lock de la misma
+base se mezcle.
+
+### Si la base esta caida, el tick corre igual
+
+Si el lock no se puede consultar, `acquireSchedulerLock` devuelve `true` y el
+comportamiento degrada al in-process de antes. La alternativa —quedarse en
+silencio— dejaria `/api/health` en verde mientras no corre nada. Correr y que el
+error aparezca en el registro de salud es lo observable.
+
+### Regresion que casi se cuela
+
+El `await` del lock abria una ventana: el flag `IN_FLIGHT` se marcaba **despues**
+del await, asi que dos ticks concurrentes pasaban ambos el chequeo y corrian en
+paralelo. Exactamente lo que el guard evita. Se corrige reclamando el flag de
+forma sincronica antes del await y liberandolo si el lock es denegado.
+
+El test `single-flight-scheduler.test.ts` lo detecto. Ese test hacia su trabajo.
+
+### Cambio de contrato en los tests
+
+`tryStart` ahora tarda un await antes de invocar el run, asi que "el primer run
+ empezo" ya no es cierto de forma sincrona al llamar. Ese test ahora mockea
+Prisma (el contrato de single-flight no tiene que ver con la base) y espera con
+`vi.waitFor`. El comportamiento del lock esta en `scheduler-advisory-lock.test.ts`.
+
+12 tests nuevos: estabilidad y rango de la clave, lock de transaccion y no de
+sesion, casteo a bigint, concedido/denegado/sin filas, base inalcanzable, y
+dos instancias donde solo una corre, mas la independencia entre loops.
