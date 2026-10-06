@@ -65,3 +65,38 @@ semantica que el codigo depende:
 
 Si el doble no modela eso, el test no probaria nada: pasaria con cualquier
 comportamiento. La limitacion queda documentada en el propio test.
+
+## T6 - Adaptadores de vendor (hecho)
+
+Medicion previa: el paquete `monitoring` ya tenia 262 tests y un archivo por
+vendor, asi que la brecha real no era "sin tests" sino ramas concretas.
+
+| Archivo | Antes | Despues |
+|---|---|---|
+| `registry.ts` (funciones 60%) | 93.1% | **100%** |
+| `ubiquiti.ts` | 74.24% | 87.87% |
+
+### Hallazgo: el serial de ONU nunca se extrae en Ubiquiti
+
+`src/snmp/adapter/ubiquiti.ts` busca el serial con
+`oid.includes('serial') || oid.includes('onu') || oid.includes('gpon')` sobre el
+OID del **varbind**. El decoder emite OIDs numericos
+(`String(vb.oid)` en `decoder.ts:116`), que nunca contienen esas palabras, asi
+que la rama es inalcanzable.
+
+Consecuencia operativa: todos los ONU de una OLT colapsan al mismo `deviceId`
+(`ufiber-edge-01:onu:0/0`). Un NOC no puede distinguir que ONU cayo.
+
+Aclaracion: `dzs.ts`, `zte.ts` y `contract.ts` matchean contra
+`catalogDef.name`, no contra el OID del varbind, asi que esos si son alcanzables.
+Solo Ubiquiti tiene el problema.
+
+Los tests fijan el comportamiento actual y demuestran la intencion con un OID
+simbolico, para que la brecha quede visible si alguna vez se corrige el matching.
+
+### Codigo defensivo inalcanzable
+
+Las ramas de `clearsCategory` por nombre (`hwGponOntOnline`, `hwGponOntLosClear`,
+`hwGponPortUp` en Huawei, y equivalentes en otros) solo se disparan cuando la
+entrada del catalogo **no** tiene `clears_trap_oid`. Las tres lo tienen, asi que
+son inalcanzables con el catalogo actual. No se testearon.
