@@ -86,8 +86,15 @@ export class DurableSpool<T> {
   private dropped = 0;
   private corrupt = 0;
   private deadLettered = 0;
-  /** Entries appended but not yet committed as drained. */
-  private pending = 0;
+  /**
+   * Pending count, derived lazily from disk on first use.
+   *
+   * `append` only increments it for records this process wrote, so a freshly
+   * opened spool would otherwise report a backlog of zero while hundreds of
+   * events wait on disk after a restart. That value feeds /api/health, so it
+   * has to reflect reality even before the drainer touches the file.
+   */
+  private pending: number | null = null;
 
   constructor(options: DurableSpoolOptions) {
     this.dir = options.dir;
@@ -130,7 +137,7 @@ export class DurableSpool<T> {
     }
 
     this.size += buffer.length;
-    this.pending++;
+    if (this.pending !== null) this.pending++;
     return ingestId;
   }
 
@@ -193,7 +200,7 @@ export class DurableSpool<T> {
   commit(offset: number, consumedCount = 0): void {
     if (offset <= this.offset) return;
     this.offset = Math.min(offset, this.size);
-    this.pending = Math.max(0, this.pending - consumedCount);
+    if (this.pending !== null) this.pending = Math.max(0, this.pending - consumedCount);
 
     const temp = `${this.offsetPath}.tmp`;
     writeFileSync(temp, String(this.offset), 'utf8');
@@ -212,6 +219,8 @@ export class DurableSpool<T> {
   }
 
   stats(): SpoolStats {
+    if (this.pending === null) this.pending = this.countBacklog();
+
     return {
       backlog: this.pending,
       dropped: this.dropped,
@@ -265,6 +274,42 @@ export class DurableSpool<T> {
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * Count uncommitted records by reading from the offset to the end.
+   *
+   * Runs at most once per process, on the first stats() call, because /api/health
+   * calls stats() on every request and the answer feeds the backlog figure an
+   * operator reads during an outage.
+   */
+  private countBacklog(): number {
+    if (this.offset >= this.size) return 0;
+
+    let count = 0;
+    let carry = '';
+    let consumed = 0;
+    const buffer = Buffer.allocUnsafe(READ_CHUNK);
+    let fd: number | null = null;
+
+    try {
+      fd = openSync(this.dataPath, 'r');
+      while (consumed + this.offset < this.size) {
+        const bytes = readSync(fd, buffer, 0, READ_CHUNK, this.offset + consumed);
+        if (bytes === 0) break;
+        consumed += bytes;
+        carry += buffer.toString('utf8', 0, bytes);
+        count += carry.split('\n').length - 1;
+        carry = carry.slice(carry.lastIndexOf('\n') + 1);
+      }
+    } catch {
+      return count;
+    } finally {
+      if (fd !== null) closeSync(fd);
+    }
+
+    // A trailing line with no terminator is an incomplete write, not a record.
+    return carry.length > 0 ? count + 1 : count;
   }
 
   private readOffset(): number {
