@@ -303,3 +303,24 @@ que `IncidentsPanel` (que lee `body.incidents`) no cambia. Lo nuevo es
 (hostigoso y no numerico), cursor ausente/corrupto/valido, `hasMore` y
 `nextCursor`, forma legacy, resultado vacio, y aislamiento de tenant en cada
 pagina del recorrido por cursor.
+
+## T8b bis - Paginacion de predicciones (hecho)
+
+`GET /api/predictions` ya filtraba por `open`/`acknowledged`, pero sin `take` ni
+cursor: toda la cola abierta de alertas de un tenant en una sola respuesta.
+
+Mismo patron que incidentes: `?status=resolved` / `?status=all`, cursor sobre
+`(lastSeenAt, id)`, `page: { scope, hasMore, nextCursor }`, y la forma legacy
+`{ predictions, count }` intacta para que `PredictiveAlerts` no cambie.
+
+### Modulo compartido
+
+La logica de cursor vivia inline en la ruta de incidentes, unos 40 lineas.
+Duplicarla en predictions era peor que extraerla, asi que ahora vive en
+`apps/web/lib/api/pagination.ts` y ambas rutas la importan.
+
+`cursorFilter` va **sin tipo de retorno** a proposito: los `where` input de
+Prisma generados son especificos por modelo, asi que anotarlo para `Incident` lo
+volvia inusable para `DetectedAlert`. La forma es estructuralmente identica.
+
+14 tests para predictions; los 16 de incidents siguen verdes tras el refactor.
