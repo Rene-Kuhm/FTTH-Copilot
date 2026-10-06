@@ -74,9 +74,71 @@ function isInFlight(name: string): boolean {
   return IN_FLIGHT.get(name) === true;
 }
 
+/**
+ * Stable 63-bit key per scheduler loop, so every instance derives the same
+ * advisory lock id for the same loop name.
+ */
+export function advisoryLockKey(name: string): bigint {
+  let hash = 1469598103934665603n; // FNV-1a offset basis
+  for (const char of name) {
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = (hash * 1099511628211n) & 0x7fffffffffffffffn;
+  }
+  // Namespace so these keys cannot collide with other advisory locks in the
+  // same database.
+  return (hash | (0x5343686564756c6cn & 0x7fffffffffffffffn)) & 0x7fffffffffffffffn;
+}
+
+/**
+ * Try to become the single instance allowed to run this loop.
+ *
+ * Uses a transaction-scoped advisory lock rather than the session-level
+ * `pg_advisory_lock`, because Prisma pools connections: a session lock would
+ * stay held on a connection returned to the pool and would never be released.
+ * The transaction-scoped variant is released on commit, rollback or crash.
+ *
+ * Returns true when this instance should run. If the lock cannot be checked
+ * because the database is unreachable, it returns true so the loop still
+ * attempts its work and surfaces the failure through the health registry. The
+ * opposite choice, staying silent, would leave a green health endpoint while
+ * nothing was running.
+ */
+export async function acquireSchedulerLock(name: string): Promise<boolean> {
+  const key = advisoryLockKey(name);
+  try {
+    const rows = await prisma.$transaction(async (tx) => {
+      return tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(${key.toString()}::bigint) AS locked
+      `;
+    });
+    return rows[0]?.locked === true;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.warn('[scheduler] advisory lock unavailable, running unguarded', {
+      name,
+      reason: detail,
+    });
+    return true;
+  }
+}
+
 async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<boolean> {
   if (IN_FLIGHT.get(name) === true) {
     console.warn('[scheduler] skipped overlapping tick', { name, reason: 'in_flight' });
+    return false;
+  }
+
+  // Claim the slot synchronously. Acquiring the advisory lock is an await, and
+  // leaving the flag unset across it would let a second tick pass the check
+  // above and start running alongside this one.
+  IN_FLIGHT.set(name, true);
+
+  // Second line of defence: only one instance across the whole fleet may run a
+  // given loop. Without it, N instances mean N pollers hitting the NMS and N
+  // writes of the same sample.
+  if (!(await acquireSchedulerLock(name))) {
+    IN_FLIGHT.set(name, false);
+    console.warn('[scheduler] skipped tick held by another instance', { name });
     return false;
   }
   IN_FLIGHT.set(name, true);
