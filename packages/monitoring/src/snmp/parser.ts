@@ -104,6 +104,10 @@ export function parseAndNormalizeSnmpTrap(
       oltId: senderContext.oltId,
       vendor: trapDef.vendor ?? senderContext.vendor ?? 'Standard',
       trapCategory: trapDef.category,
+      // Catalog severity, carried in tags next to trapCategory. It was
+      // previously dropped here, so DeviceEvent.severity stayed null for
+      // every SNMP event.
+      severity: trapDef.severity,
       snmpVersion: packet.version,
       pduType: packet.pduType ?? 'TrapV2',
       ...(trapDef.catalogStatus ? { catalogStatus: trapDef.catalogStatus } : {}),

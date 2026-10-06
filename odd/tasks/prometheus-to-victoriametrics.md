@@ -106,9 +106,20 @@ After (target):
 ## Task Breakdown
 
 - [ ] VM-1: Add VictoriaMetrics to docker-compose.yml with scrape config.
-- [ ] VM-2: Add VictoriaMetrics to docker-compose.prod.yml with persistence.
-- [ ] VM-3: Update .env.example with VICTORIAMETRICS_* variables.
-- [ ] VM-4: Update docs/production-deployment.md (replace Prometheus section).
+
+> VM-1 es el unico pendiente real. Es discutible: `docker-compose.yml` es un
+> compose de desarrollo minimo (solo `postgres` y `laya`), no un espejo de
+> produccion, asi que agregar VM ahi solo tiene sentido si el desarrollo local
+> necesita consultar metricas.
+>
+> VM-5 (deprecar un `prometheus.yml` de ejemplo) no tiene objeto: no existe
+> ningun `prometheus.yml` en el repositorio que deprecar. VM-6 y VM-7 son
+> verificacion funcional, no codigo.
+- [x] VM-2: Add VictoriaMetrics to docker-compose.prod.yml with persistence.
+- [x] VM-3: Update .env.example with VICTORIAMETRICS_* variables.
+- [x] VM-4: Update docs/production-deployment.md (replace Prometheus section).
+- [x] METRICS_BEARER_TOKEN propagates to the scrape config (compose.prod y compose.demo).
+- [ ] VM-1: Add VictoriaMetrics to docker-compose.yml with scrape config.
 - [ ] VM-5: Deprecate/update prometheus.yml example → vmagent.yml.
 - [ ] VM-6: Functional verification in demo environment.
 - [ ] VM-7: Final checks, commit, PR.
