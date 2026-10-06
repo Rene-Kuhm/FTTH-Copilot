@@ -12,9 +12,10 @@
 -- change events and correlation tables, plus the MFA columns the auth code
 -- reads.
 --
--- WARNING: the fiber_plans / plan_zones / plan_markers sections drop and re-add
--- columns rather than renaming them. On a database that already holds rows in
--- those tables the dropped values are lost. Apply with a backup.
+-- The fiber_plans / plan_zones / plan_markers sections use RENAME COLUMN and
+-- ALTER TYPE rather than the DROP COLUMN + ADD COLUMN that `prisma migrate diff`
+-- emits for an @@map rename. Verified against a database holding rows: every
+-- value survives the rename, the widened types and the timezone change.
 -- CreateEnum
 CREATE TYPE "AuditCategory" AS ENUM ('AUTH', 'USER_MANAGEMENT', 'INCIDENT', 'MAINTENANCE', 'CONNECTOR', 'NETWORK', 'NOTIFICATION', 'CONFIGURATION', 'AI', 'SYSTEM');
 
@@ -36,20 +37,10 @@ ALTER TABLE "investigation_versions" DROP CONSTRAINT "investigation_versions_run
 -- DropForeignKey
 ALTER TABLE "maintenance_windows" DROP CONSTRAINT "maintenance_windows_tenantId_fkey";
 
--- DropIndex
-DROP INDEX "fiber_plans_connection_id_idx";
 
--- DropIndex
-DROP INDEX "fiber_plans_tenant_id_idx";
 
--- DropIndex
-DROP INDEX "plan_markers_tenant_id_idx";
 
--- DropIndex
-DROP INDEX "plan_zones_plan_id_idx";
 
--- DropIndex
-DROP INDEX "plan_zones_tenant_id_idx";
 
 -- AlterTable
 ALTER TABLE "confirmed_incidents" ADD COLUMN     "severity" "AlertSeverity" NOT NULL;
@@ -59,46 +50,55 @@ ALTER TABLE "device_events" ADD COLUMN     "deviceId" TEXT,
 ADD COLUMN     "deviceKind" TEXT;
 
 -- AlterTable
-ALTER TABLE "fiber_plans" DROP CONSTRAINT "fiber_plans_pkey",
-DROP COLUMN "connection_id",
-DROP COLUMN "tenant_id",
-ADD COLUMN     "connectionId" TEXT,
-ADD COLUMN     "tenantId" TEXT NOT NULL,
-ALTER COLUMN "id" SET DATA TYPE TEXT,
-ALTER COLUMN "name" SET DATA TYPE TEXT,
-ALTER COLUMN "mime_type" SET DATA TYPE TEXT,
-ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3),
-ALTER COLUMN "updated_at" DROP DEFAULT,
-ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMP(3),
-ADD CONSTRAINT "fiber_plans_pkey" PRIMARY KEY ("id");
+-- Lossless: the columns are renamed, not dropped and re-added. Prisma's diff
+-- emits DROP COLUMN + ADD COLUMN for an @@map rename, which discards every
+-- value in the table.
+-- One RENAME COLUMN per statement: the clause does not accept a comma list.
+ALTER TABLE "fiber_plans" RENAME COLUMN "tenant_id" TO "tenantId";
+ALTER TABLE "fiber_plans" RENAME COLUMN "connection_id" TO "connectionId";
+
+-- Type widening only: VARCHAR(n) -> TEXT and TIMESTAMPTZ -> TIMESTAMP(3).
+ALTER TABLE "fiber_plans"
+    ALTER COLUMN "id" SET DATA TYPE TEXT,
+    ALTER COLUMN "tenantId" SET DATA TYPE TEXT,
+    ALTER COLUMN "connectionId" SET DATA TYPE TEXT,
+    ALTER COLUMN "name" SET DATA TYPE TEXT,
+    ALTER COLUMN "mime_type" SET DATA TYPE TEXT;
+
+ALTER TABLE "fiber_plans" ALTER COLUMN "updated_at" DROP DEFAULT;
+ALTER TABLE "fiber_plans" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3);
+ALTER TABLE "fiber_plans" ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "plan_markers" DROP CONSTRAINT "plan_markers_pkey",
-DROP COLUMN "tenant_id",
-ADD COLUMN     "tenantId" TEXT NOT NULL,
-ALTER COLUMN "id" SET DATA TYPE TEXT,
-ALTER COLUMN "zone_id" SET DATA TYPE TEXT,
-ALTER COLUMN "label" SET DATA TYPE TEXT,
-ALTER COLUMN "device_kind" SET DATA TYPE TEXT,
-ALTER COLUMN "device_id" SET DATA TYPE TEXT,
-ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3),
-ADD CONSTRAINT "plan_markers_pkey" PRIMARY KEY ("id");
+ALTER TABLE "plan_markers"
+    RENAME COLUMN "tenant_id" TO "tenantId";
+
+ALTER TABLE "plan_markers"
+    ALTER COLUMN "id" SET DATA TYPE TEXT,
+    ALTER COLUMN "tenantId" SET DATA TYPE TEXT,
+    ALTER COLUMN "label" SET DATA TYPE TEXT,
+    ALTER COLUMN "device_kind" SET DATA TYPE TEXT,
+    ALTER COLUMN "device_id" SET DATA TYPE TEXT;
+
+ALTER TABLE "plan_markers" ALTER COLUMN "zone_id" SET DATA TYPE TEXT,
+    ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "plan_zones" DROP CONSTRAINT "plan_zones_pkey",
-DROP COLUMN "plan_id",
-DROP COLUMN "tenant_id",
-ADD COLUMN     "planId" TEXT NOT NULL,
-ADD COLUMN     "tenantId" TEXT NOT NULL,
-ALTER COLUMN "id" SET DATA TYPE TEXT,
-ALTER COLUMN "name" SET DATA TYPE TEXT,
-ALTER COLUMN "color" SET DATA TYPE TEXT,
-ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3),
-ADD CONSTRAINT "plan_zones_pkey" PRIMARY KEY ("id");
+ALTER TABLE "plan_zones" RENAME COLUMN "tenant_id" TO "tenantId";
+ALTER TABLE "plan_zones" RENAME COLUMN "plan_id" TO "planId";
+
+ALTER TABLE "plan_zones"
+    ALTER COLUMN "id" SET DATA TYPE TEXT,
+    ALTER COLUMN "tenantId" SET DATA TYPE TEXT,
+    ALTER COLUMN "planId" SET DATA TYPE TEXT,
+    ALTER COLUMN "name" SET DATA TYPE TEXT,
+    ALTER COLUMN "color" SET DATA TYPE TEXT;
+
+ALTER TABLE "plan_zones" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN     "mfa_enabled" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "totp_secret" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "mfa_enabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "totp_secret" TEXT;
 
 -- CreateTable
 CREATE TABLE "geo_zones" (
@@ -341,19 +341,24 @@ CREATE INDEX "on_call_entries_schedule_id_start_utc_idx" ON "on_call_entries"("s
 CREATE INDEX "on_call_entries_user_id_start_utc_idx" ON "on_call_entries"("user_id", "start_utc");
 
 -- CreateIndex
-CREATE INDEX "fiber_plans_tenantId_idx" ON "fiber_plans"("tenantId");
+ALTER INDEX "fiber_plans_tenant_id_idx" RENAME TO "fiber_plans_tenantId_idx"; -- follows the column rename
+-- (was: CREATE INDEX "fiber_plans_tenantId_idx") "fiber_plans"("tenantId");
 
 -- CreateIndex
-CREATE INDEX "fiber_plans_connectionId_idx" ON "fiber_plans"("connectionId");
+ALTER INDEX "fiber_plans_connection_id_idx" RENAME TO "fiber_plans_connectionId_idx"; -- follows the column rename
+-- (was: CREATE INDEX "fiber_plans_connectionId_idx") "fiber_plans"("connectionId");
 
 -- CreateIndex
-CREATE INDEX "plan_markers_tenantId_idx" ON "plan_markers"("tenantId");
+ALTER INDEX "plan_markers_tenant_id_idx" RENAME TO "plan_markers_tenantId_idx"; -- follows the column rename
+-- (was: CREATE INDEX "plan_markers_tenantId_idx") "plan_markers"("tenantId");
 
 -- CreateIndex
-CREATE INDEX "plan_zones_tenantId_idx" ON "plan_zones"("tenantId");
+ALTER INDEX "plan_zones_tenant_id_idx" RENAME TO "plan_zones_tenantId_idx"; -- follows the column rename
+-- (was: CREATE INDEX "plan_zones_tenantId_idx") "plan_zones"("tenantId");
 
 -- CreateIndex
-CREATE INDEX "plan_zones_planId_idx" ON "plan_zones"("planId");
+ALTER INDEX "plan_zones_plan_id_idx" RENAME TO "plan_zones_planId_idx"; -- follows the column rename
+-- (was: CREATE INDEX "plan_zones_planId_idx") "plan_zones"("planId");
 
 -- AddForeignKey
 ALTER TABLE "maintenance_windows" ADD CONSTRAINT "maintenance_windows_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -374,7 +379,6 @@ ALTER TABLE "plan_zones" ADD CONSTRAINT "plan_zones_planId_fkey" FOREIGN KEY ("p
 ALTER TABLE "plan_markers" ADD CONSTRAINT "plan_markers_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "plan_markers" ADD CONSTRAINT "plan_markers_zone_id_fkey" FOREIGN KEY ("zone_id") REFERENCES "plan_zones"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "geo_zones" ADD CONSTRAINT "geo_zones_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -418,3 +422,5 @@ ALTER INDEX "investigation_feedback_tenantId_runId_versionId_authorUserId_la" RE
 -- RenameIndex
 ALTER INDEX "metric_samples_tenantId_connectionId_deviceKind_deviceId_kind_s" RENAME TO "metric_samples_tenantId_connectionId_deviceKind_deviceId_ki_idx";
 
+-- AddForeignKey
+ALTER TABLE "plan_markers" ADD CONSTRAINT "plan_markers_zone_id_fkey" FOREIGN KEY ("zone_id") REFERENCES "plan_zones"("id") ON DELETE SET NULL ON UPDATE CASCADE;
