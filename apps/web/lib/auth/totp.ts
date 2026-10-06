@@ -31,10 +31,16 @@ export function base32Decode(encoded: string): Buffer {
 
 /**
  * Base32 encode a Buffer to string (RFC 4648).
+ *
+ * Each Base32 character encodes 5 bits, so the bit string is padded to a
+ * multiple of 5 before grouping. Padding to a multiple of 8 instead truncated
+ * the trailing bits of any input whose length was not a multiple of 5 bytes,
+ * which collided distinct inputs: 224 of the 256 one-byte values encoded to
+ * the same 32 strings.
  */
 export function base32Encode(data: Buffer): string {
   const bits = Array.from(data).map((b) => b.toString(2).padStart(8, '0')).join('');
-  const paddedBits = bits + '0'.repeat((8 - (bits.length % 8)) % 8);
+  const paddedBits = bits + '0'.repeat((5 - (bits.length % 5)) % 5);
 
   let result = '';
   for (let i = 0; i + 5 <= paddedBits.length; i += 5) {
