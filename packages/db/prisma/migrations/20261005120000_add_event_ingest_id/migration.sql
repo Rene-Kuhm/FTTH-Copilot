@@ -3,4 +3,6 @@
 --
 -- Postgres treats NULLs as distinct in unique indexes, so rows written before
 -- this migration (ingest_id IS NULL) are all allowed.
-CREATE UNIQUE INDEX "DeviceEvent_ingestId_key" ON "DeviceEvent"("ingestId");
+-- The Prisma model is DeviceEvent but @@map sends it to device_events; SQL must use the
+-- mapped table name.
+CREATE UNIQUE INDEX "device_events_ingestId_key" ON "device_events"("ingestId");
