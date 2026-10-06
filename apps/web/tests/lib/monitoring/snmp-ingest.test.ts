@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sendSnmpTestTrap } from '@ftth-copilot/monitoring';
 import type { TelemetryEvent } from '@ftth-copilot/shared';
-import { mapTrapCategory, describeTrap, spoolSnmpTrap } from '@/lib/monitoring/snmp-ingest';
+import {
+  mapTrapCategory,
+  mapTrapSeverity,
+  describeTrap,
+  spoolSnmpTrap,
+} from '@/lib/monitoring/snmp-ingest';
 import { startEventDrainer, stopEventDrainer } from '@/lib/monitoring/event-ingest';
 import { startSnmpReceiver } from '@/lib/monitoring/snmp';
 
@@ -83,6 +88,19 @@ describe('mapTrapCategory', () => {
   });
 });
 
+describe('mapTrapSeverity', () => {
+  it('maps the catalog levels onto the syslog numbering', () => {
+    expect(mapTrapSeverity('critical')).toBe(2);
+    expect(mapTrapSeverity('warning')).toBe(4);
+    expect(mapTrapSeverity('info')).toBe(6);
+  });
+
+  it('returns null for an unknown or missing severity', () => {
+    expect(mapTrapSeverity(undefined)).toBeNull();
+    expect(mapTrapSeverity('catastrophic')).toBeNull();
+  });
+});
+
 describe('describeTrap', () => {
   it('summarises the trap with category, device and vendor', () => {
     const line = describeTrap(telemetryEvent());
@@ -114,18 +132,37 @@ describe('spoolSnmpTrap', () => {
   });
 
   it('queues the trap with its device identity and a dedup id', () => {
-    spoolSnmpTrap(telemetryEvent());
+    spoolSnmpTrap(
+      telemetryEvent({
+        tags: { trapCategory: 'link_down', severity: 'warning', connectionId: 'conn-1' },
+      }),
+    );
 
     const [entry] = readQueue(dir);
     expect(entry.payload).toMatchObject({
       tenantId: 'tenant-a',
       connectionId: 'conn-1',
       category: 'access',
+      // Previously always null: the catalog severity never reached the event.
+      severity: 4,
       deviceKind: 'OLT',
       deviceId: 'OLT-01',
       occurredAt: '2026-10-06T10:00:00.000Z',
     });
     expect(entry.ingestId).toMatch(/^[0-9a-f]{8}-[0-9a-z]+$/);
+  });
+
+  it('carries a critical trap as critical, not as default severity', () => {
+    spoolSnmpTrap(
+      telemetryEvent({
+        tags: { trapCategory: 'dying_gasp', severity: 'critical' },
+      }),
+    );
+
+    expect(readQueue(dir)[0].payload).toMatchObject({
+      category: 'access',
+      severity: 2,
+    });
   });
 
   it('queues a trap without touching the database', () => {
@@ -223,5 +260,8 @@ describe('SNMP trap from socket into the spool', () => {
       deviceKind: 'OLT',
       deviceId: 'OLT-E2E-01',
     });
+    // The catalog severity must survive the real parse path, not just a
+    // hand-built event object.
+    expect(typeof queued[0].payload.severity).toBe('number');
   });
 });

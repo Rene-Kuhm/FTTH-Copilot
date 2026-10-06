@@ -29,6 +29,20 @@ const ACCESS_TRAPS = new Set([
 
 const DIRECT_CATEGORIES = new Set(['auth_failure', 'config_change']);
 
+/**
+ * Catalog severity to the syslog numbering already used by the syslog path,
+ * where `DeviceEvent.severity` comes from `priority % 8` (0..7).
+ */
+const SEVERITY_BY_CATALOG: Record<string, number> = {
+  critical: 2,
+  warning: 4,
+  info: 6,
+};
+
+export function mapTrapSeverity(severity: string | undefined): number | null {
+  return severity ? (SEVERITY_BY_CATALOG[severity] ?? null) : null;
+}
+
 export function mapTrapCategory(trapCategory: string | undefined): DeviceEventCategory {
   if (!trapCategory) return 'other';
   if (DIRECT_CATEGORIES.has(trapCategory)) return trapCategory as DeviceEventCategory;
@@ -60,6 +74,7 @@ export function spoolSnmpTrap(event: TelemetryEvent): string | null {
   const payload: DeviceEventPayload = {
     tenantId: event.tenantId,
     connectionId: event.tags?.['connectionId'] ?? null,
+    severity: mapTrapSeverity(event.tags?.['severity']),
     category: mapTrapCategory(event.tags?.['trapCategory']),
     message: describeTrap(event),
     occurredAt: new Date(event.ts),
