@@ -46,6 +46,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      # Durable ingest spool. MUST be a persistent volume: events buffered
+      # while Postgres is unreachable are lost if the container is recreated.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      # The kernel drops UDP datagrams silently once this buffer fills, so a
+      # link flap needs headroom here.
+      SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
+    volumes:
+      - spool_data:/var/lib/ftth-copilot/spool
     ports:
       - "${PORT:-3001}:3001"
       - "${SNMP_UDP_PORT:-1162}:1162/udp"
@@ -193,3 +201,8 @@ services:
 networks:
   ftth-network:
     driver: bridge
+
+volumes:
+  # Buffered syslog/SNMP events awaiting a write to Postgres. Losing this
+  # volume loses telemetry, so it is treated as persistent state.
+  spool_data:

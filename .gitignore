@@ -56,3 +56,20 @@ apps/web/test-results/
 
 # Local CI and operational reports
 .reports/
+
+# Agent auto-generated
+gents.md
+
+# Generated docs / assets
+docs/api/
+docs/assets/
+
+# Service worker (generated at build)
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+
+# Enterprise task notes
+odd/tasks/enterprise-completion.md
+
+# Durable ingest spool (runtime state, never committed)
+.spool/

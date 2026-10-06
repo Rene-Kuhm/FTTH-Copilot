@@ -8,6 +8,7 @@ import {
   snapshotEvaluatedConnectionHealth,
 } from '@/lib/monitoring/connection-health';
 import { checkDatabaseHealth } from '@/lib/monitoring/database-health';
+import { eventIngestStats } from '@/lib/monitoring/event-ingest';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,10 +34,18 @@ export async function GET(): Promise<NextResponse> {
 
   const isDatabaseHealthy = database.status === 'connected';
   const healthy = schedulersHealthy && isDatabaseHealthy;
+  const ingest = eventIngestStats();
+
+  // Telemetry loss has to be loud. A backlog means the database was
+  // unreachable and events are waiting on disk; drops mean events are gone.
+  // Neither should hide behind an otherwise green status.
+  const ingestLossy = ingest.dropped > 0 || ingest.rateLimited > 0;
+  // `overallHealthy` is the imported scheduler helper, so this stays distinct.
+  const statusHealthy = healthy && !ingestLossy;
 
   return NextResponse.json(
     {
-      status: healthy ? 'ok' : 'degraded',
+      status: statusHealthy ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: {
@@ -48,7 +57,8 @@ export async function GET(): Promise<NextResponse> {
       services,
       hungLoops,
       connections,
+      ingest,
     },
-    { status: healthy ? 200 : 503 },
+    { status: statusHealthy ? 200 : 503 },
   );
 }
