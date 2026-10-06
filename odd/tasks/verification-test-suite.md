@@ -373,3 +373,37 @@ Prisma (el contrato de single-flight no tiene que ver con la base) y espera con
 12 tests nuevos: estabilidad y rango de la clave, lock de transaccion y no de
 sesion, casteo a bigint, concedido/denegado/sin filas, base inalcanzable, y
 dos instancias donde solo una corre, mas la independencia entre loops.
+
+## Evidencia SNMP - politica definida e implementada
+
+Decisiones tomadas por el usuario:
+
+1. **Que guardar**: metadatos del trap + varbinds **normalizados**. Nunca el
+   paquete crudo ni `rawHex`, que es el grueso del payload sin aportar nada.
+2. **Retencion**: 90 dias, carried per row en `expiresAt` para que el purge no
+   tenga que re-derivar la constante por fila.
+3. **Datos personales**: varbinds identificadores (MAC, serial de ONU) se
+   **cifran en reposo** con la KMS master key que ya existe en el proyecto, y
+   se **borran por completo** al dar de baja el tenant.
+
+### Implementacion
+
+- Modelo `SnmpEvidence` (`snmp_evidence`) con columna `varbinds` en claro y
+  `identifyingVarsEncrypted` cifrada. Unique en `(tenantId, evidenceId)`, mas
+  indices por `expiresAt` y `fingerprint`.
+- `apps/web/lib/monitoring/snmp-evidence.ts`: normalizacion que separa
+  identificables, `storeEvidence` idempotente, `purgeExpiredEvidence`,
+  `purgeTenantEvidence` y `readIdentifyingVars`.
+- `onEvidence` en `instrumentation.ts` deja de ser un callback sin consumidor.
+
+### Detalle de deteccion
+
+Un identificador se detecta por **OID o por valor**. El patron por OID solo
+cubriria los OID que llevan la palabra, y un serial puede llegar en un OID
+inocuo; el patron por valor (`^[A-Z]{4}[0-9A-F]{8,12}$` y MAC) cubre ese caso.
+Test dedicado: `ZZTE1234567890` en un OID cualquiera si se clasifica como
+identificador.
+
+### Verificado
+
+18 tests. Migracion aplicada contra Postgres real, drift residual 0.
