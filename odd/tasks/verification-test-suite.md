@@ -261,3 +261,45 @@ decision de producto: limite generoso con flag de truncado visible, o paginacion
 con cursor que el frontend consuma.
 
 `GET /api/topology/tree` sin limite es intencional: es un grafo completo.
+
+## T8b - Paginacion de incidentes (hecho)
+
+`GET /api/incidents` devolvia **todos** los incidentes del tenant, incluidos
+los resueltos, sin `take`. Los resueltos se acumulan para siempre.
+
+### Decision de diseno
+
+- **Por defecto, solo `open` y `acknowledged`**: acotado por trabajo pendiente
+  real, no por cuanto tiempo lleva corriendo el sistema.
+- **Historial resuelto, solo bajo pedido**: `?status=resolved` o `?status=all`.
+- **Cursor**, no `offset`: coldestquear un incidente entre dos pedidos desplaza
+  la pagina y saltea una fila en silencio. `offset` ademas se degrada en
+  offsets grandes, que es justo el caso que motivo el cursor.
+- **Metadatos**: `page: { scope, hasMore, nextCursor }`. Se toma `limit + 1`
+  filas para saber si hay otra pagina sin una segunda consulta `COUNT`.
+
+### Por que el orden es `lastSeenAt`, no `severity`
+
+El orden anterior era `severity desc, lastSeenAt desc`. **Prisma rechaza `<`
+en campos enum**, asi que un cursor que empiece por severidad no se puede
+escribir como consulta tipada.
+
+Ordenar por `lastSeenAt desc, id desc` ademas deja la consulta alineada con el
+indice existente `@@index([tenantId, status, lastSeenAt])`, en vez de ordenar
+detras de el.
+
+Es un cambio de comportamiento visible para el operador: el panel pasa a
+mostrar primero lo mas reciente, no lo mas severo.
+
+### Compatibilidad
+
+La forma de la respuesta se mantiene: `{ incidents, count }` sigue presente, asi
+que `IncidentsPanel` (que lee `body.incidents`) no cambia. Lo nuevo es
+`page`.
+
+### Cobertura
+
+16 tests: scope por defecto, los tres scopes explicitos, clamp de `limit`
+(hostigoso y no numerico), cursor ausente/corrupto/valido, `hasMore` y
+`nextCursor`, forma legacy, resultado vacio, y aislamiento de tenant en cada
+pagina del recorrido por cursor.
