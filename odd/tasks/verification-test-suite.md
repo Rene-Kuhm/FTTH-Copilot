@@ -130,3 +130,45 @@ porque `/api/health` llama a `stats()` en cada request.
 Nota: en la rafaga UDP se afirma que lo encolado sea lo que realmente llego, y
 que la perdida en el socket no sea total ni silenciosa. No se afirma perdida
 cero: UDP no tiene control de flujo.
+
+## T7 - Capa de AI/agente (hecho)
+
+### Correccion: la capa de AI estaba mejor cubierta de lo que supuse
+
+Medi antes de escribir. `packages/agent-core` tiene 87.55% y 12 archivos de
+tests; `app/api/chat` tiene 27 tests.
+
+Escribi 29 tests para `FallbackLlmClient` e `isTransientError` asumiendo que
+estaban sin cubrir. Al medir el delta con `coverage-summary`-json` resulto
+**0.00 de diferencia**: `llm.ts` daba 62.5% de lineas con y sin mis tests.
+
+Causa: `tests/llm.test.ts` ya los cubria (lineas 168 y 195). Los borre en vez
+de dejar 29 tests duplicados: inflar la suite no agrega seguridad.
+
+Advertencia sobre el metodo: `git stash` sin `-u` **no** incluye archivos sin
+trackear, asi que la comparacion dio identica por error. Repetir midiendo con el
+archivo movido fuera revelo la redundancia.
+
+### Lo que si aporto
+
+`apps/web/lib/connectors/chat-client.ts` estaba en **0%** y resuelve el conector
+NMS del tenant, descifrando credenciales para mandarlas a equipment del ISP.
+Ahora en 78.57%.
+
+Ramas cubiertas, todas con impacto operativo:
+
+- Sin `baseUrl` no construye conector (mandaria credenciales a un host no configurado)
+- Clave que no descifra -> 409 con mensaje accionable, sin filtrar el error del KMS
+- Dispatch por provider: SMARTOLT, MIKROWISP, MIKROTIK
+- **Credenciales MikroTik**: JSON `{username,password}`, `user:password` partido
+  en el primer dos puntos, y token suelto con default `admin`
+- TLS y puerto derivados de la URL base
+- **Provider no implementado -> 422**: nunca devuelve datos simulados, porque en
+  un NOC datos falsos se ven como telemetria real
+
+### Verificacion adicional del fix de CSRF
+
+El guard test de CSRF escanea `components/*.tsx`. Revise `lib/` y `app/`:
+las unicas mutaciones fuera de components son a `/api/auth/login`, `/signup` y
+`/logout`, que estan **exentas** por diseno. No hay gap, pero el guard podria
+ampliarse a `lib/` como proteccion futura.
