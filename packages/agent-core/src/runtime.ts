@@ -1,7 +1,9 @@
-import type { AgentResult, ToolCallRecord, TenantPolicy, LayaMode, LayaResult } from '@ftth-copilot/shared';
+import type { AgentResult, ToolCallRecord, TenantPolicy, LayaMode, LayaResult, LayaDecision, LayaSignal } from '@ftth-copilot/shared';
 import {
   resolveLayaEnv,
   layaMetrics,
+  getLayaIntegration,
+  mergeRoutingDecision,
 } from '@ftth-copilot/shared';
 import {
   buildAbstention,
@@ -315,35 +317,128 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const connector = opts.connector ?? buildDefaultConnector();
   const anthropicTools = buildTools(connector);
 
-  // Adaptive Router (Slice 2): compute the route decision BEFORE the
-  // cognitive loop. The router picks the minimum set of tools the
-  // selected mode needs and caps maxIterations per mode.
-  const route: DiagnosticRoute = planRoute({
-    userMessage: opts.userMessage,
-  });
-  agentSpan.setAttribute('router.mode', route.mode);
-  agentSpan.setAttribute('router.tools_count', route.tools.length);
-  agentSpan.setAttribute('router.label', route.label);
+  // Phase 4 — Mode matrix (AD-3, AD-6, AD-7, R4, R4.2, R4.5, R4.6):
+  // consult + record + route hook lives here at the orchestration call site.
+  // planRoute is called once per mode; in assisted mode when Laya's suggestion
+  // differs from the adaptive mode, planRoute is called twice (pure, safe).
+  //
+  // Mode matrix:
+  //   disabled  — consult nothing, record nothing, route untouched.
+  //   shadow    — consult, record, pass layaSignal=null so route CANNOT change (AD-7).
+  //   assisted  — consult, change route via mergeRoutingDecision when thresholds met.
+  //   automatic — consult, let Laya select route directly when shouldFollowLayaRoute says so.
+  //
+  // Fail-open / fail-closed (R4.5, R4.6):
+  //   unreachable + failOpen=true  → keep adaptive route, record result='fallback', do NOT throw.
+  //   unreachable + failOpen=false → propagate the error.
+  //
+  // AD-6 consistency: tools and maxIterations are ALWAYS derived from the
+  // FINAL mode, never from a pre-override adaptive mode.
+  const laya = resolveLayaEnv();
+  let route: DiagnosticRoute;
+  let layaResult: LayaResult = 'success';
 
-  // Phase 2 — Close the circuit (AD-1, AD-2, AD-4):
-  // Record the Laya decision at the orchestration call site, gated on the
-  // resolved Laya config.  planRoute is pure — recording stays here.
-  // - When Laya is disabled, nothing is recorded (R2.6).
+  if (!laya.enabled || laya.mode === 'disabled') {
+    // disabled — pure adaptive routing, nothing Laya-specific.
+    route = planRoute({ userMessage: opts.userMessage });
+    layaResult = 'success';
+  } else {
+    // shadow / assisted / automatic — consult Laya.
+    // Step 1: compute the adaptive route (no Laya signal) to get the baseline mode.
+    const adaptiveRoute = planRoute({ userMessage: opts.userMessage });
+
+    // Step 2: consult Laya (shadow always records, AD-3).
+    let layaDecision: LayaDecision | null = null;
+    let layaSignal: LayaSignal | null = null;
+    try {
+      const integration = getLayaIntegration();
+      // Build the minimal event from the operator query for Laya's System 1.
+      const layaEvent = {
+        tenantId: opts.tenantId ?? '',
+        eventId: `run-${Date.now()}`,
+        source: 'user-query',
+        rawSummary: opts.userMessage,
+        userMessage: opts.userMessage,
+      };
+      layaDecision = await integration.processEvent(layaEvent);
+      if (layaDecision) {
+        layaSignal = integration.buildLayaSignal(layaDecision);
+      }
+    } catch {
+      // Network / timeout — fail-open / fail-closed handled below.
+      layaDecision = null;
+    }
+
+    if (laya.mode === 'shadow') {
+      // AD-7: pass null so the route CANNOT change by construction.
+      // Laya was still consulted (for measurement), result recorded below.
+      route = planRoute({ userMessage: opts.userMessage, layaSignal: null });
+      layaResult = layaDecision ? 'success' : (laya.failOpen ? 'fallback' : 'error');
+      if (!laya.failOpen && !layaDecision) {
+        throw new Error('[Laya] unreachable in shadow mode with failOpen=false');
+      }
+    } else if (laya.mode === 'assisted') {
+      // assisted: merge the routing decision with Laya's signal.
+      // If mergeRoutingDecision changes the mode, re-call planRoute with the
+      // signal so tools and maxIterations are derived from the FINAL mode (AD-6).
+      const mergedMode = mergeRoutingDecision({
+        adaptiveRoute: adaptiveRoute.mode,
+        layaSignal,
+        confidenceThresholds: {
+          high: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
+          low: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_LOW ?? '0.75'),
+        },
+      });
+      if (mergedMode !== adaptiveRoute.mode && layaSignal) {
+        // Mode changed — re-derive with the Laya signal so tools/maxIterations
+        // are consistent with the promoted mode (AD-6).
+        route = planRoute({ userMessage: opts.userMessage, layaSignal });
+      } else {
+        // Mode unchanged or no signal — use the original adaptive route.
+        route = adaptiveRoute;
+      }
+      layaResult = layaDecision ? 'success' : (laya.failOpen ? 'fallback' : 'error');
+      if (!laya.failOpen && !layaDecision) {
+        throw new Error('[Laya] unreachable in assisted mode with failOpen=false');
+      }
+    } else {
+      // automatic: let Laya select the route directly when shouldFollowLayaRoute says so.
+      // layaDecision may be null (fail-open path below).
+      if (layaSignal && layaDecision) {
+        const integration = getLayaIntegration();
+        if (integration.shouldFollowLayaRoute(layaDecision)) {
+          route = planRoute({ userMessage: opts.userMessage, layaSignal });
+        } else {
+          route = adaptiveRoute;
+        }
+      } else {
+        route = adaptiveRoute;
+      }
+      layaResult = layaDecision ? 'success' : (laya.failOpen ? 'fallback' : 'error');
+      if (!laya.failOpen && !layaDecision) {
+        throw new Error('[Laya] unreachable in automatic mode with failOpen=false');
+      }
+    }
+  }
+
+  // Phase 2 — Record the decision at the orchestration call site (AD-1).
+  // - When Laya is disabled, nothing is recorded (existing inert path preserved).
   // - mode is the RESOLVED Laya mode (shadow/assisted/automatic), NOT the
   //   diagnostic route mode (direct/assisted/investigation) (AD-3).
-  // - When route.eventClass === undefined the classifier failed and the router
-  //   failed open; record with result='error' so the fail-open path is
-  //   observable (AD-4).
-  // Runs exactly once per runAgent() invocation — no double-count risk.
+  // - result='error' when classifier failed (AD-4); result='fallback' when
+  //   service unreachable + failOpen=true (R4.5); result='success' otherwise.
+  // Runs exactly once per runAgent() invocation; planRoute never records.
   {
     const laya = resolveLayaEnv();
-    if (laya.enabled) {
+    // Record when Laya is enabled AND the Laya mode is active (not 'disabled').
+    // 'disabled' consults nothing AND records nothing per R4.2.
+    if (laya.enabled && laya.mode !== 'disabled') {
       const layaMode: LayaMode = laya.mode;
-      const layaResult: LayaResult =
-        route.eventClass === undefined ? 'error' : 'success';
+      const result: LayaResult =
+        route.eventClass === undefined ? 'error' : layaResult;
       const eventClass = route.eventClass ?? 'UNKNOWN';
       const confidence = route.eventConfidence ?? 0;
-      layaMetrics.recordDecision(eventClass, confidence, layaMode, layaResult);
+      layaMetrics.recordDecision(eventClass, confidence, layaMode, result);
     }
   }
 

@@ -236,21 +236,18 @@ export class LayaIntegration {
 // ── Feature Flag Helpers ──────────────────────────────────────────────────
 
 /**
- * Check if Laya should be consulted for a given event.
- * Respects feature flags and mode settings.
+ * Check if Laya should be consulted.
+ *
+ * Decision: event-type filtering is not currently wanted — the Laya System 1
+ * is a general FTTH event classifier that handles all event classes without
+ * a per-type allow-list. The `eventType` parameter was removed so that callers
+ * are not misled into thinking there is a filter that does not exist.
+ *
+ * Returns true when Laya is enabled and not in disabled mode.
  */
-export function shouldConsultLaya(
-  config: LayaHttpConfig,
-  eventType?: string
-): boolean {
+export function shouldConsultLaya(config: LayaHttpConfig): boolean {
   if (!config.enabled) return false;
   if (config.mode === 'disabled') return false;
-
-  // In shadow mode, always consult (for evaluation)
-  if (config.mode === 'shadow') return true;
-
-  // In active modes, check if event type is supported
-  // TODO: Add event type filtering if needed
   return true;
 }
 

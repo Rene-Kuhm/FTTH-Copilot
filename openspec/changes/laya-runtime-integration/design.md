@@ -101,6 +101,44 @@ a transport failure (fail-open according to `failOpen`, with `result: 'error'`).
 `confidence.eventClass: 0`). A silent wrong answer is worse than a recorded failure. Validating
 what enters while trusting what leaves is an asymmetry with no justification.
 
+### AD-6: The Laya signal enters `planRoute` as an input, not as a post-hoc override
+
+ADDED 2026-10-07, during Phase 4 planning.
+
+`planRoute` derives `mode`, then `tools` and `maxIterations` **from that mode**
+(`adaptive-router.ts`: `const tools = selectTools(mode, signals, opts.allTools)` and the
+`maxIterations` ternary). Overriding `route.mode` after `planRoute` returns therefore leaves
+`tools` and `maxIterations` computed for the old mode. The failure is silent and severe: a route
+promoted to `investigation` keeps `maxIterations: 0`, so the cognitive loop never runs and the
+agent answers as if it had investigated.
+
+**Decision**: add an optional `layaSignal` to `PlanRouteOptions` and apply the mode override
+**inside** `planRoute`, before `tools` and `maxIterations` are derived. `runtime.ts` decides
+*whether* to consult; `planRoute` remains the only place that derives a consistent route.
+
+**Rationale**: this preserves the purity contract of AD-1 exactly. The function stays a pure
+function of its inputs — a signal passed in is an input, not a side effect — while making an
+internally inconsistent route impossible to construct. Post-hoc mutation would have traded a
+documented impurity for an undocumented correctness bug.
+
+### AD-7: Shadow passes no signal, so it cannot change the route by construction
+
+ADDED 2026-10-07, during Phase 4 planning.
+
+`shadow` MUST NOT alter the route (R4.2). Rather than consult and then discard the result through
+a conditional, `runtime.ts` passes `layaSignal: null` in shadow mode. The route override becomes
+unreachable in shadow by construction, not by discipline.
+
+Shadow still consults the service, because measuring agreement between the local expert
+classification and the Laya decision is the entire purpose of shadow mode and the input to the
+decision to enable `assisted`. **Accepted trade-off**: this puts a bounded HTTP call on the
+routed request path even in shadow. The call is bounded by `LAYA_TIMEOUT_MS` (default 250 ms) and
+fail-open, so the worst case is added latency, never a failed request. Operators who do not want
+that cost keep the default `LAYA_ENABLED=false`, in which case nothing is consulted at all.
+
+The recorded `result` distinguishes the outcomes: `success` when Laya answered, `fallback` when
+`failOpen` absorbed an unreachable service, `error` when the classifier failed (AD-4).
+
 ## Sequence: shadow mode (default after this change)
 
 ```
