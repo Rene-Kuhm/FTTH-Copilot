@@ -131,6 +131,8 @@ Cada fase es **testeable, con CI verde y reversible** de forma independiente. Ni
 El layer cognitivo se complementa con **Laya Decision Layer** (ADR-042): un Expert System que clasifica eventos FTTH en <5ms con 94.4% de accuracy antes de invocar el LLM. Se activa en shadow mode por defecto y persiste decisiones en `decision_evaluations` para futura evaluación y fine-tuning.
 
 > **Estado: implementado.** PRs #226, #227, #228, #229 en `main`. Consultar [`ADR-042`](docs/engineering/ADR-042-laya-decision-layer.md) para el detalle completo.
+>
+> **Actualización (PR #297):** el layer quedó operativo end-to-end. Antes de ese PR el cliente parseaba una forma de respuesta que `services/laya/app.py` nunca devolvió, así que toda decisión se registraba como `success` con `eventClass: 'UNKNOWN'`, y `shadow` registraba éxito antes de llamar al servicio. Los cuatro modos (`disabled`, `shadow`, `assisted`, `automatic`) están implementados. El microservicio sigue siendo opt-in (`--profile laya`).
 
 ### Fase 1 — Detectores de degradación microscópica (TS, sin cambiar de lenguaje)
 - Nuevos detectores puros en `@ftth-copilot/detection`:

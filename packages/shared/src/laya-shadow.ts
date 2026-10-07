@@ -194,11 +194,19 @@ export interface LayaHttpConfig {
  *   mode     = LAYA_MODE ?? 'shadow'
  *   failOpen = LAYA_FAIL_OPEN !== 'false' (fail-open is the safe default)
  */
-export function resolveLayaEnv(): { enabled: boolean; mode: LayaMode; failOpen: boolean } {
+export function resolveLayaEnv(): {
+  enabled: boolean;
+  mode: LayaMode;
+  failOpen: boolean;
+  confidenceThresholdHigh: number;
+  confidenceThresholdLow: number;
+} {
   return {
     enabled: process.env.LAYA_ENABLED === 'true',
     mode: (process.env.LAYA_MODE as LayaMode) ?? 'shadow',
     failOpen: process.env.LAYA_FAIL_OPEN !== 'false',
+    confidenceThresholdHigh: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
+    confidenceThresholdLow: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_LOW ?? '0.75'),
   };
 }
 

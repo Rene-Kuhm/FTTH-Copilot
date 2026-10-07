@@ -381,13 +381,11 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       // assisted: merge the routing decision with Laya's signal.
       // If mergeRoutingDecision changes the mode, re-call planRoute with the
       // signal so tools and maxIterations are derived from the FINAL mode (AD-6).
+      const { confidenceThresholdHigh: high, confidenceThresholdLow: low } = resolveLayaEnv();
       const mergedMode = mergeRoutingDecision({
         adaptiveRoute: adaptiveRoute.mode,
         layaSignal,
-        confidenceThresholds: {
-          high: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
-          low: parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_LOW ?? '0.75'),
-        },
+        confidenceThresholds: { high, low },
       });
       if (mergedMode !== adaptiveRoute.mode && layaSignal) {
         // Mode changed — re-derive with the Laya signal so tools/maxIterations

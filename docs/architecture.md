@@ -281,7 +281,7 @@ Después reiniciar el proceso (PM2 `ftth-copilot`). Verificá que el NMS acepte 
 
 ### Laya Decision Layer (ADR-042)
 
-Laya funciona como módulo importable desde `@ftth-copilot/shared` (sin Docker, sin GPU). También disponible como microservicio FastAPI en Docker:
+El clasificador experto de Laya corre como módulo importable desde `@ftth-copilot/shared` (sin Docker, sin GPU). Los modos que consultan la decisión —`shadow`, `assisted` y `automatic`— usan el microservicio FastAPI por HTTP, así que necesitan `LAYA_URL` alcanzable: sin él Laya degrada en fail-open y registra `fallback` en vez de decisiones. El microservicio es opt-in:
 
 ```bash
 # Module mode (default, sin Docker)

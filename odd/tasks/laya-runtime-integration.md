@@ -141,15 +141,63 @@ Los thresholds de confianza se resuelven **dos veces**: `laya-client.ts:57-60` y
 que D1, que la Fase 1 eliminó. Los valores coinciden hoy, así que es riesgo de divergencia, no bug
 vivo. Trackeado como task 5.5.
 
-### Pendiente (fases 5 a 7)
+### Fases 5 a 7 — CERRADAS
 
-Fase 5 (breaker observable, validación inbound, `LAYA_*` en `turbo.json`, thresholds duplicados),
-Fase 6 (compose demo/prod, `.env.example`, verdad de ADR/README), Fase 7 (gates finales).
+**Fase 5.** Breaker observable: la rama `shadow` ya reportaba la apertura; se agregó el mismo
+reporte a la rama **activa** (líneas 667 y 716 de `laya-client.ts`), donde el boolean se
+descartaba. Validación inbound: el mapper valida con `layaDecisionSchema` y devuelve `null` ante
+payload inválido. `LAYA_*` declaradas en `turbo.json` `globalEnv`.
 
-### Estado git
+**Task 5.5 (thresholds duplicados).** Resueltos en un solo lugar: `resolveLayaEnv()`
+en `laya-shadow.ts:208-209` es ahora el único punto que lee
+`LAYA_CONFIDENCE_THRESHOLD_HIGH` / `_LOW`, y tanto `laya-client.ts` como `runtime.ts` consumen el
+valor resuelto. Verificado con `grep -rn "CONFIDENCE_THRESHOLD" packages/shared/src packages/agent-core/src`:
+sólo aparece en el resolver.
 
-6 commits sobre `feat/laya-runtime-integration`, working tree limpio. Sin push y sin PR: eso sigue
-siendo decisión del usuario.
+**Fase 6.** Servicio `laya` en demo y prod (opt-in por profile) y `docker-compose.prod.yml`
+validando (`exit 0`) después de declarar los volúmenes que sus servicios montaban sin declarar.
+`.env.example` de-duplicado y con el puerto corregido a 8080. `.env.prod` y `.env.demo` agregados
+al `.gitignore`: el nombre exacto que prod exige estaba sin ignorar. ADR-042, README,
+`docs/architecture.md` y `docs/aiops-roadmap.md` alineados con el estado verificado.
+
+**Fase 7.** Gates con cache invalidado, y esta vez **incluyendo el build**.
+
+| Verificación | Resultado |
+|---|---|
+| `turbo run build --force` | 2/2, `0 cached` |
+| `turbo run typecheck --force` | 17/17, `0 cached` |
+| `turbo run lint --force` | 17/17, `0 cached` |
+| `turbo run test --force` | 17/17, `0 cached` |
+| `pnpm check:sources` / `pnpm check:contribution` | ✅ los dos |
+| `docker compose config -q` demo / prod | `exit 0` los dos |
+| CI del PR #297 | verde, incluidos Playwright E2E e Integration Tests (Postgres) |
+
+### Lección de proceso que costó un CI rojo
+
+El primer CI del PR #297 falló en el job `Build` con
+`Module not found: Can't resolve './laya-shadow.js'`. Causa: `laya-client.ts` ya importaba
+`'./laya-shadow.js'` pero como **import type**, que se borra al compilar; al volverlo import de
+**valor** (`resolveLayaEnv`) dejó de borrarse, y con la Fase 3 exportando esos módulos desde el
+índice entraron al grafo de webpack del build de Next, que no mapea un especificador `.js` a un
+archivo `.ts`. Arreglado alineando la convención del paquete (sin extensión).
+
+**Por qué se escapó**: `turbo run build --force` se corrió temprano y nunca más después del commit
+que cambió el grafo de imports. Typecheck, lint y tests estaban verdes con el build roto: `tsc`
+resuelve `.js` → `.ts` y webpack no. **Regla**: correr el build después de cualquier cambio que
+meta un módulo nuevo al grafo de la app, y correr la suite completa al final, no sólo al principio.
+
+### Estado git (final)
+
+PR **#297 mergeado** a `main` (merge commit `7e9e10e`), CI verde. Los follow-ups de esta última
+tanda van en `feat/laya-followups`, PR separado. `main` limpio y actualizado.
+
+### Lo que quedó fuera, a propósito
+
+- No hubo **review nativo independiente**: el pipeline de RDD no pudo ejecutar (no hay modelo
+  asignado a los lenses). La verificación es del autor y no reemplaza un review independiente. Está
+dicho explícitamente en el cuerpo del PR #297.
+- El servicio Python nunca se ejecutó en local (falta `fastapi`): el contrato se verificó leyendo
+  `services/laya/app.py` contra `layaDecisionSchema` y con tests, no con un round-trip HTTP real.
 
 <!--
 Notas de auditoría (para el revisor):

@@ -11,6 +11,92 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getLayaConfig, resolveLayaEnv } from '../src/laya-shadow';
 import { loadLayaConfigFromEnv } from '../src/laya-client';
 
+// ── Confidence threshold tests ───────────────────────────────────────────────
+
+describe('resolveLayaEnv — confidence thresholds', () => {
+  afterEach(() => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH;
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_LOW;
+  });
+
+  it('resolves default confidenceThresholdHigh=0.95 when unset', () => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH;
+    const result = resolveLayaEnv();
+    expect(result.confidenceThresholdHigh).toBe(0.95);
+  });
+
+  it('resolves default confidenceThresholdLow=0.75 when unset', () => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_LOW;
+    const result = resolveLayaEnv();
+    expect(result.confidenceThresholdLow).toBe(0.75);
+  });
+
+  it('resolves custom confidenceThresholdHigh from env var', () => {
+    process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH = '0.99';
+    expect(resolveLayaEnv().confidenceThresholdHigh).toBe(0.99);
+
+    process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH = '0.80';
+    expect(resolveLayaEnv().confidenceThresholdHigh).toBe(0.80);
+  });
+
+  it('resolves custom confidenceThresholdLow from env var', () => {
+    process.env.LAYA_CONFIDENCE_THRESHOLD_LOW = '0.60';
+    expect(resolveLayaEnv().confidenceThresholdLow).toBe(0.60);
+
+    process.env.LAYA_CONFIDENCE_THRESHOLD_LOW = '0.50';
+    expect(resolveLayaEnv().confidenceThresholdLow).toBe(0.50);
+  });
+
+  it('resolves both thresholds independently', () => {
+    process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH = '0.98';
+    process.env.LAYA_CONFIDENCE_THRESHOLD_LOW = '0.65';
+    const result = resolveLayaEnv();
+    expect(result.confidenceThresholdHigh).toBe(0.98);
+    expect(result.confidenceThresholdLow).toBe(0.65);
+  });
+});
+
+describe('loadLayaConfigFromEnv — thresholds match resolver', () => {
+  afterEach(() => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH;
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_LOW;
+    delete process.env.LAYA_ENABLED;
+    delete process.env.LAYA_MODE;
+    delete process.env.LAYA_FAIL_OPEN;
+    delete process.env.LAYA_URL;
+    delete process.env.LAYA_TIMEOUT_MS;
+    delete process.env.LAYA_MODEL;
+    delete process.env.LAYA_MODEL_VERSION;
+  });
+
+  it('builds confidenceThresholdHigh from resolver (no drift on defaults)', () => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH;
+    const config = loadLayaConfigFromEnv();
+    const resolver = resolveLayaEnv();
+    expect(config.confidenceThresholdHigh).toBe(resolver.confidenceThresholdHigh);
+    expect(config.confidenceThresholdHigh).toBe(0.95);
+  });
+
+  it('builds confidenceThresholdLow from resolver (no drift on defaults)', () => {
+    delete process.env.LAYA_CONFIDENCE_THRESHOLD_LOW;
+    const config = loadLayaConfigFromEnv();
+    const resolver = resolveLayaEnv();
+    expect(config.confidenceThresholdLow).toBe(resolver.confidenceThresholdLow);
+    expect(config.confidenceThresholdLow).toBe(0.75);
+  });
+
+  it('config thresholds track resolver when env vars are set', () => {
+    process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH = '0.97';
+    process.env.LAYA_CONFIDENCE_THRESHOLD_LOW = '0.72';
+    const config = loadLayaConfigFromEnv();
+    const resolver = resolveLayaEnv();
+    expect(config.confidenceThresholdHigh).toBe(resolver.confidenceThresholdHigh);
+    expect(config.confidenceThresholdHigh).toBe(0.97);
+    expect(config.confidenceThresholdLow).toBe(resolver.confidenceThresholdLow);
+    expect(config.confidenceThresholdLow).toBe(0.72);
+  });
+});
+
 describe('resolveLayaEnv', () => {
   afterEach(() => {
     delete process.env.LAYA_ENABLED;
