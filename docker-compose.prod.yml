@@ -52,6 +52,10 @@ services:
       # The kernel drops UDP datagrams silently once this buffer fills, so a
       # link flap needs headroom here.
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
+      # Laya URL is required when LAYA_ENABLED=true and the HTTP service is
+      # used. Module-import mode (the expert classifier) does not need it.
+      # Docker DNS resolves 'laya' to the laya container on the same network.
+      LAYA_URL: ${LAYA_URL:-http://laya:8080}
     volumes:
       - spool_data:/var/lib/ftth-copilot/spool
     ports:
@@ -63,6 +67,33 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
+    networks:
+      - ftth-network
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Laya Decision Layer — Fast Decision System (ADR-042)
+  # Expert System (94.4% accuracy) — no GPU required.
+  # Opt-in: docker compose --profile laya
+  # ─────────────────────────────────────────────────────────────────────
+  laya:
+    build:
+      context: ./services/laya
+      dockerfile: Dockerfile
+    container_name: ftth_prod_laya
+    restart: unless-stopped
+    environment:
+      LAYA_MODE: ${LAYA_MODE:-shadow}
+      LAYA_LOG_LEVEL: ${LAYA_LOG_LEVEL:-info}
+    ports:
+      - "${LAYA_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    profiles:
+      - laya
     networks:
       - ftth-network
 
@@ -206,3 +237,7 @@ volumes:
   # Buffered syslog/SNMP events awaiting a write to Postgres. Losing this
   # volume loses telemetry, so it is treated as persistent state.
   spool_data:
+  # PostgreSQL data directory — losing this loses all FTTH-Copilot state.
+  postgres_data:
+  # VictoriaMetrics persistent storage — losing this loses all metrics history.
+  victoriametrics_prod_data:

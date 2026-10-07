@@ -16,6 +16,11 @@ out/
 .env.*.local
 .env.production
 .env.development
+# docker-compose.prod.yml requires this exact filename, so a production
+# secrets file would otherwise be committable by a plain `git add .`.
+.env.prod
+# Same for the demo stack.
+.env.demo
 
 # Logs
 *.log

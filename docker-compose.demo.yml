@@ -109,6 +109,10 @@ services:
       # Hub, so it could not be started and the app could not reach the
       # database at all. Pooling is not needed at demo traffic levels.
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+      # Laya URL is required when LAYA_ENABLED=true and the HTTP service is
+      # used. Module-import mode (the expert classifier) does not need it.
+      # Docker DNS resolves 'laya' to the laya container on the same network.
+      LAYA_URL: ${LAYA_URL:-http://laya:8080}
     ports:
       - "${PORT:-3001}:3001"
     depends_on:
@@ -197,6 +201,33 @@ services:
   # Default: https://ntfy.sh (public, no account needed).
   # For self-hosted: docker run -p 8125:80 binwiederhier/ntfy
   # ─────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────
+  # Laya Decision Layer — Fast Decision System (ADR-042)
+  # Expert System (94.4% accuracy) — no GPU required.
+  # Opt-in: docker compose --profile laya
+  # ─────────────────────────────────────────────────────────────────────
+  laya:
+    build:
+      context: ./services/laya
+      dockerfile: Dockerfile
+    container_name: ftth_demo_laya
+    restart: unless-stopped
+    environment:
+      LAYA_MODE: ${LAYA_MODE:-shadow}
+      LAYA_LOG_LEVEL: ${LAYA_LOG_LEVEL:-info}
+    ports:
+      - "${LAYA_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    profiles:
+      - laya
+    networks:
+      - ftth-demo
+
   ntfy:
     image: binwiederhier/ntfy:v3.3.0
     container_name: ftth_demo_ntfy

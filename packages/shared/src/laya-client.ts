@@ -19,12 +19,13 @@ import type {
   LayaDecision,
   LayaHttpConfig,
   LayaMode,
-} from './laya-shadow.js';
+} from './laya-shadow';
 import {
   layaHttpConfigSchema,
   layaDecisionSchema,
   layaDecisionEventSchema,
-} from './laya-shadow.js';
+  resolveLayaEnv,
+} from './laya-shadow';
 
 // ── Default configuration ────────────────────────────────────────────────────
 
@@ -41,14 +42,18 @@ export const DEFAULT_LAYA_CONFIG: LayaHttpConfig = {
 /**
  * Parse and validate Laya configuration from environment variables.
  * Falls back to defaults for missing values.
+ * Delegates core knob resolution to `resolveLayaEnv` (AD-2) so that the
+ * same three env vars produce identical `enabled / mode / failOpen` values
+ * regardless of which loader a caller uses.
  */
 export function loadLayaConfigFromEnv(): LayaHttpConfig {
+  const { enabled, mode, failOpen } = resolveLayaEnv();
   const raw = {
-    enabled: process.env.LAYA_ENABLED === 'true',
-    mode: process.env.LAYA_MODE ?? 'disabled',
+    enabled,
+    mode,
+    failOpen,
     url: process.env.LAYA_URL,
     timeoutMs: parseInt(process.env.LAYA_TIMEOUT_MS ?? '250', 10),
-    failOpen: process.env.LAYA_FAIL_OPEN !== 'false',
     confidenceThresholdHigh:
       parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
     confidenceThresholdLow:
@@ -237,7 +242,7 @@ export const createInitialMetrics = (): LayaMetrics => ({
 /**
  * Record a Laya decision in metrics.
  */
-export function recordLayaDecision(
+export function recordLayaCallOutcome(
   metrics: LayaMetrics,
   params: {
     latencyMs: number;
@@ -403,39 +408,131 @@ export function createLayaClient(config: LayaClientConfig): {
     }
   }
 
+  /**
+   * Map a flat camelCase DecisionResponse from services/laya/app.py to LayaDecision.
+   *
+   * The real service contract (DecisionResponse) is flat camelCase:
+   *   { eventClass, severity, probableScope, requiresInvestigation, confidence, matchedKeywords, ... }
+   *
+   * The deprecated nested snake_case shape (from an older ML model) is:
+   *   { event_class: { choice, confidence }, severity: { choice, confidence }, ... }
+   *
+   * Validation:
+   * - Validates inbound payload with layaDecisionSchema.
+   * - On validation failure, returns null so the caller can apply failOpen.
+   *
+   * suggestedRoute derivation rule:
+   * - requiresInvestigation === true  → 'INVESTIGATION'
+   * - requiresInvestigation === false → 'DIRECT'
+   *
+   * confidence mapping:
+   * - The service contract has a single confidence float (0..1) for the eventClass.
+   * - This is mapped to confidence.eventClass.
+   * - confidence.severity is documented as "not available in service contract; set to eventClass confidence as a proxy".
+   */
   function mapResponseToLayaDecision(
     response: Record<string, unknown>
-  ): LayaDecision {
-    // Parse Laya's response format
-    const eventClassResp = response.event_class as {
+  ): LayaDecision | null {
+    // ── Try flat service contract first (authoritative) ───────────────────────
+    const flatEventClass = response.eventClass as string | undefined;
+    const flatSeverity = response.severity as string | undefined;
+    const flatProbableScope = response.probableScope as string | undefined;
+    const flatRequiresInvestigation = response.requiresInvestigation as boolean | undefined;
+    const flatConfidence = response.confidence as number | undefined;
+    const flatMatchedKeywords = response.matchedKeywords as string[] | undefined;
+
+    // ── Validate flat shape against layaDecisionSchema ─────────────────────
+    if (
+      flatEventClass !== undefined &&
+      flatSeverity !== undefined &&
+      flatProbableScope !== undefined &&
+      flatRequiresInvestigation !== undefined &&
+      flatConfidence !== undefined
+    ) {
+      const parsed = layaDecisionSchema.safeParse({
+        eventClass: flatEventClass,
+        severity: flatSeverity,
+        probableScope: flatProbableScope,
+        requiresInvestigation: flatRequiresInvestigation,
+        confidence: flatConfidence,
+        matchedKeywords: flatMatchedKeywords,
+      });
+
+      if (parsed.success) {
+        // ── Derive suggestedRoute from requiresInvestigation ─────────────────
+        // Rule: requiresInvestigation === true  → 'INVESTIGATION'
+        //        requiresInvestigation === false → 'DIRECT'
+        const suggestedRoute: LayaDecision['suggestedRoute'] =
+          flatRequiresInvestigation ? 'INVESTIGATION' : 'DIRECT';
+
+        return {
+          eventClass: flatEventClass,
+          severity: flatSeverity,
+          probableScope: flatProbableScope,
+          requiresInvestigation: flatRequiresInvestigation,
+          confidence: {
+            eventClass: flatConfidence,
+            // confidence.severity: not in service contract, use eventClass confidence as proxy
+            severity: flatConfidence,
+            suggestedRoute: 0.5,
+          },
+          suggestedRoute,
+          // matchedKeywords is not part of LayaDecision but could be added if needed
+        };
+      }
+      // Fall through to explicit failure path below (not silent fallback)
+    }
+
+    // ── Explicit fallback for deprecated nested snake_case shape ───────────
+    // Only active if the flat shape fails AND the deprecated nested keys exist.
+    // This preserves backward compatibility with an older ML model response format.
+    const legacyEventClass = response.event_class as {
       choice?: string;
       confidence?: number;
-    };
-    const severityResp = response.severity as {
+    } | undefined;
+    const legacySeverity = response.severity as {
       choice?: string;
       confidence?: number;
-    };
-    const requiresInvestigationResp = response.requires_investigation as {
+    } | undefined;
+    const legacyRequiresInvestigation = response.requires_investigation as {
       choice?: boolean;
       confidence?: number;
-    };
+    } | undefined;
 
-    // Build confidence object
-    const confidence = {
-      eventClass: eventClassResp?.confidence ?? 0,
-      severity: severityResp?.confidence ?? 0,
-      suggestedRoute: 0.5,
-    };
+    if (
+      legacyEventClass?.choice !== undefined ||
+      legacySeverity?.choice !== undefined ||
+      legacyRequiresInvestigation?.choice !== undefined
+    ) {
+      console.warn(
+        '[Laya] Deprecated nested response shape detected. '
+        + 'This format is no longer produced by the service; consider removing legacy mapper paths.'
+      );
 
-    // Map to our decision format
-    return {
-      eventClass: (eventClassResp?.choice as LayaDecision['eventClass']) ?? 'UNKNOWN',
-      severity: (severityResp?.choice as LayaDecision['severity']) ?? 'INFO',
-      probableScope: 'UNKNOWN',
-      suggestedRoute: 'INVESTIGATION',
-      requiresInvestigation: requiresInvestigationResp?.choice ?? true,
-      confidence,
-    };
+      const suggestedRoute: LayaDecision['suggestedRoute'] =
+        legacyRequiresInvestigation?.choice ? 'INVESTIGATION' : 'DIRECT';
+
+      return {
+        eventClass: (legacyEventClass?.choice as LayaDecision['eventClass']) ?? 'UNKNOWN',
+        severity: (legacySeverity?.choice as LayaDecision['severity']) ?? 'INFO',
+        probableScope: 'UNKNOWN', // Not available in legacy shape
+        requiresInvestigation: legacyRequiresInvestigation?.choice ?? true,
+        confidence: {
+          eventClass: legacyEventClass?.confidence ?? 0,
+          severity: legacySeverity?.confidence ?? 0,
+          suggestedRoute: 0.5,
+        },
+        suggestedRoute,
+      };
+    }
+
+    // ── Validation failed and no legacy fallback ─────────────────────────────
+    // Neither flat nor legacy shape detected. Return null so caller applies failOpen.
+    console.warn(
+      '[Laya] Response did not match expected shape (flat or legacy). '
+      + 'Returning null for fail-open.'
+    );
+    return null;
   }
 
   return {
@@ -465,7 +562,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
       // Check circuit breaker
       if (!circuitBreaker.canExecute()) {
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs: Date.now() - startTime,
           success: false,
           isFallback: true,
@@ -480,14 +577,8 @@ export function createLayaClient(config: LayaClientConfig): {
         return null;
       }
 
-      // Shadow mode: just log and return null (or mock decision)
+      // Shadow mode: consult and record, but never change routing (AD-7)
       if (layaConfig.mode === 'shadow') {
-        recordLayaDecision(metrics, {
-          latencyMs: Date.now() - startTime,
-          success: true,
-          isShadow: true,
-        });
-        // In shadow mode, we still call Laya but don't use the result
         try {
           const result = await callLaya<Record<string, unknown>>(
             '/v1/decide',
@@ -496,11 +587,44 @@ export function createLayaClient(config: LayaClientConfig): {
           );
           const latencyMs = Date.now() - startTime;
           circuitBreaker.recordSuccess();
-          return mapResponseToLayaDecision(result);
+          const decision = mapResponseToLayaDecision(result);
+
+          // Validation failed (mapper returned null) — record non-success, then return null
+          if (decision === null) {
+            recordLayaCallOutcome(metrics, {
+              latencyMs,
+              success: false,
+              isShadow: true,
+              isFallback: layaConfig.failOpen,
+            });
+            return null;
+          }
+
+          // Shadow call succeeded — record success with measured latency
+          recordLayaCallOutcome(metrics, {
+            latencyMs,
+            success: true,
+            isShadow: true,
+          });
+
+          // Return decision for logging but don't use it for routing (AD-7)
+          return decision;
         } catch (error) {
           const latencyMs = Date.now() - startTime;
           const opened = circuitBreaker.recordFailure();
+          if (opened) {
+            console.warn('[Laya] Circuit breaker opened in shadow mode');
+          }
           console.warn('[Laya] Shadow call failed:', error);
+
+          // Record failure after the call has rejected — not before
+          recordLayaCallOutcome(metrics, {
+            latencyMs,
+            success: false,
+            isShadow: true,
+            isFallback: layaConfig.failOpen,
+          });
+
           return null;
         }
       }
@@ -518,7 +642,17 @@ export function createLayaClient(config: LayaClientConfig): {
 
         const decision = mapResponseToLayaDecision(result);
 
-        recordLayaDecision(metrics, {
+        // Validation failed (mapper returned null) — apply failOpen
+        if (decision === null) {
+          recordLayaCallOutcome(metrics, {
+            latencyMs,
+            success: false,
+            isFallback: layaConfig.failOpen,
+          });
+          return null;
+        }
+
+        recordLayaCallOutcome(metrics, {
           latencyMs,
           success: true,
           suggestedRoute: decision.suggestedRoute,
@@ -534,7 +668,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
         console.warn('[Laya] Decision failed:', error);
 
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs,
           success: false,
           isTimeout,
@@ -557,7 +691,7 @@ export function createLayaClient(config: LayaClientConfig): {
       }
 
       if (!circuitBreaker.canExecute()) {
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs: 0,
           success: false,
           isFallback: true,

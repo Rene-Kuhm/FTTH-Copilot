@@ -18,6 +18,7 @@
 
 import type { IntentionLabel } from './diagnostic-router';
 import { getExpertClassifier, setLayaLogHandler, type EventClass } from '@ftth-copilot/shared';
+import type { LayaSignal } from '@ftth-copilot/shared';
 import { prisma } from '@ftth-copilot/db';
 
 // ── Module init: register Laya decision logging handler (ADR-042) ──────────
@@ -345,12 +346,46 @@ export interface PlanRouteOptions {
   surface?: string;
   toolMocks?: ReadonlyArray<{ toolName: string; returns?: unknown }>;
   allTools?: ReadonlyArray<string>;
+  /**
+   * Optional Laya signal injected by the orchestration layer (AD-6).
+   * When present, the mode override is applied INSIDE planRoute — before
+   * `tools` and `maxIterations` are derived — so the returned route is
+   * always internally consistent. planRoute remains a pure function of
+   * its inputs; the signal is an input, not a side effect.
+   */
+  layaSignal?: LayaSignal | null;
 }
 
 /**
  * End-to-end planner. Calls `classifyIntention` (Block 2's deterministic
  * classifier), extracts signals, then maps to `{ mode, tools, maxIterations,
  * reason }`. Pure (no LLM, no I/O).
+ */
+/**
+ * Explicit mapper from Laya's suggested route (AD-6).
+ * Laya uses `DIRECT | ASSISTED | INVESTIGATION`; the adaptive router uses
+ * `direct | assisted | investigation`. This is an explicit mapping, not a
+ * string coercion — invalid Laya values fall through to the adaptive route.
+ */
+function mapLayaRouteToDiagnosticMode(
+  suggested: LayaSignal['suggestedRoute']
+): DiagnosticMode | null {
+  if (suggested === 'DIRECT') return 'direct';
+  if (suggested === 'ASSISTED') return 'assisted';
+  if (suggested === 'INVESTIGATION') return 'investigation';
+  return null;
+}
+
+/**
+ * End-to-end planner. Calls `classifyIntention` (Block 2's deterministic
+ * classifier), extracts signals, then maps to `{ mode, tools, maxIterations,
+ * reason }`. Pure (no LLM, no I/O).
+ *
+ * AD-6: when `opts.layaSignal` is provided, the mode override is applied
+ * HERE — before `tools` and `maxIterations` are derived — so the returned
+ * route is always internally consistent (a promoted mode never retains
+ * `maxIterations: 0` from the pre-override decision). The signal is an
+ * input, not a side effect; the function's documented purity is preserved.
  */
 export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
   const surface = opts.surface ?? 'user-message';
@@ -361,7 +396,20 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
   };
   const { label } = classifyIntention(ctx);
   const signals = extractSignals(opts.userMessage);
-  const mode = selectMode(label, signals);
+
+  // AD-6: derive the adaptive mode first; then apply the Laya override
+  // INSIDE this function so tools and maxIterations are derived from the
+  // FINAL mode. The override is an input, not a mutation after return.
+  let mode = selectMode(label, signals);
+  if (opts.layaSignal) {
+    const layaMode = mapLayaRouteToDiagnosticMode(opts.layaSignal.suggestedRoute);
+    if (layaMode !== null) {
+      mode = layaMode;
+    }
+  }
+
+  // These are ALWAYS derived from the final mode — never from the pre-override
+  // adaptive mode. This is the AD-6 consistency guarantee.
   const tools = selectTools(mode, signals, opts.allTools);
 
   // FTTH Event Classification using Expert System (94.4% accuracy)
