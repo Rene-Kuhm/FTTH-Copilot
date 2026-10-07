@@ -1,4 +1,8 @@
-import type { AgentResult, ToolCallRecord, TenantPolicy } from '@ftth-copilot/shared';
+import type { AgentResult, ToolCallRecord, TenantPolicy, LayaMode, LayaResult } from '@ftth-copilot/shared';
+import {
+  resolveLayaEnv,
+  layaMetrics,
+} from '@ftth-copilot/shared';
 import {
   buildAbstention,
   classifyEnvelope,
@@ -320,6 +324,28 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   agentSpan.setAttribute('router.mode', route.mode);
   agentSpan.setAttribute('router.tools_count', route.tools.length);
   agentSpan.setAttribute('router.label', route.label);
+
+  // Phase 2 — Close the circuit (AD-1, AD-2, AD-4):
+  // Record the Laya decision at the orchestration call site, gated on the
+  // resolved Laya config.  planRoute is pure — recording stays here.
+  // - When Laya is disabled, nothing is recorded (R2.6).
+  // - mode is the RESOLVED Laya mode (shadow/assisted/automatic), NOT the
+  //   diagnostic route mode (direct/assisted/investigation) (AD-3).
+  // - When route.eventClass === undefined the classifier failed and the router
+  //   failed open; record with result='error' so the fail-open path is
+  //   observable (AD-4).
+  // Runs exactly once per runAgent() invocation — no double-count risk.
+  {
+    const laya = resolveLayaEnv();
+    if (laya.enabled) {
+      const layaMode: LayaMode = laya.mode;
+      const layaResult: LayaResult =
+        route.eventClass === undefined ? 'error' : 'success';
+      const eventClass = route.eventClass ?? 'UNKNOWN';
+      const confidence = route.eventConfidence ?? 0;
+      layaMetrics.recordDecision(eventClass, confidence, layaMode, layaResult);
+    }
+  }
 
   // Restrict the tools passed to the LLM based on the route.
   const restrictedToolNames = new Set(route.tools);
