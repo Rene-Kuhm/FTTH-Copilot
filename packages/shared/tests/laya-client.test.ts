@@ -205,7 +205,7 @@ describe('Laya Config', () => {
   it('loads defaults when no env vars set', () => {
     const config = loadLayaConfigFromEnv();
     expect(config.enabled).toBe(false);
-    expect(config.mode).toBe('disabled');
+    expect(config.mode).toBe('shadow'); // AD-2: mode defaults to 'shadow', not 'disabled'
     expect(config.timeoutMs).toBe(250);
     expect(config.failOpen).toBe(true);
   });

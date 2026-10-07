@@ -185,13 +185,32 @@ export interface LayaHttpConfig {
 }
 
 /**
+ * AD-2: single resolver for Laya env defaults. Both `getLayaConfig` and
+ * `loadLayaConfigFromEnv` delegate here so there is exactly one resolution rule
+ * for each of the three core knobs.
+ *
+ * Defaults (AD-2):
+ *   enabled  = LAYA_ENABLED === 'true'    (opt-in — safe default for a routing-influencing component)
+ *   mode     = LAYA_MODE ?? 'shadow'
+ *   failOpen = LAYA_FAIL_OPEN !== 'false' (fail-open is the safe default)
+ */
+export function resolveLayaEnv(): { enabled: boolean; mode: LayaMode; failOpen: boolean } {
+  return {
+    enabled: process.env.LAYA_ENABLED === 'true',
+    mode: (process.env.LAYA_MODE as LayaMode) ?? 'shadow',
+    failOpen: process.env.LAYA_FAIL_OPEN !== 'false',
+  };
+}
+
+/**
  * Default configuration from environment variables
  */
 export function getLayaConfig(): LayaConfig {
+  const { enabled, mode, failOpen } = resolveLayaEnv();
   return {
-    enabled: process.env.LAYA_ENABLED !== 'false',
-    mode: (process.env.LAYA_MODE as LayaMode) || 'shadow',
-    failOpen: process.env.LAYA_FAIL_OPEN !== 'false',
+    enabled,
+    mode,
+    failOpen,
     minConfidence: parseFloat(process.env.LAYA_MIN_CONFIDENCE || '0.75'),
     suggestRoute: process.env.LAYA_SUGGEST_ROUTE === 'true',
     allowDirectRouting: process.env.LAYA_ALLOW_DIRECT_ROUTING === 'true',

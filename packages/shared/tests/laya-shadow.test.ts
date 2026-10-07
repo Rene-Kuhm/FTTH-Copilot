@@ -14,10 +14,11 @@ import {
 
 describe('LayaShadow', () => {
   describe('getLayaConfig', () => {
-    it('returns defaults when env vars not set', () => {
+    it('returns defaults when env vars not set (AD-2: opt-in)', () => {
       const config = getLayaConfig();
-      
-      expect(config.enabled).toBe(true);
+
+      // AD-2: LAYA_ENABLED defaults to disabled (opt-in for a routing-influencing component).
+      expect(config.enabled).toBe(false);
       expect(config.mode).toBe('shadow');
       expect(config.failOpen).toBe(true);
       expect(config.minConfidence).toBe(0.75);

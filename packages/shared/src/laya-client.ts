@@ -24,6 +24,7 @@ import {
   layaHttpConfigSchema,
   layaDecisionSchema,
   layaDecisionEventSchema,
+  resolveLayaEnv,
 } from './laya-shadow.js';
 
 // ── Default configuration ────────────────────────────────────────────────────
@@ -41,14 +42,18 @@ export const DEFAULT_LAYA_CONFIG: LayaHttpConfig = {
 /**
  * Parse and validate Laya configuration from environment variables.
  * Falls back to defaults for missing values.
+ * Delegates core knob resolution to `resolveLayaEnv` (AD-2) so that the
+ * same three env vars produce identical `enabled / mode / failOpen` values
+ * regardless of which loader a caller uses.
  */
 export function loadLayaConfigFromEnv(): LayaHttpConfig {
+  const { enabled, mode, failOpen } = resolveLayaEnv();
   const raw = {
-    enabled: process.env.LAYA_ENABLED === 'true',
-    mode: process.env.LAYA_MODE ?? 'disabled',
+    enabled,
+    mode,
+    failOpen,
     url: process.env.LAYA_URL,
     timeoutMs: parseInt(process.env.LAYA_TIMEOUT_MS ?? '250', 10),
-    failOpen: process.env.LAYA_FAIL_OPEN !== 'false',
     confidenceThresholdHigh:
       parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
     confidenceThresholdLow:
