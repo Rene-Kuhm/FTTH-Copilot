@@ -1,0 +1,121 @@
+# Task: Laya Runtime Integration
+
+**ID**: LAYA-RT
+**Status**: in_progress
+**Created**: 2026-10-07
+**Priority**: high
+**Branch**: `feat/laya-runtime-integration`
+**Spec**: `openspec/changes/laya-runtime-integration/`
+
+## Problem
+
+ADR-042 declara la Laya Decision Layer como `Estado: Implementado`, pero en runtime la capa
+está cortada por una sola punta. Auditoría en `main@6b34a48`:
+
+- `packages/agent-core/src/adaptive-router.ts:361-370` **ya clasifica cada consulta** con el
+  expert system y escribe `eventClass`/`eventConfidence` en el `DiagnosticRoute`.
+- `apps/web/lib/metrics/prometheus.ts:3,313` **ya publica** la familia `ftth_laya_*` llamando
+  `layaMetrics.toPrometheusFormat()`.
+- **Nadie escribe en `layaMetrics`.** El único escritor (`recordLayaDecision`) vive en
+  `packages/shared/src/laya-client.ts`, que no es alcanzable: no está exportado desde
+  `packages/shared/src/index.ts` y ningún módulo fuera de `packages/shared` lo importa.
+
+Consecuencia medida: `toPrometheusFormat()` (`laya-metrics.ts:113-156`) emite los 6 renglones
+`# HELP`/`# TYPE` y **cero muestras**. El parser de `apps/web/components/LayaMetricsPanel.tsx:39`
+busca `^ftth_laya_requests_total\{...}` y nunca matchea. El dashboard `/dashboard/laya` muestra
+para siempre *"Sin decisiones registradas aún"* e instruye al operador a poner
+`LAYA_ENABLED=true`, que no cambia nada.
+
+## Defectos confirmados que entran en el alcance
+
+| # | Defecto | Evidencia |
+|---|---|---|
+| D1 | Defaults contradictorios para la misma env | `laya-shadow.ts:192` `LAYA_ENABLED !== 'false'` (**encendido**) vs `laya-client.ts:47` `LAYA_ENABLED === 'true'` (**apagado**) |
+| D2 | Nadie graba la decisión en `layaMetrics` | único escritor en `laya-client.ts` (inalcanzable) |
+| D3 | Colisión de nombres: dos `recordLayaDecision` con firmas incompatibles | `laya-metrics.ts:169` `(eventClass, confidence, mode, result, latencyMs?, suggestedRoute?)` vs `laya-client.ts:240` `(metrics, params)`. Bloquea exportar `laya-client` (TS2308) |
+| D4 | `laya-client.ts`/`laya-integration.ts` no exportados | `packages/shared/src/index.ts:135-137` exporta solo `laya-expert-system`, `laya-metrics`, `laya-shadow` |
+| D5 | Modos `assisted`/`automatic` del ADR no conectados | `selectMode` (`adaptive-router.ts:217`) no tiene input de Laya; `mergeRoutingDecision` sin callers |
+| D6 | El circuit breaker abre en silencio | `laya-client.ts:150` documenta `recordFailure: () => boolean` y los 3 call sites (`:502`, `:533`, `:582`) descartan el valor |
+| D7 | La respuesta de Laya nunca se valida | `layaDecisionSchema` importado en `laya-client.ts:25` y `laya-integration.ts:24` y sin usar; la salida sí se valida (`laya-integration.ts:245`) |
+| D8 | Las `LAYA_*` no están declaradas en Turbo | `turbo.json` `globalEnv` con 0 referencias → cambio de env no invalida cache |
+| D9 | `.env.example` con dos bloques Laya duplicados y puerto equivocado | bloques en `:196-242` y `:244-282`; `LAYA_URL=...:8000` en `:224` y `:268` vs `laya-client.ts:368` `:8080` y `docker-compose.yml:47` `8080` |
+| D10 | El servicio `laya` no está en demo ni prod | solo `docker-compose.yml:35` bajo `profiles: [laya]`; `docker-compose.demo.yml` y `docker-compose.prod.yml` con 0 referencias |
+
+## Fuera de alcance
+
+- Reentrenar o reemplazar el expert system (la accuracy 94.4% no se audita acá).
+- Reescribir la narrativa pública de README/ADR más allá de alinear el estado con lo verificado.
+
+## Acceptance Criteria
+
+1. Con `LAYA_ENABLED=true` y `LAYA_MODE=shadow`, una consulta real produce muestras
+   `ftth_laya_requests_total{...}` visibles en `GET /api/metrics` (hoy: 0 muestras).
+2. El panel `/dashboard/laya` muestra datos reales y su instrucción al operador es verdadera.
+3. `LAYA_ENABLED` tiene un único default en todo el repo, verificado por test.
+4. Con `LAYA_MODE=assisted|automatic`, la señal de Laya puede cambiar la ruta; con `shadow`
+   NO cambia la ruta, solo registra. Con `disabled`, no se consulta nada.
+5. Un fallo del clasificador o del servicio no rompe el pipeline (fail-open) y sí queda registrado.
+6. Los gates pasan con evidencia sin cache: `typecheck`, `lint`, `test` con `--force`,
+   más `check:sources` y `check:contribution`.
+
+## Verification evidence
+
+### Fases 1 y 2 — CERRADAS (sin commit todavía, working tree)
+
+`resolveLayaEnv()` agregado; `getLayaConfig()` y `loadLayaConfigFromEnv()` delegan en él.
+El circuito está cerrado: `runtime.ts` graba en `layaMetrics` en el call site de orquestación.
+
+| Verificación | Comando | Resultado |
+|---|---|---|
+| Typecheck sin cache | `turbo run typecheck --force` | 17/17, `0 cached` |
+| Lint sin cache | `turbo run lint --force` | 17/17, `0 cached` |
+| Tests sin cache | `turbo run test --force` | 17/17, `0 cached` |
+| Validador CI | `pnpm check:sources` | ✅ 17 vendors, sin drift |
+| Validador CI | `pnpm check:contribution` | ✅ 17 vendors limpios |
+
+**Criterio de aceptación 1 (el que importa) — verificado de forma independiente.**
+Con `LAYA_ENABLED=true`, `toPrometheusFormat()` emite muestras reales (antes: cero):
+
+```
+ftth_laya_requests_total{event_class="OPTICAL_FAULT",mode="shadow",result="success"} 1
+ftth_laya_requests_total{event_class="NORMAL",mode="shadow",result="success"} 1
+ftth_laya_latency_ms{mode="shadow",quantile="p50"} 6
+```
+
+### Red tests observados (evidencia RED, no solo GREEN)
+
+- `expected +0 to be 1` / `expected +0 to be 2` / `expected 0 to be greater than 0` al probar
+  la grabación antes de cablear el hook.
+- `expected undefined to be 'SOME_CLASS'` al invertir el check negativo que prueba que el mock
+  del clasificador está realmente activo.
+- `expected 'disabled' to be 'shadow'` en `laya-client.test.ts`, que afirmaba el default viejo.
+
+### Lo que NO se verificó
+
+- **No se ejercitó `GET /api/metrics` contra un servidor Next.js vivo** (no hay Docker ni server
+  en este entorno). Se verificó la capa de formato (`toPrometheusFormat()`), que es la misma
+  función que llama `prometheus.ts:313`. Es una inferencia, no una medición.
+- No se corrió `test:e2e` (16 specs Playwright, requieren Postgres + `db:deploy` + `db:seed`),
+  ni `db test:integration`, ni `alerts test:integration`.
+
+### Defecto de proceso registrado
+
+El primer writer editó `packages/shared/tests/laya-shadow.test.ts`, fuera de las superficies que
+le declaré, y dejó `laya-client.test.ts` en rojo por no estar en la lista. La edición fue
+correcta en sustancia; la brecha de superficie se registra para que la próxima delegación incluya
+los archivos de test que el cambio va a perturbar.
+
+### Pendiente (fases 3 a 7)
+
+Fase 3 (colisión de nombres + exports), Fase 4 (modos `assisted`/`automatic` reales),
+Fase 5 (breaker observable, validación inbound, `LAYA_*` en `turbo.json`), Fase 6 (compose,
+`.env.example`, verdad de ADR/README), Fase 7 (gates finales).
+
+<!--
+Notas de auditoría (para el revisor):
+- El "PASS" de `pnpm typecheck` sin `--force` es `cache=HIT`: no es evidencia. Verificado con
+  `turbo run typecheck --dry=json` (17/17 cache=HIT) y con `--force` (17/17, 0 cached).
+- El gate local (`pnpm test`) NO cubre lo que sí cubre CI: `test:coverage-check`, `test:e2e`
+  (16 specs Playwright con Postgres + seed + login real), `db test:integration`,
+  `alerts test:integration`, ni `pnpm build`.
+-->
