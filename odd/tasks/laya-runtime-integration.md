@@ -105,11 +105,51 @@ le declaré, y dejó `laya-client.test.ts` en rojo por no estar en la lista. La 
 correcta en sustancia; la brecha de superficie se registra para que la próxima delegación incluya
 los archivos de test que el cambio va a perturbar.
 
-### Pendiente (fases 3 a 7)
+### Fases 3 y 4 — CERRADAS (commits `d79a670` y `d0ad43f`)
 
-Fase 3 (colisión de nombres + exports), Fase 4 (modos `assisted`/`automatic` reales),
-Fase 5 (breaker observable, validación inbound, `LAYA_*` en `turbo.json`), Fase 6 (compose,
-`.env.example`, verdad de ADR/README), Fase 7 (gates finales).
+**Fase 3** — `laya-client` y `laya-integration` exportados desde el entry del paquete.
+Solo **una** colisión real: `laya-integration.ts` declaraba un `LayaDecision` idéntico al que ya
+importaba de `laya-shadow.ts`; se eliminó el duplicado. `recordLayaDecision` de `laya-client.ts`
+renombrado a `recordLayaCallOutcome`. Verifiqué el diff de `index.ts`: dos `export *`, ningún
+símbolo previamente público perdió su nombre.
+
+**Fase 4** — los cuatro modos son reales. Decisión de diseño clave (AD-6, documentada en
+`design.md`): la señal de Laya entra como **input de `planRoute`**, no como override posterior,
+porque `planRoute` deriva `tools` y `maxIterations` del modo: un override post-hoc deja una ruta
+promovida a `investigation` con `maxIterations: 0`, el loop nunca corre y el agente contesta como
+si hubiera investigado. `shadow` pasa señal nula, así no puede cambiar la ruta por construcción.
+
+| Verificación | Comando | Resultado |
+|---|---|---|
+| Typecheck sin cache | `turbo run typecheck --force` | 17/17, `0 cached` |
+| Lint sin cache | `turbo run lint --force` | 17/17, `0 cached` |
+| Tests sin cache | `turbo run test --force` | 17/17, `0 cached` |
+| Tests de agent-core | `--filter=@ftth-copilot/agent-core` | 16 archivos, 293 tests |
+
+### Sospecha revisada y descartada (no repetir)
+
+Sospeché que el camino `assisted` era inconsistente: llama `mergeRoutingDecision` para respetar los
+umbrales y después re-llama `planRoute({layaSignal})`, que aplica el `suggestedRoute` crudo. Leí
+`mergeRoutingDecision`: sus únicas salidas no-adaptativas son `'direct'` (solo si
+`suggestedRoute === 'DIRECT'`) e `'investigation'` (solo si `=== 'INVESTIGATION'`). Cuando decide
+diferir, el mapeo crudo da exactamente el mismo modo. Es autoconsistente, no un bug.
+
+### Defecto nuevo encontrado en la revisión de la Fase 4 (task 5.5)
+
+Los thresholds de confianza se resuelven **dos veces**: `laya-client.ts:57-60` y
+`runtime.ts:388-389`, los dos con fallbacks idénticos `0.95`/`0.75`. Es la misma clase de defecto
+que D1, que la Fase 1 eliminó. Los valores coinciden hoy, así que es riesgo de divergencia, no bug
+vivo. Trackeado como task 5.5.
+
+### Pendiente (fases 5 a 7)
+
+Fase 5 (breaker observable, validación inbound, `LAYA_*` en `turbo.json`, thresholds duplicados),
+Fase 6 (compose demo/prod, `.env.example`, verdad de ADR/README), Fase 7 (gates finales).
+
+### Estado git
+
+6 commits sobre `feat/laya-runtime-integration`, working tree limpio. Sin push y sin PR: eso sigue
+siendo decisión del usuario.
 
 <!--
 Notas de auditoría (para el revisor):

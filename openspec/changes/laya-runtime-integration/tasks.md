@@ -72,26 +72,54 @@ Evidence for a closed task is a command whose output is not a Turbo cache `HIT`.
   outside its declared surfaces. The edit was substantively correct, but the surface breach is
   recorded here so the next delegation widens surfaces for the test files it will disturb.
 
-## Phase 3 — Exports and the blocking collision (R5)
+## Phase 3 — Exports and the blocking collision (R5) — DONE
 
-- [ ] **3.1** Rename the colliding `recordLayaDecision` in
+- [x] **3.1** Rename the colliding `recordLayaDecision` in
   `packages/shared/src/laya-client.ts:240` to a distinct identifier and update its call sites
   (`:468`, `:485`, `:521`, `:537`, `:560`) and `packages/shared/tests/laya-client.test.ts`.
   Required before 3.2: two `export *` of the same name is an ambiguity error.
-- [ ] **3.2** Export the Laya client and integration modules from
-  `packages/shared/src/index.ts`.
-- [ ] **3.3** Verify `tsc --noEmit` passes across `packages/shared` and every consumer, proving no
-  ambiguous re-export.
-- [ ] **3.4** Extend the existing export-surface test to pin the newly public Laya symbols.
+  → renamed to `recordLayaCallOutcome`.
+- [x] **3.2** Export the Laya client and integration modules from
+  `packages/shared/src/index.ts`. → two `export *` added (not a narrowed list).
+- [x] **3.3** Verify `tsc --noEmit` passes across `packages/shared` and every consumer, proving no
+  ambiguous re-export. → 17/17, `0 cached`.
+- [x] **3.4** Extend the existing export-surface test to pin the newly public Laya symbols.
+  → 10 assertions added to `index-exports.test.ts`.
 
-## Phase 4 — Make the modes real (R4)
+**Collision audit result**: only ONE real collision existed, not the several predicted.
+`laya-integration.ts` declared a `LayaDecision` interface identical to the one in `laya-shadow.ts`
+that it already imported, so the duplicate was removed rather than renamed. `LayaMetrics` did not
+collide. Verified independently that `index.ts` gained star exports and no previously public
+symbol lost its name.
 
-- [ ] **4.1** Wire `getLayaIntegration()` / `mergeRoutingDecision` at the orchestration call site,
-  gated by the resolved mode.
-- [ ] **4.2** Implement the mode matrix of AD-3: `disabled` bypass, `shadow` record-only,
+## Phase 4 — Make the modes real (R4) — DONE
+
+- [x] **4.1** Wire `getLayaIntegration()` / `mergeRoutingDecision` at the orchestration call site,
+  gated by the resolved mode. → signal is passed INTO `planRoute`, not applied post-hoc (AD-6).
+- [x] **4.2** Implement the mode matrix of AD-3: `disabled` bypass, `shadow` record-only,
   `assisted` threshold-gated influence, `automatic` direct influence.
-- [ ] **4.3** Implement fail-open and fail-closed behavior per `failOpen` (R4.5, R4.6).
-- [ ] **4.4** RED→GREEN tests for all four modes, including unreachable-service degradation.
+- [x] **4.3** Implement fail-open and fail-closed behavior per `failOpen` (R4.5, R4.6).
+- [x] **4.4** RED→GREEN tests for all four modes, including unreachable-service degradation.
+  → `packages/agent-core/tests/laya-modes.test.ts`, 23 tests; agent-core now 16 files / 293 tests.
+
+### Design decision added during Phase 4
+
+- Design AD-6 and AD-7 were added to `design.md` before implementation. **AD-6** is the reason the
+  signal became an input: overriding `route.mode` after `planRoute` returns leaves `tools` and
+  `maxIterations` derived from the previous mode, so a route promoted to `investigation` keeps
+  `maxIterations: 0` and the cognitive loop never runs. The test file asserts the final mode's
+  `tools`/`maxIterations` are consistent, and includes a demonstration that the post-hoc variant
+  produces the stale values.
+
+### Review note (checked and dismissed)
+
+I suspected the `assisted` path was inconsistent: it calls `mergeRoutingDecision` to respect the
+thresholds, then re-calls `planRoute({ layaSignal })` which applies the signal's raw
+`suggestedRoute`, apparently ignoring those thresholds. Reading `mergeRoutingDecision` settles it:
+its only non-adaptive returns are `'direct'` when `suggestedRoute === 'DIRECT'` and
+`'investigation'` when `suggestedRoute === 'INVESTIGATION'`, so whenever it decides to differ, the
+raw mapping produces exactly the same mode. Self-consistent, not a defect. Recorded so nobody
+re-derives it.
 
 ## Phase 5 — Observability and cache correctness (R6)
 
@@ -102,6 +130,13 @@ Evidence for a closed task is a command whose output is not a Turbo cache `HIT`.
   `failOpen` instead of returning a synthesized `UNKNOWN` decision (AD-5).
 - [ ] **5.3** Declare every `LAYA_*` variable in `turbo.json` `globalEnv`.
 - [ ] **5.4** Resolve the unused-import lint warnings this leaves behind in the touched files.
+- [ ] **5.5** Remove the duplicated confidence-threshold defaulting found during the Phase 4
+  review. `packages/shared/src/laya-client.ts:57-60` and
+  `packages/agent-core/src/runtime.ts:388-389` each resolve `LAYA_CONFIDENCE_THRESHOLD_HIGH` and
+  `LAY_CONFIDENCE_THRESHOLD_LOW` with identical `0.95`/`0.75` fallbacks. This is the same class of
+  defect as D1 (two truths for one configuration) that Phase 1 eliminated; the values agree today,
+  so it is a divergence risk rather than a live bug. Expose the resolved thresholds from the
+  single config resolver and have the runtime consume them.
 
 ## Phase 6 — Deployment surfaces and documentation truth (R7)
 
