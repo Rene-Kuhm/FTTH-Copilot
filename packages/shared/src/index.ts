@@ -135,3 +135,5 @@ export * from './contracts';
 export * from './laya-expert-system';
 export * from './laya-metrics';
 export * from './laya-shadow';
+export * from './laya-client';
+export * from './laya-integration';

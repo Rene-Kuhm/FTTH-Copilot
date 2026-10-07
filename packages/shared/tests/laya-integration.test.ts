@@ -10,9 +10,8 @@ import {
   mergeRoutingDecision,
   getLayaIntegration,
   resetLayaIntegration,
-  type LayaDecision,
 } from '../src/laya-integration.js';
-import type { LayaSignal, LayaHttpConfig, LayaDecisionEvent } from '../src/laya-shadow.js';
+import type { LayaDecision, LayaSignal, LayaHttpConfig, LayaDecisionEvent } from '../src/laya-shadow.js';
 
 // ── LayaIntegration Tests ──────────────────────────────────────────────────
 

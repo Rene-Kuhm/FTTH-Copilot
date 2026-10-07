@@ -14,6 +14,7 @@
 
 import type {
   LayaDecisionEvent,
+  LayaDecision,
   LayaSignal,
   LayaHttpConfig,
   LayaMode,
@@ -30,25 +31,6 @@ import {
   type LayaClient,
   type LayaMetrics,
 } from './laya-client.js';
-
-// ── API Response types ──────────────────────────────────────────────────────
-
-/**
- * Laya decision as returned by the HTTP API client.
- * Differs from the expert-system output: confidence is a per-field object.
- */
-export interface LayaDecision {
-  eventClass: string;
-  confidence: {
-    eventClass: number;
-    suggestedRoute?: number;
-    severity?: number;
-  };
-  severity: string;
-  probableScope: string;
-  requiresInvestigation: boolean;
-  suggestedRoute?: 'DIRECT' | 'ASSISTED' | 'INVESTIGATION';
-}
 
 // ── Laya Service Integration ──────────────────────────────────────────────
 

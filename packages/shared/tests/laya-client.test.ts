@@ -7,7 +7,7 @@ import {
   loadLayaConfigFromEnv,
   createCircuitBreaker,
   createInitialMetrics,
-  recordLayaDecision,
+  recordLayaCallOutcome,
   LAYA_QUESTIONS,
 } from '../src/laya-client.js';
 
@@ -81,7 +81,7 @@ describe('Laya Metrics', () => {
 
   it('records successful decision', () => {
     const metrics = createInitialMetrics();
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 100,
       success: true,
       suggestedRoute: 'DIRECT',
@@ -97,7 +97,7 @@ describe('Laya Metrics', () => {
 
   it('records failure', () => {
     const metrics = createInitialMetrics();
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 50,
       success: false,
       isTimeout: true,
@@ -110,7 +110,7 @@ describe('Laya Metrics', () => {
 
   it('records shadow mode decisions', () => {
     const metrics = createInitialMetrics();
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 80,
       success: true,
       isShadow: true,
@@ -125,7 +125,7 @@ describe('Laya Metrics', () => {
     // Fallback is when Laya fails but we continue with fail-open
     // Note: fallbackTotal is for tracking, not for success/failure counting
     // This test documents the current behavior
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 0,
       success: false,
       isFallback: true,
@@ -139,13 +139,13 @@ describe('Laya Metrics', () => {
   it('records shadow agreement/disagreement', () => {
     const metrics = createInitialMetrics();
 
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 100,
       success: true,
       isShadow: true,
       shadowAgreement: true,
     });
-    recordLayaDecision(metrics, {
+    recordLayaCallOutcome(metrics, {
       latencyMs: 100,
       success: true,
       isShadow: true,

@@ -118,3 +118,84 @@ describe('shared public API surface — diagnostic-router Block 1 (LLM cost obse
     expect(r.latencyMs).toBeUndefined();
   });
 });
+
+// ── Laya Runtime Integration (Phase 3) — newly public surface ──────────────
+
+describe('shared public API surface — Laya client and integration modules (Phase 3)', () => {
+  it('exports createLayaClient factory function', () => {
+    expect(typeof Shared.createLayaClient).toBe('function');
+  });
+
+  it('exports LayaClient type', () => {
+    // Just verify the symbol is reachable — LayaClient is an interface
+    const client: Shared.LayaClient = {
+      isOperational: () => false,
+      getConfig: () => ({ enabled: false, mode: 'disabled', timeoutMs: 250, failOpen: true, confidenceThresholdHigh: 0.95, confidenceThresholdLow: 0.75 }),
+      getCircuitBreakerState: () => ({ status: 'closed', consecutiveFailures: 0, lastFailureTime: null }),
+      getMetrics: () => ({ requestsTotal: 0, failuresTotal: 0, timeoutsTotal: 0, shadowTotal: 0, fallbackTotal: 0, latencySum: 0, batchSizeSum: 0, routeSuggestionTotal: {}, shadowAgreementTotal: 0, shadowDisagreementTotal: 0, confidenceSum: 0, confidenceCount: 0 }),
+      decide: async () => null,
+      decideBatch: async () => [],
+      healthCheck: async () => false,
+    };
+    expect(typeof client.isOperational).toBe('function');
+  });
+
+  it('exports recordLayaCallOutcome (renamed from recordLayaDecision in laya-client)', () => {
+    expect(typeof Shared.recordLayaCallOutcome).toBe('function');
+    // Smoke test: it does not throw
+    const metrics = { requestsTotal: 0, failuresTotal: 0, timeoutsTotal: 0, shadowTotal: 0, fallbackTotal: 0, latencySum: 0, batchSizeSum: 0, routeSuggestionTotal: {}, shadowAgreementTotal: 0, shadowDisagreementTotal: 0, confidenceSum: 0, confidenceCount: 0 };
+    Shared.recordLayaCallOutcome(metrics, { latencyMs: 10, success: true });
+    expect(metrics.requestsTotal).toBe(1);
+  });
+
+  it('exports LayaIntegration class', () => {
+    expect(typeof Shared.LayaIntegration).toBe('function');
+    const instance = new Shared.LayaIntegration({ enabled: false, mode: 'disabled', timeoutMs: 250, failOpen: true, confidenceThresholdHigh: 0.95, confidenceThresholdLow: 0.75 });
+    expect(typeof instance.isEnabled).toBe('function');
+    expect(typeof instance.processEvent).toBe('function');
+  });
+
+  it('exports getLayaIntegration singleton factory', () => {
+    expect(typeof Shared.getLayaIntegration).toBe('function');
+    const inst = Shared.getLayaIntegration();
+    expect(inst).toBeInstanceOf(Shared.LayaIntegration);
+  });
+
+  it('exports resetLayaIntegration', () => {
+    expect(typeof Shared.resetLayaIntegration).toBe('function');
+    // Calling resetLayaIntegration clears the singleton so the next getLayaIntegration() creates a new instance
+    const before = Shared.getLayaIntegration();
+    Shared.resetLayaIntegration();
+    const after = Shared.getLayaIntegration();
+    expect(before).not.toBe(after); // Fresh instance after reset
+  });
+
+  it('exports shouldConsultLaya helper', () => {
+    expect(typeof Shared.shouldConsultLaya).toBe('function');
+    expect(Shared.shouldConsultLaya({ enabled: false, mode: 'disabled', timeoutMs: 250, failOpen: true, confidenceThresholdHigh: 0.95, confidenceThresholdLow: 0.75 })).toBe(false);
+    expect(Shared.shouldConsultLaya({ enabled: true, mode: 'shadow', timeoutMs: 250, failOpen: true, confidenceThresholdHigh: 0.95, confidenceThresholdLow: 0.75 })).toBe(true);
+  });
+
+  it('exports mergeRoutingDecision helper', () => {
+    expect(typeof Shared.mergeRoutingDecision).toBe('function');
+    const result = Shared.mergeRoutingDecision({
+      adaptiveRoute: 'direct',
+      layaSignal: null,
+      confidenceThresholds: { high: 0.9, low: 0.7 },
+    });
+    expect(result).toBe('direct');
+  });
+
+  it('exports LayaDecision type (re-exported from laya-shadow)', () => {
+    // LayaDecision must be importable from the package boundary
+    const decision: Shared.LayaDecision = {
+      eventClass: 'OPTICAL_FAULT',
+      confidence: { eventClass: 0.9, suggestedRoute: 0.85 },
+      severity: 'HIGH',
+      probableScope: 'PON',
+      requiresInvestigation: true,
+      suggestedRoute: 'INVESTIGATION',
+    };
+    expect(decision.eventClass).toBe('OPTICAL_FAULT');
+  });
+});

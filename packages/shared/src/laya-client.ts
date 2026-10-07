@@ -242,7 +242,7 @@ export const createInitialMetrics = (): LayaMetrics => ({
 /**
  * Record a Laya decision in metrics.
  */
-export function recordLayaDecision(
+export function recordLayaCallOutcome(
   metrics: LayaMetrics,
   params: {
     latencyMs: number;
@@ -470,7 +470,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
       // Check circuit breaker
       if (!circuitBreaker.canExecute()) {
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs: Date.now() - startTime,
           success: false,
           isFallback: true,
@@ -487,7 +487,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
       // Shadow mode: just log and return null (or mock decision)
       if (layaConfig.mode === 'shadow') {
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs: Date.now() - startTime,
           success: true,
           isShadow: true,
@@ -523,7 +523,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
         const decision = mapResponseToLayaDecision(result);
 
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs,
           success: true,
           suggestedRoute: decision.suggestedRoute,
@@ -539,7 +539,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
         console.warn('[Laya] Decision failed:', error);
 
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs,
           success: false,
           isTimeout,
@@ -562,7 +562,7 @@ export function createLayaClient(config: LayaClientConfig): {
       }
 
       if (!circuitBreaker.canExecute()) {
-        recordLayaDecision(metrics, {
+        recordLayaCallOutcome(metrics, {
           latencyMs: 0,
           success: false,
           isFallback: true,
