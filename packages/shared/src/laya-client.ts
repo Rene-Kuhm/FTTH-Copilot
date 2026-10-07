@@ -577,14 +577,8 @@ export function createLayaClient(config: LayaClientConfig): {
         return null;
       }
 
-      // Shadow mode: just log and return null (or mock decision)
+      // Shadow mode: consult and record, but never change routing (AD-7)
       if (layaConfig.mode === 'shadow') {
-        recordLayaCallOutcome(metrics, {
-          latencyMs: Date.now() - startTime,
-          success: true,
-          isShadow: true,
-        });
-        // In shadow mode, we still call Laya but don't use the result
         try {
           const result = await callLaya<Record<string, unknown>>(
             '/v1/decide',
@@ -594,13 +588,43 @@ export function createLayaClient(config: LayaClientConfig): {
           const latencyMs = Date.now() - startTime;
           circuitBreaker.recordSuccess();
           const decision = mapResponseToLayaDecision(result);
-          // In shadow mode, return the decision for logging but don't use it for routing
-          // If validation failed (null), still return null
+
+          // Validation failed (mapper returned null) — record non-success, then return null
+          if (decision === null) {
+            recordLayaCallOutcome(metrics, {
+              latencyMs,
+              success: false,
+              isShadow: true,
+              isFallback: layaConfig.failOpen,
+            });
+            return null;
+          }
+
+          // Shadow call succeeded — record success with measured latency
+          recordLayaCallOutcome(metrics, {
+            latencyMs,
+            success: true,
+            isShadow: true,
+          });
+
+          // Return decision for logging but don't use it for routing (AD-7)
           return decision;
         } catch (error) {
           const latencyMs = Date.now() - startTime;
           const opened = circuitBreaker.recordFailure();
+          if (opened) {
+            console.warn('[Laya] Circuit breaker opened in shadow mode');
+          }
           console.warn('[Laya] Shadow call failed:', error);
+
+          // Record failure after the call has rejected — not before
+          recordLayaCallOutcome(metrics, {
+            latencyMs,
+            success: false,
+            isShadow: true,
+            isFallback: layaConfig.failOpen,
+          });
+
           return null;
         }
       }

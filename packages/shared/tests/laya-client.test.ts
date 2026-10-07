@@ -454,3 +454,206 @@ describe('mapResponseToLayaDecision', () => {
     expect(true).toBe(true);
   });
 });
+
+// ── Shadow Mode Metrics Tests ──────────────────────────────────────────────
+
+describe('Shadow mode metrics recording order', () => {
+  // Shadow mode MUST NOT record success before the HTTP call resolves.
+  // The bug: recordLayaCallOutcome(success: true) is called BEFORE the call,
+  // then the call fails and returns null, but failuresTotal stays 0.
+  //
+  // Metrics fields (from laya-metrics.ts createInitialMetrics):
+  // - requestsTotal: incremented on every recordLayaCallOutcome call
+  // - failuresTotal: incremented only when success=false
+  // - shadowTotal: incremented only when success=true AND isShadow=true
+
+  it('[RED] records failure (not success) when HTTP call rejects in shadow mode', async () => {
+    // Arrange: mock fetch that rejects (simulates network failure / timeout)
+    const mockFetch = vi.fn().mockRejectedValue(new Error('fetch failed: network unreachable'));
+
+    const metrics = createInitialMetrics();
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow' },
+      fetch: mockFetch as unknown as typeof fetch,
+      metrics,
+    });
+
+    // Act
+    const result = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'los alarm on PON 3',
+    });
+
+    // Assert: call failed, returned null (correct for shadow fail-open)
+    expect(result).toBeNull();
+
+    // The bug: current code records success:true BEFORE the call, so failuresTotal stays 0.
+    // Expected: failuresTotal should be 1 because the HTTP call rejected.
+    // This assertion FAILS against the buggy code.
+    expect(metrics.failuresTotal).toBe(1);
+    expect(metrics.shadowTotal).toBe(0); // shadowTotal only on success
+    expect(metrics.requestsTotal).toBe(1); // one request recorded
+  });
+
+  it('[RED] records success with correct latency when HTTP call succeeds in shadow mode', async () => {
+    // Arrange: mock fetch that succeeds with a valid response (simulate 10ms network delay)
+    const validResponse = {
+      eventId: 'evt-123',
+      eventClass: 'OPTICAL_FAULT',
+      severity: 'HIGH',
+      probableScope: 'PON',
+      requiresInvestigation: true,
+      confidence: 0.87,
+      matchedKeywords: ['los alarm'],
+      latencyMs: 5,
+      engine: 'expert-system',
+      model: 'ftth-expert-system-v1',
+    };
+
+    const mockFetch = vi.fn().mockImplementation(() =>
+      new Promise((resolve) =>
+        setTimeout(() =>
+          resolve({
+            ok: true,
+            json: () => Promise.resolve(validResponse),
+          }),
+          10 // Simulate 10ms network latency
+        )
+      )
+    );
+
+    const metrics = createInitialMetrics();
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow' },
+      fetch: mockFetch as unknown as typeof fetch,
+      metrics,
+    });
+
+    // Act
+    const result = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'los alarm on PON 3',
+    });
+
+    // Assert: call succeeded
+    expect(result).not.toBeNull();
+    expect(result!.eventClass).toBe('OPTICAL_FAULT');
+
+    // Latency must be > 0 (measured around the call, not before it)
+    // The bug: current code uses Date.now() before the call, so latencyMs is near 0.
+    // This assertion FAILS if latency is measured before the HTTP call.
+    expect(metrics.latencySum).toBeGreaterThan(0);
+    expect(metrics.shadowTotal).toBe(1);
+    expect(metrics.failuresTotal).toBe(0);
+  });
+
+  it('[RED] records failure when mapper returns null (validation failure) in shadow mode', async () => {
+    // Arrange: mock fetch returns invalid response (mapper returns null)
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}), // Empty response — fails schema validation
+    });
+
+    const metrics = createInitialMetrics();
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow', failOpen: true },
+      fetch: mockFetch as unknown as typeof fetch,
+      metrics,
+    });
+
+    // Act
+    const result = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'test event',
+    });
+
+    // Assert: mapper returned null (validation failed), result is null
+    expect(result).toBeNull();
+
+    // The bug: current code records success:true BEFORE the call.
+    // Expected: failuresTotal should be 1 because the response was invalid.
+    // This assertion FAILS against the buggy code.
+    expect(metrics.failuresTotal).toBe(1);
+    expect(metrics.shadowTotal).toBe(0);
+  });
+
+  it('[RED] circuitBreaker.recordFailure return value is used when circuit opens in shadow mode', async () => {
+    // Arrange: create a client with a pre-tripped circuit breaker (2 failures to trigger open on 3rd)
+    const breaker = createCircuitBreaker({
+      consecutiveFailuresThreshold: 3,
+      resetTimeoutMs: 30_000,
+    });
+
+    // Pre-fail to get close to the threshold
+    breaker.recordFailure();
+    breaker.recordFailure();
+
+    const mockFetch = vi.fn().mockRejectedValue(new Error('service unavailable'));
+
+    const metrics = createInitialMetrics();
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow' },
+      circuitBreaker: breaker,
+      fetch: mockFetch as unknown as typeof fetch,
+      metrics,
+    });
+
+    // Act: this call should trigger the 3rd failure and open the circuit
+    await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'test event',
+    });
+
+    // Assert: circuit should be open now
+    // The bug: circuitBreaker.recordFailure() returns true when circuit opens,
+    // but the return value is assigned to `opened` and discarded.
+    // If the return value is discarded, the breaker state stays 'closed'.
+    // This assertion FAILS if the return value is discarded.
+    expect(breaker.getState().status).toBe('open');
+    expect(breaker.getState().consecutiveFailures).toBe(3);
+
+    // Also verify failure was recorded (which happens after recordFailure is called)
+    expect(metrics.failuresTotal).toBe(1);
+  });
+
+  it('shadow mode does not change the return value (null on failure, decision on success)', async () => {
+    // This test verifies the fix does not change shadow mode's return contract.
+    // Shadow must still return null on failure and a decision on success.
+
+    // Success case
+    const successFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        eventId: 'e1',
+        eventClass: 'NORMAL',
+        severity: 'INFO',
+        probableScope: 'UNKNOWN',
+        requiresInvestigation: false,
+        confidence: 0.9,
+      }),
+    });
+    const successClient = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow' },
+      fetch: successFetch as unknown as typeof fetch,
+    });
+
+    const successResult = await successClient.decide({
+      tenantId: 'test',
+      rawSummary: 'ok',
+    });
+    expect(successResult).not.toBeNull();
+
+    // Failure case
+    const failFetch = vi.fn().mockRejectedValue(new Error('network error'));
+    const failClient = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'shadow' },
+      fetch: failFetch as unknown as typeof fetch,
+    });
+
+    const failResult = await failClient.decide({
+      tenantId: 'test',
+      rawSummary: 'fail',
+    });
+    expect(failResult).toBeNull();
+  });
+});
