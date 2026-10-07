@@ -119,13 +119,17 @@ class LayaMetricsCollector {
       '# TYPE ftth_laya_confidence gauge',
     ];
 
-    // Requests
+    // Requests — emit snake_case labels per Prometheus convention and panel contract
     for (const [k, v] of this.counters) {
       try {
         const labels = JSON.parse(k);
         const labelStr = Object.entries(labels)
           .filter(([_, val]) => val !== undefined)
-          .map(([key, val]) => `${key}="${val}"`)
+          .map(([key, val]) => {
+            // Map camelCase stored keys to snake_case Prometheus labels
+            const snakeKey = key === 'eventClass' ? 'event_class' : key === 'suggestedRoute' ? 'suggested_route' : key;
+            return `${snakeKey}="${val}"`;
+          })
           .join(',');
         lines.push(`ftth_laya_requests_total{${labelStr}} ${v}`);
       } catch {
