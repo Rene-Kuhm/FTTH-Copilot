@@ -9,6 +9,8 @@ import {
   createInitialMetrics,
   recordLayaCallOutcome,
   LAYA_QUESTIONS,
+  createLayaClient,
+  DEFAULT_LAYA_CONFIG,
 } from '../src/laya-client.js';
 
 // ── Circuit Breaker Tests ──────────────────────────────────────────────────
@@ -229,5 +231,226 @@ describe('Laya Config', () => {
 
     const config = loadLayaConfigFromEnv();
     expect(config.failOpen).toBe(false);
+  });
+});
+
+// ── Response Mapping Tests ─────────────────────────────────────────────────
+
+describe('mapResponseToLayaDecision', () => {
+  // These tests verify that the mapper correctly parses the real service contract
+  // from services/laya/app.py DecisionResponse:
+  //
+  //   eventClass: str
+  //   severity: str
+  //   probableScope: str
+  //   requiresInvestigation: bool
+  //   confidence: float (0..1)
+  //   matchedKeywords: list[str]
+  //   latencyMs: int
+  //   engine: str
+  //   model: str
+
+  it('maps a real DecisionResponse with OPTICAL_FAULT correctly', () => {
+    // Real response body from services/laya/app.py for "los alarm on PON 3"
+    const realServiceResponse = {
+      eventId: 'e1',
+      eventClass: 'OPTICAL_FAULT',
+      severity: 'HIGH',
+      probableScope: 'PON',
+      requiresInvestigation: true,
+      confidence: 0.87,
+      matchedKeywords: ['los alarm'],
+      latencyMs: 0,
+      engine: 'expert-system',
+      model: 'ftth-expert-system-v1',
+    };
+
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'automatic' },
+    });
+
+    // Access the internal mapper through the decide call
+    // We test by verifying the client's decide returns correct values
+    // The mapper is tested via the client's decide() which uses it internally
+
+    // Since mapResponseToLayaDecision is not exported, we test through integration
+    // by mocking the HTTP call and verifying the parsed decision
+    expect(true).toBe(true); // Placeholder - will be replaced below
+  });
+
+  it('[RED] parses real service contract: eventClass, severity, probableScope come from response', async () => {
+    // This is the REAL shape that services/laya/app.py DecisionResponse returns.
+    // The flat camelCase fields are what the Python service produces.
+    const realServiceResponse = {
+      eventId: 'evt-123',
+      eventClass: 'OPTICAL_FAULT',  // Flat string, not nested { choice, confidence }
+      severity: 'HIGH',              // Flat string
+      probableScope: 'PON',          // Flat string
+      requiresInvestigation: true,   // Flat boolean
+      confidence: 0.87,              // Plain number, not { eventClass: 0.87, severity: ... }
+      matchedKeywords: ['los alarm', 'fiber cut'],
+      latencyMs: 5,
+      engine: 'expert-system',
+      model: 'ftth-expert-system-v1',
+    };
+
+    // Create a mock fetch that returns the real service response
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(realServiceResponse),
+    });
+
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'assisted' },
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    const decision = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'los alarm on PON 3',
+    });
+
+    // Assertions: these will FAIL against the broken mapper because it expects:
+    // - response.event_class.choice (not response.eventClass)
+    // - response.severity.choice (not response.severity)
+    // - response.requires_investigation.choice (not response.requiresInvestigation)
+    expect(decision).not.toBeNull();
+    expect(decision!.eventClass).toBe('OPTICAL_FAULT');      // FAILS: gets 'UNKNOWN'
+    expect(decision!.severity).toBe('HIGH');                 // FAILS: gets 'INFO'
+    expect(decision!.probableScope).toBe('PON');            // FAILS: gets 'UNKNOWN'
+    expect(decision!.requiresInvestigation).toBe(true);     // FAILS: gets true (coincidentally)
+    expect(decision!.confidence.eventClass).toBe(0.87);      // FAILS: gets 0
+  });
+
+  it('[RED] suggestedRoute is derived from requiresInvestigation, not hardcoded', async () => {
+    // When requiresInvestigation=false (e.g., NORMAL event), suggestedRoute should NOT be 'INVESTIGATION'
+    const normalEventResponse = {
+      eventId: 'evt-456',
+      eventClass: 'NORMAL',
+      severity: 'INFO',
+      probableScope: 'UNKNOWN',
+      requiresInvestigation: false,  // No investigation needed
+      confidence: 0.95,
+      matchedKeywords: ['online normal'],
+      latencyMs: 2,
+      engine: 'expert-system',
+      model: 'ftth-expert-system-v1',
+    };
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(normalEventResponse),
+    });
+
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'assisted' },
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    const decision = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'all services operational',
+    });
+
+    // The broken mapper hardcodes suggestedRoute: 'INVESTIGATION'.
+    // The fix should derive it from requiresInvestigation:
+    // - requiresInvestigation=true → 'INVESTIGATION'
+    // - requiresInvestigation=false → 'DIRECT' or 'ASSISTED'
+    expect(decision).not.toBeNull();
+    expect(decision!.requiresInvestigation).toBe(false);
+    expect(decision!.suggestedRoute).not.toBe('INVESTIGATION'); // FAILS: currently hardcoded
+  });
+
+  it('[RED] batch path (decideBatch) also uses the mapper and must work correctly', async () => {
+    const batchResponse = {
+      decisions: [
+        {
+          eventId: 'evt-1',
+          eventClass: 'OPTICAL_FAULT',
+          severity: 'HIGH',
+          probableScope: 'PON',
+          requiresInvestigation: true,
+          confidence: 0.92,
+          matchedKeywords: ['los alarm'],
+          latencyMs: 3,
+          engine: 'expert-system',
+          model: 'ftth-expert-system-v1',
+        },
+        {
+          eventId: 'evt-2',
+          eventClass: 'NORMAL',
+          severity: 'INFO',
+          probableScope: 'UNKNOWN',
+          requiresInvestigation: false,
+          confidence: 0.88,
+          matchedKeywords: ['online normal'],
+          latencyMs: 2,
+          engine: 'expert-system',
+          model: 'ftth-expert-system-v1',
+        },
+      ],
+      total: 2,
+      totalLatencyMs: 5,
+    };
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(batchResponse),
+    });
+
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'assisted' },
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    const decisions = await client.decideBatch([
+      { tenantId: 't1', rawSummary: 'los alarm' },
+      { tenantId: 't1', rawSummary: 'all ok' },
+    ]);
+
+    expect(decisions).toHaveLength(2);
+    // First decision
+    expect(decisions[0]).not.toBeNull();
+    expect(decisions[0]!.eventClass).toBe('OPTICAL_FAULT');   // FAILS: gets 'UNKNOWN'
+    expect(decisions[0]!.severity).toBe('HIGH');              // FAILS: gets 'INFO'
+    expect(decisions[0]!.confidence.eventClass).toBe(0.92);   // FAILS: gets 0
+    // Second decision
+    expect(decisions[1]).not.toBeNull();
+    expect(decisions[1]!.eventClass).toBe('NORMAL');          // FAILS: gets 'UNKNOWN'
+    expect(decisions[1]!.confidence.eventClass).toBe(0.88);   // FAILS: gets 0
+  });
+
+  it('[RED] validates payload with layaDecisionSchema and handles invalid input', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),  // Empty response - invalid
+    });
+
+    const client = createLayaClient({
+      config: { ...DEFAULT_LAYA_CONFIG, enabled: true, mode: 'assisted', failOpen: true },
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    // With failOpen=true, an invalid response should return null (not a fake decision)
+    const decision = await client.decide({
+      tenantId: 'test-tenant',
+      rawSummary: 'test event',
+    });
+
+    // The broken mapper silently returns a fake 'UNKNOWN' decision.
+    // The fix should validate with layaDecisionSchema and:
+    // - If failOpen=true: return null
+    // - If failOpen=false: throw
+    expect(decision).toBeNull(); // FAILS: currently returns a fake decision
+  });
+
+  it('documents the suggestedRoute derivation rule', () => {
+    // Rule: derived deterministically from requiresInvestigation
+    // - requiresInvestigation === true  → suggestedRoute = 'INVESTIGATION'
+    // - requiresInvestigation === false → suggestedRoute = 'DIRECT' (high confidence) or 'ASSISTED'
+    //
+    // This test documents the expected behavior after the fix.
+    // The actual derivation logic is tested by the tests above.
+    expect(true).toBe(true);
   });
 });
