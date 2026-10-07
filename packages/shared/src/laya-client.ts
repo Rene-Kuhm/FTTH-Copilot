@@ -18,7 +18,6 @@ import type {
   LayaDecisionEvent,
   LayaDecision,
   LayaHttpConfig,
-  LayaMode,
 } from './laya-shadow';
 import {
   layaHttpConfigSchema,
@@ -47,17 +46,15 @@ export const DEFAULT_LAYA_CONFIG: LayaHttpConfig = {
  * regardless of which loader a caller uses.
  */
 export function loadLayaConfigFromEnv(): LayaHttpConfig {
-  const { enabled, mode, failOpen } = resolveLayaEnv();
+  const { enabled, mode, failOpen, confidenceThresholdHigh, confidenceThresholdLow } = resolveLayaEnv();
   const raw = {
     enabled,
     mode,
     failOpen,
     url: process.env.LAYA_URL,
     timeoutMs: parseInt(process.env.LAYA_TIMEOUT_MS ?? '250', 10),
-    confidenceThresholdHigh:
-      parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_HIGH ?? '0.95'),
-    confidenceThresholdLow:
-      parseFloat(process.env.LAYA_CONFIDENCE_THRESHOLD_LOW ?? '0.75'),
+    confidenceThresholdHigh,
+    confidenceThresholdLow,
     model: process.env.LAYA_MODEL ?? 'laya-multilingual',
     modelVersion: process.env.LAYA_MODEL_VERSION,
   };
@@ -665,6 +662,9 @@ export function createLayaClient(config: LayaClientConfig): {
         const isTimeout =
           error instanceof Error && error.message === 'Laya request timeout';
         const opened = circuitBreaker.recordFailure();
+        if (opened) {
+          console.warn('[Laya] Circuit breaker opened in active mode');
+        }
 
         console.warn('[Laya] Decision failed:', error);
 
@@ -714,6 +714,9 @@ export function createLayaClient(config: LayaClientConfig): {
         });
       } catch (error) {
         const opened = circuitBreaker.recordFailure();
+        if (opened) {
+          console.warn('[Laya] Circuit breaker opened in active mode');
+        }
         console.warn('[Laya] Batch failed:', error);
 
         if (layaConfig.failOpen) {

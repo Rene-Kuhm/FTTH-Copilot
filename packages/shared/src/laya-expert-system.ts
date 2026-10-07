@@ -210,7 +210,7 @@ export class FTTHExpertClassifier {
     }
 
     // Match patterns
-    for (const [pattern, { eventClass, priority }] of this.patterns) {
+    for (const [pattern, { eventClass }] of this.patterns) {
       if (textLower.includes(pattern)) {
         scores[eventClass] += 1;
         matchedKeywords.push(pattern);

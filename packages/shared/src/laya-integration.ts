@@ -22,7 +22,6 @@ import type {
 import type { EventClass, Severity, ProbableScope } from './laya-expert-system';
 import {
   layaDecisionEventSchema,
-  layaDecisionSchema,
 } from './laya-shadow';
 import {
   createLayaClient,
