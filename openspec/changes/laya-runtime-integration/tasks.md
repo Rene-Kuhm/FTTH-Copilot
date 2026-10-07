@@ -62,7 +62,7 @@ Evidence for a closed task is a command whose output is not a Turbo cache `HIT`.
 
 ### Verification defects caught during review
 
-- [ ] **2.9 (open)** A test was initially written as a tautology: it called
+- [x] **2.9 (open)** A test was initially written as a tautology: it called
   `layaMetrics.recordDecision('UNKNOWN', 0, 'shadow', 'error')` by hand and then asserted that
   `result='error'` was stored, while its comment claimed the runtime wiring was covered
   elsewhere. It was replaced by `packages/agent-core/tests/laya-classifier-failure.test.ts`,
@@ -123,14 +123,14 @@ re-derives it.
 
 ## Phase 5 — Observability and cache correctness (R6)
 
-- [ ] **5.1** Consume the boolean returned by `circuitBreaker.recordFailure()` at
+- [x] **5.1** Consume the boolean returned by `circuitBreaker.recordFailure()` at
   `laya-client.ts:502`, `:533`, `:582`; emit a log and/or metric when the breaker transitions to
   open.
-- [ ] **5.2** Validate inbound Laya responses with `layaDecisionSchema`; on failure follow
+- [x] **5.2** Validate inbound Laya responses with `layaDecisionSchema`; on failure follow
   `failOpen` instead of returning a synthesized `UNKNOWN` decision (AD-5).
-- [ ] **5.3** Declare every `LAYA_*` variable in `turbo.json` `globalEnv`.
-- [ ] **5.4** Resolve the unused-import lint warnings this leaves behind in the touched files.
-- [ ] **5.5** Remove the duplicated confidence-threshold defaulting found during the Phase 4
+- [x] **5.3** Declare every `LAYA_*` variable in `turbo.json` `globalEnv`.
+- [x] **5.4** Resolve the unused-import lint warnings this leaves behind in the touched files.
+- [x] **5.5** Remove the duplicated confidence-threshold defaulting found during the Phase 4
   review. `packages/shared/src/laya-client.ts:57-60` and
   `packages/agent-core/src/runtime.ts:388-389` each resolve `LAYA_CONFIDENCE_THRESHOLD_HIGH` and
   `LAY_CONFIDENCE_THRESHOLD_LOW` with identical `0.95`/`0.75` fallbacks. This is the same class of
@@ -140,21 +140,21 @@ re-derives it.
 
 ## Phase 6 — Deployment surfaces and documentation truth (R7)
 
-- [ ] **6.1** Add the `laya` service to `docker-compose.demo.yml` and
+- [x] **6.1** Add the `laya` service to `docker-compose.demo.yml` and
   `docker-compose.prod.yml`, and pass the `LAYA_*` variables to the application service.
-- [ ] **6.2** De-duplicate `.env.example`'s two Laya blocks (currently `:196-242` and `:244-282`)
+- [x] **6.2** De-duplicate `.env.example`'s two Laya blocks (currently `:196-242` and `:244-282`)
   and correct the `LAYA_URL` example port from `8000` to `8080`.
-- [ ] **6.3** Update `docs/engineering/ADR-042-laya-decision-layer.md` and the README's Laya claims
+- [x] **6.3** Update `docs/engineering/ADR-042-laya-decision-layer.md` and the README's Laya claims
   to the state verification actually established — including removing the stray `满意` in
   `README.md:453`.
-- [ ] **6.4** Record the final evidence in `odd/tasks/laya-runtime-integration.md`.
+- [x] **6.4** Record the final evidence in `odd/tasks/laya-runtime-integration.md`.
 
 ## Phase 7 — Gates
 
-- [ ] **7.1** `pnpm exec turbo run typecheck --force` → 17/17, `0 cached`.
-- [ ] **7.2** `pnpm exec turbo run lint --force` → 17/17, `0 cached`.
-- [ ] **7.3** `pnpm exec turbo run test --force` → 17/17, `0 cached`.
-- [ ] **7.4** `pnpm exec turbo run build --force` → web build produces a fresh `BUILD_ID`.
-- [ ] **7.5** `pnpm check:sources` and `pnpm check:contribution` pass.
-- [ ] **7.6** Confirm CI's `test:e2e` and `test-integration` jobs are unaffected by the changed
+- [x] **7.1** `pnpm exec turbo run typecheck --force` → 17/17, `0 cached`.
+- [x] **7.2** `pnpm exec turbo run lint --force` → 17/17, `0 cached`.
+- [x] **7.3** `pnpm exec turbo run test --force` → 17/17, `0 cached`.
+- [x] **7.4** `pnpm exec turbo run build --force` → web build produces a fresh `BUILD_ID`.
+- [x] **7.5** `pnpm check:sources` and `pnpm check:contribution` pass.
+- [x] **7.6** Confirm CI's `test:e2e` and `test-integration` jobs are unaffected by the changed
   surfaces, or state explicitly that they were not run locally.

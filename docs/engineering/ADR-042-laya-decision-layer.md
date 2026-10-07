@@ -5,6 +5,12 @@
 **Decisores:** equipo FTTH-Copilot\
 **Proyecto:** FTTH-Copilot
 
+> **Estado de implementación (verificado 2026-10-07).** El layer funciona end-to-end: la decisión se clasifica, se registra en `layaMetrics` y se expone en `GET /api/metrics` como `ftth_laya_*`, y los cuatro modos (`disabled`, `shadow`, `assisted`, `automatic`) están implementados sobre `planRoute`. El servicio FastAPI (`services/laya/`) es **opt-in** vía el profile `laya`; con `LAYA_ENABLED=true` y sin servicio alcanzable, Laya degrada en fail-open y registra `fallback` en vez de decisiones.
+>
+> El PR #297 cerró tres defectos que impedían que funcionara: el cliente parseaba una forma de respuesta que el servicio nunca devolvió (toda decisión caía a `UNKNOWN` registrándose como `success`), `shadow` registraba `success` antes de llamar al servicio, y `laya-integration`/`laya-client` no eran alcanzables desde el paquete.
+>
+> **Deuda conocida:** el boolean de `circuitBreaker.recordFailure()` se sigue descartando en la rama activa del cliente (la rama `shadow` ya lo reporta).
+
 ---
 
 ## Contexto

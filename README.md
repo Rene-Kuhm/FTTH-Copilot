@@ -450,7 +450,7 @@ El **Organic Diagnostic Router** clasifica cada consulta del operador y, para ev
 | CONGESTION | Asistencia | `assisted` |
 | UNKNOWN | Investigación | `investigation` |
 
-Laya arranca en **shadow mode**: decide pero solo loguea. Cuando la accuracy sea满意, se activa `LAYA_MODE=assisted` para influir en el routing.
+Laya arranca en **shadow mode**: consulta al servicio y registra la decisión, pero **no** cambia la ruta. Cuando la accuracy medida lo justifique, `LAYA_MODE=assisted` deja que la señal influya en el routing dentro de los umbrales de confianza configurados, y `LAYA_MODE=automatic` permite que Laya elija la ruta directamente. Los modos `assisted` y `automatic` consultan el servicio por HTTP, así que necesitan `LAYA_URL` alcanzable — sin él, Laya degrada en fail-open y registra `fallback`.
 
 Cada consulta del operador se clasifica en uno de tres modos de despacho. El modo determina **cuántas llamadas al LLM** se hacen y **qué subconjunto de herramientas** recibe el modelo.
 
