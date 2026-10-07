@@ -19,13 +19,13 @@ import type {
   LayaDecision,
   LayaHttpConfig,
   LayaMode,
-} from './laya-shadow.js';
+} from './laya-shadow';
 import {
   layaHttpConfigSchema,
   layaDecisionSchema,
   layaDecisionEventSchema,
   resolveLayaEnv,
-} from './laya-shadow.js';
+} from './laya-shadow';
 
 // ── Default configuration ────────────────────────────────────────────────────
 

@@ -18,19 +18,19 @@ import type {
   LayaSignal,
   LayaHttpConfig,
   LayaMode,
-} from './laya-shadow.js';
+} from './laya-shadow';
 import type { EventClass, Severity, ProbableScope } from './laya-expert-system';
 import {
   layaDecisionEventSchema,
   layaDecisionSchema,
-} from './laya-shadow.js';
+} from './laya-shadow';
 import {
   createLayaClient,
   loadLayaConfigFromEnv,
   createInitialMetrics,
   type LayaClient,
   type LayaMetrics,
-} from './laya-client.js';
+} from './laya-client';
 
 // ── Laya Service Integration ──────────────────────────────────────────────
 
