@@ -234,6 +234,17 @@ networks:
     driver: bridge
 
 volumes:
+  # ─────────────────────────────────────────────────────────────────────────
+  # WARNING: these hold production state. `docker compose down -v` deletes
+  # them, and `docker compose down` in a DIFFERENT project directory can
+  # orphan them and create empty replacements. Back up before any down/up.
+  #
+  # They are deliberately NOT declared `external: true` and carry no explicit
+  # `name:`: both change the volume identity, and a name that does not match
+  # the volume already in use makes Compose silently create an EMPTY one —
+  # losing exactly the data the change was meant to protect. Pin the names
+  # only together with the actual volume list of the deployment.
+  # ─────────────────────────────────────────────────────────────────────────
   # Buffered syslog/SNMP events awaiting a write to Postgres. Losing this
   # volume loses telemetry, so it is treated as persistent state.
   spool_data:
