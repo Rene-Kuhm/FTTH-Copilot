@@ -12,9 +12,11 @@ Analítica del pipeline de telemetría FTTH. El paquete cubre tres tramos:
 3. **SLA**: calcular uptime sobre una ventana a partir de muestras puntuales de
    estado (`computeUptime`).
 
-No expone rutas HTTP ni UI. Salvo `ingest.ts` y `retention.ts`, que escriben en
-la base a través de `@ftth-copilot/db`, todo es cálculo puro sobre arreglos y
-números: se puede testear sin base y sin red.
+No expone rutas HTTP ni UI. La mayoría de los módulos son cálculo puro
+sobre arreglos y números y se pueden testear sin base ni red; las excepciones
+son `collect.ts` (habla con el conector NMS: `listOlts`, `listOnus`,
+`getOltDetail` y `getOnuDetail`) y `ingest.ts` / `retention.ts` (escriben en
+`metricSample` a través de `@ftth-copilot/db`).
 
 Dependencias de workspace: `@ftth-copilot/connectors-core` (interfaz
 `INmsConnector`) y `@ftth-copilot/db` (Prisma).
