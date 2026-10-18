@@ -15,10 +15,12 @@
  *   LDAP_EMAIL_ATTR    — attribute for email, default: mail
  *   LDAP_NAME_ATTR     — attribute for display name, default: cn
  *   LDAP_GROUP_ATTR    — attribute for group membership, default: memberOf
- *   LDAP_ROLE_MAP      — comma-separated role mappings, default: CN=NOC-Admins:OWNER,CN=NOC-Admins:ADMIN
+ *   LDAP_ROLE_MAP      — comma-separated role mappings, default: CN=NOC-Admins:ADMIN,CN=NOC-Ops:OPERATOR,CN=NOC-Members:MEMBER
+ *                        (a group may appear only once: the last mapping for a group wins,
+ *                        so OWNER has to be granted through an explicit LDAP_ROLE_MAP entry)
  */
 
-import type { Client, SearchEntryObject, SearchOptions } from 'ldapjs';
+import type { Client, Entry, SearchOptions } from 'ldapts';
 
 export interface LdapConfig {
   enabled: boolean;
@@ -60,8 +62,9 @@ function loadConfig(): LdapConfig {
   const enabled = process.env.LDAP_ENABLED === 'true';
   const roleMap = new Map<string, LdapRole>();
 
+  // One mapping per group: the map is keyed by group, so a second entry for the
+  // same group would silently discard the first.
   const defaultRoleMap = [
-    'CN=NOC-Admins:OWNER',
     'CN=NOC-Admins:ADMIN',
     'CN=NOC-Ops:OPERATOR',
     'CN=NOC-Members:MEMBER',
@@ -105,11 +108,34 @@ function deriveRole(groups: string[], roleMap: Map<string, LdapRole>): LdapRole 
   return best;
 }
 
-function getAttrValue(entry: SearchEntryObject, attr: string): string | undefined {
-  const attrObj = entry.attributes.find((a) => a.type === attr);
-  if (!attrObj) return undefined;
-  const first = attrObj.values[0];
-  return first !== undefined ? String(first) : undefined;
+/**
+ * Read one attribute as a list of string values.
+ *
+ * ldapts flattens search entries: an attribute holding a single value is a bare
+ * `string`, a multi-valued attribute is `string[]`, and an absent attribute has
+ * no key at all. Attribute-name casing is whatever the server returned, so a
+ * case-insensitive fallback keeps lookups working after the ldapjs migration.
+ * Lookups stay on own properties so prototype members (`constructor`) can never
+ * be mistaken for directory attributes.
+ */
+function getAttrValues(entry: Entry, attr: string): string[] {
+  let raw: Entry[string] | undefined;
+  if (Object.hasOwn(entry, attr)) {
+    raw = entry[attr];
+  } else {
+    const key = Object.getOwnPropertyNames(entry).find(
+      (candidate) => candidate.toLowerCase() === attr.toLowerCase(),
+    );
+    raw = key === undefined ? undefined : entry[key];
+  }
+  if (raw === undefined) return [];
+  const values: Array<Buffer | string> = Array.isArray(raw) ? raw : [raw as Buffer | string];
+  return values.map(String);
+}
+
+function getAttrValue(entry: Entry, attr: string): string | undefined {
+  const first = getAttrValues(entry, attr)[0];
+  return first !== undefined ? first : undefined;
 }
 
 /** Extract CN from a full DN string, e.g. "CN=NOC-Admins,OU=Groups,DC=example,DC=com" → "CN=NOC-Admins" */
@@ -117,37 +143,75 @@ function extractCn(dn: string): string {
   return dn.split(',')[0] ?? dn;
 }
 
-/** Wrap a callback-style LDAP operation in a Promise */
-function bindAs(client: Client, dn: string, password: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    client.bind(dn, password, (err: Error | null) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+/**
+ * Turn a thrown LDAP error into a readable message.
+ *
+ * Node's `net.connect` resolves a hostname to every address and, with
+ * autoSelectFamily enabled, rejects a total failure with an `AggregateError`
+ * whose own message is empty (e.g. a host with both A and AAAA records). Fall
+ * back to the first nested failure before the generic text so callers never see
+ * an empty error string.
+ */
+function describeLdapError(err: unknown, fallback: string): string {
+  if (err instanceof Error) {
+    if (err.message) return err.message;
+    const nested = (err as { errors?: unknown }).errors;
+    if (Array.isArray(nested)) {
+      for (const candidate of nested) {
+        if (candidate instanceof Error && candidate.message) return candidate.message;
+      }
+    }
+    return fallback;
+  }
+  return fallback;
 }
 
-function searchUser(
+async function searchUser(
   client: Client,
   base: string,
   filter: string,
   attrs: string[],
-): Promise<SearchEntryObject[]> {
-  return new Promise((resolve, reject) => {
-    const entries: SearchEntryObject[] = [];
-    const opts: SearchOptions = {
-      scope: 'sub',
-      filter,
-      attributes: attrs,
-      sizeLimit: 1,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    client.search(base, opts, (err: any, res: any) => {
-      if (err) { reject(err); return; }
-      res.on('searchEntry', (entry: { pojo: SearchEntryObject }) => { entries.push(entry.pojo); });
-      res.on('error', reject);
-      res.on('end', () => resolve(entries));
-    });
+): Promise<Entry[]> {
+  const options: SearchOptions = {
+    scope: 'sub',
+    filter,
+    attributes: attrs,
+    // Two entries are enough to tell a unique match from an ambiguous one: the
+    // previous client failed the search when the limit was hit, and an ambiguous
+    // filter must not silently resolve to whichever entry the server listed first.
+    sizeLimit: 2,
+  };
+  const { searchEntries } = await client.search(base, options);
+  return searchEntries;
+}
+
+/** Close the connection without letting a close failure replace the caller's result. */
+async function closeClient(client: Client): Promise<void> {
+  try {
+    await client.unbind();
+  } catch {
+    // The client destroys the socket in a `finally`, so a failed unbind still
+    // releases the connection; reporting it would mask the authentication result.
+  }
+}
+
+/**
+ * Load ldapts lazily: the client opens sockets, so it is only imported when a
+ * call actually needs LDAP. Dynamic imports are cached by the runtime.
+ */
+async function loadLdapts(): Promise<typeof import('ldapts')> {
+  return import('ldapts');
+}
+
+/**
+ * Create a client with the module's fixed timeout policy.
+ */
+async function createClient(url: string): Promise<Client> {
+  const { Client: LdapClient } = await loadLdapts();
+  return new LdapClient({
+    url,
+    timeout: 5000,
+    connectTimeout: 5000,
   });
 }
 
@@ -175,19 +239,21 @@ export async function authenticateLdapUser(
     return { ok: false, error: 'LDAP not configured (missing BIND_DN or SEARCH_BASE)' };
   }
 
-  const { createClient } = await import('ldapjs');
-  const client = createClient({
-    url: config.url,
-    timeout: 5000,
-    connectTimeout: 5000,
-  });
+  // An empty password must never reach the directory: LDAP turns it into an
+  // RFC 4513 unauthenticated bind, which some servers answer with success.
+  if (!password) {
+    return { ok: false, error: 'Credenciales LDAP inválidas' };
+  }
+
+  const { Filter } = await loadLdapts();
+  const client = await createClient(config.url);
 
   try {
     // Step 1: Bind as service account
-    await bindAs(client, config.bindDn, config.bindPassword);
+    await client.bind(config.bindDn, config.bindPassword);
 
     // Step 2: Search for user
-    const filter = config.userFilter.replace(/\{username\}/g, username);
+    const filter = config.userFilter.replace(/\{username\}/g, Filter.escape(username));
     const entries = await searchUser(
       client,
       config.searchBase,
@@ -196,28 +262,38 @@ export async function authenticateLdapUser(
     );
 
     if (entries.length === 0) {
-      client.unbind();
+      await closeClient(client);
       return { ok: false, error: 'Usuario no encontrado en LDAP' };
     }
 
-    const entry = entries[0];
-    const userDn = entry.objectName ?? '';
+    if (entries.length > 1) {
+      await closeClient(client);
+      return { ok: false, error: 'Múltiples usuarios coinciden en LDAP' };
+    }
+
+    const entry = entries[0] as Entry;
+    const userDn = entry.dn ?? '';
+
+    // Binding an empty DN is an anonymous bind, which servers accept.
+    if (!userDn) {
+      await closeClient(client);
+      return { ok: false, error: 'Credenciales LDAP inválidas' };
+    }
 
     // Step 3: Verify password by binding as the user
     try {
-      await bindAs(client, userDn, password);
+      await client.bind(userDn, password);
     } catch {
-      client.unbind();
+      await closeClient(client);
       return { ok: false, error: 'Credenciales LDAP inválidas' };
     }
 
     // Step 4: Extract attributes
     const email = getAttrValue(entry, config.emailAttr) ?? '';
     const name = getAttrValue(entry, config.nameAttr) ?? username;
-    const groupAttr = entry.attributes.find((a) => a.type === config.groupAttr);
-    const groups = groupAttr?.values.map(String).map(extractCn) ?? [];
+    const groups = getAttrValues(entry, config.groupAttr).map(extractCn);
 
-    client.unbind();
+    await closeClient(client);
 
     // Step 5: Map groups to role
     const role = deriveRole(groups, config.roleMap);
@@ -228,9 +304,8 @@ export async function authenticateLdapUser(
 
     return { ok: true, user: { dn: userDn, email, name, groups, role } };
   } catch (err) {
-    try { client.unbind(); } catch { /* ignore */ }
-    const message = err instanceof Error ? err.message : 'Error de conexión LDAP';
-    return { ok: false, error: message };
+    await closeClient(client);
+    return { ok: false, error: describeLdapError(err, 'Error de conexión LDAP') };
   }
 }
 
@@ -242,25 +317,23 @@ export async function diagnoseLdap(): Promise<{ ok: boolean; error?: string; det
     return { ok: false, error: 'LDAP is not enabled (LDAP_ENABLED != true)' };
   }
 
-  try {
-    const { createClient } = await import('ldapjs');
-    const client = createClient({
-      url: config.url,
-      timeout: 5000,
-      connectTimeout: 5000,
-    });
+  let client: Client | undefined;
 
-    await bindAs(client, config.bindDn, config.bindPassword);
-    client.unbind();
+  try {
+    client = await createClient(config.url);
+
+    await client.bind(config.bindDn, config.bindPassword);
+    await closeClient(client);
 
     return {
       ok: true,
       details: `Connected to ${config.url} as ${config.bindDn} | Search base: ${config.searchBase}`,
     };
   } catch (err) {
+    if (client) await closeClient(client);
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'Connection failed',
+      error: describeLdapError(err, 'Connection failed'),
     };
   }
 }
