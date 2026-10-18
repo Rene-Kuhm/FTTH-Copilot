@@ -4,6 +4,7 @@ import {
   buildWebhookPayload,
   buildEmailMessage,
   resolveRouting,
+  dispatchToChannel,
   redactSecrets,
   type NotificationContext,
   type NotificationChannel,
@@ -94,6 +95,35 @@ describe('buildEmailMessage', () => {
     const m = buildEmailMessage({ ...ctx, title: '<script>alert(1)</script>' });
     expect(m.html).not.toContain('<script>');
     expect(m.html).toContain('&lt;script&gt;');
+  });
+});
+
+describe('dispatchToChannel — email', () => {
+  const email: NotificationChannel = {
+    ...slack,
+    id: 'c2',
+    type: 'email',
+    target: 'noc@example.com',
+  };
+
+  it('returns the rendered text so a relay caller gets the exact bytes rendered', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const result = await dispatchToChannel(email, ctx);
+
+    expect(result.message).toBe(buildEmailMessage(ctx).text);
+    expect(result.message).toContain(ctx.body);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('still reports a skipped, failed dispatch against a redacted target', async () => {
+    const result = await dispatchToChannel(email, ctx);
+
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe(true);
+    expect(result.type).toBe('email');
+    expect(result.channelId).toBe('c2');
+    expect(result.target).toBe(redactSecrets(email.target));
   });
 });
 

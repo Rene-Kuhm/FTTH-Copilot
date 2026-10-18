@@ -226,6 +226,14 @@ export interface DispatchResult {
   target: string;
   error?: string;
   skipped?: boolean;
+  /**
+   * The rendered payload text, when a channel was rendered but not transported.
+   *
+   * Present on the skipped `email` branch: rendering is separated from transport, so a
+   * caller that owns an SMTP relay can hand over the exact bytes this module produced
+   * instead of building them again and risking a different message.
+   */
+  message?: string;
 }
 
 /**
@@ -246,15 +254,17 @@ export async function dispatchToChannel(
   try {
     if (channel.type === 'email') {
       // Email needs an SMTP relay, which is deployment-specific and out of scope for
-      // the HTTP path. The message is rendered and returned so a caller with a relay
-      // configured can hand it over; the demo stack has no relay.
-      const message = buildEmailMessage(ctx);
+      // the HTTP path. Transport is skipped, but the rendered plain-text message is
+      // returned in `message` so a caller with a relay configured can hand over exactly
+      // what was rendered here; the demo stack has no relay.
+      const { text } = buildEmailMessage(ctx);
       return {
         channelId: channel.id,
         type: 'email',
         ok: false,
         target: safeTarget,
         skipped: true,
+        message: text,
         error: 'No SMTP relay configured',
       };
     }
