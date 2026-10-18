@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@ftth-copilot/db';
+import { prisma, Prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { auditUser } from '@ftth-copilot/soc';
@@ -76,22 +76,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { hashPassword } = await import('@ftth-copilot/db');
   const passwordHash = await hashPassword(password);
 
-  const created = await prisma.user.create({
-    data: {
-      email,
-      name: name ?? null,
-      passwordHash,
-      role,
-      tenantId: user.tenantId,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      createdAt: true,
-    },
-  });
+  let created: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+    createdAt: Date;
+  };
+  try {
+    created = await prisma.user.create({
+      data: {
+        email,
+        name: name ?? null,
+        passwordHash,
+        role,
+        tenantId: user.tenantId,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  } catch (err) {
+    // The pre-check above is per-tenant, but the schema enforces email
+    // uniqueness globally (across tenants). The unique constraint is the
+    // second line of defence and also covers the race between the check and
+    // the insert, so both cases answer with a clean 409 instead of a 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
+    }
+    throw err;
+  }
 
   // Audit log
   await auditUser.created(
