@@ -372,21 +372,21 @@ function readSingleConfig(name: string): LlmClientConfig | null {
   switch (name) {
     case 'minimax': {
       const apiKey = process.env['MINIMAX_API_KEY'];
-      const model = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M3';
+      const model = process.env['MINIMAX_MODEL'] ?? 'MiniMax-M3.1-Flash';
       const baseURL = process.env['MINIMAX_BASE_URL'] ?? 'https://api.minimax.io/anthropic';
       if (!isValidApiKey(apiKey)) return null;
       return { provider: 'minimax', apiKey: apiKey!.trim(), model, baseURL };
     }
     case 'deepseek': {
       const apiKey = process.env['DEEPSEEK_API_KEY'];
-      const model = process.env['DEEPSEEK_MODEL'] ?? 'deepseek-chat';
+      const model = process.env['DEEPSEEK_MODEL'] ?? 'deepseek-flash';
       const baseURL = process.env['DEEPSEEK_BASE_URL'] ?? 'https://api.deepseek.com/v1';
       if (!isValidApiKey(apiKey)) return null;
       return { provider: 'deepseek', apiKey: apiKey!.trim(), model, baseURL };
     }
     case 'qwen': {
       const apiKey = process.env['QWEN_API_KEY'];
-      const model = process.env['QWEN_MODEL'] ?? 'qwen-plus';
+      const model = process.env['QWEN_MODEL'] ?? 'qwen3.7-plus';
       const baseURL =
         process.env['QWEN_BASE_URL'] ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1';
       if (!isValidApiKey(apiKey)) return null;
