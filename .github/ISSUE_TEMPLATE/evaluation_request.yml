@@ -90,6 +90,8 @@ body:
         - label: I have watched the demo video (37s)
         - label: I have read the case study (`docs/case-study-synthetic.md`)
         - label: Not yet, but I want to before the session
+    validations:
+      required: true
 
   - type: textarea
     id: questions
