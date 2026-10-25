@@ -6,8 +6,9 @@ labels:
 body:
   - type: markdown
     attributes:
-      label: Before you propose
-      description: |
+      value: |
+        ### Before you propose
+
         Use this form for capabilities that do not exist yet. For a defect in existing behavior, use
         the **Bug report** template.
 

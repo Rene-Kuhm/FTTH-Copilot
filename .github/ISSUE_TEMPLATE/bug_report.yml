@@ -6,8 +6,9 @@ labels:
 body:
   - type: markdown
     attributes:
-      label: Before you report
-      description: |
+      value: |
+        ### Before you report
+
         Use this form for defects you can reproduce. For a capability you do not have yet, use the
         **Feature request** template. For a suspected vulnerability, do **not** open a public issue:
         follow [SECURITY.md](https://github.com/Rene-Kuhm/FTTH-Copilot/blob/main/SECURITY.md) and
@@ -46,7 +47,7 @@ body:
       description: How is FTTH-Copilot running in the affected environment?
       options:
         - Docker Compose (demo or production stack)
-        - Desktop app (Tauri: .deb / .AppImage / .msi)
+        - "Desktop app (Tauri: .deb / .AppImage / .msi)"
         - Android APK
         - Local development checkout
         - Other

@@ -112,7 +112,7 @@
         {
           "type": "toml",
           "path": "apps/web/src-tauri/Cargo.toml",
-          "jsonpath": "$.version"
+          "jsonpath": "$.package.version"
         }
       ]
     }
