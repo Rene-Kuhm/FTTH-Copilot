@@ -37,7 +37,7 @@ flowchart TD
     L5 --> L2
     L5 --> L1
     L5 --> L0
-    L4 --> L2
+    L4 --> L3
     L4 --> L1
     L4 --> L0
     L3 --> L2
@@ -54,7 +54,7 @@ flowchart TD
 |---|---|---|---|
 | [`apps/web`](apps/web) | L5 | Next.js App Router: chat con IA, tableros NOC/SOC, endpoints REST, middleware de sesión, E2E Playwright. | todos salvo `alerts` y `detection`, que llegan por `monitoring` y `soc` |
 | [`packages/eval`](packages/eval) | L4 | Arnés de evaluación estricto (attack-pass-rate 100%) y corpus adversarial con tenants piloto. | `agent-core`, `db`, `evidence`, `shared` |
-| [`packages/agent-core`](packages/agent-core) | L2 | Motor cognitivo: Organic Diagnostic Router, motor de investigación, registro de herramientas (10 tools NMS), prompts, cliente LLM con cadena de fallback, trazas OTLP. | `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared` |
+| [`packages/agent-core`](packages/agent-core) | L3 | Motor cognitivo: Organic Diagnostic Router, motor de investigación, registro de herramientas (10 tools NMS), prompts, cliente LLM con cadena de fallback, trazas OTLP. | `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared` |
 | [`packages/soc`](packages/soc) | L3 | Orquestación perimetral, correlación de accesos anómimos, auditoría de firmware con trazabilidad por tenant. | `alerts`, `connectors-core`, `db`, `security` |
 | [`packages/monitoring`](packages/monitoring) | L3 | Receptor binario SNMP, adaptadores OLT multi-fabricante, decodificación multi-vendor, catálogo OID, laboratorio de conformidad. | `alerts`, `analytics`, `connectors-core`, `shared` |
 | [`packages/analytics`](packages/analytics) | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). | `connectors-core`, `db` |
