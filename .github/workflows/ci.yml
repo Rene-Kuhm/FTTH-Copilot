@@ -94,9 +94,11 @@ jobs:
   # 2) Documentación viva — cada ejemplo de README.md y docs/ se
   #    contrasta contra el código real (scripts, exports, archivos,
   #    variables de entorno). Un ejemplo roto no se mergea.
+  #    El repo-map imprime el esqueleto del repo y falla si se pasa
+  #    del presupuesto de tokens.
   # ────────────────────────────────────────────────────────────
   docs-test:
-    name: Docs (zero-drift)
+    name: Docs (zero-drift) & repo map
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
     steps:
@@ -123,6 +125,16 @@ jobs:
 
       - name: Verify documentation examples
         run: mise run docs-test
+
+      - name: Print the repo skeleton
+        run: mise run repo-map > repo-map.txt
+
+      - name: Upload repo map artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: repo-map
+          path: repo-map.txt
+          retention-days: 7
 
   # ────────────────────────────────────────────────────────────
   # 2) Tests unitarios — rápidos, sin dependencias externas.

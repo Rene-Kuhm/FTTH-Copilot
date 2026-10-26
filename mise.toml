@@ -58,3 +58,8 @@ run = "pnpm test:e2e"
 description = "Verifica los ejemplos de README.md y docs/ contra el código real."
 depends = ["deps"]
 run = "pnpm exec tsx scripts/docs-test.ts"
+
+[tasks.repo-map]
+description = "Imprime el esqueleto del repo: módulos, símbolos exportados y dependencias."
+depends = ["deps"]
+run = "pnpm exec tsx scripts/repo-map.ts"
