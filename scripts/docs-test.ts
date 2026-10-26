@@ -265,51 +265,57 @@ export function sanitizeShellSnippet(code: string): string {
     .replace(/\{\{[^}\n]*\}\}/g, "PLACEHOLDER");
 }
 
-/** `bash -n`: el bloque tiene que ser shell válido. */
+/**
+ * `bash -n`: el bloque tiene que ser shell válido.
+ *
+ * El script entra por stdin, no por un archivo: `bash -n` lee de la entrada
+ * estándar cuando no recibe un path, y asi no se crea ningún archivo con un
+ * nombre adivinable en el directorio temporal compartido.
+ */
 function checkBashSyntax(block: CodeBlock): Finding[] {
-  const file = path.join(os.tmpdir(), `docs-test-${process.pid}-${block.line}.sh`);
-  try {
-    fs.writeFileSync(file, sanitizeShellSnippet(block.code));
-    const result = spawnSync("bash", ["-n", file], { encoding: "utf8" });
-    if (result.error) return [];
-    if (result.status !== 0) {
-      return [
-        {
-          severity: "error",
-          file: block.file,
-          line: block.line,
-          message: `bash no parsea el bloque: ${(result.stderr ?? "").trim()}`,
-        },
-      ];
-    }
-    return [];
-  } finally {
-    fs.rmSync(file, { force: true });
+  const result = spawnSync("bash", ["-n"], {
+    encoding: "utf8",
+    input: sanitizeShellSnippet(block.code),
+  });
+  if (result.error) return [];
+  if (result.status !== 0) {
+    return [
+      {
+        severity: "error",
+        file: block.file,
+        line: block.line,
+        message: `bash no parsea el bloque: ${(result.stderr ?? "").trim()}`,
+      },
+    ];
   }
+  return [];
 }
 
-/** `python -m py_compile`: el bloque tiene que ser Python válido. */
+/**
+ * El bloque tiene que ser Python válido.
+ *
+ * Se compila desde stdin (`compile(sys.stdin.read(), ...)`) en lugar de dejar
+ * un `.py` en el directorio temporal: no hay archivo que otro usuario pueda
+ * anticipar.
+ */
 function checkPythonSyntax(block: CodeBlock): Finding[] {
-  const file = path.join(os.tmpdir(), `docs-test-${process.pid}-${block.line}.py`);
-  try {
-    fs.writeFileSync(file, block.code);
-    const result = spawnSync("python3", ["-m", "py_compile", file], { encoding: "utf8" });
-    if (result.error) return [];
-    if (result.status !== 0) {
-      return [
-        {
-          severity: "error",
-          file: block.file,
-          line: block.line,
-          message: `python no compila el bloque: ${(result.stderr ?? "").trim()}`,
-        },
-      ];
-    }
-    return [];
-  } finally {
-    fs.rmSync(file, { force: true });
-    fs.rmSync(`${file}c`, { force: true });
+  const result = spawnSync(
+    "python3",
+    ["-c", "import sys; compile(sys.stdin.read(), '<doc-example>', 'exec')"],
+    { encoding: "utf8", input: block.code },
+  );
+  if (result.error) return [];
+  if (result.status !== 0) {
+    return [
+      {
+        severity: "error",
+        file: block.file,
+        line: block.line,
+        message: `python no compila el bloque: ${(result.stderr ?? "").trim()}`,
+      },
+    ];
   }
+  return [];
 }
 
 /**
@@ -325,22 +331,24 @@ export function isHermeticReadOnlyBlock(block: CodeBlock): boolean {
   return invocations.every((invocation) => HERMETIC_READ_ONLY.test(invocation.raw.trim()));
 }
 
-/** Ejecuta un bloque marcado con `exec` y devuelve el hallazgo si falla. */
+/**
+ * Ejecuta un bloque marcado con `exec` y devuelve el hallazgo si falla.
+ *
+ * El código va por stdin (`bash` sin argumentos lee el script de la entrada
+ * estándar, igual que `tsx` sin argumentos) y corre en un directorio temporal
+ * creado con `mkdtemp`, que es único e inaccesible para otros usuarios. No se
+ * escribe ningún archivo con un nombre adivinable.
+ */
 function runExecutableBlock(block: CodeBlock): Finding[] {
   const isTypeScript = classifyBlock(block.language) === "typescript";
-  const file = path.join(
-    os.tmpdir(),
-    `docs-test-${process.pid}-${block.line}.${isTypeScript ? "ts" : "sh"}`,
-  );
+  const workingDir = fs.mkdtempSync(path.join(os.tmpdir(), "docs-test-"));
   try {
-    fs.writeFileSync(file, block.code);
     const command = isTypeScript ? "pnpm" : "bash";
-    const args = isTypeScript
-      ? ["exec", "tsx", file]
-      : [file];
+    const args = isTypeScript ? ["exec", "tsx"] : [];
     const result = spawnSync(command, args, {
       encoding: "utf8",
-      cwd: path.dirname(file),
+      input: block.code,
+      cwd: workingDir,
       timeout: 120_000,
       env: { ...process.env, CI: "1" },
     });
@@ -366,7 +374,7 @@ function runExecutableBlock(block: CodeBlock): Finding[] {
     }
     return [];
   } finally {
-    fs.rmSync(file, { force: true });
+    fs.rmSync(workingDir, { recursive: true, force: true });
   }
 }
 
