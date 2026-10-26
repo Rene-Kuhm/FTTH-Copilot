@@ -93,3 +93,30 @@ Parte de: #304"
     `eslint --config scripts/eslint.config.mjs scripts` y `tsc --noEmit -p scripts/tsconfig.json`.
     El tsconfig de `scripts/` cubre solo el tooling nuevo: los scripts previos importan código de
     los workspaces y sus errores son de otros módulos.
+- **L4** (2026-10-26) — Frontera de slice y estrategia de entrega. El issue pide tres entregables
+  (entorno hermético, docs vivas, contexto agent-first) que no se pueden reviewar bien en un solo
+  commit. La entrega son **commits atómicos y revisables por separado**, todos en la misma rama
+  (el entregable del issue es único y el harness abre un solo PR):
+  1. `build(repo): entorno hermético con mise` — `mise.toml`, `mise.lock` y el CI con
+     `jdx/mise-action`. Cierra el primer slice.
+  2. La herramienta de docs-test, en tres commits: extracción y parsing → verificaciones contra el
+     repo → comando, política documentada y job del CI.
+  3. `feat(repo): repo-map` — el esqueleto del repo.
+  4. El contexto agent-first, por capa de módulos.
+- **L5** (2026-10-26) — Verificación del entorno: `mise run lint` (0 errores),
+  `mise run typecheck` (0 errores), `mise run test` (17 workspaces, 735 tests) y
+  `mise run docs-test` (349 bloques, 0 errores, 14 avisos) en verde. La corrida de tests con
+  concurrencia default (10) hace flakear `packages/db` por timeout de bcrypt en este sandbox de
+  4 cores; con `--concurrency=2` pasa entero. No es un efecto del cambio: el test aislado del
+  paquete pasa en 3,5 s.
+- **L6** (2026-10-26) — Evidencia final de la rama:
+  - `mise run lint` → 17 workspaces + `scripts/`, 0 errores (5 avisos, todos en scripts previos).
+  - `mise run typecheck` → 17 workspaces + `tsc -p scripts/tsconfig.json`, 0 errores.
+  - `mise run test` → 17 workspaces en verde (con `--concurrency=2`; ver L5).
+  - `mise run docs-test` → 349 bloques en 100 archivos, 261 verificados, 3 ejecutados, 0 errores,
+    14 avisos (variables de servicios externos y scripts que viven en un paquete del workspace).
+  - `mise run repo-map` → 7704 tokens de un presupuesto de 8000, 17 módulos, 865 símbolos.
+  - RED del runner: con un ejemplo roto (script inexistente, tarea de turbo inexistente, tarea de
+    mise inexistente, export inexistente, JSON y YAML inválidos) `mise run docs-test` falla con
+    exit 1 y señala archivo y línea.
+  - `mise lock --dry-run --json` → `[]`: el lockfile está sincronizado con `mise.toml`.

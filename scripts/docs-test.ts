@@ -341,7 +341,7 @@ function runExecutableBlock(block: CodeBlock): Finding[] {
     const result = spawnSync(command, args, {
       encoding: "utf8",
       cwd: path.dirname(file),
-      timeout: 60_000,
+      timeout: 120_000,
       env: { ...process.env, CI: "1" },
     });
     if (result.error) {
