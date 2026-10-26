@@ -120,3 +120,10 @@ Parte de: #304"
     mise inexistente, export inexistente, JSON y YAML inválidos) `mise run docs-test` falla con
     exit 1 y señala archivo y línea.
   - `mise lock --dry-run --json` → `[]`: el lockfile está sincronizado con `mise.toml`.
+- **L7** (2026-10-26) — El CI del PR marqueó con CodeQL (`js/insecure-temporary-file`, severidad alta)
+  los tres `writeFileSync` de `scripts/docs-test.ts`: escribían el bloque en `os.tmpdir()` con un
+  nombre predecible (CWE-377). Corrección: no se escribe ningún archivo en el temporal. `bash -n`
+  y el intérprete de Python leen el bloque por stdin, y los bloques que se ejecutan de verdad
+  corren por stdin dentro de un directorio creado con `mkdtemp` (único, permisos 0700). El RED del
+  runner sigue detectando bash inválido, python que no compila, script inexistente y export
+  inexistente.
