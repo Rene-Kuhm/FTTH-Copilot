@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",
+    "@types/node": "^22.10.0",
     "@ftth-copilot/analytics": "workspace:*",
     "@ftth-copilot/connectors-mikrotik": "workspace:*",
     "@ftth-copilot/connectors-mikrowisp": "workspace:*",
@@ -58,6 +59,7 @@
     "eslint": "^9.18.0",
     "tsx": "^4.19.2",
     "turbo": "^2.5.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "yaml": "^2.9.1"
   }
 }

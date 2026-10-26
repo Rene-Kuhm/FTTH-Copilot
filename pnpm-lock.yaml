@@ -36,6 +36,9 @@ importers:
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:packages/security
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.70.1
         version: 8.71.0(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
@@ -54,6 +57,9 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
 
   apps/web:
     dependencies:

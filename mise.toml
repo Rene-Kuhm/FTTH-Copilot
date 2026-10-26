@@ -20,19 +20,29 @@ depends = ["deps"]
 run = "pnpm build"
 
 [tasks.lint]
-description = "ESLint sobre los 16 workspaces."
+description = "ESLint sobre los 16 workspaces y sobre scripts/."
 depends = ["deps"]
-run = "pnpm lint"
+run = [
+  "pnpm lint",
+  "pnpm exec eslint --config scripts/eslint.config.mjs scripts",
+]
 
 [tasks.typecheck]
-description = "tsc --noEmit estricto por workspace."
+description = "tsc --noEmit estricto por workspace y sobre scripts/."
 depends = ["deps"]
-run = "pnpm typecheck"
+run = [
+  "pnpm typecheck",
+  "pnpm exec tsc --noEmit -p scripts/tsconfig.json",
+]
 
 [tasks.test]
-description = "Suite unitaria completa (Vitest)."
-depends = ["deps"]
+description = "Suite unitaria completa (Vitest) + tests de las herramientas de scripts/."
+depends = ["deps", "test-scripts"]
 run = "pnpm test"
+
+[tasks.test-scripts]
+description = "Tests de scripts/ (node:test, sin dependencias extra)."
+run = "node --test scripts/tests/*.test.ts"
 
 [tasks."test:coverage-check"]
 description = "Verifica los umbrales mínimos de cobertura."
