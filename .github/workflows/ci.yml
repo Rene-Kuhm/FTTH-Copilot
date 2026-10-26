@@ -91,6 +91,40 @@ jobs:
         run: pnpm check:contribution
 
   # ────────────────────────────────────────────────────────────
+  # 2) Documentación viva — cada ejemplo de README.md y docs/ se
+  #    contrasta contra el código real (scripts, exports, archivos,
+  #    variables de entorno). Un ejemplo roto no se mergea.
+  # ────────────────────────────────────────────────────────────
+  docs-test:
+    name: Docs (zero-drift)
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify documentation examples
+        run: mise run docs-test
+
+  # ────────────────────────────────────────────────────────────
   # 2) Tests unitarios — rápidos, sin dependencias externas.
   #    Cubre packages/connectors, packages/agent-core, etc.
   # ────────────────────────────────────────────────────────────
@@ -435,6 +469,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - lint-and-typecheck
+      - docs-test
       - test-unit
       - eval
       - build
@@ -446,6 +481,7 @@ jobs:
       - name: Check all jobs passed
         env:
           LINT_AND_TYPECHECK_RESULT: ${{ needs.lint-and-typecheck.result }}
+          DOCS_TEST_RESULT: ${{ needs.docs-test.result }}
           TEST_UNIT_RESULT: ${{ needs.test-unit.result }}
           EVAL_RESULT: ${{ needs.eval.result }}
           BUILD_RESULT: ${{ needs.build.result }}
@@ -460,6 +496,7 @@ jobs:
             PR_TITLE_RESULT="success"
           fi
           if [ "$LINT_AND_TYPECHECK_RESULT" != "success" ] || \
+             [ "$DOCS_TEST_RESULT" != "success" ] || \
              [ "$TEST_UNIT_RESULT" != "success" ] || \
              [ "$EVAL_RESULT" != "success" ] || \
              [ "$BUILD_RESULT" != "success" ] || \

@@ -53,3 +53,8 @@ run = "pnpm test:coverage-check"
 description = "Tests end-to-end de la app web (Playwright)."
 depends = ["deps"]
 run = "pnpm test:e2e"
+
+[tasks.docs-test]
+description = "Verifica los ejemplos de README.md y docs/ contra el código real."
+depends = ["deps"]
+run = "pnpm exec tsx scripts/docs-test.ts"
