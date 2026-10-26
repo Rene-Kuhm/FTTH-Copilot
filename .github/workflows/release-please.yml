@@ -1,0 +1,138 @@
+name: Release
+
+# One release pipeline for the whole repository:
+#
+#   1. release-please reads the Conventional Commits of `main` and opens (or
+#      updates) a release pull request with the SemVer bump, the changelog
+#      entry and the version bump of every manifest it manages.
+#   2. The sync step pushes the version carriers that release-please cannot
+#      update on its own into that pull request.
+#   3. When the release pull request is merged, release-please tags the
+#      release and publishes it. The verification step then checks that every
+#      version carrier inside the tag agrees with the released version.
+#
+# The pull request title gate in `ci.yml` protects this pipeline: the merges
+# are squash merges, so the pull request title is the commit message that
+# release-please parses.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Least privilege: the workflow tags, publishes releases and pushes to the
+# release pull request branch. Nothing else.
+permissions:
+  contents: write
+  pull-requests: write
+
+# A release must never be cancelled half way through.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.22.0"
+
+jobs:
+  release:
+    name: Release Please
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+
+      # ──────────────────────────────────────────────────────────
+      # release-please updates JSON, YAML and TOML manifests. Three
+      # version carriers are none of those, and they do not carry the
+      # `x-release-please-version` annotation that the generic updater
+      # needs, so they are synchronized here:
+      #
+      #   apps/web/android/app/build.gradle     versionName
+      #   apps/web/app/api/health/route.ts       health endpoint fallback
+      #   packages/agent-core/src/telemetry/exporter.ts   telemetry scope
+      #
+      # Adding the annotation to those three files is the alternative, and
+      # it is the better long term fix.
+      # ──────────────────────────────────────────────────────────
+      - name: Sync the version carriers release-please cannot update
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          RELEASE_PULL_REQUESTS: ${{ steps.release.outputs.prs }}
+        run: |
+          set -euo pipefail
+
+          branch="$(node -e 'const prs = JSON.parse(process.env.RELEASE_PULL_REQUESTS || "[]"); process.stdout.write(prs[0]?.headBranchName ?? "")')"
+          if [ -z "$branch" ]; then
+            branch="release-please--branches--main"
+          fi
+
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "No release pull request branch to synchronize (${branch})."
+            exit 0
+          fi
+
+          git fetch --depth=1 origin "$branch"
+          git checkout -B sync-version-carriers "origin/${branch}"
+
+          version="$(node -p "require('./package.json').version")"
+          echo "Synchronizing the version carriers to ${version}."
+
+          sed -i -E "s/(versionName \")[0-9]+\.[0-9]+\.[0-9]+(\")/\1${version}\2/" \
+            apps/web/android/app/build.gradle
+          sed -i -E "s/(\?\? ')[0-9]+\.[0-9]+\.[0-9]+(')/\1${version}\2/" \
+            apps/web/app/api/health/route.ts
+          sed -i -E "s/(version: ')[0-9]+\.[0-9]+\.[0-9]+(')/\1${version}\2/" \
+            packages/agent-core/src/telemetry/exporter.ts
+
+          # Fail loudly when a carrier could not be updated: a silent miss
+          # leaves the released tag with a stale version.
+          grep -q "versionName \"${version}\"" apps/web/android/app/build.gradle
+          grep -q "?? '${version}'" apps/web/app/api/health/route.ts
+          grep -q "version: '${version}'" packages/agent-core/src/telemetry/exporter.ts
+
+          if git diff --quiet; then
+            echo "Version carriers already synchronized."
+            exit 0
+          fi
+
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -am "chore(release): sync version carriers to v${version}"
+          git push origin "HEAD:${branch}"
+
+      # ──────────────────────────────────────────────────────────
+      # The release is published: check that the tag carries one single
+      # version. `pnpm check:version` reads every manifest and every
+      # version carrier of the repository and fails on any divergence.
+      # ──────────────────────────────────────────────────────────
+      - name: Verify the released version
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "refs/tags/v${VERSION}:refs/tags/v${VERSION}"
+          git checkout -B verify-release "v${VERSION}"
+          pnpm dlx tsx@4.23.15 scripts/check-release-version.ts "${VERSION}"

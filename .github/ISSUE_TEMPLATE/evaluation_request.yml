@@ -2,13 +2,12 @@ name: Technical Evaluation Request
 description: Request a guided evaluation or pilot session for FTTH-Copilot
 title: "[Evaluation]: "
 labels: ["evaluation"]
-assignees: []
 body:
-
   - type: markdown
     attributes:
-      label: About this template
-      description: |
+      value: |
+        ### About this template
+
         Use this template to request a guided technical evaluation session for FTTH-Copilot.
         Before opening an issue, we recommend running the demo:
         `./scripts/run-demo.sh` — no credentials or hardware required.
@@ -91,8 +90,9 @@ body:
         - label: I have watched the demo video (37s)
         - label: I have read the case study (`docs/case-study-synthetic.md`)
         - label: Not yet, but I want to before the session
-    validations:
-      required: true
+    # `checkboxes` does not accept `validations`: GitHub's Issue Forms schema
+    # allows it only on `input`, `dropdown` and `textarea`. A form with an
+    # unknown key is rejected by GitHub and the template stops rendering.
 
   - type: textarea
     id: questions
