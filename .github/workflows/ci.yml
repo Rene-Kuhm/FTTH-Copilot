@@ -243,7 +243,7 @@ jobs:
       # The middleware auth bypass is off unless this is explicitly set. It was
       # previously unconditional, which meant one header skipped authentication
       # and RBAC on any deployment.
-      ENABLE_TEST_AUTH_BYPASS: 'true'
+      ENABLE_TEST_AUTH_BYPASS: "true"
       # Used by middleware-auth.spec.ts, which clears the bypass cookie and
       # exercises the real middleware. Same account the demo seeds.
       SEED_ADMIN_PASSWORD: e2e-demo-password-12345
@@ -370,6 +370,35 @@ jobs:
         run: pnpm --filter @ftth-copilot/alerts test:integration
 
   # ────────────────────────────────────────────────────────────
+  # 6) Título de la PR — los merges son squash, así que el título
+  #    de la PR es el mensaje del commit. Si el título no es un
+  #    Conventional Commit, release-please no lo puede parsear: la
+  #    release no sube de versión y el changelog pierde la entrada.
+  #
+  #    El job es liviano (no instala dependencias del monorepo):
+  #    commitlint corre con npx y lee la convención del repositorio
+  #    desde .commitlintrc.json.
+  # ────────────────────────────────────────────────────────────
+  pr-title:
+    name: PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate the pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$PR_TITLE" | npx --yes @commitlint/cli@21.2.4 --verbose
+
+  # ────────────────────────────────────────────────────────────
   # 7) Gate final — job "resumen" que agrupa todo lo anterior.
   #    Configurar ESTE job como required status check en la
   #    protección de rama de main, así no hay que ir actualizando
@@ -385,6 +414,7 @@ jobs:
       - build
       - test-e2e
       - test-integration
+      - pr-title
     if: always()
     steps:
       - name: Check all jobs passed
@@ -395,13 +425,21 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_E2E_RESULT: ${{ needs.test-e2e.result }}
           TEST_INTEGRATION_RESULT: ${{ needs.test-integration.result }}
+          PR_TITLE_RESULT: ${{ needs.pr-title.result }}
         run: |
+          # The pull request title only exists for pull request events. On a
+          # push to main the title job is skipped and the title is not part
+          # of the gate.
+          if [ "$PR_TITLE_RESULT" = "skipped" ]; then
+            PR_TITLE_RESULT="success"
+          fi
           if [ "$LINT_AND_TYPECHECK_RESULT" != "success" ] || \
              [ "$TEST_UNIT_RESULT" != "success" ] || \
              [ "$EVAL_RESULT" != "success" ] || \
              [ "$BUILD_RESULT" != "success" ] || \
              [ "$TEST_E2E_RESULT" != "success" ] || \
-             [ "$TEST_INTEGRATION_RESULT" != "success" ]; then
+             [ "$TEST_INTEGRATION_RESULT" != "success" ] || \
+             [ "$PR_TITLE_RESULT" != "success" ]; then
             echo "At least one required job did not succeed."
             exit 1
           fi

@@ -1,0 +1,127 @@
+name: Bug report
+description: Report a reproducible defect in FTTH-Copilot (agent, connectors, alerts, UI or deployment)
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Before you report
+
+        Use this form for defects you can reproduce. For a capability you do not have yet, use the
+        **Feature request** template. For a suspected vulnerability, do **not** open a public issue:
+        follow [SECURITY.md](https://github.com/Rene-Kuhm/FTTH-Copilot/blob/main/SECURITY.md) and
+        report it through a private channel.
+
+        **Never paste production data.** Remove community strings, SNMPv3 keys, credentials, tokens,
+        customer names, subscriber identifiers, circuit IDs, real public or private IPs and MACs.
+        SNMP captures must be sanitized with `pnpm sanitize:snmp` before they are attached.
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How much does the defect affect a live operation?
+      options:
+        - Critical — the agent cannot answer or the deployment is down
+        - High — diagnostics are wrong or unusable for affected tenants
+        - Medium — a workaround exists but the defect is reproducible
+        - Low — cosmetic, documentation or usability issue
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: FTTH-Copilot version
+      description: Tag, release or commit you are running.
+      placeholder: "v0.2.2 (docker compose) / 3d542a1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: How is FTTH-Copilot running in the affected environment?
+      options:
+        - Docker Compose (demo or production stack)
+        - "Desktop app (Tauri: .deb / .AppImage / .msi)"
+        - Android APK
+        - Local development checkout
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of the system shows the defect?
+      options:
+        - Agent / investigation (packages/agent-core)
+        - OLT connectors (SmartOLT, Mikrowisp, MikroTik)
+        - Monitoring / SNMP polling (packages/monitoring)
+        - Detection and alerts (packages/detection, packages/alerts)
+        - Evidence and provenance (packages/evidence)
+        - SOC and assisted routing (packages/soc, Laya)
+        - Web application (apps/web)
+        - Database and migrations (packages/db)
+        - Deployment, CI or release automation
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: NMS / OLT platform
+      description: Which platform does the affected installation poll? Write "not applicable" when the defect is unrelated to an OLT.
+      placeholder: SmartOLT
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the exact message or output you saw.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, deterministic steps. Start from the state a fresh installation has.
+      placeholder: |
+        1. Run `./scripts/run-demo.sh` with the default seeded tenant.
+        2. Ask the agent: "¿Qué ONU está caída en la OLT 1?"
+        3. The answer reports the wrong OLT.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or evidence
+      description: |
+        Optional. Paste only sanitized output: no credentials, no community strings, no subscriber
+        data, no real IP or MAC addresses. For SNMP material use `pnpm sanitize:snmp` first and
+        inspect the result before attaching it.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope of the impact
+      description: How many tenants, OLTs or ONUs are affected? Does the issue cross tenant boundaries or expose data that should stay isolated?
+      placeholder: Single tenant, 1 OLT, 12 ONUs. No cross-tenant data observed.
