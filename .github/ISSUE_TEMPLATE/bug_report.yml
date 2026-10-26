@@ -36,7 +36,7 @@ body:
     attributes:
       label: FTTH-Copilot version
       description: Tag, release or commit you are running.
-      placeholder: "v0.2.2 (docker compose) / 3d542a1"
+      placeholder: "v0.2.2 (docker compose) / a1b2c3d"
     validations:
       required: true
 
