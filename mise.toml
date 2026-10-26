@@ -1,0 +1,65 @@
+# Entorno de desarrollo hermético del repo.
+#
+# Las versiones son **exactas** a propósito: `mise.lock` fija las descargas y sus
+# checksums, y `mise install --locked` falla si el lockfile no alcanza. Local y CI
+# corren exactamente las mismas versiones y las mismas tareas.
+#
+# Ver `docs/engineering/hermetic-environment.md` para la política completa.
+
+[tools]
+node = "22.23.4"
+pnpm = "11.22.0"
+
+[tasks.deps]
+description = "Instala las dependencias del workspace con el lockfile de pnpm."
+run = "pnpm install --frozen-lockfile"
+
+[tasks.build]
+description = "Compila todos los workspaces (turbo run build)."
+depends = ["deps"]
+run = "pnpm build"
+
+[tasks.lint]
+description = "ESLint sobre los 16 workspaces y sobre scripts/."
+depends = ["deps"]
+run = [
+  "pnpm lint",
+  "pnpm exec eslint --config scripts/eslint.config.mjs scripts",
+]
+
+[tasks.typecheck]
+description = "tsc --noEmit estricto por workspace y sobre scripts/."
+depends = ["deps"]
+run = [
+  "pnpm typecheck",
+  "pnpm exec tsc --noEmit -p scripts/tsconfig.json",
+]
+
+[tasks.test]
+description = "Suite unitaria completa (Vitest) + tests de las herramientas de scripts/."
+depends = ["deps", "test-scripts"]
+run = "pnpm test"
+
+[tasks.test-scripts]
+description = "Tests de scripts/ (node:test, sin dependencias extra)."
+run = "node --test scripts/tests/*.test.ts"
+
+[tasks."test:coverage-check"]
+description = "Verifica los umbrales mínimos de cobertura."
+depends = ["deps"]
+run = "pnpm test:coverage-check"
+
+[tasks."test:e2e"]
+description = "Tests end-to-end de la app web (Playwright)."
+depends = ["deps"]
+run = "pnpm test:e2e"
+
+[tasks.docs-test]
+description = "Verifica los ejemplos de README.md y docs/ contra el código real."
+depends = ["deps"]
+run = "pnpm exec tsx scripts/docs-test.ts"
+
+[tasks.repo-map]
+description = "Imprime el esqueleto del repo: módulos, símbolos exportados y dependencias."
+depends = ["deps"]
+run = "pnpm exec tsx scripts/repo-map.ts"

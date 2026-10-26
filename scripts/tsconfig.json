@@ -1,0 +1,20 @@
+{
+  // Typecheck del tooling de `scripts/` introducido con el entorno hermético.
+  // Los scripts previos del repo (`setup.ts`, `generate-*.ts`, ...) no entran:
+  // importan código de los workspaces y sus errores son de otros módulos.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"]
+  },
+  "include": ["docs-test.ts", "repo-map.ts", "lib/**/*.ts", "tests/**/*.ts"]
+}
