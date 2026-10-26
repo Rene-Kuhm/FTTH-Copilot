@@ -1,0 +1,439 @@
+name: Tauri Desktop Build
+
+# ──────────────────────────────────────────────────────────────────────
+# Workflow REUTILIZABLE: es el builder de los instaladores de escritorio.
+#
+# Por qué un workflow reutilizable y no un workflow normal: es lo que pide
+# la receta de SLSA v1.0 Build Level 3 de GitHub.
+#
+#   "Artifact attestations by itself provides SLSA v1.0 Build Level 2.
+#    […] A great way to do this is to have your build take place in a
+#    reusable workflow […] Reusable workflows can provide isolation
+#    between the build process and the calling workflow, to meet SLSA
+#    v1.0 Build Level 3."
+#    — docs.github.com/actions/concepts/security/artifact-attestations
+#
+# Los pasos de compilación viven acá; el caller sólo decide si el build es
+# de validación o de release, y qué permisos concede. La atestación la emite
+# ESTE workflow, sobre los bytes recién compilados, así que el `builder.id`
+# de la procedencia es el workflow que realmente construyó el artefacto.
+#
+# Lo invocan:
+#   - tauri-desktop.yml → build de validación (PR / push a main). El caller
+#     no concede `id-token: write` y los pasos de atestación están
+#     condicionados al modo release, así que en un PR de un fork no hay
+#     token OIDC ni escritura de atestaciones.
+#   - release.yml       → build de release (tag v*): compila, atesta la
+#     procedencia (SLSA L3) y atesta el SBOM contra los mismos bytes.
+#
+# Permisos: el caller y este workflow declaran los mismos. En un workflow
+# reutilizable, los permisos efectivos son la intersección de ambos, así
+# que el caller es quien decide qué puede hacer el build.
+# ──────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        description:
+          'Tag de la release a construir y atestar (por ejemplo v1.2.3).
+          Vacío = build de validación: no atesta, no publica.'
+        required: false
+        default: ''
+        type: string
+
+# Baseline del workflow. Cada job declara lo que necesita.
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Build Linux (.deb + AppImage)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    # El caller concede `id-token: write` y `attestations: write` sólo en
+    # el modo release; en validación quedan recortados.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    env:
+      # La versión de mise está fijada: el build de release usa el mismo
+      # toolchain exacto que el CI y que el entorno local (mise.lock).
+      MISE_VERSION: "2026.10.12"
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://demo.ftth-copilot.com' }}
+      NEXT_PUBLIC_PLATFORM: 'tauri'
+
+    steps:
+      # ────────────────────────────────────────────────────────────
+      # El checkout es del tag en modo release y de la rama/PR en modo
+      # validación. Sin `ref` explícito el checkout usa el ref que
+      # disparó el caller.
+      # ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release-tag }}
+
+      # ────────────────────────────────────────────────────────────
+      # SBOM SPDX del árbol que se va a compilar. Syft lee
+      # `pnpm-lock.yaml` y `Cargo.lock`, así que el inventario sale sin
+      # instalar nada.
+      #
+      # Va PRIMERO, antes de instalar y compilar, a propósito: si el
+      # workspace tuviera `node_modules` o artefactos de build, Syft los
+      # catalogaría y el SBOM dejaría de ser reproducible (y diferiría
+      # entre la leg de Linux y la de Windows).
+      # ────────────────────────────────────────────────────────────
+      - name: Generate the SPDX SBOM
+        if: inputs.release-tag != ''
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+
+      # ────────────────────────────────────────────────────────────
+      # Canonicalización del SBOM. Syft escribe un `documentNamespace`
+      # con UUID aleatorio, la hora de creación y un inventario de
+      # archivos con sus checksums. Eso hace que dos checkouts del mismo
+      # tag den digests distintos (por ejemplo, un checkout en Windows
+      # convierte los fines de línea y cambia los checksums de los
+      # archivos).
+      #
+      # Como el mismo SBOM se atesta contra los artefactos y se adjunta
+      # a la release, se reduce a un inventario de paquetes con los
+      # campos derivados del tag: el digest queda estable y la
+      # atestación sigue apuntando al archivo publicado.
+      # ────────────────────────────────────────────────────────────
+      - name: Normalize the SBOM for a reproducible digest
+        if: inputs.release-tag != ''
+        env:
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          created="$(date -u -d "@$(git log -1 --format=%ct HEAD)" +%Y-%m-%dT%H:%M:%SZ)"
+          jq -S \
+            --arg namespace "https://ftth-copilot.dev/spdx/v1/${TAG}" \
+            --arg created "${created}" \
+            --arg name "${TAG}" \
+            '.documentNamespace = $namespace
+             | .creationInfo.created = $created
+             | .name = $name
+             | del(.files)
+             | .relationships = [
+                 .relationships[]
+                 | select(((.relatedSpdxElement // "") | test("SPDXRef-File-")) | not)
+                 | select(((.spdxElementId // "") | test("SPDXRef-File-")) | not)
+               ]' \
+            sbom.spdx.json > sbom.normalized.json
+          mv sbom.normalized.json sbom.spdx.json
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: 'apps/web/src-tauri -> target'
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Install dependencies
+        run: mise run deps
+
+      - name: Build Next.js
+        working-directory: apps/web
+        run: pnpm build
+
+      - name: Prepare Tauri webview entrypoint
+        working-directory: apps/web
+        run: pnpm tauri:prepare
+
+      - name: Build Tauri (Linux)
+        working-directory: apps/web
+        run: pnpm exec tauri build --bundles deb,appimage
+
+      - name: Locate artifacts (Linux)
+        working-directory: apps/web
+        run: |
+          echo "=== Bundles ==="
+          find src-tauri/target/release/bundle -type f 2>/dev/null || true
+        shell: bash
+
+      # ────────────────────────────────────────────────────────────
+      # Procedencia SLSA Build L3. La emite este workflow — el mismo que
+      # compiló el binario — desde un runner hospedado por GitHub, con
+      # la identidad del builder atada al token OIDC del runner. Sin
+      # claves privadas en el repo y sin secretos que rotar.
+      # ────────────────────────────────────────────────────────────
+      - name: Attest build provenance (keyless Sigstore)
+        if: inputs.release-tag != ''
+        id: attest-provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            apps/web/src-tauri/target/release/bundle/deb/*.deb
+            apps/web/src-tauri/target/release/bundle/appimage/*.AppImage
+
+      # ────────────────────────────────────────────────────────────
+      # El SBOM atestado: liga el inventario de dependencias al digest
+      # exacto de cada artefacto.
+      #
+      # `actions/attest-sbom` es la acción que pide el issue; desde v4
+      # delega internamente en `actions/attest`.
+      # ────────────────────────────────────────────────────────────
+      - name: Attest the SPDX SBOM
+        if: inputs.release-tag != ''
+        id: attest-sbom
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            apps/web/src-tauri/target/release/bundle/deb/*.deb
+            apps/web/src-tauri/target/release/bundle/appimage/*.AppImage
+          sbom-path: sbom.spdx.json
+
+      - name: Collect the attestation bundles
+        if: inputs.release-tag != ''
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.attest-provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.attest-sbom.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p attestations
+          for bundle in "provenance:${PROVENANCE_BUNDLE}" "sbom:${SBOM_BUNDLE}"; do
+            name="${bundle%%:*}"
+            path="${bundle#*:}"
+            if [ -n "${path}" ] && [ -f "${path}" ]; then
+              cp "${path}" "attestations/${name}-linux.jsonl"
+            else
+              echo "::warning::No bundle produced for ${name}."
+            fi
+          done
+          cp sbom.spdx.json attestations/sbom.spdx.json
+
+      - name: Upload Linux .deb
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-desktop-linux-deb
+          path: apps/web/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-desktop-linux-appimage
+          path: apps/web/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload the attestation bundles
+        if: inputs.release-tag != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: attestations-linux
+          path: attestations/
+          if-no-files-found: warn
+          retention-days: 90
+
+  build-windows:
+    name: Build Windows (MSI + NSIS)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    env:
+      # La versión de mise está fijada: el build de release usa el mismo
+      # toolchain exacto que el CI y que el entorno local (mise.lock).
+      MISE_VERSION: "2026.10.12"
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://demo.ftth-copilot.com' }}
+      NEXT_PUBLIC_PLATFORM: 'tauri'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release-tag }}
+
+      - name: Generate the SPDX SBOM
+        if: inputs.release-tag != ''
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+
+      - name: Normalize the SBOM for a reproducible digest
+        if: inputs.release-tag != ''
+        env:
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          created="$(date -u -d "@$(git log -1 --format=%ct HEAD)" +%Y-%m-%dT%H:%M:%SZ)"
+          jq -S \
+            --arg namespace "https://ftth-copilot.dev/spdx/v1/${TAG}" \
+            --arg created "${created}" \
+            --arg name "${TAG}" \
+            '.documentNamespace = $namespace
+             | .creationInfo.created = $created
+             | .name = $name
+             | del(.files)
+             | .relationships = [
+                 .relationships[]
+                 | select(((.relatedSpdxElement // "") | test("SPDXRef-File-")) | not)
+                 | select(((.spdxElementId // "") | test("SPDXRef-File-")) | not)
+               ]' \
+            sbom.spdx.json > sbom.normalized.json
+          mv sbom.normalized.json sbom.spdx.json
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: 'apps/web/src-tauri -> target'
+
+      - name: Install dependencies
+        run: mise run deps
+
+      - name: Build Next.js
+        working-directory: apps/web
+        run: pnpm build
+
+      - name: Prepare Tauri webview entrypoint
+        working-directory: apps/web
+        run: pnpm tauri:prepare
+
+      - name: Build Tauri (Windows)
+        working-directory: apps/web
+        run: pnpm exec tauri build --bundles nsis,msi
+
+      - name: Locate artifacts (Windows)
+        working-directory: apps/web
+        run: |
+          echo "=== Bundles ==="
+          Get-ChildItem -Path src-tauri/target/release/bundle -Recurse -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+        shell: pwsh
+
+      - name: Attest build provenance (keyless Sigstore)
+        if: inputs.release-tag != ''
+        id: attest-provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            apps/web/src-tauri/target/release/bundle/msi/*.msi
+            apps/web/src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Attest the SPDX SBOM
+        if: inputs.release-tag != ''
+        id: attest-sbom
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            apps/web/src-tauri/target/release/bundle/msi/*.msi
+            apps/web/src-tauri/target/release/bundle/nsis/*.exe
+          sbom-path: sbom.spdx.json
+
+      - name: Collect the attestation bundles
+        if: inputs.release-tag != ''
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.attest-provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.attest-sbom.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p attestations
+          for bundle in "provenance:${PROVENANCE_BUNDLE}" "sbom:${SBOM_BUNDLE}"; do
+            name="${bundle%%:*}"
+            path="${bundle#*:}"
+            if [ -n "${path}" ] && [ -f "${path}" ]; then
+              cp "${path}" "attestations/${name}-windows.jsonl"
+            else
+              echo "::warning::No bundle produced for ${name}."
+            fi
+          done
+          cp sbom.spdx.json attestations/sbom.spdx.json
+
+      - name: Upload Windows MSI
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-desktop-windows-msi
+          path: apps/web/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Windows NSIS
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-desktop-windows-nsis
+          path: apps/web/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload the attestation bundles
+        if: inputs.release-tag != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: attestations-windows
+          path: attestations/
+          if-no-files-found: warn
+          retention-days: 90
+
+  attach-to-release:
+    name: Attach to GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: inputs.release-tag != ''
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          pattern: 'ftth-copilot-desktop-*'
+
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: artifacts/**/*
+          fail_on_unmatched_files: false
+          generate_release_notes: true

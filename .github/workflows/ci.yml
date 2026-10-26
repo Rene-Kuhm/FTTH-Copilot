@@ -47,12 +47,15 @@ jobs:
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -60,7 +63,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -100,13 +103,16 @@ jobs:
   docs-test:
     name: Docs (zero-drift) & repo map
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs: lint-and-typecheck
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -114,7 +120,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -130,7 +136,7 @@ jobs:
         run: mise run repo-map > repo-map.txt
 
       - name: Upload repo map artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: repo-map
           path: repo-map.txt
@@ -143,13 +149,16 @@ jobs:
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs: lint-and-typecheck
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -157,7 +166,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -170,7 +179,7 @@ jobs:
         run: mise run test:coverage-check
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-unit
           path: "**/coverage/**"
@@ -197,15 +206,18 @@ jobs:
   eval:
     name: Eval Gate (attack-pass-rate == 100%)
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs:
       - test-unit
     if: always()
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -213,7 +225,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -237,15 +249,18 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs:
       - test-unit
       - eval
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -253,7 +268,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -274,6 +289,9 @@ jobs:
   test-e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs:
       - build
     # The new auth-real.spec.ts (PR #108) issues real HTTP requests to
@@ -314,10 +332,10 @@ jobs:
       E2E_LOGIN_PASSWORD: e2e-demo-password-12345
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -325,7 +343,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -338,7 +356,7 @@ jobs:
         run: mise run build
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-chromium-1.62.1
@@ -376,6 +394,9 @@ jobs:
   test-integration:
     name: Integration Tests (Postgres)
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs:
       - lint-and-typecheck
     services:
@@ -396,10 +417,10 @@ jobs:
       DATABASE_URL: postgresql://ftth:ftth@localhost:5432/ftth_copilot
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           # --locked falla si mise.lock no cubre lo que pide mise.toml:
@@ -407,7 +428,7 @@ jobs:
           install_args: --locked
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -453,13 +474,16 @@ jobs:
   pr-title:
     name: PR Title (Conventional Commits)
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: --locked
@@ -471,7 +495,59 @@ jobs:
           printf '%s\n' "$PR_TITLE" | npx --yes @commitlint/cli@21.2.4 --verbose
 
   # ────────────────────────────────────────────────────────────
-  # 7) Gate final — job "resumen" que agrupa todo lo anterior.
+  # 7) Supply chain — la política no se relaja en silencio.
+  #
+  #    Tres reglas, verificadas contra los YAML del propio repositorio:
+  #      a) toda acción de terceros se usa fijada por SHA de commit
+  #         (nunca por tag ni por rama: un tag se puede mover);
+  #      b) todo job declara su propio bloque `permissions:`;
+  #      c) el pipeline de release está cableado de punta a punta: el
+  #         workflow que publica la release despacha al que compila y
+  #         atesta los artefactos, porque el tag lo crea el
+  #         GITHUB_TOKEN y un push de tag hecho por el GITHUB_TOKEN no
+  #         dispara ningún workflow.
+  #
+  #    El check es hermético: sólo lee archivos del repo. No instala
+  #    dependencias ni habla con la red, así que no puede fallar por
+  #    causas externas al contenido del pull request.
+  #
+  #    La implementación vive en `scripts/lib/supply-chain.ts` y es la
+  #    misma que corren los tests de `scripts/tests/supply-chain.test.ts`.
+  # ────────────────────────────────────────────────────────────
+  supply-chain:
+    name: Supply Chain Policy
+    runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the supply chain policy
+        run: pnpm check:supply-chain
+
+      - name: Run the supply chain tests
+        run: mise run test-scripts
+
+  # ────────────────────────────────────────────────────────────
+  # 8) Gate final — job "resumen" que agrupa todo lo anterior.
   #    Configurar ESTE job como required status check en la
   #    protección de rama de main, así no hay que ir actualizando
   #    la regla cada vez que se agrega un job.
@@ -479,6 +555,9 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
     needs:
       - lint-and-typecheck
       - docs-test
@@ -488,6 +567,7 @@ jobs:
       - test-e2e
       - test-integration
       - pr-title
+      - supply-chain
     if: always()
     steps:
       - name: Check all jobs passed
@@ -500,6 +580,7 @@ jobs:
           TEST_E2E_RESULT: ${{ needs.test-e2e.result }}
           TEST_INTEGRATION_RESULT: ${{ needs.test-integration.result }}
           PR_TITLE_RESULT: ${{ needs.pr-title.result }}
+          SUPPLY_CHAIN_RESULT: ${{ needs.supply-chain.result }}
         run: |
           # The pull request title only exists for pull request events. On a
           # push to main the title job is skipped and the title is not part
@@ -514,7 +595,8 @@ jobs:
              [ "$BUILD_RESULT" != "success" ] || \
              [ "$TEST_E2E_RESULT" != "success" ] || \
              [ "$TEST_INTEGRATION_RESULT" != "success" ] || \
-             [ "$PR_TITLE_RESULT" != "success" ]; then
+             [ "$PR_TITLE_RESULT" != "success" ] || \
+             [ "$SUPPLY_CHAIN_RESULT" != "success" ]; then
             echo "At least one required job did not succeed."
             exit 1
           fi

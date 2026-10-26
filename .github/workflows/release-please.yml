@@ -10,10 +10,34 @@ name: Release
 #   3. When the release pull request is merged, release-please tags the
 #      release and publishes it. The verification step then checks that every
 #      version carrier inside the tag agrees with the released version.
+#   4. The dispatch step hands the published tag over to `release.yml`, which
+#      builds the installers and the APKs and emits the provenance SLSA Build
+#      Level 3 y el SBOM atestado.
 #
 # The pull request title gate in `ci.yml` protects this pipeline: the merges
 # are squash merges, so the pull request title is the commit message that
 # release-please parses.
+#
+# ──────────────────────────────────────────────────────────────────────
+# Por qué el paso 4 existe y no alcanza con `push: tags: v*`:
+#
+# release-please crea el tag con el `GITHUB_TOKEN` del repositorio, y
+# GitHub no dispara workflows nuevos por los eventos que produce su propio
+# token (la regla de anti-recursión). Un `push: tags: v*` en `release.yml`
+# NO se dispararía: el build de release (y con él la atestación SLSA y el
+# SBOM) quedaría sin ejecutar y la release se publicaría sin artefactos
+# firmados.
+#
+# `workflow_dispatch` es una de las dos excepciones documentadas de esa
+# regla (`repository_dispatch` es la otra): un dispatch explícito sí abre
+# un run nuevo aunque lo dispare el propio `GITHUB_TOKEN`. Es la opción
+# keyless: no hace falta un PAT ni una GitHub App, y el token que abre el
+# run es el mismo `GITHUB_TOKEN` del repo.
+#
+# La regla vive como test: `scripts/lib/supply-chain.ts` verifica que el
+# workflow que publica la release despacha al que atesta, así que cortar el
+# cable rompe el CI.
+# ──────────────────────────────────────────────────────────────────────
 
 on:
   push:
@@ -21,11 +45,11 @@ on:
       - main
   workflow_dispatch:
 
-# Least privilege: the workflow tags, publishes releases and pushes to the
-# release pull request branch. Nothing else.
+# Least privilege baseline: read only. Cada job declara los permisos que
+# necesita (el de release-please escribe; el de atestación, además, pide
+# OIDC y `attestations: write`).
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 # A release must never be cancelled half way through.
 concurrency:
@@ -33,35 +57,73 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: "22"
-  PNPM_VERSION: "11.22.0"
+  # La versión de mise está fijada: el pipeline de release usa el mismo
+  # toolchain exacto que el CI y que el entorno local (mise.lock).
+  MISE_VERSION: "2026.10.12"
 
 jobs:
   release:
     name: Release Please
     runs-on: ubuntu-latest
+    # Least privilege: the job tags, publishes releases and pushes to the
+    # release pull request branch. `actions: write` es lo único que suma:
+    # abre el run del build de release (ver la nota del header).
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      release-created: ${{ steps.release.outputs.release_created }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
         with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
 
       - name: Run release-please
         id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: main
+
+      # ──────────────────────────────────────────────────────────
+      # La release está publicada: hay que compilar y atestar sus
+      # artefactos.
+      #
+      # El tag lo acaba de crear release-please con el GITHUB_TOKEN del
+      # repo, y GitHub no dispara workflows por los eventos que produce
+      # su propio token. Por eso este paso abre el run del build con un
+      # `workflow_dispatch`: es la excepción documentada de esa regla y
+      # no necesita ninguna clave extra (ni PAT ni GitHub App).
+      #
+      # El dispatch apunta al tag publicado, así que el builder compila
+      # exactamente los bytes que se están por publicar, y `release.yml`
+      # sigue siendo disparable a mano desde la pestaña Actions si
+      # hace falta reintentar.
+      #
+      # Si el dispatch falla, el job falla: una release sin artefactos
+      # firmados es una release que no cumple el contrato de SLSA L3.
+      # ──────────────────────────────────────────────────────────
+      - name: Dispatch the release build and attestation workflow
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Dispatching release.yml for ${TAG}."
+          jq -n --arg ref "${TAG}" --arg tag "${TAG}" '{ref: $ref, inputs: {tag: $tag}}' \
+            | gh api --method POST \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+                --input -
 
       # ──────────────────────────────────────────────────────────
       # release-please updates JSON, YAML and TOML manifests. Three
@@ -126,7 +188,16 @@ jobs:
       # The release is published: check that the tag carries one single
       # version. `pnpm check:version` reads every manifest and every
       # version carrier of the repository and fails on any divergence.
+      #
+      # El script corre con el `tsx` del lockfile (`pnpm check:version`),
+      # no con un `pnpm dlx` que baja el paquete del registry en el
+      # momento: la versión y el checksum de la herramienta salen del
+      # lockfile del repo, como todo lo demás.
       # ──────────────────────────────────────────────────────────
+      - name: Install dependencies
+        if: steps.release.outputs.release_created == 'true'
+        run: mise run deps
+
       - name: Verify the released version
         if: steps.release.outputs.release_created == 'true'
         env:
@@ -135,4 +206,77 @@ jobs:
           set -euo pipefail
           git fetch --depth=1 origin "refs/tags/v${VERSION}:refs/tags/v${VERSION}"
           git checkout -B verify-release "v${VERSION}"
-          pnpm dlx tsx@4.23.15 scripts/check-release-version.ts "${VERSION}"
+          pnpm check:version "${VERSION}"
+
+  # ──────────────────────────────────────────────────────────
+  # El SBOM de cada release.
+  #
+  # release-please crea el tag y publica la release; este job adjunta el
+  # inventario de dependencias (SPDX 2.3) como asset de la release.
+  #
+  # El archivo es byte a byte idéntico al que atestan los workflows de
+  # build contra los binarios: los tres lo canonicalizan igual (mismo
+  # namespace derivado del tag, misma hora del commit, sin el inventario
+  # de archivos). Por eso el digest del `sbom.spdx.json` publicado es el
+  # mismo que lleva la atestación.
+  #
+  # Acá NO se emite procedencia: el archivo fuente de la release lo
+  # genera la API de GitHub, no un build de este repo, así que no hay un
+  # builder al que atribuirle nada. Lo que sí se atesta, en SLSA Build
+  # Level 3, son los artefactos que este repo compila: los installers de
+  # escritorio y los APK (`release.yml` → `build-desktop.yml` /
+  # `build-android.yml`).
+  # ──────────────────────────────────────────────────────────
+  sbom:
+    name: Attach the SPDX SBOM to the release
+    needs: release
+    if: needs.release.outputs.release-created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.release.outputs.version }}
+          persist-credentials: false
+
+      - name: Generate the SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+
+      - name: Normalize the SBOM for a reproducible digest
+        env:
+          TAG: v${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          created="$(date -u -d "@$(git log -1 --format=%ct HEAD)" +%Y-%m-%dT%H:%M:%SZ)"
+          jq -S \
+            --arg namespace "https://ftth-copilot.dev/spdx/v1/${TAG}" \
+            --arg created "${created}" \
+            --arg name "${TAG}" \
+            '.documentNamespace = $namespace
+             | .creationInfo.created = $created
+             | .name = $name
+             | del(.files)
+             | .relationships = [
+                 .relationships[]
+                 | select(((.relatedSpdxElement // "") | test("SPDXRef-File-")) | not)
+                 | select(((.spdxElementId // "") | test("SPDXRef-File-")) | not)
+               ]' \
+            sbom.spdx.json > sbom.normalized.json
+          mv sbom.normalized.json sbom.spdx.json
+
+      - name: Attach the SBOM to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload "${TAG}" sbom.spdx.json --clobber --repo "${GITHUB_REPOSITORY}"
