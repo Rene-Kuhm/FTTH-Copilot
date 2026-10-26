@@ -35,8 +35,9 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "22"
-  PNPM_VERSION: "11.22.0"
+  # La versión de mise está fijada: el CI usa el mismo gestor y las
+  # mismas versiones exactas que el entorno local (mise.toml + mise.lock).
+  MISE_VERSION: "2026.10.12"
 
 jobs:
   # ────────────────────────────────────────────────────────────
@@ -50,16 +51,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -68,10 +73,10 @@ jobs:
         run: pnpm --filter @ftth-copilot/db exec prisma generate
 
       - name: Lint
-        run: pnpm lint
+        run: mise run lint
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: mise run typecheck
 
       - name: Validate OLT research sources and matrix drift
         run: |
@@ -97,22 +102,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Check coverage thresholds
-        run: pnpm test:coverage-check
+        run: mise run test:coverage-check
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
@@ -149,16 +158,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -185,16 +198,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -203,7 +220,7 @@ jobs:
         run: pnpm --filter @ftth-copilot/db exec prisma generate
 
       - name: Build all packages
-        run: pnpm build
+        run: mise run build
 
   # ────────────────────────────────────────────────────────────
   # 4) E2E — valida la navegación y los contratos UI/API.
@@ -253,22 +270,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build application
-        run: pnpm build
+        run: mise run build
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -300,7 +321,7 @@ jobs:
         run: pnpm --filter @ftth-copilot/db db:seed
 
       - name: Run E2E tests
-        run: pnpm test:e2e
+        run: mise run test:e2e
 
   # ────────────────────────────────────────────────────────────
   # 5) Integración — migraciones + flujo de detección contra un
@@ -331,16 +352,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          # --locked falla si mise.lock no cubre lo que pide mise.toml:
+          # el CI no puede instalar una versión distinta de la declarada.
+          install_args: --locked
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -387,10 +412,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
 
       - name: Validate the pull request title
         env:
