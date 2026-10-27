@@ -48,5 +48,6 @@ if (violations.length > 0) {
 
 console.log(
   `Política de supply chain OK: ${workflows.length} workflows, todas las acciones fijadas por SHA, ` +
-    `todos los jobs con permissions:, y el pipeline de release conectado.`,
+    `todos los jobs con permissions:, los scripts de Windows con shell: explícito, ` +
+    `y el pipeline de release conectado.`,
 );

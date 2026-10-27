@@ -7,6 +7,7 @@ import {
   findJobsWithoutPermissions,
   findReleaseWiringViolations,
   findUnpinnedActions,
+  findWindowsShellViolations,
   isPinnedToSha,
   parseWorkflow,
   remoteActionRef,
@@ -213,6 +214,50 @@ test("findReleaseWiringViolations exige workflow_dispatch en el builder", () => 
   const violations = findReleaseWiringViolations(models);
   assert.equal(violations.length, 1);
   assert.match(violations[0]?.message ?? "", /workflow_dispatch/);
+});
+
+test("findWindowsShellViolations exige shell explícito en los jobs de Windows", () => {
+  const parsed = model(
+    [
+      "jobs:",
+      "  build:",
+      "    runs-on: windows-latest",
+      "    permissions:",
+      "      contents: read",
+      "    steps:",
+      "      - name: Bash script",
+      "        run: |",
+      "          set -euo pipefail",
+      "          echo hola",
+      "      - name: PowerShell script",
+      "        run: echo hola",
+      "        shell: pwsh",
+    ].join("\n"),
+  );
+
+  const violations = findWindowsShellViolations(parsed);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "windows-shell");
+  assert.match(violations[0]?.message ?? "", /Bash script/);
+});
+
+test("findWindowsShellViolations no se queja de los jobs de Linux", () => {
+  const parsed = model(
+    [
+      "jobs:",
+      "  build:",
+      "    runs-on: ubuntu-latest",
+      "    permissions:",
+      "      contents: read",
+      "    steps:",
+      "      - name: Bash script",
+      "        run: |",
+      "          set -euo pipefail",
+      "          echo hola",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(findWindowsShellViolations(parsed), []);
 });
 
 test("los workflows del repo cumplen la política de supply chain", () => {

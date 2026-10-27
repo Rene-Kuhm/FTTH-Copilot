@@ -230,7 +230,11 @@ jobs:
   sbom:
     name: Attach the SPDX SBOM to the release
     needs: release
-    if: needs.release.outputs.release-created == 'true'
+    # `needs.release.outputs['release-created']`: notación de índice. El
+    # output se llama `release-created` (con guion) y la notación de punto
+    # sobre un nombre con guion es ambigua en el parser de expresiones
+    # (se lee como `release - created`); con índice no hay ambigüedad.
+    if: needs.release.outputs['release-created'] == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -138,10 +138,16 @@ En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.
   CodeQL, `id-token: write` + `attestations: write` para firmar) se pide de
   forma explícita y local.
 - El job `supply-chain` de `ci.yml` falla si alguien agrega una acción sin
-  fijar, si un job no declara `permissions:` o si el pipeline de release queda
-  desconectado (ver §9.4). Es hermético: sólo lee los YAML del repo. La
-  política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
+  fijar, si un job no declara `permissions:`, si el pipeline de release queda
+  desconectado (ver §9.4) o si un job de Windows deja un `run:` sin `shell:`
+  explícito. Es hermético: sólo lee los YAML del repo. La política vive en
+  `scripts/lib/supply-chain.ts` y se puede correr local:
   `pnpm check:supply-chain`.
+- En los runners de Windows el shell por defecto de un `run:` es `pwsh`, no
+  `bash`. Por eso todo paso con script en `build-windows` declara su `shell:`:
+  los scripts bash (`shell: bash`) y los comandos simples (`shell: pwsh`). Sin
+  eso, un `set -euo pipefail` revienta en la primera línea y el build de
+  release de Windows no llega a producir los `.msi`/`.exe`.
 - `.github/dependabot.yml` actualiza las acciones fijadas por SHA (cambia el
   SHA y el comentario de versión a la vez) y el lockfile del workspace pnpm
   (`versioning-strategy: lockfile-only`: los rangos de los `package.json` no se

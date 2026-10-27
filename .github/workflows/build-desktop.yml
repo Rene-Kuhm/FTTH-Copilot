@@ -132,6 +132,7 @@ jobs:
                ]' \
             sbom.spdx.json > sbom.normalized.json
           mv sbom.normalized.json sbom.spdx.json
+        shell: bash
 
       - name: Setup mise (Node + pnpm con versiones exactas)
         uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
@@ -165,18 +166,22 @@ jobs:
 
       - name: Install dependencies
         run: mise run deps
+        shell: bash
 
       - name: Build Next.js
         working-directory: apps/web
         run: pnpm build
+        shell: bash
 
       - name: Prepare Tauri webview entrypoint
         working-directory: apps/web
         run: pnpm tauri:prepare
+        shell: bash
 
       - name: Build Tauri (Linux)
         working-directory: apps/web
         run: pnpm exec tauri build --bundles deb,appimage
+        shell: bash
 
       - name: Locate artifacts (Linux)
         working-directory: apps/web
@@ -235,6 +240,7 @@ jobs:
             fi
           done
           cp sbom.spdx.json attestations/sbom.spdx.json
+        shell: bash
 
       - name: Upload Linux .deb
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -294,6 +300,13 @@ jobs:
           upload-release-assets: false
           dependency-snapshot: false
 
+      # ────────────────────────────────────────────────────────────
+      # `shell: bash` es obligatorio acá: el default de GitHub para un
+      # `run:` en un runner Windows es `pwsh`, y este script es bash
+      # (`set -euo pipefail`, `$(...)`, continuaciones de línea). Con el
+      # default, el paso revienta en la primera línea y el build de
+      # release de Windows no llega ni a compilar los instaladores.
+      # ────────────────────────────────────────────────────────────
       - name: Normalize the SBOM for a reproducible digest
         if: inputs.release-tag != ''
         env:
@@ -316,6 +329,7 @@ jobs:
                ]' \
             sbom.spdx.json > sbom.normalized.json
           mv sbom.normalized.json sbom.spdx.json
+        shell: bash
 
       - name: Setup mise (Node + pnpm con versiones exactas)
         uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
@@ -333,18 +347,22 @@ jobs:
 
       - name: Install dependencies
         run: mise run deps
+        shell: pwsh
 
       - name: Build Next.js
         working-directory: apps/web
         run: pnpm build
+        shell: pwsh
 
       - name: Prepare Tauri webview entrypoint
         working-directory: apps/web
         run: pnpm tauri:prepare
+        shell: pwsh
 
       - name: Build Tauri (Windows)
         working-directory: apps/web
         run: pnpm exec tauri build --bundles nsis,msi
+        shell: pwsh
 
       - name: Locate artifacts (Windows)
         working-directory: apps/web
@@ -390,6 +408,7 @@ jobs:
             fi
           done
           cp sbom.spdx.json attestations/sbom.spdx.json
+        shell: bash
 
       - name: Upload Windows MSI
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

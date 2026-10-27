@@ -28,12 +28,19 @@
  *      documentadas de esa regla, y es keyless: no hace falta un PAT ni una
  *      GitHub App.
  *
+ *   4. `windows-shell` — en un job que corre sobre Windows, todo paso con
+ *      `run:` declara su `shell:`. El default de GitHub para un `run:` es
+ *      `bash` en Linux y macOS, pero `pwsh` en Windows: un script bash que
+ *      no declara el shell revienta en la primera línea. Como los pasos de
+ *      release (SBOM, bundles de atestación) sólo corren en el modo release,
+ *      un shell equivocado puede pasar la validación y romper la release.
+ *
  * Ver `docs/reference/contenedores-y-ci.md` para el detalle de cada regla.
  */
 import { LineCounter, isScalar, parseDocument, visit } from "yaml";
 
 /** Identificador de cada regla de la política. */
-export type PolicyRule = "sha-pinning" | "job-permissions" | "release-wiring";
+export type PolicyRule = "sha-pinning" | "job-permissions" | "release-wiring" | "windows-shell";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -41,6 +48,16 @@ export interface ActionReference {
   readonly ref: string;
   /** Línea (1-based) donde aparece el `uses:`. */
   readonly line: number;
+}
+
+/** Un paso de un job. */
+export interface WorkflowStep {
+  /** Nombre del paso (o su índice si no tiene nombre). */
+  readonly name: string;
+  /** Si el paso tiene un `run:`. */
+  readonly hasRun: boolean;
+  /** El `shell:` declarado por el paso (`null` si no lo declara). */
+  readonly shell: string | null;
 }
 
 /** Un job de un workflow, con lo que declara sobre sus permisos. */
@@ -55,6 +72,10 @@ export interface WorkflowJob {
    * - objeto: un permiso por scope (`{ contents: "read" }`).
    */
   readonly permissions: string | Record<string, string> | null;
+  /** El `runs-on:` del job (cadena; vacía si es una expresión). */
+  readonly runsOn: string;
+  /** Los pasos del job. */
+  readonly steps: readonly WorkflowStep[];
 }
 
 /** Un workflow del repositorio. */
@@ -149,6 +170,28 @@ function normalizePermissions(value: unknown): string | Record<string, string> |
   return entries;
 }
 
+/** Normaliza `runs-on:` a una cadena (o a vacío si es una expresión). */
+function normalizeRunsOn(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string").join(",");
+  }
+  return "";
+}
+
+/** Extrae los pasos de un job: nombre, si corre un script y su shell. */
+function normalizeSteps(value: unknown): WorkflowStep[] {
+  if (!Array.isArray(value)) return [];
+  const steps: WorkflowStep[] = [];
+  value.forEach((entry, index) => {
+    if (!isRecord(entry)) return;
+    const name = typeof entry.name === "string" ? entry.name : `#${index + 1}`;
+    const shell = typeof entry.shell === "string" ? entry.shell : null;
+    steps.push({ name, hasRun: typeof entry.run === "string", shell });
+  });
+  return steps;
+}
+
 /**
  * Parsea un workflow y extrae lo que la política necesita.
  *
@@ -188,6 +231,8 @@ export function parseWorkflow(file: WorkflowFile): WorkflowModel | null {
       jobs.push({
         name,
         permissions: normalizePermissions(definition.permissions),
+        runsOn: normalizeRunsOn(definition["runs-on"]),
+        steps: normalizeSteps(definition.steps),
       });
     }
   }
@@ -280,6 +325,34 @@ export function findJobsWithoutPermissions(model: WorkflowModel): PolicyViolatio
         path: model.path,
         line: null,
         message: `el job "${job.name}" declara permissions: vacío`,
+      });
+    }
+  }
+  return violations;
+}
+
+/**
+ * Regla 4: en un job de Windows, todo paso con `run:` declara su `shell:`.
+ *
+ * El default de GitHub para un `run:` es `bash` en Linux y macOS, pero `pwsh`
+ * en Windows. Un script bash sin `shell:` explícito revienta en la primera
+ * línea, y como los pasos de release sólo corren cuando hay tag, el fallo
+ * aparece recién en el build de la release.
+ */
+export function findWindowsShellViolations(model: WorkflowModel): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const job of model.jobs) {
+    if (!/windows/i.test(job.runsOn)) continue;
+    for (const step of job.steps) {
+      if (!step.hasRun) continue;
+      if (step.shell !== null) continue;
+      violations.push({
+        rule: "windows-shell",
+        path: model.path,
+        line: null,
+        message:
+          `el job "${job.name}" corre sobre Windows y el paso "${step.name}" no declara shell: ` +
+          `(el default de GitHub en Windows es pwsh, no bash)`,
       });
     }
   }
@@ -397,6 +470,7 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
   for (const model of models) {
     violations.push(...findUnpinnedActions(model));
     violations.push(...findJobsWithoutPermissions(model));
+    violations.push(...findWindowsShellViolations(model));
   }
   violations.push(...findReleaseWiringViolations(models));
   return violations;

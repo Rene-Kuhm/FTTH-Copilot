@@ -269,5 +269,5 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: artifacts/**/*
-          fail_on_unmatched-files: false
+          fail_on_unmatched_files: false
           generate_release_notes: true
