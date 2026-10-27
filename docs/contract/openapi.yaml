@@ -1,0 +1,5168 @@
+openapi: 3.1.0
+
+info:
+  title: FTTH-Copilot — API HTTP
+  version: 0.2.2
+  summary: Contrato de la API HTTP de FTTH-Copilot.
+  description: |
+    Este documento es la **fuente única de verdad** de la API HTTP del repo. De acá se
+    generan la referencia publicada en `docs/reference/api-http.md`, los tipos TypeScript
+    y los esquemas Zod de `@ftth-copilot/api-contract`. Si el código y este contrato no
+    coinciden, el CI falla: no hay una segunda fuente que pueda desactualizarse en
+    silencio.
+
+    Los nombres de rutas, parámetros y propiedades son los del código
+    (`apps/web/app/api/**\/route.ts`); las descripciones están en español porque
+    alimentan la referencia, que es documentación.
+
+    ### Pipeline global de requests
+
+    `apps/web/middleware.ts` clasifica `/api/*` como `api` (`middleware.ts:94`): **el
+    middleware nunca aplica auth a las rutas de API**. Sólo aplica CSRF y rate limit;
+    la autorización vive dentro de cada handler.
+
+    | Paso | Comportamiento | Dónde |
+    |---|---|---|
+    | Health | `/api/health` sale antes de todo: sin rate limit, sin CSRF, sin headers de seguridad | `middleware.ts:121` |
+    | CSRF | `POST/PUT/DELETE/PATCH` exige header `X-CSRF-Token` igual a la cookie `ftth_csrf`. Sin match ⇒ **403** `{error:'Invalid CSRF token'}`. Exento: `/api/auth/*` | `middleware.ts:127` |
+    | Rate limit | `/api/auth/*` ⇒ 200 req/60 s; el resto ⇒ 100 req/60 s. Clave `tenant:<tenantId>` del JWT o `ip:<x-forwarded-for>` | `middleware.ts:146` |
+    | Límite excedido | **429** `{error:'Too many requests', retryAfter}` + `retry-after` y `x-ratelimit-reset` | `middleware/rate-limit.ts:128` |
+    | Headers de éxito | `x-ratelimit-remaining`, `x-ratelimit-reset` | `middleware.ts:168` |
+    | Seguridad | `nosniff`, `DENY` frame, `referrer-policy`, CSP, HSTS en producción | `middleware.ts:243` |
+
+    ### CSRF en detalle
+
+    Cookie `ftth_csrf`: 32 bytes aleatorios en hex, `Path=/; SameSite=Strict;
+    Max-Age=86400` (`apps/web/lib/auth/csrf.ts:21`, `:106`). **No es `HttpOnly`** a
+    propósito: el token no es una credencial, tiene que ser legible por JS para que el
+    cliente lo reenvíe. La cookie de sesión `ftth_session`, en cambio, sí es
+    `HttpOnly`.
+
+    Validación: comparación en tiempo constante entre cookie y header (`csrf.ts:55`). El
+    cliente `csrfFetch()` (`apps/web/lib/auth/csrf-client.ts:16`) adjunta el header sólo
+    en métodos mutantes y **lanza** si la cookie no está.
+
+    ### Roles y permisos
+
+    `apps/web/lib/auth/permissions.ts:14-88`. Roles: `OWNER`, `ADMIN`, `OPERATOR`,
+    `MEMBER` (donde `MEMBER` ≡ `OPERATOR`).
+
+    | Rol | Permisos |
+    |---|---|
+    | `OWNER` | Los 11 |
+    | `ADMIN` | Todos salvo `execute_actions` |
+    | `OPERATOR` / `MEMBER` | `chat`, `view_own_conversations`, `delete_conversations`, `view_network`, `ack_alerts`, `manage_incidents` |
+
+    La sesión se resuelve con `getCurrentUser()` (`apps/web/lib/auth/server.ts:409`):
+    verifica el JWT **y** que exista la fila `prisma.session` vigente.
+  license:
+    name: Propietaria
+  contact:
+    name: Equipo FTTH-Copilot
+    url: https://github.com/Rene-Kuhm/FTTH-Copilot
+
+servers:
+  - url: http://localhost:3001
+    description: Desarrollo local (`pnpm dev`).
+  - url: https://{host}
+    description: Instalación propia del operador.
+    variables:
+      host:
+        default: ftth-copilot.local
+        description: Host donde se despliega la plataforma.
+
+security:
+  - sessionCookie: []
+
+tags:
+  - name: Salud y métricas
+    description: Liveness, métricas Prometheus y proxy a VictoriaMetrics.
+  - name: Autenticación
+    description: Login, signup, sesión y MFA.
+  - name: Chat y conversaciones
+    description: Copiloto conversacional y su historial.
+  - name: Conectores NMS
+    description: Alta, prueba y baja de conexiones a SmartOLT, Mikrowisp y MikroTik.
+  - name: Red
+    description: Dashboard, alertas, SLA, auditoría, seguridad y topología.
+  - name: Incidentes e investigaciones
+    description: Incidentes, correlación y el motor de investigación.
+  - name: Planes de fibra
+    description: Planos de fibra con zonas y marcadores.
+  - name: Mantenimiento y on-call
+    description: Ventanas de mantenimiento, guardias y canales de notificación.
+  - name: Ops
+    description: Timeline, situaciones, anomalías, capacidad, runbooks y stream.
+  - name: Usuarios
+    description: Administración de usuarios y roles.
+
+paths:
+  /api/health:
+    get:
+      tags: [Salud y métricas]
+      summary: Liveness del proceso y de sus servicios.
+      description: |
+        Sale antes de todo el pipeline del middleware: sin rate limit, sin CSRF y sin
+        headers de seguridad. Responde **503** cuando el proceso está degradado.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: El proceso está sano.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+        '503':
+          description: El proceso está degradado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+
+  /api/metrics:
+    get:
+      tags: [Salud y métricas]
+      summary: Exposición de métricas Prometheus.
+      description: |
+        Devuelve la familia `ftth_copilot_*` y `ftth_laya_*` en texto plano
+        (`text/plain; version=0.0.4`). Si `METRICS_BEARER_TOKEN` está seteado, exige el
+        Bearer correspondiente.
+      operationId: getMetrics
+      security: []
+      responses:
+        '200':
+          description: Métricas en formato de exposición Prometheus.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Falta o no coincide el `METRICS_BEARER_TOKEN`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/vm/query:
+    get:
+      tags: [Salud y métricas]
+      summary: Proxy a VictoriaMetrics (`query_range`).
+      operationId: queryVictoriaMetricsRange
+      security: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Expresión PromQL.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Respuesta cruda de VictoriaMetrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Falta el parámetro `query`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: VictoriaMetrics no respondió.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+
+  /api/vm/instant:
+    get:
+      tags: [Salud y métricas]
+      summary: Proxy a VictoriaMetrics (`query`, valor puntual).
+      operationId: queryVictoriaMetricsInstant
+      security: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Expresión PromQL.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Respuesta cruda de VictoriaMetrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Falta el parámetro `query`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: VictoriaMetrics no respondió.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+
+  /api/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Inicia sesión con email y contraseña.
+      description: |
+        Cuota propia por email **e** IP. Si el usuario tiene MFA activo responde
+        `200 {mfaRequired:true,tempToken}` en lugar de emitir la cookie de sesión.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sesión iniciada.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponse'
+                  - $ref: '#/components/schemas/MfaRequiredResponse'
+        '400':
+          description: JSON inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Credenciales inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Cuota de intentos excedida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitedError'
+
+  /api/auth/signup:
+    post:
+      tags: [Autenticación]
+      summary: Registra un usuario nuevo y su tenant.
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: Usuario creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignupResponse'
+        '400':
+          description: JSON inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El email ya está registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Cuota por IP excedida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitedError'
+
+  /api/auth/me:
+    get:
+      tags: [Autenticación]
+      summary: Devuelve la sesión actual.
+      description: |
+        Degrada a `200 {user:null}` cuando no hay sesión válida: no es un error.
+      operationId: getCurrentSession
+      responses:
+        '200':
+          description: Estado de la sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cierra la sesión y expira las cookies.
+      operationId: logout
+      responses:
+        '200':
+          description: Sesión cerrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /api/auth/{...nextauth}:
+    get:
+      tags: [Autenticación]
+      summary: Stub de NextAuth (no implementado).
+      description: |
+        Placeholder del route handler de NextAuth. **No** está implementado: responde
+        **501** siempre.
+      operationId: nextAuthStub
+      security: []
+      responses:
+        '501':
+          description: NextAuth no está configurado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Autenticación]
+      summary: Stub de NextAuth (no implementado).
+      description: Placeholder del route handler de NextAuth. Responde **501** siempre.
+      operationId: nextAuthStubPost
+      security: []
+      responses:
+        '501':
+          description: NextAuth no está configurado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/ldap-test:
+    get:
+      tags: [Autenticación]
+      summary: Diagnostica la conexión LDAP del tenant.
+      operationId: testLdap
+      x-roles: [OWNER, ADMIN]
+      responses:
+        '200':
+          description: Resultado del diagnóstico.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: El rol no es `OWNER` ni `ADMIN`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/mfa/setup:
+    get:
+      tags: [Autenticación]
+      summary: Estado de MFA del usuario actual.
+      operationId: getMfaSetupStatus
+      responses:
+        '200':
+          description: Estado de MFA.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnabledResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Autenticación]
+      summary: Genera el secreto TOTP y la URI `otpauth`.
+      operationId: setupMfa
+      responses:
+        '200':
+          description: Secreto y URI para enrolar el autenticador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaSetupResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: MFA ya está activo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Autenticación]
+      summary: Desactiva MFA (exige un código TOTP vigente).
+      operationId: disableMfa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpRequest'
+      responses:
+        '200':
+          description: MFA desactivado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnabledResponse'
+        '400':
+          description: Código inválido o ausente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/mfa/disable:
+    post:
+      tags: [Autenticación]
+      summary: Desactiva MFA (exige un código TOTP vigente).
+      operationId: disableMfaByCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpRequest'
+      responses:
+        '200':
+          description: MFA desactivado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Código inválido o ausente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/mfa/verify:
+    post:
+      tags: [Autenticación]
+      summary: Verifica el segundo factor y abre sesión.
+      description: |
+        Acepta `{email,password,code}`, `{code}` o `{tempToken,code}`. Es la única
+        operación de auth que **no** exige CSRF y la única que emite sólo la cookie de
+        sesión (no la de CSRF).
+      operationId: verifyMfa
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: Segundo_factor verificado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Credencial, código o token inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/chat:
+    post:
+      tags: [Chat y conversaciones]
+      summary: Corre el agente y persiste la conversación.
+      description: |
+        Persiste conversación, mensajes, tool calls, `verdict_log` y un candidato de
+        incidente pendiente. Requiere el permiso `chat`.
+      operationId: postChat
+      x-permission: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Diagnóstico del agente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `chat`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: La conversación o la conexión no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflicto de estado en la conversación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Cuota de chat o de investigación excedida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitedError'
+
+  /api/conversations:
+    get:
+      tags: [Chat y conversaciones]
+      summary: Lista las conversaciones del usuario.
+      description: |
+        Sin sesión válida degrada a una lista vacía en lugar de responder 401.
+      operationId: listConversations
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Filtra por título.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversaciones del usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationList'
+
+  /api/conversations/{id}:
+    get:
+      tags: [Chat y conversaciones]
+      summary: Devuelve una conversación con sus mensajes.
+      description: |
+        El alcance lo decide el permiso `view_all_conversations`: sin él, sólo se ven
+        las conversaciones propias.
+      operationId: getConversation
+      x-permission: view_all_conversations
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Conversación y mensajes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o no es visible para el usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/conversations/{id}/export:
+    get:
+      tags: [Chat y conversaciones]
+      summary: Exporta una conversación.
+      description: |
+        Con `?format=text` devuelve un attachment `text/plain`; por defecto devuelve
+        JSON con los mensajes.
+      operationId: exportConversation
+      x-permission: view_all_conversations
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - name: format
+          in: query
+          required: false
+          description: Formato de la exportación.
+          schema:
+            type: string
+            enum: [json, text]
+            default: json
+      responses:
+        '200':
+          description: Conversación exportada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o no es visible para el usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/connectors:
+    get:
+      tags: [Conectores NMS]
+      summary: Lista los conectores NMS del tenant.
+      description: |
+        **Nunca** expone la API key del conector. Sin sesión válida degrada a
+        `{connectors:[]}`.
+      operationId: listConnectors
+      responses:
+        '200':
+          description: Conectores del tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorList'
+
+  /api/connectors/create:
+    post:
+      tags: [Conectores NMS]
+      summary: Crea una conexión a un NMS.
+      description: |
+        Valida la URL con `assertSafeNmsBaseUrl` (política SSRF de
+        `connectors-core`). Un proveedor no implementado responde **422**.
+      operationId: createConnector
+      x-permission: manage_connectors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConnectorRequest'
+      responses:
+        '201':
+          description: Conector creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connector:
+                    $ref: '#/components/schemas/Connector'
+                required: [connector]
+        '400':
+          description: Cuerpo inválido o URL no segura.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_connectors`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: El proveedor todavía no está implementado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/connectors/{id}:
+    delete:
+      tags: [Conectores NMS]
+      summary: Borra un conector.
+      description: |
+        La misma respuesta (`404 {error:'Not found or not authorized'}`) para un
+        conector inexistente y para uno que no es del usuario: no filtra existencia.
+      operationId: deleteConnector
+      x-permission: manage_connectors
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Conector borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_connectors`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o no está autorizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/connectors/{id}/test:
+    post:
+      tags: [Conectores NMS]
+      summary: Prueba la conectividad con el NMS.
+      operationId: testConnector
+      x-permission: manage_connectors
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: La conexión respondió.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorTestResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_connectors`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: El NMS no respondió.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorTestResponse'
+
+  /api/dashboard:
+    get:
+      tags: [Red]
+      summary: Estado agregado de la red.
+      description: Requiere el permiso `view_network`.
+      operationId: getDashboard
+      x-permission: view_network
+      parameters:
+        - name: connectionId
+          in: query
+          required: false
+          description: Acota el dashboard a una conexión.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resumen de la red.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/alerts:
+    get:
+      tags: [Red]
+      summary: Alertas detectadas.
+      description: Requiere el permiso `view_network`.
+      operationId: listAlerts
+      x-permission: view_network
+      parameters:
+        - name: connectionId
+          in: query
+          required: false
+          description: Filtra por conexión.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alertas del tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sla:
+    get:
+      tags: [Red]
+      summary: SLA de disponibilidad por conexión.
+      description: |
+        `uptimePercent: null` significa que no hay datos suficientes para la ventana
+        pedida: no es un cero.
+      operationId: getSla
+      x-permission: view_network
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Ventana en días (1–90).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: SLA de la ventana pedida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/audit:
+    get:
+      tags: [Red]
+      summary: Auditoría paginada.
+      description: |
+        Los miembros que no tienen `manage_maintenance` sólo ven sus propios eventos.
+      operationId: listAuditEvents
+      x-permission: view_network
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Página (desde 1).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Filas por página (máximo 200).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: category
+          in: query
+          required: false
+          description: Categoría del evento.
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          required: false
+          description: Identificador del actor.
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          required: false
+          description: Tipo de recurso afectado.
+          schema:
+            type: string
+        - name: outcome
+          in: query
+          required: false
+          description: Resultado de la acción auditada.
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          description: Límite inferior (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Límite superior (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Página de eventos de auditoría.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/security/access:
+    get:
+      tags: [Red]
+      summary: Eventos de acceso y de fallo de autenticación.
+      description: Requiere el permiso `view_network`.
+      operationId: listSecurityAccessEvents
+      x-permission: view_network
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Categoría del evento.
+          schema:
+            type: string
+            enum: [access, auth_failure]
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de eventos (hasta 500).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Eventos de acceso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityAccessResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/topology/tree:
+    get:
+      tags: [Red]
+      summary: Árbol de topología con conteo de downstream.
+      description: Requiere el permiso `view_network`.
+      operationId: getTopologyTree
+      x-permission: view_network
+      responses:
+        '200':
+          description: Raíces del árbol de topología.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopologyTreeResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/topology/path:
+    get:
+      tags: [Red]
+      summary: Camino desde un dispositivo hasta la raíz.
+      description: |
+        `kind` e `id` son obligatorios. Un dispositivo de otro tenant responde **404**,
+        no **403**: no se filtra la existencia.
+      operationId: getTopologyPath
+      x-permission: view_network
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          description: Tipo de dispositivo.
+          schema:
+            $ref: '#/components/schemas/TopologyKind'
+        - name: id
+          in: query
+          required: true
+          description: Identificador del dispositivo.
+          schema:
+            type: string
+        - name: asOf
+          in: query
+          required: false
+          description: Momento de la foto (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Camino hasta la raíz.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopologyPathResponse'
+        '400':
+          description: Faltan `kind` o `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El dispositivo no existe en el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/topology/downstream:
+    get:
+      tags: [Red]
+      summary: Elementos aguas abajo de un dispositivo.
+      description: |
+        `kind` e `id` son obligatorios. Responde **404** para un dispositivo de otro
+        tenant.
+      operationId: getTopologyDownstream
+      x-permission: view_network
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          description: Tipo de dispositivo.
+          schema:
+            $ref: '#/components/schemas/TopologyKind'
+        - name: id
+          in: query
+          required: true
+          description: Identificador del dispositivo.
+          schema:
+            type: string
+        - name: asOf
+          in: query
+          required: false
+          description: Momento de la foto (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Elementos downstream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopologyDownstreamResponse'
+        '400':
+          description: Faltan `kind` o `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El dispositivo no existe en el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/incidents:
+    get:
+      tags: [Incidentes e investigaciones]
+      summary: Lista incidentes con paginación por cursor.
+      description: Requiere el permiso `view_network`.
+      operationId: listIncidents
+      x-permission: view_network
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Estado de los incidentes.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de incidentes (por defecto 50, máximo 200).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor opaco de la página anterior.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Incidentes del tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentList'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Incidentes e investigaciones]
+      summary: Abre un incidente.
+      description: |
+        Requiere el permiso `manage_incidents`. Si ya hay un incidente abierto para el
+        mismo dispositivo responde **409** con `{error,existingId}`.
+      operationId: createIncident
+      x-permission: manage_incidents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIncidentRequest'
+      responses:
+        '201':
+          description: Incidente creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incident:
+                    $ref: '#/components/schemas/Incident'
+                required: [incident]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_incidents`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Ya hay un incidente abierto para ese dispositivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+
+  /api/incidents/{id}:
+    get:
+      tags: [Incidentes e investigaciones]
+      summary: Devuelve un incidente y su mantenimiento relacionado.
+      operationId: getIncident
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Incidente y mantenimiento relacionado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentDetail'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o es de otro tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Incidentes e investigaciones]
+      summary: Actualiza estado, severidad, título o descripción.
+      operationId: updateIncident
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIncidentRequest'
+      responses:
+        '200':
+          description: Incidente actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incident:
+                    $ref: '#/components/schemas/Incident'
+                required: [incident]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o es de otro tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/incidents/{id}/confirm:
+    post:
+      tags: [Incidentes e investigaciones]
+      summary: Confirma la causa raíz de un incidente.
+      description: |
+        Idempotente: "**201** al crear la confirmación y **200** si ya existía."
+      operationId: confirmIncident
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmIncidentRequest'
+      responses:
+        '200':
+          description: La confirmación ya existía.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '201':
+          description: Confirmación creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o es de otro tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/incidents/{id}/investigate:
+    get:
+      tags: [Incidentes e investigaciones]
+      summary: Estado de la investigación del incidente.
+      operationId: getIncidentInvestigation
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Estado de la investigación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigationStatus'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Incidentes e investigaciones]
+      summary: Lanza una investigación del incidente.
+      description: |
+        **202** cuando la investigación queda pendiente, **201** cuando el resultado
+        está listo. Consume cuota de investigación.
+      operationId: startIncidentInvestigation
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvestigateRequest'
+      responses:
+        '201':
+          description: La investigación terminó y hay resultado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigationResultResponse'
+        '202':
+          description: La investigación quedó pendiente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigationPendingResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No existe o es de otro tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Cuota de investigación excedida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitedError'
+
+  /api/investigations/{runId}/feedbacks:
+    get:
+      tags: [Incidentes e investigaciones]
+      summary: Feedbacks de una corrida de investigación.
+      operationId: listInvestigationFeedbacks
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathRunId'
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de feedbacks.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Feedbacks de la corrida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackList'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/investigations/{runId}/versions/{versionId}/feedback:
+    post:
+      tags: [Incidentes e investigaciones]
+      summary: Registra el feedback de una versión de investigación.
+      description: |
+        Idempotente: "**201** al crear y **200** si ya existía (`idempotent:true`)."
+      operationId: createInvestigationFeedback
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathRunId'
+        - name: versionId
+          in: path
+          required: true
+          description: Versión de la investigación.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '200':
+          description: El feedback ya existía.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '201':
+          description: Feedback creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/predictions:
+    get:
+      tags: [Incidentes e investigaciones]
+      summary: Predicciones de falla con paginación por cursor.
+      operationId: listPredictions
+      x-permission: view_network
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Alcance de las predicciones.
+          schema:
+            type: string
+            enum: [unresolved, resolved, all]
+            default: unresolved
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de predicciones (por defecto 50, máximo 200).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor opaco de la página anterior.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Predicciones del tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionList'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/predictions/{id}:
+    patch:
+      tags: [Incidentes e investigaciones]
+      summary: Reconoce (ACK) una alerta detectada.
+      description: Requiere el permiso `ack_alerts`.
+      operationId: acknowledgePrediction
+      x-permission: ack_alerts
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Predicción reconocida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `ack_alerts`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pending-incidents/promote:
+    post:
+      tags: [Incidentes e investigaciones]
+      summary: Promueve candidatos de incidente a incidentes confirmados.
+      description: |
+        Reservado al rol `OWNER`: escribe filas que el retrieval path expone al LLM
+        como contexto de fondo.
+      operationId: promotePendingIncidents
+      x-roles: [OWNER]
+      responses:
+        '200':
+          description: Resultado de la promoción.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: El rol no es `OWNER`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans:
+    get:
+      tags: [Planes de fibra]
+      summary: Lista los planos de fibra del tenant.
+      description: |
+        Los marcadores de un plano se posicionan en porcentajes (`xPercent`, `yPercent`)
+        sobre la imagen del plano.
+      operationId: listFiberPlans
+      x-permission: view_network
+      responses:
+        '200':
+          description: Planos con su cantidad de zonas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiberPlanList'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Planes de fibra]
+      summary: Sube un plano de fibra.
+      description: |
+        `multipart/form-data` con `name`, `file` (png/jpeg/gif/webp/svg/pdf, hasta
+        50 MB), `description?` y `connectionId?`. El archivo se guarda en
+        `public/uploads/fiber-plans`.
+      operationId: createFiberPlan
+      x-permission: view_network
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateFiberPlanRequest'
+      responses:
+        '201':
+          description: Plano creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan:
+                    $ref: '#/components/schemas/FiberPlan'
+                required: [plan]
+        '400':
+          description: Formulario inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}:
+    get:
+      tags: [Planes de fibra]
+      summary: Devuelve un plano con sus zonas y marcadores.
+      operationId: getFiberPlan
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Plano, zonas y marcadores.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiberPlanDetail'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El plano no existe en el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Planes de fibra]
+      summary: Borra un plano, sus zonas, marcadores y el archivo.
+      operationId: deleteFiberPlan
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Plano borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El plano no existe en el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/correlate:
+    get:
+      tags: [Planes de fibra]
+      summary: Correlaciona marcadores de un dispositivo con su zona primaria.
+      operationId: correlateFiberPlanMarkers
+      x-permission: view_network
+      parameters:
+        - name: deviceKind
+          in: query
+          required: true
+          description: Tipo de dispositivo.
+          schema:
+            $ref: '#/components/schemas/MarkerDeviceKind'
+        - name: deviceId
+          in: query
+          required: true
+          description: Identificador del dispositivo.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marcadores y zona primaria.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiberPlanCorrelation'
+        '400':
+          description: Faltan `deviceKind` o `deviceId`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/zones:
+    get:
+      tags: [Planes de fibra]
+      summary: Lista las zonas de un plano.
+      operationId: listFiberPlanZones
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Zonas del plano.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zones:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FiberZone'
+                required: [zones]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Planes de fibra]
+      summary: Crea una zona en el plano.
+      operationId: createFiberPlanZone
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFiberZoneRequest'
+      responses:
+        '201':
+          description: Zona creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zone:
+                    $ref: '#/components/schemas/FiberZone'
+                required: [zone]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/zones/{zoneId}:
+    patch:
+      tags: [Planes de fibra]
+      summary: Actualiza una zona.
+      operationId: updateFiberPlanZone
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFiberZoneRequest'
+      responses:
+        '200':
+          description: Zona actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zone:
+                    $ref: '#/components/schemas/FiberZone'
+                required: [zone]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Planes de fibra]
+      summary: Borra una zona.
+      operationId: deleteFiberPlanZone
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+      responses:
+        '200':
+          description: Zona borrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/zones/{zoneId}/markers:
+    get:
+      tags: [Planes de fibra]
+      summary: Lista los marcadores de una zona.
+      operationId: listFiberPlanZoneMarkers
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+      responses:
+        '200':
+          description: Marcadores de la zona.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  markers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FiberMarker'
+                required: [markers]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Planes de fibra]
+      summary: Crea un marcador dentro de una zona.
+      operationId: createFiberPlanZoneMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFiberMarkerRequest'
+      responses:
+        '201':
+          description: Marcador creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marker:
+                    $ref: '#/components/schemas/FiberMarker'
+                required: [marker]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/zones/{zoneId}/markers/{markerId}:
+    patch:
+      tags: [Planes de fibra]
+      summary: Actualiza un marcador dentro de una zona.
+      operationId: updateFiberPlanZoneMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: '#/components/parameters/PathMarkerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFiberMarkerRequest'
+      responses:
+        '200':
+          description: Marcador actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marker:
+                    $ref: '#/components/schemas/FiberMarker'
+                required: [marker]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Planes de fibra]
+      summary: Borra un marcador dentro de una zona.
+      operationId: deleteFiberPlanZoneMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: '#/components/parameters/PathMarkerId'
+      responses:
+        '200':
+          description: Marcador borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/markers:
+    get:
+      tags: [Planes de fibra]
+      summary: Lista los marcadores sin zona del plano.
+      operationId: listFiberPlanMarkers
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Marcadores sin zona.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  markers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FiberMarker'
+                required: [markers]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Planes de fibra]
+      summary: Crea un marcador sin zona.
+      operationId: createFiberPlanMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFiberMarkerRequest'
+      responses:
+        '201':
+          description: Marcador creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marker:
+                    $ref: '#/components/schemas/FiberMarker'
+                required: [marker]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/fiber-plans/{id}/markers/{markerId}:
+    patch:
+      tags: [Planes de fibra]
+      summary: Actualiza un marcador (incluye moverlo de zona).
+      operationId: updateFiberPlanMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathMarkerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFiberMarkerRequest'
+      responses:
+        '200':
+          description: Marcador actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  marker:
+                    $ref: '#/components/schemas/FiberMarker'
+                required: [marker]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Planes de fibra]
+      summary: Borra un marcador.
+      operationId: deleteFiberPlanMarker
+      x-permission: view_network
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - $ref: '#/components/parameters/PathMarkerId'
+      responses:
+        '200':
+          description: Marcador borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance-windows:
+    get:
+      tags: [Mantenimiento y on-call]
+      summary: Lista las ventanas de mantenimiento.
+      description: |
+        Exige sesión, pero **no** exige permiso: es la única operación de la sección
+        que no chequea `manage_maintenance`.
+      operationId: listMaintenanceWindows
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Límite inferior (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Límite superior (ISO 8601).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Ventanas de la ventana pedida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  windows:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaintenanceWindow'
+                required: [windows]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Mantenimiento y on-call]
+      summary: Abre una ventana de mantenimiento.
+      description: |
+        Requiere el permiso `manage_maintenance`. Si la ventana se solapa con otra
+        responde **409** con `{error:'overlap',overlappingWindowId,...}`.
+      operationId: createMaintenanceWindow
+      x-permission: manage_maintenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMaintenanceWindowRequest'
+      responses:
+        '201':
+          description: Ventana creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  window:
+                    $ref: '#/components/schemas/MaintenanceWindow'
+                required: [window]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: La ventana se solapa con otra existente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOverlapError'
+
+  /api/maintenance-windows/{id}:
+    delete:
+      tags: [Mantenimiento y on-call]
+      summary: Cancela una ventana de mantenimiento.
+      description: |
+        Cancelación blanda: la fila queda con `status='cancelled'`. Si la ventana ya
+        está terminal responde **409** con `{error:'already_terminal',currentStatus}`.
+      operationId: cancelMaintenanceWindow
+      x-permission: manage_maintenance
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelMaintenanceWindowRequest'
+      responses:
+        '200':
+          description: Ventana cancelada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: La ventana ya está en estado terminal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlreadyTerminalError'
+
+  /api/maintenance-windows/{id}/suppressions:
+    get:
+      tags: [Mantenimiento y on-call]
+      summary: Eventos suprimidos por la ventana.
+      description: |
+        Auditoría de lo que la ventana dejó de notificar.
+      operationId: listMaintenanceSuppressions
+      x-permission: manage_maintenance
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Supresiones de la ventana.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  windowId:
+                    type: string
+                  suppressions:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                required: [windowId, suppressions]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance-windows/{id}/reevaluate:
+    post:
+      tags: [Mantenimiento y on-call]
+      summary: Reevalúa los avisos de una ventana.
+      description: |
+        Requiere `MAINTENANCE_REEVAL_ENABLED=true`; si la feature está apagada
+        responde **503** `{error:'disabled',feature:'maintenance_reevaluation'}`.
+      operationId: reevaluateMaintenanceWindow
+      x-permission: manage_maintenance
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReevaluateMaintenanceWindowRequest'
+      responses:
+        '200':
+          description: Resultado de la reevaluación.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reevaluated:
+                    type: integer
+                  notified:
+                    type: integer
+                  skipped:
+                    type: integer
+                  windowEndedAt:
+                    type: [string, "null"]
+                    format: date-time
+                required: [reevaluated, notified, skipped]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: La feature de reevaluación está deshabilitada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureDisabledError'
+
+  /api/ops/oncall:
+    get:
+      tags: [Mantenimiento y on-call]
+      summary: Lista las guardias y la entrada vigente.
+      operationId: listOncallSchedules
+      x-permission: view_network
+      parameters:
+        - name: scheduleId
+          in: query
+          required: false
+          description: Devuelve sólo esa guardia.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Guardias con su entrada vigente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OncallSchedule'
+                required: [schedules]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Mantenimiento y on-call]
+      summary: Crea una guardia o una entrada de guardia.
+      description: |
+        Requiere el permiso `manage_maintenance`. El cuerpo decide si se crea una
+        guardia (`name`) o una entrada (`userId`, `startUtc`, `endUtc`).
+      operationId: createOncallEntry
+      x-permission: manage_maintenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOncallRequest'
+      responses:
+        '201':
+          description: Guardia o entrada creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Mantenimiento y on-call]
+      summary: Actualiza una guardia o una entrada.
+      operationId: updateOncallEntry
+      x-permission: manage_maintenance
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Identificador de la guardia o de la entrada.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOncallRequest'
+      responses:
+        '200':
+          description: Guardia o entrada actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido o falta `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Mantenimiento y on-call]
+      summary: Borra una guardia o una entrada.
+      operationId: deleteOncallEntry
+      x-permission: manage_maintenance
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Identificador de la guardia o de la entrada.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Guardia o entrada borrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Falta `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/notifications:
+    get:
+      tags: [Mantenimiento y on-call]
+      summary: Lista los canales de notificación.
+      description: |
+        Los targets vienen redactados: la respuesta nunca expone el secreto del
+        webhook ni la contraseña del mail.
+      operationId: listNotificationChannels
+      x-permission: view_network
+      responses:
+        '200':
+          description: Canales y entregas recientes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channels:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationChannel'
+                  recentDeliveries:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                required: [channels]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Mantenimiento y on-call]
+      summary: Crea un canal de notificación.
+      operationId: createNotificationChannel
+      x-permission: manage_maintenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNotificationChannelRequest'
+      responses:
+        '201':
+          description: Canal creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channel:
+                    $ref: '#/components/schemas/NotificationChannel'
+                required: [channel]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Mantenimiento y on-call]
+      summary: Actualiza un canal de notificación.
+      operationId: updateNotificationChannel
+      x-permission: manage_maintenance
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Identificador del canal.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationChannelRequest'
+      responses:
+        '200':
+          description: Canal actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channel:
+                    $ref: '#/components/schemas/NotificationChannel'
+                required: [channel]
+        '400':
+          description: Cuerpo inválido o falta `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Mantenimiento y on-call]
+      summary: Borra un canal de notificación.
+      operationId: deleteNotificationChannel
+      x-permission: manage_maintenance
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Identificador del canal.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Canal borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Falta `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Mantenimiento y on-call]
+      summary: Dry-run de un canal de notificación.
+      description: |
+        Entrega un payload sintético y reporta el resultado **sin** escribir la fila de
+        entrega. Un canal deshabilitado responde **409** y uno mal configurado **422**.
+      operationId: testNotificationChannel
+      x-permission: manage_maintenance
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Identificador del canal.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resultado del dry-run.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Falta `id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_maintenance`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El canal no existe en el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El canal está deshabilitado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: El canal está mal configurado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MisconfiguredChannelError'
+
+  /api/ops/events:
+    get:
+      tags: [Ops]
+      summary: Timeline de eventos operativos.
+      operationId: listOpsEvents
+      x-permission: view_network
+      parameters:
+        - name: hours
+          in: query
+          required: false
+          description: Ventana hacia atrás en horas (1–168).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 48
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de eventos (10–500).
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 500
+            default: 100
+        - name: kind
+          in: query
+          required: false
+          description: Tipo de evento.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Timeline y su resumen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsEventsResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/situations:
+    get:
+      tags: [Ops]
+      summary: Situaciones anómalas agregadas.
+      operationId: listOpsSituations
+      x-permission: view_network
+      parameters:
+        - name: hours
+          in: query
+          required: false
+          description: Ventana hacia atrás en horas (1–72).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 72
+            default: 6
+      responses:
+        '200':
+          description: Situaciones y su resumen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsSituationsResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/anomalies:
+    get:
+      tags: [Ops]
+      summary: Anomalías detectadas con el detector RBCD.
+      description: |
+        Detector RBCD sobre 5 métricas: devuelve, por grupo, la expresión, los puntos y
+        el residuo MAD.
+      operationId: listOpsAnomalies
+      x-permission: view_network
+      parameters:
+        - name: hours
+          in: query
+          required: false
+          description: Ventana hacia atrás en horas (24–720).
+          schema:
+            type: integer
+            minimum: 24
+            maximum: 720
+            default: 168
+      responses:
+        '200':
+          description: Reportes de anomalías.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsAnomaliesResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/capacity:
+    get:
+      tags: [Ops]
+      summary: Pronóstico de saturación por dispositivo.
+      operationId: listOpsCapacity
+      x-permission: view_network
+      parameters:
+        - name: hours
+          in: query
+          required: false
+          description: Ventana hacia atrás en horas (1–24).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+        - name: min_conf
+          in: query
+          required: false
+          description: Confianza mínima del pronóstico (0–1).
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.3
+      responses:
+        '200':
+          description: Pronósticos de capacidad.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsCapacityResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/runbooks:
+    get:
+      tags: [Ops]
+      summary: Lista runbooks y su historial relacionado.
+      operationId: listOpsRunbooks
+      x-permission: view_network
+      parameters:
+        - name: deviceKind
+          in: query
+          required: false
+          description: Tipo de dispositivo.
+          schema:
+            type: string
+        - name: deviceId
+          in: query
+          required: false
+          description: Identificador del dispositivo.
+          schema:
+            type: string
+        - name: alertKind
+          in: query
+          required: false
+          description: Tipo de alerta.
+          schema:
+            type: string
+        - name: severity
+          in: query
+          required: false
+          description: Severidad de la alerta.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Runbooks e historial relacionado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsRunbooksResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Ops]
+      summary: Marca un runbook como usado.
+      description: |
+        Incrementa `useCount` y setea `lastUsedAt` del runbook `{id}`.
+      operationId: markOpsRunbookUsed
+      x-permission: view_network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  minLength: 1
+              required: [id]
+      responses:
+        '200':
+          description: Runbook marcado como usado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/ops/stream:
+    get:
+      tags: [Ops]
+      summary: Stream SSE del estado operativo.
+      description: |
+        Eventos `snapshot`, `delta` y `heartbeat`. El heartbeat late cada 10 s y el
+        snapshot se emite cada 3° del stream.
+      operationId: streamOpsEvents
+      x-permission: view_network
+      responses:
+        '200':
+          description: Stream de eventos.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          description: Sin sesión.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '403':
+          description: Sin permiso `view_network`.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /api/users:
+    get:
+      tags: [Usuarios]
+      summary: Lista los usuarios del tenant.
+      description: Requiere el permiso `manage_users`.
+      operationId: listUsers
+      x-permission: manage_users
+      responses:
+        '200':
+          description: Usuarios del tenant.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                required: [users]
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_users`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Usuarios]
+      summary: Crea un usuario.
+      description: |
+        Requiere el permiso `manage_users`. Sólo un `OWNER` puede crear otro `OWNER`;
+        un email duplicado responde **409**.
+      operationId: createUser
+      x-permission: manage_users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Usuario creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                required: [user]
+        '400':
+          description: Cuerpo inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_users` o intento de crear un `OWNER` sin serlo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El email ya existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/{id}:
+    patch:
+      tags: [Usuarios]
+      summary: Actualiza el rol de un usuario.
+      description: |
+        Requiere `manage_users`; sólo un `OWNER` puede cambiar roles. No se puede
+        cambiar el propio rol: **400**.
+      operationId: updateUser
+      x-permission: manage_users
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Usuario actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                required: [user]
+        '400':
+          description: Cuerpo inválido o intento de cambiarse el propio rol.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_users` o sin ser `OWNER` para cambiar roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Usuarios]
+      summary: Borra un usuario.
+      description: |
+        Requiere `manage_users` y el rol `OWNER`. No se puede borrar a uno mismo:
+        **400**.
+      operationId: deleteUser
+      x-permission: manage_users
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Usuario borrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Intento de borrarse a sí mismo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Sin permiso `manage_users` o sin ser `OWNER`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ftth_session
+      description: |
+        Cookie de sesión (HttpOnly) que emite `/api/auth/login` o `/api/auth/signup`.
+        El middleware no autentica: cada handler resuelve la sesión con
+        `getCurrentUser()` y chequea permisos.
+
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      description: Identificador del recurso.
+      schema:
+        type: string
+    PathZoneId:
+      name: zoneId
+      in: path
+      required: true
+      description: Identificador de la zona.
+      schema:
+        type: string
+    PathMarkerId:
+      name: markerId
+      in: path
+      required: true
+      description: Identificador del marcador.
+      schema:
+        type: string
+    PathRunId:
+      name: runId
+      in: path
+      required: true
+      description: Identificador de la corrida de investigación.
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      description: Error del handler. La forma no es uniforme en todo el repo.
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    ErrorDetail:
+      type: object
+      description: Error con detalle del origen.
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+      required: [error]
+
+    RateLimitedError:
+      type: object
+      description: Cuota excedida.
+      properties:
+        error:
+          type: string
+        retryAfter:
+          type: number
+      required: [error]
+
+    ConflictError:
+      type: object
+      description: Conflicto con un recurso existente.
+      properties:
+        error:
+          type: string
+        existingId:
+          type: string
+      required: [error]
+
+    MaintenanceOverlapError:
+      type: object
+      description: La ventana se solapa con otra existente.
+      properties:
+        error:
+          type: string
+          enum: [overlap]
+        overlappingWindowId:
+          type: string
+      required: [error]
+
+    AlreadyTerminalError:
+      type: object
+      description: El recurso ya está en estado terminal.
+      properties:
+        error:
+          type: string
+          enum: [already_terminal]
+        currentStatus:
+          type: string
+      required: [error]
+
+    FeatureDisabledError:
+      type: object
+      description: La feature está deshabilitada por configuración.
+      properties:
+        error:
+          type: string
+          enum: [disabled]
+        feature:
+          type: string
+      required: [error, feature]
+
+    MisconfiguredChannelError:
+      type: object
+      description: El canal guardado tiene valores no reconocidos.
+      properties:
+        error:
+          type: string
+        stored:
+          type: object
+          additionalProperties: true
+      required: [error]
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+      required: [ok]
+
+    Role:
+      type: string
+      description: Rol del usuario. `MEMBER` es el alias histórico de `OPERATOR`.
+      enum: [OWNER, ADMIN, OPERATOR, MEMBER]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+      required: [id, email, name, role]
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [id, name]
+
+    SessionUser:
+      type: object
+      description: Usuario con el contexto de su sesión.
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        tenantId:
+          type: string
+        mfaEnabled:
+          type: boolean
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+      required: [id, email, name, role, tenantId]
+
+    CurrentUserResponse:
+      type: object
+      description: |
+        `user: null` cuando no hay sesión válida: es una respuesta normal, no un error.
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/SessionUser'
+            - type: 'null'
+      required: [user]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+      required: [email, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+      required: [user]
+
+    MfaRequiredResponse:
+      type: object
+      description: "El usuario tiene MFA activo: falta el segundo factor."
+      properties:
+        mfaRequired:
+          type: boolean
+          const: true
+        tempToken:
+          type: string
+      required: [mfaRequired, tempToken]
+
+    SignupRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        tenantName:
+          type: [string, "null"]
+          minLength: 1
+      required: [email, password]
+
+    SignupResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+      required: [user, tenant]
+
+    MfaSetupResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: Secreto TOTP en base32.
+        otpauthUri:
+          type: string
+          format: uri
+        issuer:
+          type: string
+        account:
+          type: string
+        format:
+          type: string
+          const: base32
+        digits:
+          type: integer
+          const: 6
+        period:
+          type: integer
+          const: 30
+      required: [secret, otpauthUri, issuer, account, format, digits, period]
+
+    MfaEnabledResponse:
+      type: object
+      properties:
+        mfaEnabled:
+          type: boolean
+      required: [mfaEnabled]
+
+    TotpRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 16
+      required: [code]
+
+    MfaVerifyRequest:
+      type: object
+      description: |
+        Acepta tres formas: `{email,password,code}`, `{code}` o `{tempToken,code}`.
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        code:
+          type: string
+          minLength: 1
+        tempToken:
+          type: string
+      required: [code]
+
+    HealthReport:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+        memory:
+          type: object
+          properties:
+            rss:
+              type: number
+            heapUsed:
+              type: number
+          required: [rss, heapUsed]
+        version:
+          type: string
+        database:
+          type: object
+          additionalProperties: true
+        services:
+          type: object
+          additionalProperties: true
+        hungLoops:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        connections:
+          type: object
+          additionalProperties: true
+        ingest:
+          type: object
+          additionalProperties: true
+      required: [status, timestamp, uptime, memory, version]
+
+    ChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 8000
+        conversationId:
+          type: [string, "null"]
+          minLength: 1
+        connectionId:
+          type: [string, "null"]
+          minLength: 1
+      required: [message]
+
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        toolsUsed:
+          type: array
+          items:
+            type: string
+        conversationId:
+          type: string
+        dataSource:
+          type: string
+        abstention:
+          type: object
+          additionalProperties: true
+      required: [reply, toolsUsed, conversationId, dataSource]
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+      required: [id, title, updatedAt, createdAt, messageCount]
+
+    ConversationList:
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSummary'
+      required: [conversations]
+
+    ConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+        content:
+          type: string
+        toolCalls:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, role, content, createdAt]
+
+    ConversationDetail:
+      type: object
+      properties:
+        conversation:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            connectionId:
+              type: [string, "null"]
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConversationMessage'
+          required: [id, title, messages]
+      required: [conversation]
+
+    Provider:
+      type: string
+      enum: [SMARTOLT, MIKROWISP, NETSENSE, MIKROTIK]
+
+    Connector:
+      type: object
+      description: |
+        Nunca incluye la API key: el endpoint la redacta siempre.
+      properties:
+        id:
+          type: string
+        provider:
+          $ref: '#/components/schemas/Provider'
+        label:
+          type: string
+        baseUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, provider, label, baseUrl]
+
+    ConnectorList:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        connectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Connector'
+        demoMode:
+          type: boolean
+      required: [connectors, demoMode]
+
+    CreateConnectorRequest:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/Provider'
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+        apiKey:
+          type: string
+          minLength: 1
+          maxLength: 500
+        baseUrl:
+          type: string
+          format: uri
+      required: [provider, label, apiKey, baseUrl]
+
+    ConnectorTestResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        latencyMs:
+          type: number
+        error:
+          type: string
+      required: [ok]
+
+    DataSource:
+      type: string
+      description: Origen de los datos de la respuesta.
+      enum: [live, demo, empty, cached]
+
+    DashboardResponse:
+      type: object
+      properties:
+        dataSource:
+          $ref: '#/components/schemas/DataSource'
+        overview:
+          type: object
+          additionalProperties: true
+        olts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              onusTotal:
+                type: integer
+              onusOnline:
+                type: integer
+              onusOffline:
+                type: integer
+              onusDegraded:
+                type: integer
+            required: [onusTotal, onusOnline, onusOffline, onusDegraded]
+            additionalProperties: true
+        statusDistribution:
+          type: object
+          additionalProperties: true
+      required: [dataSource, olts, statusDistribution]
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+        deviceKind:
+          type: string
+        deviceId:
+          type: string
+        kind:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+      required: [id, deviceKind, deviceId, severity, status]
+      additionalProperties: true
+
+    AlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        count:
+          type: integer
+        dataSource:
+          $ref: '#/components/schemas/DataSource'
+      required: [alerts, count, dataSource]
+
+    SlaEntry:
+      type: object
+      properties:
+        connectionId:
+          type: string
+        deviceKind:
+          type: string
+        deviceId:
+          type: string
+        uptimePercent:
+          type: [number, "null"]
+          description: "`null` cuando no hay datos suficientes en la ventana."
+        coveragePercent:
+          type: [number, "null"]
+        measuredMs:
+          type: number
+        unmeasuredMs:
+          type: number
+        offlineMs:
+          type: number
+      required: [connectionId, deviceKind, deviceId, measuredMs, unmeasuredMs, offlineMs]
+
+    SlaResponse:
+      type: object
+      properties:
+        windowDays:
+          type: integer
+        sla:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlaEntry'
+        count:
+          type: integer
+      required: [windowDays, sla, count]
+
+    AuditRow:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+        actorId:
+          type: [string, "null"]
+        resourceType:
+          type: string
+        outcome:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, category, outcome, createdAt]
+      additionalProperties: true
+
+    AuditPagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+      required: [page, limit, total, pages]
+
+    AuditResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditRow'
+        byDay:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        pagination:
+          $ref: '#/components/schemas/AuditPagination'
+        generatedAt:
+          type: string
+          format: date-time
+      required: [rows, byDay, pagination, generatedAt]
+
+    SecurityAccessEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [access, auth_failure]
+        sourceIp:
+          type: string
+        userId:
+          type: [string, "null"]
+        occurredAt:
+          type: string
+          format: date-time
+      required: [id, category, occurredAt]
+      additionalProperties: true
+
+    SecurityAccessResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityAccessEvent'
+        count:
+          type: integer
+      required: [events, count]
+
+    TopologyKind:
+      type: string
+      enum: [OLT, ONU, CTO, SPLITTER, PON_PORT]
+
+    TopologyNode:
+      type: object
+      properties:
+        kind:
+          type: string
+        id:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopologyNode'
+        downstreamCount:
+          type: integer
+      required: [kind, id, downstreamCount]
+
+    TopologyTreeResponse:
+      type: object
+      properties:
+        roots:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopologyNode'
+        nodeCount:
+          type: integer
+        count:
+          type: integer
+      required: [roots, nodeCount, count]
+
+    TopologyPathResponse:
+      type: object
+      properties:
+        schema:
+          type: string
+          const: ftth.topology.v1
+        kind:
+          type: string
+        id:
+          type: string
+        path:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+              id:
+                type: string
+            required: [kind, id]
+      required: [schema, kind, id, path]
+
+    TopologyDownstreamResponse:
+      type: object
+      properties:
+        schema:
+          type: string
+          const: ftth.topology.v1
+        kind:
+          type: string
+        id:
+          type: string
+        onuIds:
+          type: array
+          items:
+            type: string
+        edgesTraversed:
+          type: integer
+      required: [schema, kind, id, onuIds, edgesTraversed]
+
+    DeviceKind:
+      type: string
+      enum: [OLT, ONU]
+
+    IncidentStatus:
+      type: string
+      enum: [open, acknowledged, resolved]
+
+    IncidentSeverity:
+      type: string
+      enum: [warning, critical]
+
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+        deviceKind:
+          $ref: '#/components/schemas/DeviceKind'
+        deviceId:
+          type: string
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, deviceKind, deviceId, title, severity, status]
+      additionalProperties: true
+
+    IncidentList:
+      type: object
+      properties:
+        incidents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+        count:
+          type: integer
+        page:
+          type: object
+          properties:
+            scope:
+              type: string
+            hasMore:
+              type: boolean
+            nextCursor:
+              type: [string, "null"]
+          required: [scope, hasMore]
+      required: [incidents, count, page]
+
+    IncidentDetail:
+      type: object
+      properties:
+        incident:
+          $ref: '#/components/schemas/Incident'
+        relatedMaintenance:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceWindow'
+      required: [incident, relatedMaintenance]
+
+    CreateIncidentRequest:
+      type: object
+      properties:
+        deviceKind:
+          $ref: '#/components/schemas/DeviceKind'
+        deviceId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        description:
+          type: [string, "null"]
+          maxLength: 4096
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+          default: warning
+      required: [deviceKind, deviceId, title]
+
+    UpdateIncidentRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        description:
+          type: [string, "null"]
+          maxLength: 4096
+      required: []
+
+    ConfirmIncidentRequest:
+      type: object
+      properties:
+        rootCause:
+          type: string
+          minLength: 1
+        fix:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+          minLength: 1
+        investigationFeedbackId:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 128
+      required: [rootCause, fix, summary]
+
+    InvestigationStatus:
+      type: object
+      properties:
+        runId:
+          type: string
+        status:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        version:
+          oneOf:
+            - type: object
+              properties:
+                versionId:
+                  type: string
+                versionIndex:
+                  type: integer
+                rulesetVersion:
+                  type: string
+                modelVersion:
+                  type: string
+                snapshotAt:
+                  type: string
+                  format: date-time
+                snapshot:
+                  type: object
+                  additionalProperties: true
+              required: [versionId, versionIndex, rulesetVersion, modelVersion, snapshotAt, snapshot]
+            - type: 'null'
+      required: [runId, status, requestedAt]
+
+    InvestigationPendingResponse:
+      type: object
+      properties:
+        runId:
+          type: string
+        status:
+          type: string
+          const: pending
+        retryAfterMs:
+          type: integer
+          const: 3000
+      required: [runId, status, retryAfterMs]
+
+    InvestigationResultResponse:
+      type: object
+      properties:
+        runId:
+          type: string
+        versionId:
+          type: string
+        versionIndex:
+          type: integer
+        status:
+          type: string
+          const: ready
+        result:
+          type: object
+          additionalProperties: true
+      required: [runId, versionId, versionIndex, status, result]
+
+    InvestigateRequest:
+      type: object
+      properties:
+        refresh:
+          type: boolean
+        timeoutMs:
+          type: integer
+          minimum: 1
+          maximum: 15000
+        windowDays:
+          type: integer
+          minimum: 1
+      required: []
+
+    FeedbackLabel:
+      type: string
+      enum: [confirmed, incorrect, insufficient_data]
+
+    FeedbackRequest:
+      type: object
+      properties:
+        label:
+          $ref: '#/components/schemas/FeedbackLabel'
+        observations:
+          type: [string, "null"]
+          maxLength: 8192
+        realCause:
+          type: [string, "null"]
+          maxLength: 8192
+        resolutionEvidence:
+          type: [string, "null"]
+          maxLength: 8192
+        feedbackId:
+          type: [string, "null"]
+      required: [label]
+
+    FeedbackList:
+      type: object
+      properties:
+        runId:
+          type: string
+        status:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        feedbacks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        count:
+          type: integer
+        limit:
+          type: integer
+      required: [runId, status, requestedAt, feedbacks, count, limit]
+
+    Prediction:
+      type: object
+      properties:
+        id:
+          type: string
+        deviceKind:
+          type: string
+        deviceId:
+          type: string
+        kind:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        predictedAt:
+          type: string
+          format: date-time
+      required: [id, deviceKind, deviceId, severity, status]
+      additionalProperties: true
+
+    PredictionList:
+      type: object
+      properties:
+        predictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prediction'
+        count:
+          type: integer
+        page:
+          type: object
+          properties:
+            scope:
+              type: string
+            hasMore:
+              type: boolean
+            nextCursor:
+              type: [string, "null"]
+          required: [scope, hasMore]
+      required: [predictions, count, page]
+
+    MarkerDeviceKind:
+      type: string
+      enum: [OLT, PON_PORT, SPLITTER, CTO, ONU]
+
+    FiberPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        connectionId:
+          type: [string, "null"]
+        fileUrl:
+          type: [string, "null"]
+        zoneCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, zoneCount]
+
+    FiberPlanList:
+      type: object
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/FiberPlan'
+      required: [plans]
+
+    FiberZone:
+      type: object
+      properties:
+        id:
+          type: string
+        planId:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        color:
+          type: [string, "null"]
+          pattern: '^#[0-9A-Fa-f]{6}$'
+      required: [id, planId, name]
+
+    FiberMarker:
+      type: object
+      properties:
+        id:
+          type: string
+        planId:
+          type: string
+        zoneId:
+          type: [string, "null"]
+        label:
+          type: string
+        deviceKind:
+          $ref: '#/components/schemas/MarkerDeviceKind'
+        deviceId:
+          type: [string, "null"]
+        xPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        yPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+      required: [id, planId, label, xPercent, yPercent]
+
+    FiberPlanDetail:
+      type: object
+      properties:
+        plan:
+          $ref: '#/components/schemas/FiberPlan'
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/FiberZone'
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FiberMarker'
+      required: [plan, zones, markers]
+
+    FiberPlanCorrelation:
+      type: object
+      properties:
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FiberMarker'
+        primaryZone:
+          oneOf:
+            - $ref: '#/components/schemas/FiberZone'
+            - type: 'null'
+      required: [markers]
+
+    CreateFiberPlanRequest:
+      type: object
+      description: "Multipart: el archivo del plano y sus metadatos."
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        file:
+          type: string
+          format: binary
+          description: png, jpeg, gif, webp, svg o pdf (hasta 50 MB).
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        connectionId:
+          type: [string, "null"]
+      required: [name, file]
+
+    CreateFiberZoneRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        color:
+          type: [string, "null"]
+          pattern: '^#[0-9A-Fa-f]{6}$'
+      required: [name]
+
+    UpdateFiberZoneRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: [string, "null"]
+          maxLength: 1000
+        color:
+          type: [string, "null"]
+          pattern: '^#[0-9A-Fa-f]{6}$'
+      required: []
+
+    CreateFiberMarkerRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        deviceKind:
+          $ref: '#/components/schemas/MarkerDeviceKind'
+        deviceId:
+          type: [string, "null"]
+          maxLength: 255
+        xPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        yPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+      required: [label, xPercent, yPercent]
+
+    UpdateFiberMarkerRequest:
+      type: object
+      description: |
+        Todos los campos son opcionales. `zoneId` acepta `null` para dejar el
+        marcador sin zona.
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        deviceKind:
+          $ref: '#/components/schemas/MarkerDeviceKind'
+        deviceId:
+          type: [string, "null"]
+          maxLength: 255
+        xPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        yPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        zoneId:
+          type: [string, "null"]
+      required: []
+
+    MaintenanceScopeKind:
+      type: string
+      enum: [tenant, connection, device]
+
+    MaintenanceScope:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/MaintenanceScopeKind'
+        id:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 128
+      required: [kind]
+
+    MaintenanceWindow:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        startUtc:
+          type: string
+          format: date-time
+        endUtc:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        scope:
+          $ref: '#/components/schemas/MaintenanceScope'
+        status:
+          type: string
+      required: [id, title, startUtc, endUtc, timezone, scope]
+
+    CreateMaintenanceWindowRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        description:
+          type: [string, "null"]
+          maxLength: 4096
+        startUtc:
+          type: string
+          format: date-time
+        endUtc:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+        scope:
+          $ref: '#/components/schemas/MaintenanceScope'
+      required: [title, startUtc, endUtc, timezone, scope]
+
+    CancelMaintenanceWindowRequest:
+      type: object
+      properties:
+        cancellationReason:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required: [cancellationReason]
+
+    ReevaluateMaintenanceWindowRequest:
+      type: object
+      properties:
+        since:
+          type: [string, "null"]
+          format: date-time
+      required: []
+
+    OncallEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [primary, backup, escalation]
+        startUtc:
+          type: string
+          format: date-time
+        endUtc:
+          type: string
+          format: date-time
+        notes:
+          type: [string, "null"]
+      required: [id, userId, role, startUtc, endUtc]
+
+    OncallSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        rotationType:
+          type: string
+          enum: [weekly, daily, custom]
+        startOfWeek:
+          type: integer
+        primaryUserId:
+          type: [string, "null"]
+        backupUserId:
+          type: [string, "null"]
+        escalationUserId:
+          type: [string, "null"]
+        handoffTime:
+          type: string
+        timezone:
+          type: string
+        currentEntry:
+          oneOf:
+            - $ref: '#/components/schemas/OncallEntry'
+            - type: 'null'
+      required: [id, name, rotationType, handoffTime, timezone]
+
+    CreateOncallRequest:
+      type: object
+      description: |
+        Cuerpo de guardia (`name`) o de entrada (`userId`, `startUtc`, `endUtc`).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: [string, "null"]
+          maxLength: 500
+        rotationType:
+          type: string
+          enum: [weekly, daily, custom]
+          default: weekly
+        startOfWeek:
+          type: integer
+          minimum: 1
+          maximum: 7
+          default: 1
+        primaryUserId:
+          type: [string, "null"]
+        backupUserId:
+          type: [string, "null"]
+        escalationUserId:
+          type: [string, "null"]
+        handoffTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          default: '09:00'
+        timezone:
+          type: string
+          maxLength: 64
+          default: UTC
+        userId:
+          type: string
+          minLength: 1
+        role:
+          type: string
+          enum: [primary, backup, escalation]
+          default: primary
+        startUtc:
+          type: string
+          format: date-time
+        endUtc:
+          type: string
+          format: date-time
+        notes:
+          type: [string, "null"]
+          maxLength: 500
+      required: []
+
+    NotificationType:
+      type: string
+      enum: [slack, webhook, email]
+
+    NotificationSeverity:
+      type: string
+      enum: [info, warning, critical]
+
+    NotificationChannel:
+      type: object
+      description: "El target viene redactado: nunca expone el secreto."
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        target:
+          type: string
+        enabled:
+          type: boolean
+        minSeverity:
+          $ref: '#/components/schemas/NotificationSeverity'
+        labels:
+          type: array
+          items:
+            type: string
+        cooldownSeconds:
+          type: integer
+      required: [id, type, target, enabled, minSeverity]
+
+    CreateNotificationChannelRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        target:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        enabled:
+          type: boolean
+          default: true
+        minSeverity:
+          $ref: '#/components/schemas/NotificationSeverity'
+          default: warning
+        labels:
+          type: array
+          maxItems: 16
+          items:
+            type: string
+            maxLength: 64
+          default: []
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          maximum: 86400
+          default: 300
+      required: [type, target]
+
+    UpdateNotificationChannelRequest:
+      type: object
+      description: Todos los campos son opcionales.
+      properties:
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        target:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        enabled:
+          type: boolean
+        minSeverity:
+          $ref: '#/components/schemas/NotificationSeverity'
+        labels:
+          type: array
+          maxItems: 16
+          items:
+            type: string
+            maxLength: 64
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          maximum: 86400
+      required: []
+
+    OpsEventsResponse:
+      type: object
+      properties:
+        timeline:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            byKind:
+              type: object
+              additionalProperties:
+                type: integer
+            lookbackHours:
+              type: integer
+          required: [total, byKind, lookbackHours]
+      required: [timeline, summary]
+
+    OpsSituationsResponse:
+      type: object
+      properties:
+        situations:
+          type: array
+          items:
+            type: object
+            properties:
+              confidence:
+                type: number
+              scoreSeverity:
+                type: string
+              anomalyCorroboration:
+                type: object
+                additionalProperties: true
+              topContributions:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+            required: [confidence, scoreSeverity]
+            additionalProperties: true
+        summary:
+          type: object
+          additionalProperties: true
+      required: [situations, summary]
+
+    OpsAnomaliesResponse:
+      type: object
+      properties:
+        hours:
+          type: integer
+        metricsScanned:
+          type: integer
+        count:
+          type: integer
+        reports:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              expr:
+                type: string
+              points:
+                type: integer
+              residualMad:
+                type: number
+              groups:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+            required: [key, expr, points, residualMad, groups]
+        generatedAt:
+          type: string
+          format: date-time
+      required: [hours, metricsScanned, count, reports, generatedAt]
+
+    OpsCapacityResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            type: object
+            properties:
+              deviceId:
+                type: string
+              metric:
+                type: string
+              current:
+                type: number
+              unit:
+                type: string
+              threshold:
+                type: number
+              forecast:
+                type: number
+              trend:
+                type: string
+              confidence:
+                type: number
+              predictedOverloadAt:
+                type: [string, "null"]
+                format: date-time
+            required: [deviceId, metric, current, threshold, confidence]
+        summary:
+          type: object
+          additionalProperties: true
+      required: [devices, summary]
+
+    OpsRunbooksResponse:
+      type: object
+      properties:
+        runbooks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              content:
+                type: string
+              deviceKind:
+                type: [string, "null"]
+              deviceId:
+                type: [string, "null"]
+              alertKind:
+                type: [string, "null"]
+              severity:
+                type: [string, "null"]
+              tags:
+                type: array
+                items:
+                  type: string
+              stepCount:
+                type: integer
+              useCount:
+                type: integer
+              lastUsedAt:
+                type: [string, "null"]
+                format: date-time
+            required: [id, title, content, stepCount, useCount]
+        relatedHistory:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [runbooks, relatedHistory]
+
+    CreateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        name:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        role:
+          type: string
+          enum: [OWNER, ADMIN, OPERATOR]
+      required: [email, password, role]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [OWNER, ADMIN, OPERATOR]
+      required: [role]
+
+x-prometheus-metrics:
+  description: |
+    Familias de métricas que expone `GET /api/metrics`
+    (`apps/web/lib/metrics/prometheus.ts`).
+  names:
+    - ftth_copilot_process_uptime_seconds
+    - ftth_copilot_process_memory_bytes
+    - ftth_copilot_tenants_total
+    - ftth_copilot_nms_connections_total
+    - ftth_copilot_active_alerts
+    - ftth_copilot_active_incidents
+    - ftth_copilot_metric_samples_total
+    - ftth_copilot_snmp_traps_total
+    - ftth_copilot_service_loop_healthy
+    - ftth_copilot_database_scrape_error
+    - ftth_copilot_llm_requests_total
+    - ftth_copilot_llm_tokens_total
+    - ftth_copilot_llm_latency_seconds_total
+    - ftth_copilot_llm_latency_seconds_count
+    - ftth_copilot_llm_fallback_events_total
+    - ftth_copilot_rag_retrievals_total
+    - ftth_copilot_rag_latency_seconds_total
+    - ftth_copilot_rag_latency_seconds_count
+    - ftth_copilot_router_dispatches_total
+    - ftth_laya_requests_total
+    - ftth_laya_latency_ms
+    - ftth_laya_confidence
+
+x-implementation-notes:
+  description: |
+    Observaciones verificadas en el código, no recomendaciones. Sirven para no
+    asumir cosas que el contrato real no garantiza.
+  notes:
+    - "`GET /api/maintenance-windows` no chequea permiso, mientras que `POST` sí exige `manage_maintenance` (`api/maintenance-windows/route.ts:42` vs `:161`)."
+    - "`/api/vm/query` y `/api/vm/instant` no tienen autenticación y aceptan PromQL arbitrario del query string."
+    - "El middleware exime de CSRF a todo `/api/auth/*`, y `POST /api/auth/mfa/verify` sets **sólo** la cookie de sesión, no la de CSRF (a diferencia de `/api/auth/login` y `/api/auth/signup`)."
+    - "La forma del error 401 no es uniforme: casi todos devuelven `{error:'Not authenticated'}`; `/api/conversations/[id]` devuelve `{error:'No autenticado.'}` y `/api/ops/stream` devuelve texto plano `Unauthorized`."
+    - "Sólo `/api/incidents` y `/api/predictions` usan paginación por cursor (`apps/web/lib/api/pagination.ts`: `DEFAULT_LIMIT=50`, `MAX_LIMIT=200`)."

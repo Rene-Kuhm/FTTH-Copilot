@@ -54,61 +54,22 @@ La plataforma mantiene a la persona en el circuito: **investiga, explica y prior
 
 ## Arquitectura
 
-```mermaid
-flowchart TD
-    subgraph FUENTES["Fuentes de datos"]
-        NMS["SmartOLT · Mikrowisp · MikroTik"]
-        TRAPS["Traps SNMP v1/v2c/v3"]
-        SYSLOG["Syslog RFC 3164"]
-    end
+La arquitectura es **código**: un único modelo C4 en
+[`docs/architecture/c4/model.d2`](docs/architecture/c4/model.d2) del que salen
+las vistas que se renderizan en CI. Si el modelo cambia y las vistas no, el
+build falla.
 
-    subgraph INGESTA["Ingesta y normalización"]
-        CONN["Conectores NMS"]
-        RECV["Receptores UDP"]
-        EV["Evidencia con procedencia"]
-    end
+### Contexto de sistema
 
-    subgraph DECISION["Detección y decisión"]
-        LAYA["Laya Decision Layer<br/>9 clases en menos de 5 ms"]
-        NOC["Pipeline NOC<br/>métricas → alertas → incidentes"]
-        SOC["Pipeline SOC<br/>syslog → accesos → firmware"]
-        ROUTER["Organic Diagnostic Router<br/>direct · assisted · investigation"]
-    end
+![Vista C4 de contexto: FTTH-Copilot y los sistemas externos que lo rodean](docs/architecture/c4/views/context.svg)
 
-    subgraph RUNTIME["Runtime cognitivo"]
-        TOOLS["Registro de herramientas<br/>10 herramientas NMS"]
-        LLM["MiniMax → DeepSeek → Qwen"]
-        GATE["TruthGate<br/>abstiene sin evidencia"]
-    end
+### Contenedores
 
-    subgraph SALIDA["Salida al operador"]
-        CHAT["Chat y tableros<br/>/app · /dashboard"]
-        NOTIF["Alertas multicanal"]
-    end
+![Vista C4 de contenedores: los procesos que componen FTTH-Copilot](docs/architecture/c4/views/container.svg)
 
-    PG[("PostgreSQL multi-tenant")]
+### Flujo de datos
 
-    NMS --> CONN
-    TRAPS --> RECV
-    SYSLOG --> RECV
-    CONN --> EV
-    RECV --> EV
-    EV --> LAYA
-    EV --> NOC
-    EV --> SOC
-    LAYA --> ROUTER
-    NOC --> ROUTER
-    SOC --> ROUTER
-    ROUTER --> TOOLS
-    TOOLS --> LLM
-    LLM --> GATE
-    GATE --> CHAT
-    NOC --> NOTIF
-    NOTIF --> CHAT
-    EV --> PG
-    NOC --> PG
-    PG --> CHAT
-```
+![Flujo de datos: de las fuentes a la evidencia, a los tres planos y a la salida](docs/architecture/c4/views/dataflow.svg)
 
 Cuatro invariantes cruzan todo el sistema: **tenant-aware** (todo toca `tenantId`), **evidence-first** (TruthGate rechaza lo que la evidencia no sostiene), **fail-open** (si Laya o el LLM fallan, el pipeline continúa) y **shadow mode first** (Laya registra su decisión antes de influir en el routing).
 

@@ -1,0 +1,527 @@
+# FTTH-Copilot — modelo C4 (Contexto, Contenedores y Componentes)
+#
+# Fuente única de la arquitectura dibujada del repo. Las tres vistas C4 viven
+# como `layers`; cada una es una vista C4 completa e independiente, con sus
+# propios nodos y sus propias relaciones.
+#
+# Render (desde la raíz del repo; ver docs/architecture/c4/README.md):
+#   d2 --target layers.context model.d2 views/context.svg  (idem para container y component)
+#
+# Reglas de edición:
+#   - Etiqueta de dos líneas: la primera es la ruta real del repo
+#     (apps/web, packages/agent-core, ...) y la segunda qué hace. Así cada
+#     nodo se puede mapear al código sin consultar otro documento.
+#   - Las referencias a nodos anidados van siempre cualificadas
+#     (`ftth-copilot.web`). Si se omite el prefijo, d2 crea un nodo nuevo en
+#     la raíz de la capa y el diagrama queda duplicado.
+#   - Sin `link:` a URLs externas ni iconos: el SVG tiene que ser reproducible.
+#   - Layout por defecto (dagre). No usar `elk` (necesita Java) ni `--sketch`.
+#   - Todo lo compartido entre capas vive en `classes:` (abajo). `vars:` no se
+#     sustituye dentro de `layers:` en d2 v0.9, así que las etiquetas de los
+#     nodos se escriben inline y las vars son el diccionario de los valores
+#     repetidos (se usan en la escena raíz, la leyenda).
+
+vars: {
+  name-sistema: "FTTH-Copilot"
+  label-postgres: "PostgreSQL 16\nBase multi-tenant cifrada con KMS"
+  label-llm: "Proveedores LLM\nMiniMax -> DeepSeek -> Qwen"
+  label-vm: "VictoriaMetrics\nScrape :8428 y reglas de alerta"
+}
+
+# Paleta y formas de la convención visual C4.
+classes: {
+  # Persona: la que usa el sistema (no es parte de él). La etiqueta de la
+  # figura se dibuja fuera del shape, así que va en azul oscuro y no en
+  # blanco (quedaría invisible sobre el fondo del canvas).
+  persona: {
+    shape: person
+    style: {
+      fill: "#08427b"
+      stroke: "#08427b"
+      font-color: "#08427b"
+    }
+  }
+  # Software System: el sistema de software en sí.
+  software-system: {
+    shape: rectangle
+    style: {
+      fill: "#1168bd"
+      stroke: "#1168bd"
+      font-color: "#ffffff"
+    }
+  }
+  # External System: un sistema de terceros del que dependemos o a quien
+  # entregamos datos.
+  external-system: {
+    shape: rectangle
+    style: {
+      fill: "#999999"
+      stroke: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+  # Container: una unidad ejecutable o desplegable dentro del sistema.
+  container: {
+    shape: rectangle
+    style: {
+      fill: "#438dd5"
+      stroke: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+  # Component: una pieza interna de un contenedor.
+  component: {
+    shape: rectangle
+    style: {
+      fill: "#85bbf0"
+      stroke: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+  # Store: un almacén de datos.
+  store: {
+    shape: cylinder
+    style: {
+      fill: "#999999"
+      stroke: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+  # Boundary: el marco del sistema. Es un recuadro (shape rectangle, igual que
+  # un container) con la paleta del software system, para que los containers
+  # azules de adentro se distingan del marco.
+  boundary: {
+    shape: rectangle
+    style: {
+      fill: "#ffffff"
+      stroke: "#1168bd"
+      stroke-dash: 4
+      stroke-width: 2
+      font-color: "#1168bd"
+      bold: true
+    }
+  }
+}
+
+# Escena raíz: leyenda de la paleta C4. No es una vista C4; documenta los
+# estilos y es el lugar donde `vars:` se usa de verdad.
+leyenda: "Leyenda C4" {
+  class: boundary
+  persona: "Persona\nOperador NOC" {
+    class: persona
+  }
+  software-system: var(name-sistema) {
+    class: software-system
+  }
+  external-system: "External System\nSmartOLT" {
+    class: external-system
+  }
+  container: "Container\napps/web" {
+    class: container
+  }
+  component: "Component\napps/web/middleware.ts" {
+    class: component
+  }
+  store: var(label-postgres) {
+    class: store
+  }
+}
+
+layers: {
+  # ---------------------------------------------------------------------
+  # Vista 1 — Contexto de sistema
+  # Quién usa FTTH-Copilot y de qué sistemas externos depende.
+  # ---------------------------------------------------------------------
+  context: {
+    # Personas.
+    operador-noc: "Operador NOC\nIngeniero de planta FTTH" {
+      class: persona
+    }
+    operador-soc: "Operador SOC\nAnalista de seguridad perimetral" {
+      class: persona
+    }
+
+    # El sistema de software.
+    ftth-copilot: "FTTH-Copilot\nDiagnóstico de fibra verificable para ISPs" {
+      class: software-system
+    }
+
+    # Sistemas externos.
+    smartolt: "SmartOLT\nAPI HTTP del NMS" {
+      class: external-system
+    }
+    mikrowisp: "Mikrowisp\nAPI HTTP del NMS" {
+      class: external-system
+    }
+    mikrotik: "MikroTik RouterOS v7\nREST + API binaria 8728" {
+      class: external-system
+    }
+    traps-snmp: "Traps SNMP v1/v2c/v3\nOLT multi-fabricante (UDP 162)" {
+      class: external-system
+    }
+    syslog: "Syslog RFC 3164/5424\nEventos de red (UDP 5514)" {
+      class: external-system
+    }
+    llm: "Proveedores LLM\nMiniMax -> DeepSeek -> Qwen" {
+      class: external-system
+    }
+    postgres: "PostgreSQL 16\nBase multi-tenant cifrada con KMS" {
+      class: store
+    }
+    victoriametrics: "VictoriaMetrics\nScrape :8428 y reglas de alerta" {
+      class: external-system
+    }
+    notificaciones: "Canales de notificación\nTelegram - Slack - Webhooks - WhatsApp - Ntfy" {
+      class: external-system
+    }
+    phoenix: "Arize Phoenix\nTrazas OTLP (OpenInference)" {
+      class: external-system
+    }
+
+    # Relaciones.
+    operador-noc -> ftth-copilot: "Consulta la red\n/app - /dashboard"
+    operador-soc -> ftth-copilot: "Revisa accesos\n/dashboard"
+    smartolt -> ftth-copilot: "Telemetría y estado de ONUs"
+    mikrowisp -> ftth-copilot: "Telemetría y estado de ONUs"
+    mikrotik -> ftth-copilot: "Estado de routers de borde"
+    traps-snmp -> ftth-copilot: "Alarmas de OLT"
+    syslog -> ftth-copilot: "Eventos de seguridad (UDP 5514)"
+    ftth-copilot -> llm: "Razonamiento acotado\n(0 a 6 llamadas)"
+    ftth-copilot -> postgres: "Lee y escribe\n(multi-tenant)"
+    ftth-copilot -> victoriametrics: "Expone métricas Prometheus"
+    ftth-copilot -> notificaciones: "Despacha alertas y avisos"
+    ftth-copilot -> phoenix: "Exporta trazas OTLP"
+  }
+
+  # ---------------------------------------------------------------------
+  # Vista 2 — Contenedores del sistema
+  # Las unidades ejecutables y desplegables de FTTH-Copilot y cómo se
+  # relacionan. El marco es el sistema; adentro viven los containers.
+  # ---------------------------------------------------------------------
+  container: {
+    # El layout por defecto (dagre) pondría los once contenedores del
+    # sistema en una fila de más de 4000 px de ancho. `grid-columns` reparte
+    # la escena en dos columnas: el marco del sistema a la izquierda y los
+    # sistemas externos alrededor.
+    grid-columns: 2
+
+    ftth-copilot: "FTTH-Copilot" {
+      class: boundary
+      grid-columns: 2
+
+      # Plano copiloto.
+      web: "apps/web\nNext.js 16 App Router: chat, tableros y API REST" {
+        class: container
+      }
+      agent-core: "packages/agent-core\nMotor cognitivo: router, tools y TruthGate" {
+        class: container
+      }
+      laya: "packages/shared + services/laya\nLaya Decision Layer: 9 clases en <5 ms" {
+        class: container
+      }
+
+      # Ingesta.
+      monitoring: "packages/monitoring\nSNMP multi-fabricante y adaptadores OLT" {
+        class: container
+      }
+      connectors: "packages/connectors/*\nAdaptadores SmartOLT, Mikrowisp y MikroTik" {
+        class: container
+      }
+      snmp-receiver: "packages/monitoring/src/snmp/receiver.ts\nReceptor SNMP UDP 162/1162" {
+        class: container
+      }
+
+      # Planos NOC y SOC.
+      analytics: "packages/analytics\nIngesta y series temporales de fibra" {
+        class: container
+      }
+      alerts: "packages/alerts\nDedup, cooldown, escalado y notificación" {
+        class: container
+      }
+      soc: "packages/soc\nOrquestación SOC: syslog a hallazgos" {
+        class: container
+      }
+
+      # Datos y segundo receptor.
+      db: "packages/db\nPrisma client y cifrado KMS (AES-256-GCM)" {
+        class: container
+      }
+      syslog-receiver: "apps/web/lib/monitoring/syslog.ts\nReceptor syslog UDP 5514" {
+        class: container
+      }
+    }
+
+    # Sistemas externos.
+    traps-snmp: "Traps SNMP v1/v2c/v3\nOLT multi-fabricante (UDP 162)" {
+      class: external-system
+    }
+    syslog: "Syslog RFC 3164/5424\nEventos de red (UDP 5514)" {
+      class: external-system
+    }
+    llm: "Proveedores LLM\nMiniMax -> DeepSeek -> Qwen" {
+      class: external-system
+    }
+    postgres: "PostgreSQL 16\nBase multi-tenant cifrada con KMS" {
+      class: store
+    }
+    victoriametrics: "VictoriaMetrics\nScrape :8428 y reglas de alerta" {
+      class: external-system
+    }
+    notificaciones: "Canales de notificación\nTelegram - Slack - Webhooks - WhatsApp - Ntfy" {
+      class: external-system
+    }
+    phoenix: "Arize Phoenix\nTrazas OTLP (OpenInference)" {
+      class: external-system
+    }
+    smartolt: "SmartOLT\nAPI HTTP del NMS" {
+      class: external-system
+    }
+    mikrowisp: "Mikrowisp\nAPI HTTP del NMS" {
+      class: external-system
+    }
+    mikrotik: "MikroTik RouterOS v7\nREST + API binaria 8728" {
+      class: external-system
+    }
+
+    # Ingesta.
+    smartolt -> ftth-copilot.connectors
+    mikrowisp -> ftth-copilot.connectors
+    mikrotik -> ftth-copilot.connectors: "REST + binario"
+    traps-snmp -> ftth-copilot.snmp-receiver: "UDP 162 / 1162"
+    syslog -> ftth-copilot.syslog-receiver: "UDP 5514"
+    ftth-copilot.snmp-receiver -> ftth-copilot.monitoring: "Traps decodificados"
+    ftth-copilot.syslog-receiver -> ftth-copilot.soc
+
+    # NOC y SOC.
+    ftth-copilot.monitoring -> ftth-copilot.analytics: "Samples"
+    ftth-copilot.monitoring -> ftth-copilot.alerts: "Findings"
+    ftth-copilot.analytics -> ftth-copilot.db
+    ftth-copilot.alerts -> ftth-copilot.db
+    ftth-copilot.soc -> ftth-copilot.db
+    ftth-copilot.soc -> ftth-copilot.alerts
+
+    # Copiloto.
+    ftth-copilot.web -> ftth-copilot.agent-core: "Chat e investigación"
+    ftth-copilot.web -> ftth-copilot.laya
+    ftth-copilot.web -> ftth-copilot.db
+    ftth-copilot.web -> ftth-copilot.monitoring
+    ftth-copilot.web -> ftth-copilot.analytics
+    ftth-copilot.web -> ftth-copilot.soc
+    ftth-copilot.agent-core -> ftth-copilot.laya: "Clasificación previa"
+    ftth-copilot.agent-core -> ftth-copilot.connectors: "10 herramientas NMS"
+    ftth-copilot.agent-core -> ftth-copilot.db
+    ftth-copilot.agent-core -> llm
+
+    # Salida y observabilidad.
+    ftth-copilot.alerts -> notificaciones: "Multicanal"
+    ftth-copilot.web -> victoriametrics: "/api/metrics"
+    ftth-copilot.agent-core -> phoenix: "Trazas OTLP"
+
+    # Persistencia.
+    ftth-copilot.db -> postgres
+  }
+
+  # ---------------------------------------------------------------------
+  # Vista 3 — Componentes de apps/web
+  # Descomposición del contenedor de la aplicación web y sus dependencias.
+  # ---------------------------------------------------------------------
+  component: {
+    # Misma razón que en la vista de contenedores: dos columnas en vez de
+    # una fila de 4000 px.
+    grid-columns: 2
+
+    web: "apps/web\nFTTH-Copilot - Next.js 16 App Router" {
+      class: boundary
+      grid-columns: 2
+
+      middleware: "apps/web/middleware.ts\nMiddleware de sesión y rate limit" {
+        class: component
+      }
+      api-routes: "apps/web/app/api/**\nRoute handlers REST" {
+        class: component
+      }
+      auth-rbac: "apps/web/lib/auth\nJWT, RBAC, TOTP y LDAP" {
+        class: component
+      }
+      chat-agent: "apps/web/app/api/chat + lib/chat\nCapa de chat y agente" {
+        class: component
+      }
+      ops-metrics: "apps/web/lib/monitoring + lib/metrics\nCapa de ops y métricas" {
+        class: component
+      }
+      data-access: "apps/web/lib/**\nAcceso a datos del tenant" {
+        class: component
+      }
+      scheduler: "apps/web/instrumentation.ts\nOrquestación: poller, syslog y firmware" {
+        class: component
+      }
+    }
+
+    # Contenedores vecinos y sistemas externos.
+    agent-core: "packages/agent-core\nMotor cognitivo: router, tools y TruthGate" {
+      class: container
+    }
+    laya: "packages/shared + services/laya\nLaya Decision Layer: 9 clases en <5 ms" {
+      class: container
+    }
+    db: "packages/db\nPrisma client y cifrado KMS (AES-256-GCM)" {
+      class: container
+    }
+    connectors: "packages/connectors/*\nAdaptadores SmartOLT, Mikrowisp y MikroTik" {
+      class: container
+    }
+    llm: "Proveedores LLM\nMiniMax -> DeepSeek -> Qwen" {
+      class: external-system
+    }
+    postgres: "PostgreSQL 16\nBase multi-tenant cifrada con KMS" {
+      class: store
+    }
+    victoriametrics: "VictoriaMetrics\nScrape :8428 y reglas de alerta" {
+      class: external-system
+    }
+
+    # Relaciones internas.
+    web.middleware -> web.auth-rbac
+    web.api-routes -> web.auth-rbac
+    web.api-routes -> web.chat-agent
+    web.api-routes -> web.ops-metrics
+    web.api-routes -> web.data-access
+    web.chat-agent -> agent-core: "runAgent"
+    web.chat-agent -> laya
+    web.chat-agent -> web.data-access
+    web.ops-metrics -> web.data-access
+    web.ops-metrics -> connectors: "NMS y firmware"
+    web.scheduler -> web.ops-metrics: "Arranca bucles"
+    web.scheduler -> connectors
+
+    # Dependencias fuera del contenedor.
+    web.data-access -> db
+    db -> postgres: "SQL multi-tenant"
+    agent-core -> llm
+    web.ops-metrics -> victoriametrics
+  }
+
+  # ---------------------------------------------------------------------
+  # Vista 4 — Flujo de datos
+  # Cómo circula el dato: de las fuentes a la evidencia, de la evidencia a
+  # los tres planos de producto y de ahí a la salida y a la base.
+  # Reemplaza el flowchart de datos que estaba embebido en Markdown.
+  # ---------------------------------------------------------------------
+  dataflow: {
+    grid-columns: 2
+
+    # Fuentes.
+    fuentes: "Fuentes" {
+      class: boundary
+      nms: "SmartOLT · Mikrowisp · MikroTik" {
+        class: external-system
+      }
+      traps: "Traps SNMP v1/v2c/v3" {
+        class: external-system
+      }
+      syslog: "Syslog RFC 3164" {
+        class: external-system
+      }
+    }
+
+    # Ingesta y normalización.
+    ingesta: "Ingesta y normalización" {
+      class: boundary
+      conectores: "Conectores NMS" {
+        class: container
+      }
+      receptores: "Receptores UDP" {
+        class: container
+      }
+      evidencia: "Evidencia con procedencia" {
+        class: container
+      }
+    }
+
+    # Plano NOC: proactivo.
+    noc: "Plano NOC — proactivo" {
+      class: boundary
+      metricas: "Metric Collector" {
+        class: container
+      }
+      deteccion: "Detection Engine\nfunciones puras" {
+        class: container
+      }
+      alertas: "Alert Reconciliation\ndedup · cooldown · escalado" {
+        class: container
+      }
+      incidentes: "Incident Correlator" {
+        class: container
+      }
+    }
+
+    # Plano SOC: perímetro.
+    soc: "Plano SOC — perímetro" {
+      class: boundary
+      seguridad: "Security Detection\nbrute force · config · firmware" {
+        class: container
+      }
+    }
+
+    # Plano Copiloto: conversacional.
+    copiloto: "Plano Copiloto — conversacional" {
+      class: boundary
+      laya: "Laya Decision Layer" {
+        class: container
+      }
+      router: "Organic Diagnostic Router" {
+        class: container
+      }
+      runtime: "Runtime\nsystem prompt · tools · TruthGate" {
+        class: container
+      }
+      llm: "MiniMax → DeepSeek → Qwen" {
+        class: external-system
+      }
+    }
+
+    # Salida.
+    salida: "Salida" {
+      class: boundary
+      chat: "Chat y tableros" {
+        class: container
+      }
+      notificaciones: "Alertas multicanal" {
+        class: container
+      }
+    }
+
+    postgres: "PostgreSQL multi-tenant" {
+      class: store
+    }
+
+    # Relaciones.
+    fuentes.nms -> ingesta.conectores
+    fuentes.traps -> ingesta.receptores
+    fuentes.syslog -> ingesta.receptores
+    ingesta.conectores -> ingesta.evidencia
+    ingesta.receptores -> ingesta.evidencia
+
+    ingesta.evidencia -> noc.metricas
+    noc.metricas -> noc.deteccion
+    noc.deteccion -> noc.alertas
+    noc.alertas -> noc.incidentes
+    ingesta.evidencia -> soc.seguridad
+
+    ingesta.evidencia -> copiloto.laya
+    copiloto.laya -> copiloto.router
+    noc.incidentes -> copiloto.router
+    soc.seguridad -> copiloto.router
+    copiloto.router -> copiloto.runtime
+    copiloto.runtime -> copiloto.llm
+    copiloto.llm -> salida.chat
+
+    noc.alertas -> salida.notificaciones
+    salida.notificaciones -> salida.chat
+
+    ingesta.evidencia -> postgres
+    noc.metricas -> postgres
+    noc.alertas -> postgres
+    postgres -> salida.chat
+  }
+}

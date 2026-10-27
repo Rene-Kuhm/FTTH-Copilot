@@ -143,6 +143,97 @@ jobs:
           retention-days: 7
 
   # ────────────────────────────────────────────────────────────
+  # 2b) Contrato y C4 — las fuentes únicas de verdad.
+  #
+  #    Dos checks, dos razones para fallar:
+  #
+  #      a) `contract:check` regenera la referencia de la API, los tipos y
+  #         los validadores desde `docs/contract/openapi.yaml` y compara con
+  #         lo commiteado. Además compara el contrato con las rutas que
+  #         implementa `apps/web/app/api/**`: una ruta nueva que no esté en
+  #         el contrato rompe el build.
+  #
+  #      b) `c4:check` renderiza las vistas C4 desde el modelo D2 y
+  #         compara con lo commiteado. El SVG de d2 es determinista con la
+  #         versión fijada en `mise.toml`/`mise.lock`, así que la comparación
+  #         byte a byte es confiable.
+  #
+  #    Los dos son herméticos: leen el repo y no dependen de la red.
+  # ────────────────────────────────────────────────────────────
+  contract:
+    name: Contract (single source of truth)
+    runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the contract and its generated artifacts
+        run: mise run contract:check
+
+      - name: Run the contract tests
+        run: mise run test-scripts
+
+  c4:
+    name: C4 architecture (as code)
+    runs-on: ubuntu-latest
+    # Mínimo privilegio: este job sólo lee el repo.
+    permissions:
+      contents: read
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup mise (Node + pnpm + d2 con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Render the C4 views and compare with the committed ones
+        run: mise run c4:check
+
+      - name: Render the C4 views (artifact)
+        run: mise run c4:render
+
+      - name: Upload the C4 views
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: c4-views
+          path: docs/architecture/c4/views/*.svg
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────
   # 2) Tests unitarios — rápidos, sin dependencias externas.
   #    Cubre packages/connectors, packages/agent-core, etc.
   # ────────────────────────────────────────────────────────────
@@ -561,6 +652,8 @@ jobs:
     needs:
       - lint-and-typecheck
       - docs-test
+      - contract
+      - c4
       - test-unit
       - eval
       - build
@@ -574,6 +667,8 @@ jobs:
         env:
           LINT_AND_TYPECHECK_RESULT: ${{ needs.lint-and-typecheck.result }}
           DOCS_TEST_RESULT: ${{ needs.docs-test.result }}
+          CONTRACT_RESULT: ${{ needs.contract.result }}
+          C4_RESULT: ${{ needs.c4.result }}
           TEST_UNIT_RESULT: ${{ needs.test-unit.result }}
           EVAL_RESULT: ${{ needs.eval.result }}
           BUILD_RESULT: ${{ needs.build.result }}
@@ -590,6 +685,8 @@ jobs:
           fi
           if [ "$LINT_AND_TYPECHECK_RESULT" != "success" ] || \
              [ "$DOCS_TEST_RESULT" != "success" ] || \
+             [ "$CONTRACT_RESULT" != "success" ] || \
+             [ "$C4_RESULT" != "success" ] || \
              [ "$TEST_UNIT_RESULT" != "success" ] || \
              [ "$EVAL_RESULT" != "success" ] || \
              [ "$BUILD_RESULT" != "success" ] || \

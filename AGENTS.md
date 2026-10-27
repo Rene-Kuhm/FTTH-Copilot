@@ -110,7 +110,7 @@ Todos los comandos de la raíz son tareas de Turborepo. Para trabajar sobre un s
 
 ### Documentación
 
-- **Los diagramas son código Mermaid dentro del Markdown**, nunca imágenes ni capturas. Un diagrama que no se puede revisar en un diff no es un diagrama.
+- **La arquitectura es C4 como código**: el modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/model.d2) es la fuente de verdad y sus vistas (Contexto, Contenedores, Componentes y flujo de datos) se renderizan en CI a `docs/architecture/c4/views/*.svg`. Un diagrama de arquitectura no se edita a mano: se edita el modelo y se regenera con `pnpm c4:render`. El resto de los diagramas (decisiones, secuencias) siguen siendo código Mermaid dentro del Markdown, nunca capturas.
 - **Documentación en el idioma del documento que se extiende:** el README y `docs/architecture.md` están en español; `CONTRIBUTING.md`, `SECURITY.md` y `CHANGELOG.md` en inglés.
 - **La documentación arranca por el resultado del lector**, distingue el comportamiento actual del trabajo planeado y enlaza cada afirmación con su evidencia.
 - **La verdad de una afirmación vive junto al código.** Si el código cambia, la afirmación cambia en el mismo commit.
@@ -119,25 +119,9 @@ Todos los comandos de la raíz son tareas de Turborepo. Para trabajar sobre un s
 
 ## 5. Arquitectura resumida
 
-```mermaid
-flowchart TD
-    WEB["apps/web<br/>Next.js App Router"]
-    MOTORS["Motores<br/>agent-core · soc · monitoring"]
-    SERVICES["Servicios<br/>analytics · alerts"]
-    DATA["Datos y acceso a red<br/>db · evidence · connectors/*"]
-    CORE["Contratos y primitivas<br/>shared · connectors-core · detection · security"]
+![Vista C4 de contenedores: apps/web arriba, los motores, los servicios, los datos y los contratos abajo](docs/architecture/c4/views/container.svg)
 
-    WEB --> MOTORS
-    WEB --> SERVICES
-    WEB --> DATA
-    WEB --> CORE
-    MOTORS --> SERVICES
-    MOTORS --> DATA
-    MOTORS --> CORE
-    SERVICES --> DATA
-    SERVICES --> CORE
-    DATA --> CORE
-```
+La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/model.d2) y se renderiza en CI: si el modelo cambia y la vista no, el build falla.
 
 - **Las dependencias van hacia abajo.** Un paquete importa de su capa o de una inferior; nunca en círculo.
 - **`db` es el único que conoce Prisma y el KMS.** `connectors-core` es el único que aplica la política SSRF. `agent-core` es el único que llama al LLM.

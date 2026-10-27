@@ -16,5 +16,14 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["check-supply-chain.ts", "docs-test.ts", "repo-map.ts", "lib/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "check-supply-chain.ts",
+    "docs-test.ts",
+    "repo-map.ts",
+    "generate-api-contract.ts",
+    "extract-api-routes.ts",
+    "render-c4.ts",
+    "lib/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }
