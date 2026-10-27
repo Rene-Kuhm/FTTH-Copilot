@@ -1,0 +1,8 @@
+# Code owners.
+#
+# Every path is owned by the repository maintainer. GitHub requests a review
+# from the owner automatically when a pull request touches a matching path.
+#
+# Syntax: https://docs.github.com/articles/about-code-owners
+
+* @Rene-Kuhm

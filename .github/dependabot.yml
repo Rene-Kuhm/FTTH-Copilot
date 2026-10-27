@@ -1,3 +1,19 @@
+# Dependabot — el robot que mantiene la superficie de dependencias al día.
+#
+# Dos ecosistemas, dos razones:
+#
+#   - `github-actions`: las acciones están fijadas por SHA de commit
+#     (ver `.github/workflows/`). Dependabot actualiza el SHA y el
+#     comentario de versión a la vez, así que "fijar por SHA" no
+#     significa "quedarse clavado en una versión vieja".
+#   - `npm`: el monorepo pnpm. La actualización es sólo del lockfile
+#     (`lockfile-only`): los rangos de los manifiestos no se mueven, así
+#     que una actualización de dependencia nunca arrastra un cambio de API
+#     y el PR se puede revisar mirando un solo archivo.
+#
+# Los paquetes internos (`workspace:*`) están ignorados a propósito: no
+# existen en el registry, son de este repo.
+
 version: 2
 
 updates:
@@ -10,6 +26,33 @@ updates:
       timezone: "America/Argentina/Buenos_Aires"
     open-pull-requests-limit: 2
     groups:
+      # Un solo PR con todas las acciones: revisar diez diffs chicos en
+      # un PR es más barato que revisar diez PRs.
       github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    # Un workspace pnpm se actualiza desde la raíz: ahí están el
+    # `pnpm-workspace.yaml` y el `pnpm-lock.yaml`, y Dependabot recorre los
+    # paquetes del workspace desde ahí. Configurar además los subdirectorios
+    # del workspace es la forma documentada de romper las actualizaciones
+    # (la actualización del root y la del subdirectorio se pisan y Dependabot
+    # termina con "no change").
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:30"
+      timezone: "America/Argentina/Buenos_Aires"
+    open-pull-requests-limit: 5
+    # Sólo el lockfile: los rangos de `package.json` no se tocan.
+    versioning-strategy: lockfile-only
+    ignore:
+      - dependency-name: "@ftth-copilot/*"
+    groups:
+      # Un PR por semana con todo el lockfile: el diff es un archivo y
+      # el `pnpm install --frozen-lockfile` del CI lo valida entero.
+      npm-lockfile:
         patterns:
           - "*"

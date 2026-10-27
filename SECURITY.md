@@ -27,6 +27,22 @@ A useful report contains:
 
 Please avoid destructive proof-of-concept activity. A deterministic test or bounded reproduction is preferred over extraction, persistence, lateral movement, or service disruption.
 
+## Security-relevant surfaces
+
+The repository areas that carry the controls listed above. A change in one of them is a change in the security posture, even when it looks like plumbing.
+
+| Surface | Why it matters |
+|---|---|
+| [`apps/web/middleware.ts`](apps/web/middleware.ts) | Session enforcement at the edge. A bypass here removes authentication for every route behind it. |
+| [`apps/web/lib/auth/`](apps/web/lib/auth) | Login, session issuance and revocation, role and permission checks. |
+| [`packages/db`](packages/db) | Prisma schema, migrations, and the KMS-backed encryption of NMS credentials. |
+| [`packages/connectors/core`](packages/connectors/core) | The single place where outbound NMS traffic is filtered against private ranges and cloud metadata. |
+| [`packages/security`](packages/security) | Syslog parsing and attack classification. |
+| [`packages/evidence`](packages/evidence) | Provenance, freshness, and quality of the evidence that downstream verdicts rest on. |
+| [`packages/shared`](packages/shared) | Canonical contracts, TruthGate, and the Laya client. |
+| [`packages/eval`](packages/eval) | The adversarial corpus that asserts injection resistance. |
+| [`apps/web/lib/rate-limit.ts`](apps/web/lib/rate-limit.ts) | The atomic PostgreSQL rate limiter that bounds LLM spend. |
+
 ## Scope
 
 Security-relevant areas include, but are not limited to:
@@ -96,7 +112,7 @@ Repository users remain responsible for secure deployment. At minimum:
 - monitor audit records, collector health, rejected events, and rate limits;
 - never commit `.env` files, credentials, or production captures.
 
-See [`README.md`](README.md#seguridad-y-políticas-de-aislamiento) for the current control summary and [`docs/security-audit.md`](docs/security-audit.md) for the repository's technical audit record.
+See [`ARCHITECTURE.md` §7 — Controles de seguridad](ARCHITECTURE.md#7-controles-de-seguridad) for the current control summary and [`docs/security-audit.md`](docs/security-audit.md) for the repository's technical audit record.
 
 ## License
 

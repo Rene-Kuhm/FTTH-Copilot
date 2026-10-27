@@ -1,0 +1,13 @@
+# Issue Forms chooser configuration.
+#
+# Blank issues are disabled: every report goes through a template, so the
+# required context (version, tenant scope, sanitization, verification) is
+# collected once instead of being chased in the conversation.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Rene-Kuhm/FTTH-Copilot/security/advisories/new
+    about: >-
+      Suspected vulnerabilities must be reported privately, never in a public
+      issue or pull request. See SECURITY.md for what to include.

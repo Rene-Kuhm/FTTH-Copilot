@@ -1,0 +1,59 @@
+# Git hooks for FTTH-Copilot.
+#
+# Install the hooks once per clone:
+#
+#   pnpm dlx lefthook install
+#
+# The hooks are deliberately local and fast: they never build the monorepo,
+# they only run the checks that make sense against the files being staged.
+#
+#   commit-msg  commitlint, with the repository convention (.commitlintrc.json)
+#   pre-commit  ESLint over the staged sources and Prettier over the staged
+#               configuration files
+#
+# The tools are pinned and invoked through `pnpm dlx`, because the repository
+# does not vendor them as workspace dependencies yet. Once they are added to
+# `devDependencies`, `pnpm exec <tool>` can replace every `pnpm dlx` call
+# below without changing the behavior.
+
+min_version: 1.5.0
+
+pre-commit:
+  parallel: true
+  jobs:
+    # ────────────────────────────────────────────────────────────
+    # Lint the staged sources with the configuration each area uses:
+    # the shared flat config for the workspace packages, the Next.js
+    # config for the web application. Warnings do not fail the hook,
+    # exactly like `pnpm lint` in CI.
+    #
+    # The web job runs from `apps/web`, the directory that owns its flat
+    # config, so the Next.js rules resolve their own root correctly.
+    # ────────────────────────────────────────────────────────────
+    - name: eslint (workspace packages)
+      glob: "packages/**/*.{ts,tsx}"
+      run: pnpm exec eslint --config eslint.config.shared.mjs {staged_files}
+
+    - name: eslint (web application)
+      root: "apps/web"
+      glob: "apps/web/**/*.{ts,tsx}"
+      run: pnpm exec eslint --config eslint.config.mjs {staged_files}
+
+    # ────────────────────────────────────────────────────────────
+    # Format the staged configuration files. The repository is not
+    # formatted as a whole, so this job rewrites and re-stages the
+    # files it touches instead of blocking the commit.
+    #
+    # pnpm-managed files are excluded: the lockfile and the workspace
+    # manifest belong to pnpm, not to the formatter.
+    # ────────────────────────────────────────────────────────────
+    - name: prettier (configuration files)
+      glob: "{.github/**,*.json,*.yml,*.yaml}"
+      exclude: "{pnpm-lock.yaml,pnpm-workspace.yaml,.github/PULL_REQUEST_TEMPLATE/**}"
+      run: pnpm dlx prettier@3.9.10 --write --ignore-unknown {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm dlx @commitlint/cli@21.2.4 --edit {1}

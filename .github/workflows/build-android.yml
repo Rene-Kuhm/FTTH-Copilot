@@ -1,0 +1,273 @@
+name: Android APK Build
+
+# ──────────────────────────────────────────────────────────────────────
+# Workflow REUTILIZABLE: es el builder de los APK de Android.
+#
+# Misma receta de SLSA v1.0 Build Level 3 que en `build-desktop.yml`: los
+# pasos de compilación viven en un workflow reutilizable y la atestación la
+# emite ese mismo workflow, sobre los bytes recién compilados.
+#
+#   "Artifact attestations by itself provides SLSA v1.0 Build Level 2.
+#    […] Reusable workflows can provide isolation between the build process
+#    and the calling workflow, to meet SLSA v1.0 Build Level 3."
+#    — docs.github.com/actions/concepts/security/artifact-attestations
+#
+# Lo invocan:
+#   - android-apk.yml → build de validación (PR / push). Sin atestación.
+#   - release.yml     → build de release (tag v*): compila, atesta la
+#     procedencia (SLSA L3) y atesta el SBOM contra los mismos bytes.
+# ──────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        description:
+          'Tag de la release a construir y atestar (por ejemplo v1.2.3).
+          Vacío = build de validación: no atesta, no publica.'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # El caller concede `id-token: write` y `attestations: write` sólo en
+    # el modo release; en validación quedan recortados.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    env:
+      # La versión de mise está fijada: el build de release usa el mismo
+      # toolchain exacto que el CI y que el entorno local (mise.lock).
+      MISE_VERSION: "2026.10.12"
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release-tag }}
+
+      # ────────────────────────────────────────────────────────────
+      # SBOM SPDX del árbol que se va a compilar. Va antes de instalar y
+      # compilar a propósito: con `node_modules` o artefactos de build en
+      # el workspace, Syft los catalogaría y el SBOM dejaría de ser
+      # reproducible.
+      # ────────────────────────────────────────────────────────────
+      - name: Generate the SPDX SBOM
+        if: inputs.release-tag != ''
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+
+      # ────────────────────────────────────────────────────────────
+      # Canonicalización del SBOM (mismo criterio que en
+      # `build-desktop.yml`): sin el UUID aleatorio, la hora de
+      # creación ni el inventario de archivos, el digest es idéntico en
+      # todas las legs y coincide con el `sbom.spdx.json` que adjunta
+      # `release-please.yml` a la release.
+      # ────────────────────────────────────────────────────────────
+      - name: Normalize the SBOM for a reproducible digest
+        if: inputs.release-tag != ''
+        env:
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          created="$(date -u -d "@$(git log -1 --format=%ct HEAD)" +%Y-%m-%dT%H:%M:%SZ)"
+          jq -S \
+            --arg namespace "https://ftth-copilot.dev/spdx/v1/${TAG}" \
+            --arg created "${created}" \
+            --arg name "${TAG}" \
+            '.documentNamespace = $namespace
+             | .creationInfo.created = $created
+             | .name = $name
+             | del(.files)
+             | .relationships = [
+                 .relationships[]
+                 | select(((.relatedSpdxElement // "") | test("SPDXRef-File-")) | not)
+                 | select(((.spdxElementId // "") | test("SPDXRef-File-")) | not)
+               ]' \
+            sbom.spdx.json > sbom.normalized.json
+          mv sbom.normalized.json sbom.spdx.json
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2.2.2
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Setup Java
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Use preinstalled Android SDK
+        run: |
+          ls -la $ANDROID_HOME/cmdline-tools/
+          echo "Using cmdline-tools:"
+          cat $ANDROID_HOME/cmdline-tools/latest/source.properties
+
+      - name: Accept SDK licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
+
+      - name: Install SDK packages
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+
+      - name: Install dependencies
+        run: mise run deps
+
+      # Capacitor requires a static webDir. We bundle the Next.js standalone
+      # server assets as a single-page shell that loads the deployed web app
+      # from NEXT_PUBLIC_API_URL. This means the APK needs a deployed backend
+      # to fully function; for a fully offline demo, see Phase 3 of the
+      # roadmap (SQLite caching + service worker offline mode).
+      - name: Bundle web assets for Capacitor
+        working-directory: apps/web
+        run: |
+          # Copy the static export marker so cap sync has a webDir.
+          # The actual web assets are served via the standalone server.
+          mkdir -p out
+          cp -f public/favicon.svg out/ 2>/dev/null || true
+          cp -f public/manifest.json out/ 2>/dev/null || true
+          cp -r public/icons out/ 2>/dev/null || true
+          cp -f public/sw.js out/ 2>/dev/null || true
+          ls -la out/
+
+      - name: Capacitor sync
+        working-directory: apps/web
+        run: pnpm cap:sync
+
+      - name: Make gradlew executable
+        working-directory: apps/web/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: apps/web/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build release APK (unsigned)
+        working-directory: apps/web/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Locate APK files
+        run: |
+          echo "=== APKs ==="
+          find . -name "*.apk" -type f
+
+      # ────────────────────────────────────────────────────────────
+      # Procedencia SLSA Build L3, emitida por este workflow sobre los
+      # APK recién compilados. Sin claves: la identidad del builder sale
+      # del token OIDC del runner.
+      # ────────────────────────────────────────────────────────────
+      - name: Attest build provenance (keyless Sigstore)
+        if: inputs.release-tag != ''
+        id: attest-provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+      # ────────────────────────────────────────────────────────────
+      # El SBOM atestado: liga el inventario de dependencias al digest
+      # exacto de cada APK.
+      #
+      # `actions/attest-sbom` es la acción que pide el issue; desde v4
+      # delega internamente en `actions/attest` (y avisa por log que
+      # está deprecada, pero sigue siendo la forma de atestar un SBOM
+      # con la sintaxis de `subject-path` + `sbom-path`).
+      # ────────────────────────────────────────────────────────────
+      - name: Attest the SPDX SBOM
+        if: inputs.release-tag != ''
+        id: attest-sbom
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          sbom-path: sbom.spdx.json
+
+      - name: Collect the attestation bundles
+        if: inputs.release-tag != ''
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.attest-provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.attest-sbom.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p attestations
+          for bundle in "provenance:${PROVENANCE_BUNDLE}" "sbom:${SBOM_BUNDLE}"; do
+            name="${bundle%%:*}"
+            path="${bundle#*:}"
+            if [ -n "${path}" ] && [ -f "${path}" ]; then
+              cp "${path}" "attestations/${name}-android.jsonl"
+            else
+              echo "::warning::No bundle produced for ${name}."
+            fi
+          done
+          cp sbom.spdx.json attestations/sbom.spdx.json
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-android-debug
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-android-release
+          path: apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload the attestation bundles
+        if: inputs.release-tag != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: attestations-android
+          path: attestations/
+          if-no-files-found: warn
+          retention-days: 90
+
+  attach-to-release:
+    name: Attach to GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: inputs.release-tag != ''
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          pattern: 'ftth-copilot-android-*'
+
+      - name: Attach APKs to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: artifacts/**/*
+          fail_on_unmatched-files: false
+          generate_release_notes: true
