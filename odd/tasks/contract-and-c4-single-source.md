@@ -88,3 +88,12 @@ generado no está al día.
   scripts y el shell de los workflows) y el `start` pidió un consentimiento que esta sesión
   desatendida no puede dar. El envelope queda relayado en el mensaje final: la revisión es
   una vista externa opcional y no autoriza la entrega por sí sola.
+- **L9** — El check `CodeQL` del PR #321 falló con **4 alertas high** introducidas por este
+  trabajo: 2 × `js/file-system-race` (`scripts/generate-api-contract.ts:79` y `:88`, por el
+  patrón `existsSync` + escritura) y 2 × `js/incomplete-sanitization`
+  (`scripts/lib/api-contract-generator.ts:665` y `:670`, el escapado de pipes sin escapar las
+  barras invertidas). Fix: `readIfExists()` (un solo `readFileSync` con `ENOENT`) y
+  `escapeMarkdownCell()` (barra invertida primero, pipe después). Verificado con el CodeQL CLI
+  real (bundle `codeql-bundle-v2.27.3`): la suite `javascript-security-extended` da 26 alertas
+  post-fix, idénticas a las de `origin/main` → 0 nuevas. Control negativo: el código pre-fix
+  reproduce las 4 alertas exactas de GitHub.

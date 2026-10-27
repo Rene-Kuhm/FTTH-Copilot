@@ -9,6 +9,7 @@ import {
   routeFileToApiPath,
 } from "../lib/api-contract.ts";
 import {
+  escapeMarkdownCell,
   generateReference,
   generateSchemas,
   generateTypes,
@@ -144,6 +145,14 @@ test("el resumen de esquema escapa los pipes que romperían una tabla", () => {
   assert.ok(health, "el contrato declara HealthReport");
   const summary = schemaSummary(parsed, health.properties?.status ?? null);
   assert.ok(summary.includes("|"), "el resumen enumera los valores");
+});
+
+test("el escapado de celdas escapa también las barras invertidas", () => {
+  // El orden importa: si se escaparan los pipes antes que las barras
+  // invertidas, un `\|` de entrada escaparía el pipe y rompería la tabla.
+  assert.equal(escapeMarkdownCell("a|b"), "a\\|b");
+  assert.equal(escapeMarkdownCell("a\\|b"), "a\\\\\\|b");
+  assert.equal(escapeMarkdownCell("a\\b"), "a\\\\b");
 });
 
 test("la referencia generada lista cada operación del contrato", () => {

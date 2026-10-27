@@ -57,6 +57,22 @@ function relative(file: string): string {
   return path.relative(REPO_ROOT, file).replaceAll(path.sep, "/");
 }
 
+/**
+ * Lee un archivo si existe.
+ *
+ * No se usa `existsSync` + `readFileSync`: entre las dos llamadas el archivo
+ * puede cambiar, y un check seguido de una lectura es una condición de
+ * carrera. Con un solo `readFileSync` y el error `ENOENT` no hay ventana.
+ */
+function readIfExists(file: string): string | null {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 function main(): void {
   const check = process.argv.includes("--check");
   if (!fs.existsSync(CONTRACT_PATH)) {
@@ -69,9 +85,7 @@ function main(): void {
   const problems: string[] = [];
 
   for (const artifact of artifacts) {
-    const current = fs.existsSync(artifact.path)
-      ? fs.readFileSync(artifact.path, "utf8")
-      : null;
+    const current = readIfExists(artifact.path);
     if (current === artifact.content) continue;
     if (current === null) {
       if (!check) {

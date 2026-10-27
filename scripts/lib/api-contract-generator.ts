@@ -660,14 +660,26 @@ export function schemaSummary(contract: Contract, node: SchemaNode | null): stri
   }
 }
 
+/**
+ * Escapa el texto para una celda de tabla Markdown.
+ *
+ * El orden importa: primero las barras invertidas, después los pipes. Si se
+ * hiciese al revés, una barra invertida de entrada escaparía el pipe y la
+ * celda quedaría rota: `\||` se leería como una barra invertida literal
+ * seguida de un separador de columna.
+ */
+export function escapeMarkdownCell(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
 /** Escapa el texto para una celda de tabla Markdown. */
 function cell(text: string): string {
-  return text.replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+  return escapeMarkdownCell(text).replace(/\n+/g, " ").trim();
 }
 
 /** Envuelve un valor en código inline, escapando los pipes que romperían la tabla. */
 function code(value: string): string {
-  return `\`${value.replace(/\|/g, "\\|")}\``;
+  return `\`${escapeMarkdownCell(value)}\``;
 }
 
 /** El guard de una operación, en una línea legible. */
