@@ -7,6 +7,7 @@
 # Ver `docs/engineering/hermetic-environment.md` para la política completa.
 
 [tools]
+d2 = "0.9.0"
 node = "22.23.4"
 pnpm = "11.22.0"
 
@@ -68,3 +69,23 @@ run = "pnpm check:supply-chain"
 description = "Imprime el esqueleto del repo: módulos, símbolos exportados y dependencias."
 depends = ["deps"]
 run = "pnpm exec tsx scripts/repo-map.ts"
+
+[tasks."contract:generate"]
+description = "Regenera los artefactos derivados del contrato OpenAPI (referencia, tipos y validadores)."
+depends = ["deps"]
+run = "pnpm contract:generate"
+
+[tasks."contract:check"]
+description = "Falla si la referencia, los tipos o los validadores no están al día con el contrato, o si el contrato no declara todas las rutas del código."
+depends = ["deps"]
+run = "pnpm contract:check"
+
+[tasks."c4:render"]
+description = "Renderiza las vistas C4 (Contexto, Contenedores y Componentes) desde el modelo D2."
+depends = ["deps"]
+run = "pnpm c4:render"
+
+[tasks."c4:check"]
+description = "Falla si las vistas C4 commiteadas no coinciden con lo que renderiza el modelo D2."
+depends = ["deps"]
+run = "pnpm c4:check"

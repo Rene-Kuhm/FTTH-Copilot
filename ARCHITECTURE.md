@@ -23,30 +23,9 @@ Cuatro invariantes atraviesan todo el sistema. Un cambio que las rompa no es un 
 
 El monorepo es un pnpm workspace con Turborepo: `apps/*`, `packages/*` y `packages/connectors/*` (**16 workspaces**). Los paquetes se organizan en capas y solo se importan **hacia abajo**.
 
-```mermaid
-flowchart TD
-    L5["L5 · Aplicación<br/>apps/web — Next.js 16 App Router"]
-    L4["L4 · Harneses de verificación<br/>eval"]
-    L3["L3 · Motores de dominio<br/>agent-core · soc · monitoring"]
-    L2["L2 · Servicios de dominio<br/>analytics · alerts"]
-    L1["L1 · Datos y acceso a red<br/>db · evidence · connectors-smartolt · connectors-mikrowisp · connectors-mikrotik"]
-    L0["L0 · Contratos y primitivas<br/>shared · connectors-core · detection · security"]
+![Vista C4 de contenedores: dónde vive cada capa del monorepo](docs/architecture/c4/views/container.svg)
 
-    L5 --> L4
-    L5 --> L3
-    L5 --> L2
-    L5 --> L1
-    L5 --> L0
-    L4 --> L3
-    L4 --> L1
-    L4 --> L0
-    L3 --> L2
-    L3 --> L1
-    L3 --> L0
-    L2 --> L1
-    L2 --> L0
-    L1 --> L0
-```
+La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/model.d2), que es la fuente de verdad de la arquitectura dibujada del repo: se renderiza en CI y el build falla si las vistas commiteadas no coinciden con el modelo.
 
 ### 2.1 Responsabilidad por workspace
 
@@ -87,69 +66,10 @@ flowchart TD
 
 ## 3. Flujo de datos
 
-```mermaid
-flowchart TD
-    subgraph FUENTES["Fuentes"]
-        NMS["SmartOLT · Mikrowisp · MikroTik"]
-        TRAPS["Traps SNMP v1/v2c/v3"]
-        SYSLOG["Syslog RFC 3164"]
-    end
+![Flujo de datos: de las fuentes a la evidencia, a los tres planos de producto y a la salida](docs/architecture/c4/views/dataflow.svg)
 
-    subgraph INGESTA["Ingesta y normalización"]
-        CONN["Conectores NMS"]
-        RECV["Receptores UDP"]
-        EV["Evidencia con procedencia"]
-    end
-
-    subgraph PLANO_NOC["Plano NOC — proactivo"]
-        MET["Metric Collector"]
-        DETN["Detection Engine<br/>funciones puras"]
-        ALERT["Alert Reconciliation<br/>dedup · cooldown · escalado"]
-        INC["Incident Correlator"]
-    end
-
-    subgraph PLANO_SOC["Plano SOC — perímetro"]
-        SECD["Security Detection<br/>brute force · config · firmware"]
-    end
-
-    subgraph PLANO_COPILOTO["Plano Copiloto — conversacional"]
-        LAYA["Laya Decision Layer"]
-        ROUTER["Organic Diagnostic Router"]
-        RUNTIME["Runtime<br/>system prompt · tools · TruthGate"]
-        LLM["MiniMax → DeepSeek → Qwen"]
-    end
-
-    subgraph SALIDA["Salida"]
-        CHAT["Chat y tableros"]
-        NOTIF["Alertas multicanal"]
-    end
-
-    PG[("PostgreSQL multi-tenant")]
-
-    NMS --> CONN
-    TRAPS --> RECV
-    SYSLOG --> RECV
-    CONN --> EV
-    RECV --> EV
-    EV --> MET
-    MET --> DETN
-    DETN --> ALERT
-    ALERT --> INC
-    EV --> SECD
-    EV --> LAYA
-    LAYA --> ROUTER
-    INC --> ROUTER
-    SECD --> ROUTER
-    ROUTER --> RUNTIME
-    RUNTIME --> LLM
-    LLM --> CHAT
-    ALERT --> NOTIF
-    NOTIF --> CHAT
-    EV --> PG
-    MET --> PG
-    ALERT --> PG
-    PG --> CHAT
-```
+La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/model.d2);
+el CI la renderiza y falla si lo commiteado no coincide con el modelo.
 
 Los tres planos comparten **una sola base multi-tenant**: no son aplicaciones separadas. El Copiloto es *consumidor* de los pipelines NOC y SOC, no su reemplazo.
 
