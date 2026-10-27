@@ -178,15 +178,15 @@ export async function runInteractiveWizard(
   const llmChoices = [
     {
       label: 'MiniMax',
-      desc: 'Anthropic-compatible API (MiniMax-M3). Recommended for production speed and quality.',
+      desc: 'Anthropic-compatible API (MiniMax-M3.1-Flash). Recommended for production speed and quality.',
     },
     {
       label: 'DeepSeek',
-      desc: 'OpenAI-compatible API (deepseek-chat). Cost-effective reasoning model.',
+      desc: 'OpenAI-compatible API (deepseek-flash). Cost-effective reasoning model.',
     },
     {
       label: 'Qwen / DashScope',
-      desc: 'OpenAI-compatible API (qwen-plus) from Alibaba Cloud.',
+      desc: 'OpenAI-compatible API (qwen3.7-plus) from Alibaba Cloud.',
     },
     {
       label: 'Demo / Mock Mode',
@@ -203,11 +203,11 @@ export async function runInteractiveWizard(
 
   let llmProvider = '';
   let minimaxApiKey = existingEnv['MINIMAX_API_KEY'] ?? '';
-  let minimaxModel = existingEnv['MINIMAX_MODEL'] ?? 'MiniMax-M3';
+  let minimaxModel = existingEnv['MINIMAX_MODEL'] ?? 'MiniMax-M3.1-Flash';
   let deepseekApiKey = existingEnv['DEEPSEEK_API_KEY'] ?? '';
-  let deepseekModel = existingEnv['DEEPSEEK_MODEL'] ?? 'deepseek-chat';
+  let deepseekModel = existingEnv['DEEPSEEK_MODEL'] ?? 'deepseek-flash';
   let qwenApiKey = existingEnv['QWEN_API_KEY'] ?? '';
-  let qwenModel = existingEnv['QWEN_MODEL'] ?? 'qwen-plus';
+  let qwenModel = existingEnv['QWEN_MODEL'] ?? 'qwen3.7-plus';
 
   if (selectedIdx === 0) {
     llmProvider = 'minimax';
