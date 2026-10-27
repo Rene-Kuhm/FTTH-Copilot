@@ -1,0 +1,76 @@
+name: Release
+
+# ──────────────────────────────────────────────────────────────────────
+# Caller de release: dispara los builds de release cuando aparece un tag
+# v*.
+#
+# Este workflow no compila ni atesta: llama a los workflows reutilizables
+# que son los builders (`build-desktop.yml` y `build-android.yml`) y les
+# concede los permisos.
+#
+# La receta de SLSA v1.0 Build Level 3 de GitHub pide los mismos permisos
+# en el caller y en el workflow reutilizable:
+#
+#   permissions:
+#     attestations: write
+#     contents: read
+#     id-token: write
+#
+# `contents: write` además, porque los builders adjuntan los binarios a
+# la release.
+#
+# El aislamiento que da el nivel 3 viene de que los pasos de compilación
+# y de atestación están en el workflow reutilizable: este caller sólo
+# puede pasarle el tag, no puede inyectar pasos en el build.
+#
+# ──────────────────────────────────────────────────────────────────────
+# Cómo llega un run acá:
+#
+#   - `release-please.yml` despacha este workflow (`workflow_dispatch`)
+#     cuando publica la release. Es el camino normal.
+#   - Un tag `v*` pusheado a mano dispara el `push: tags`.
+#   - Un operador puede relanzarlo desde la pestaña Actions.
+#
+# El dispatch existe porque el tag lo crea release-please con el
+# `GITHUB_TOKEN` del repo, y GitHub no dispara workflows por los eventos
+# que produce su propio token: sin el dispatch, el `push: tags` nunca
+# llegaría y la release se publicaría sin artefactos firmados.
+#
+# El SBOM de la release lo adjunta `release-please.yml`; los artefactos
+# que este workflow compila son los que quedan atestados.
+# ──────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag de la release a construir y atestar (por ejemplo v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Desktop installers (.deb, .AppImage, .msi, .exe)
+    uses: ./.github/workflows/build-desktop.yml
+    with:
+      release-tag: ${{ inputs.tag || github.ref_name }}
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+  android:
+    name: Android APKs
+    uses: ./.github/workflows/build-android.yml
+    with:
+      release-tag: ${{ inputs.tag || github.ref_name }}
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write

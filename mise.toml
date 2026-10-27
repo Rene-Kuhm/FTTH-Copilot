@@ -59,6 +59,11 @@ description = "Verifica los ejemplos de README.md y docs/ contra el código real
 depends = ["deps"]
 run = "pnpm exec tsx scripts/docs-test.ts"
 
+[tasks."check:supply-chain"]
+description = "Verifica la política de supply chain del repo (SHA pinning, permisos por job y cableado del release)."
+depends = ["deps"]
+run = "pnpm check:supply-chain"
+
 [tasks.repo-map]
 description = "Imprime el esqueleto del repo: módulos, símbolos exportados y dependencias."
 depends = ["deps"]

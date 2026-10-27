@@ -16,5 +16,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["docs-test.ts", "repo-map.ts", "lib/**/*.ts", "tests/**/*.ts"]
+  "include": ["check-supply-chain.ts", "docs-test.ts", "repo-map.ts", "lib/**/*.ts", "tests/**/*.ts"]
 }

@@ -38,6 +38,7 @@
     "check:sources:health": "tsx scripts/check-research-sources-health.ts",
     "check:contribution": "tsx scripts/validate-contribution.ts",
     "check:conflicts": "tsx scripts/check-oid-conflicts.ts",
+    "check:supply-chain": "tsx scripts/check-supply-chain.ts",
     "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts",
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
     "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts"

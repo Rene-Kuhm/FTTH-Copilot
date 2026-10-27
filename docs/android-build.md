@@ -68,13 +68,24 @@ The APK is generated at:
 
 ### CI build
 
-The workflow `.github/workflows/android-apk.yml` builds APKs on every push to `main`, `design-system-v1`, or `capacitor-android`, on tags matching `v*`, and on PRs touching `apps/web/**`.
+The build lives in the reusable workflow `.github/workflows/build-android.yml`
+(it compiles **and** signs, so the provenance attributes the builder that
+actually produced the APK). Two workflows call it:
+
+- `.github/workflows/android-apk.yml` — validation build: on every push to
+  `main`, `design-system-v1`, or `capacitor-android`, and on PRs touching
+  `apps/web/**`. Nothing is signed here.
+- `.github/workflows/release.yml` — release build: it is dispatched by
+  `release-please.yml` when a release is published (and also fires on a tag
+  push matching `v*`). The APKs are attested (SLSA Build Level 3, keyless)
+  and attached to the release.
 
 Artifacts:
-- `ftth-copilot-debug` — debug APK (always built)
-- `ftth-copilot-release` — unsigned release APK
+- `ftth-copilot-android-debug` — debug APK (always built)
+- `ftth-copilot-android-release` — unsigned release APK
 
-Tag pushes (`v*`) automatically attach APKs to the GitHub release.
+Publishing a release attaches the APKs to the GitHub release: `release-please.yml`
+dispatches `release.yml`, which builds them, atests them and uploads them.
 
 ### Customizing the API URL
 

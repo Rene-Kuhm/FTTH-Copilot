@@ -107,14 +107,147 @@ timer systemd comentada (`:47-50`). Es el único `*.service` del repo.
 
 | Workflow | Triggers | Jobs |
 |---|---|---|
-| `ci.yml` | push a `main`, pull_request a `main`. Concurrencia `ci-${{ github.ref }}` con cancel-in-progress (`:30`) | `lint-and-typecheck` (`:47`) — lint, typecheck, `check:sources` + drift de matriz con `git diff --exit-code`, `check:conflicts`, `check:contribution`; `test-unit` (`:93`) — `pnpm test:coverage-check` + artefacto; `eval` (`:142`, `if: always()`) — harness de eval sin claves LLM; `build` (`:178`); `test-e2e` (`:212`) — Postgres 16, migraciones con `db:deploy`, seed, Playwright; `test-integration` (`:310`) — Postgres 16 + tests de `db` y `alerts`; `ci-success` (`:379`) — gate agregador |
-| `codeql.yml` | push/PR a `main`, cron `23 7 * * 1` | `analyze` (`:18`) — `javascript-typescript`, `build-mode: none`, `queries: security-extended` |
-| `eval-nightly.yml` | cron `0 3 * * *`, `workflow_dispatch` | `eval-nightly` (`:55`) — harness, lint, `metrics-report`, resumen con `attackPassRate`/`coverage`/`abstentionRate`/`gateFp`/`precision`/`schema`, subida de `packages/eval/reports/metrics-summary.json` (retención 90 días) |
-| `quarterly-sources-audit.yml` | cron `0 0 1 */3 *`, `workflow_dispatch` | `sources-audit` (`:11`) — `check:sources`, `check:conflicts`, `check:contribution`, `check:sources:health --timeout=8000`, frescura de la matriz |
-| `android-apk.yml` | push a `main`/`design-system-v1`/`capacitor-android`, tags `v*`; PR sobre `apps/web/**`, `apps/web/android/**` | `build` (`:22`) — Node 22, pnpm 11.22.0, JDK 21, Android SDK (platform-tools, android-34, build-tools 34.0.0), `cap sync`, `gradlew assembleDebug` + `assembleRelease`, subida de ambos APK |
-| `tauri-desktop.yml` | push a `main`/`tauri-desktop`, tags `v*`; PR sobre `apps/web/**`, `apps/web/src-tauri/**` | `build-linux` (`:22`) — ubuntu-22.04, Rust estable, webkit2gtk, `pnpm build` + `pnpm tauri:prepare`, `tauri build --bundles deb,appimage`; `build-windows` (`:107`) — `--bundles nsis,msi`; `attach-to-release` (`:176`) — en tags `v*` |
+| `ci.yml` | push a `main`, pull_request a `main`. Concurrencia `ci-${{ github.ref }}` con cancel-in-progress (`:29`) | `lint-and-typecheck` (`:47`) — lint, typecheck, `check:sources` + drift de matriz con `git diff --exit-code`, `check:conflicts`, `check:contribution`; `docs-test` (`:103`) — verificación zero-drift de la documentación + repo-map; `test-unit` (`:149`) — `pnpm test:coverage-check` + artefacto; `eval` (`:206`, `if: always()`) — harness de eval sin claves LLM; `build` (`:249`); `test-e2e` (`:289`) — Postgres 16, migraciones con `db:deploy`, seed, Playwright; `test-integration` (`:394`) — Postgres 16 + tests de `db` y `alerts`; `pr-title` (`:474`) — commitlint sobre el título de la PR; `supply-chain` (`:517`) — falla si una acción no está fijada por SHA, si un job no declara `permissions:` o si el pipeline de release está desconectado; `ci-success` (`:555`) — gate agregador |
+| `codeql.yml` | push/PR a `main`, cron `23 7 * * 1` | `analyze` (`:19`) — `javascript-typescript`, `build-mode: none`, `queries: security-extended` |
+| `eval-nightly.yml` | cron `0 3 * * *`, `workflow_dispatch` | `eval-nightly` (`:54`) — harness, lint, `metrics-report`, resumen con `attackPassRate`/`coverage`/`abstentionRate`/`gateFp`/`precision`/`schema`, subida de `packages/eval/reports/metrics-summary.json` (retención 90 días) |
+| `quarterly-sources-audit.yml` | cron `0 0 1 */3 *`, `workflow_dispatch` | `sources-audit` (`:14`) — `check:sources`, `check:conflicts`, `check:contribution`, `check:sources:health --timeout=8000`, frescura de la matriz |
+| `release-please.yml` | push a `main`, `workflow_dispatch` | `release` (`:65`) — release-please, sincroniza los version carriers, verifica la versión del tag y **despacha `release.yml`** (ver §9.4); `sbom` (`:230`) — adjunta el SBOM SPDX a la release (ver §9) |
+| `release.yml` | tags `v*`, `workflow_dispatch` | `desktop` (`:58`) → `build-desktop.yml`; `android` (`:68`) → `build-android.yml`. Es el caller de release: concede los permisos de atestación y pasa el tag |
+| `build-desktop.yml` | invocable (`workflow_call`) | `build-linux` (`:50`) — ubuntu-22.04, Rust estable, webkit2gtk, `pnpm build` + `pnpm tauri:prepare`, `tauri build --bundles deb,appimage`; `build-windows` (`:264`) — `--bundles nsis,msi`; `attach-to-release` (`:419`) — en modo release |
+| `build-android.yml` | invocable (`workflow_call`) | `build` (`:36`) — Node 22, pnpm 11.22.0, JDK 21, Android SDK (platform-tools, android-34, build-tools 34.0.0), `cap sync`, `gradlew assembleDebug` + `assembleRelease`; `attach-to-release` (`:244`) — en modo release |
+| `tauri-desktop.yml` | push a `main`/`tauri-desktop`, PR sobre `apps/web/**`, `apps/web/src-tauri/**` | `build` (`:40`) → llama a `build-desktop.yml` en modo validación (sin atestación) |
+| `android-apk.yml` | push a `main`/`design-system-v1`/`capacitor-android`, PR sobre `apps/web/**`, `apps/web/android/**` | `build` (`:41`) → llama a `build-android.yml` en modo validación (sin atestación) |
 
-Entorno de CI: `NODE_VERSION=22`, `PNPM_VERSION=11.22.0` (`ci.yml:37`).
+Entorno de CI: `mise` con versiones exactas (`MISE_VERSION=2026.10.12`, `mise.toml` + `mise.lock`). Ver
+[§ entorno hermético](../engineering/hermetic-environment.md).
 
 En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.com`) y
 `NEXT_PUBLIC_PLATFORM=tauri`.
+
+## 9. Supply chain y releases verificables
+
+### 9.1 Acciones fijadas por SHA y permisos mínimos
+
+- Toda acción de terceros se usa fijada por **SHA de commit**, nunca por tag ni
+  por rama (un tag se puede mover; un SHA no). El comentario a la derecha de
+  cada `uses:` deja el tag legible para el humano:
+  `uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`.
+- Cada job declara su propio bloque `permissions:` con lo mínimo que necesita.
+  El default del workflow es `contents: read`; lo que se necesita de más
+  (`contents: write` para publicar releases, `security-events: write` para
+  CodeQL, `id-token: write` + `attestations: write` para firmar) se pide de
+  forma explícita y local.
+- El job `supply-chain` de `ci.yml` falla si alguien agrega una acción sin
+  fijar, si un job no declara `permissions:` o si el pipeline de release queda
+  desconectado (ver §9.4). Es hermético: sólo lee los YAML del repo. La
+  política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
+  `pnpm check:supply-chain`.
+- `.github/dependabot.yml` actualiza las acciones fijadas por SHA (cambia el
+  SHA y el comentario de versión a la vez) y el lockfile del workspace pnpm
+  (`versioning-strategy: lockfile-only`: los rangos de los `package.json` no se
+  mueven).
+
+### 9.2 Qué se puede verificar de una release
+
+Cada release firmada con:
+
+- **Procedencia (SLSA Build Level 3).** `actions/attest-build-provenance` emite la
+  atestación de procedencia desde el runner hospedado por GitHub, con la
+  identidad del builder atada al token OIDC del runner. Sin claves privadas en
+  el repo y sin secretos que rotar.
+- **SBOM.** `anchore/sbom-action` genera un SPDX 2.3 JSON del árbol publicado
+  (Syft lee `pnpm-lock.yaml` y `Cargo.lock`, así que no hace falta instalar
+  nada). `actions/attest-sbom` liga ese inventario al digest exacto de cada
+  artefacto.
+- **El SBOM adjunto a la release** como `sbom.spdx.json`.
+
+### 9.3 Por qué el nivel es 3 y no 2
+
+GitHub es explícito: *"Artifact attestations by itself provides SLSA v1.0
+Build Level 2"*, y para llegar al 3 el build tiene que vivir en un workflow
+reutilizable: *"Reusable workflows can provide isolation between the build
+process and the calling workflow, to meet SLSA v1.0 Build Level 3"* (docs de
+GitHub, *Artifact attestations*).
+
+Por eso la estructura de release es:
+
+| Rol | Workflow | Qué hace |
+|---|---|---|
+| Builder (workflow reutilizable) | `build-desktop.yml`, `build-android.yml` | Compila **y** atesta: emite la procedencia y el SBOM atestado sobre los bytes recién compilados |
+| Caller | `release.yml` (tags `v*`), `tauri-desktop.yml` y `android-apk.yml` (validación) | Llama al builder y decide qué permisos concede |
+
+El caller sólo puede pasarle el tag al builder: no puede inyectar pasos en el
+build. Ese es el aislamiento que da el nivel 3.
+
+Los permisos tienen que estar de los dos lados, como pide la receta de GitHub:
+
+```yaml
+# en el caller (release.yml) y en el builder (build-*.yml)
+permissions:
+  attestations: write
+  contents: write   # read alcanza para atestar; write para adjuntar a la release
+  id-token: write
+```
+
+En el camino de validación (`tauri-desktop.yml`, `android-apk.yml`) el caller
+concede sólo `contents: read` y los pasos de atestación están condicionados al
+modo release: un pull request de un fork no llega ni a pedir un token OIDC.
+
+**Qué se atesta y qué no.** Se atesta lo que este repo compila: los
+instaladores de escritorio (`.deb`, `.AppImage`, `.msi`, `.exe`) y los APK.
+El archivo fuente de la release **no** se atesta: lo genera la API de GitHub
+bajo demanda, no es el producto de ningún build, así que no hay un builder al
+que atribuirle una procedencia. El SBOM sí se adjunta a la release: lo publica
+`release-please.yml` con el mismo contenido byte a byte que atestan los
+builders (por eso el digest del archivo publicado es el que llevan las
+atestaciones).
+
+Para verificar una release sin claves:
+
+```bash
+# 1) La procedencia: el signer es el workflow reutilizable que compiló
+gh attestation verify app.deb --repo Rene-Kuhm/FTTH-Copilot \
+  --signer-workflow Rene-Kuhm/FTTH-Copilot/.github/workflows/build-desktop.yml
+
+# 2) El SBOM que se adjuntó a la release
+gh release download v0.3.0 --pattern sbom.spdx.json
+```
+
+### 9.4 Cómo llega el build de release a correr
+
+El circuito completo, de punta a punta:
+
+```mermaid
+flowchart LR
+    PR["PR de release mergeado"] --> RP["release-please.yml"]
+    RP -->|"crea el tag vX.Y.Z"| TAG["tag publicado"]
+    RP -->|"workflow_dispatch"| REL["release.yml"]
+    REL --> BD["build-desktop.yml"]
+    REL --> BA["build-android.yml"]
+    BD -->|"atesta (SLSA L3)"| ART["instaladores"]
+    BA -->|"atesta (SLSA L3)"| APK["APK"]
+    RP -->|"adjunta sbom.spdx.json"| REL_ART["release de GitHub"]
+    ART --> REL_ART
+    APK --> REL_ART
+```
+
+El paso que no es obvio es el del medio. release-please crea el tag con el
+`GITHUB_TOKEN` del repositorio, y GitHub **no** dispara workflows nuevos por
+los eventos que produce su propio token (la regla de anti-recursión). O sea:
+un `push: tags: v*` en `release.yml` no se dispararía, el build de release
+quedaría sin ejecutar y la release se publicaría sin artefactos firmados.
+
+La salida es `workflow_dispatch`, que es una de las dos excepciones
+documentadas de esa regla (`repository_dispatch` es la otra): un dispatch
+explícito abre un run nuevo aunque lo dispare el propio `GITHUB_TOKEN`. Es la
+opción keyless — no hace falta un PAT ni una GitHub App — y por eso el job de
+release pide `actions: write` y nada más.
+
+El dispatch apunta al tag publicado, así que el builder compila exactamente los
+bytes que se están por publicar. Y `release.yml` sigue siendo disparable a
+mano desde la pestaña Actions, para reintentar sin republicar la release.
+
+**El cable no se puede cortar en silencio.** `scripts/lib/supply-chain.ts`
+verifica que el workflow que publica la release despacha al que atesta, y que
+ese workflow acepta `workflow_dispatch`. Si alguien borra el dispatch, el
+check falla y el CI se pone rojo.
