@@ -93,6 +93,9 @@ importers:
       '@ftth-copilot/connectors-core':
         specifier: workspace:*
         version: link:../../packages/connectors/core
+      '@ftth-copilot/connectors-factory':
+        specifier: workspace:*
+        version: link:../../packages/connectors/factory
       '@ftth-copilot/connectors-mikrotik':
         specifier: workspace:*
         version: link:../../packages/connectors/mikrotik
@@ -114,6 +117,9 @@ importers:
       '@ftth-copilot/monitoring':
         specifier: workspace:*
         version: link:../../packages/monitoring
+      '@ftth-copilot/scheduler':
+        specifier: workspace:*
+        version: link:../../packages/scheduler
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:../../packages/security
@@ -303,6 +309,43 @@ importers:
         version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/connectors/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.71.0(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/connectors/factory:
+    dependencies:
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ftth-copilot/connectors-mikrotik':
+        specifier: workspace:*
+        version: link:../mikrotik
+      '@ftth-copilot/connectors-mikrowisp':
+        specifier: workspace:*
+        version: link:../mikrowisp
+      '@ftth-copilot/connectors-smartolt':
+        specifier: workspace:*
+        version: link:../smartolt
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../../db
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -619,6 +662,46 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/scheduler:
+    dependencies:
+      '@ftth-copilot/analytics':
+        specifier: workspace:*
+        version: link:../analytics
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../connectors/core
+      '@ftth-copilot/connectors-factory':
+        specifier: workspace:*
+        version: link:../connectors/factory
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@ftth-copilot/monitoring':
+        specifier: workspace:*
+        version: link:../monitoring
+      '@ftth-copilot/soc':
+        specifier: workspace:*
+        version: link:../soc
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.71.0(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/security:
     devDependencies:
       '@types/node':
@@ -710,6 +793,9 @@ importers:
       '@ftth-copilot/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@ftth-copilot/scheduler':
+        specifier: workspace:*
+        version: link:../../packages/scheduler
       tsx:
         specifier: ^4.19.2
         version: 4.23.15

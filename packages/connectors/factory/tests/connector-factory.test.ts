@@ -1,13 +1,17 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 /**
- * Tenant connector resolution for the chat path, previously at 0% coverage.
+ * Tenant connector resolution for the chat path.
  *
  * This module decrypts stored NMS credentials and hands them to a live client.
  * The branches that matter are the ones that decide *which* credentials get
  * sent to ISP equipment: a Mikrotik secret can arrive as a JSON object, as
  * `user:password`, or as a bare token, and a misread there means either the
  * wrong account is used or a credential is handed to the wrong field.
+ *
+ * Moved verbatim from `apps/web/tests/lib/connectors/chat-client.test.ts` when
+ * the factory left the Next.js app: the implementation now lives in
+ * `@ftth-copilot/connectors-factory`, so the suite lives with it.
  */
 
 const decryptApiKey = vi.hoisted(() => vi.fn());
@@ -37,9 +41,7 @@ vi.mock('@ftth-copilot/connectors-smartolt', () => ({ SmartOltClient: smartolt }
 vi.mock('@ftth-copilot/connectors-mikrowisp', () => ({ MikrowispClient: mikrowisp }));
 vi.mock('@ftth-copilot/connectors-mikrotik', () => ({ MikrotikNmsAdapter: mikrotik }));
 
-const { buildConnectorFromConnection, ConnectorResolutionError } = await import(
-  '@/lib/connectors/chat-client'
-);
+const { buildConnectorFromConnection, ConnectorResolutionError } = await import('../src/index');
 
 // A top-level await import yields a value binding, so the class cannot be
 // used in type position; derive the instance type instead.

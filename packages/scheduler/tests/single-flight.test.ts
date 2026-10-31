@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * RED tests for the single-flight scheduler contract.
+ * Single-flight guard of the scheduler loops.
  *
- * The previous contract (`apps/web/lib/monitoring/scheduler.ts`):
+ * Moved verbatim from `apps/web/tests/lib/monitoring/single-flight-scheduler.test.ts`
+ * when the scheduler left the Next.js app.
+ *
+ * The previous contract was:
  *   setInterval(() => runScheduledPoll().catch(() => {}), intervalMs);
  *
  * If a run takes longer than `intervalMs`, the next interval tick
  * fires while the previous run is still in flight and a second run
- * starts in parallel. With a slow NMS or a heavy FEC tick, this
+ * starts in parallel. With a slow NMS or a heavy FEC tick, that
  * overlap compounds.
  *
  * The new contract:
@@ -28,7 +31,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * `tryStart` is called, which is what these tests assert. The single-flight
  * contract has nothing to do with the database, so mocking keeps the test
  * deterministic and instant. Lock behaviour is covered in
- * scheduler-advisory-lock.test.ts.
+ * advisory-lock.test.ts.
  */
 
 const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
@@ -39,6 +42,7 @@ vi.mock('@ftth-copilot/db', () => ({
       fn({ $queryRaw: mocks.queryRaw }),
     nmsConnection: { findMany: vi.fn().mockResolvedValue([]) },
   },
+  decryptApiKey: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -54,9 +58,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// We import after the timers are installed so the warm-up timeouts in
-// start*Loop are controllable.
-import { __clearSchedulerState, tryStart } from '../../../lib/monitoring/scheduler';
+import { __clearSchedulerState, tryStart } from '../src/index';
 
 describe('single-flight scheduler guard', () => {
   it('exports tryStart as a testable helper', () => {

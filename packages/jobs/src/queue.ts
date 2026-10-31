@@ -87,6 +87,20 @@ export type RecurringSchedule<Q extends QueueKey> = {
   schedulerId: string;
   /** Period of the loop, in milliseconds. */
   everyMs: number;
+  /**
+   * When the schedule starts, in epoch milliseconds.
+   *
+   * BullMQ computes the first tick from this value: it is the instant of the
+   * first job, and every later tick follows the period from there. Without
+   * it the first tick is produced immediately, which is not always what a
+   * loop wants — the in-process loops waited a few seconds after boot before
+   * their first run.
+   *
+   * The unit matters: BullMQ reads the value as a number of milliseconds, so
+   * a `Date` object (which serializes to a string) would be ignored and the
+   * first tick would fire immediately anyway.
+   */
+  startDateMs?: number;
   /** Job name, always the one this queue accepts. */
   name: QueueJobMap[Q];
   /** Job payload. */
@@ -119,11 +133,26 @@ export async function scheduleRecurring<Q extends QueueKey>(
 
   await queue.upsertJobScheduler(
     schedule.schedulerId,
-    { every: schedule.everyMs },
+    toRepeatOptions(schedule),
     {
       name: schedule.name,
       data: schedule.data,
       opts: templateOptions,
     },
   );
+}
+
+/**
+ * Converts a recurring schedule into BullMQ's repeat options.
+ *
+ * Exported for tests: the mapping is the part of the producer that can be
+ * wrong without any Redis involved.
+ */
+export function toRepeatOptions(schedule: {
+  everyMs: number;
+  startDateMs?: number;
+}): { every: number; startDate?: number } {
+  const repeatOptions: { every: number; startDate?: number } = { every: schedule.everyMs };
+  if (schedule.startDateMs !== undefined) repeatOptions.startDate = schedule.startDateMs;
+  return repeatOptions;
 }

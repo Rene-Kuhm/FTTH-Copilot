@@ -14,6 +14,7 @@
 
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
 import { registeredJobNames } from './registry';
+import { registerRecurringSchedules } from './schedules';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
 
 /** How often the same queue error is logged, in milliseconds. */
@@ -77,11 +78,32 @@ async function main(): Promise<void> {
   console.log(`[worker] consuming queues: ${fleet.runtime.queues.join(', ')}`);
   console.log(
     `[worker] job handlers registered: ${
-      handlers.length === 0
-        ? 'none yet (skeleton: the queues are consumed but no job is handled)'
-        : handlers.join(', ')
+      handlers.length === 0 ? 'none' : handlers.join(', ')
     }`,
   );
+
+  // The worker owns the schedule of the recurring loops: it registers one
+  // recurring schedule per enabled loop and enqueues the first tick
+  // immediately. Registering twice is a no-op (the schedule is an upsert keyed
+  // by a stable scheduler id), so a restart — or a second replica — never
+  // creates two schedules.
+  //
+  // A Redis outage must not take the process down: the health endpoint keeps
+  // reporting the degradation and the schedules are registered on the next
+  // boot.
+  try {
+    const schedules = await registerRecurringSchedules({ env });
+    for (const loop of schedules.registered) {
+      console.log(
+        `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick: ${loop.firstTickJobId})`,
+      );
+    }
+    for (const loop of schedules.skipped) {
+      console.log(`[worker] schedule "${loop.scope}" not registered: ${loop.reason}`);
+    }
+  } catch (error) {
+    console.error('[worker] could not register the recurring schedules:', error);
+  }
 
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
   __resetSchedulerHealth,
+  detectHangedLoops,
   markExpected,
   markNotExpected,
   overallHealthy,
@@ -8,8 +9,17 @@ import {
   recordSuccess,
   recordSyslogBound,
   snapshotHealth,
-} from '../../../lib/monitoring/scheduler-health';
+  type SchedulerName,
+  type ServiceHealth,
+} from '../src/index';
 
+/**
+ * Health registry of the scheduler loops.
+ *
+ * Moved verbatim from `apps/web/tests/lib/monitoring/scheduler-health.test.ts`
+ * when the registry left the Next.js app: the state now lives in
+ * `@ftth-copilot/scheduler`, so the suite lives with it.
+ */
 describe('scheduler-health registry', () => {
   beforeEach(() => {
     __resetSchedulerHealth();
@@ -156,15 +166,8 @@ describe('overallHealthy', () => {
   });
 });
 
-import {
-  detectHangedLoops,
-  type ServiceHealth,
-  type SchedulerName,
-} from '../../../lib/monitoring/scheduler-health';
-
 describe('detectHangedLoops (Fase 2 — 2.6)', () => {
   const NOW = 1_700_000_000_000;
-  const STALE_MS = 10 * 60 * 1000;
 
   function snap(entries: Array<[SchedulerName, ServiceHealth]>): Record<string, ServiceHealth> {
     return Object.fromEntries(entries);

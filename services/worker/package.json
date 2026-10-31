@@ -15,10 +15,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:unit": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
     "@ftth-copilot/jobs": "workspace:*",
+    "@ftth-copilot/scheduler": "workspace:*",
     "tsx": "^4.19.2"
   },
   "devDependencies": {

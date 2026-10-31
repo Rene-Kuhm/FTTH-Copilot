@@ -3,6 +3,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 /**
  * Distributed lock for the scheduler loops.
  *
+ * Moved verbatim from `apps/web/tests/lib/monitoring/scheduler-advisory-lock.test.ts`
+ * when the scheduler left the Next.js app.
+ *
  * The loops were guarded only in-process, so with more than one app instance
  * every instance polled the NMS and wrote the same samples. This asserts the
  * property that matters: across instances, only one holds a given lock.
@@ -19,11 +22,10 @@ vi.mock('@ftth-copilot/db', () => ({
     $transaction: mocks.transaction,
     nmsConnection: { findMany: vi.fn().mockResolvedValue([]) },
   },
+  decryptApiKey: vi.fn(),
 }));
 
-const { acquireSchedulerLock, advisoryLockKey } = await import(
-  '@/lib/monitoring/scheduler'
-);
+const { acquireSchedulerLock, advisoryLockKey } = await import('../src/index');
 
 /**
  * Prisma receives the TemplateStringsArray itself as the first argument and

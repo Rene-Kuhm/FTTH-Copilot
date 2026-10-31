@@ -47,6 +47,7 @@ export {
   createJobQueue,
   enqueueJob,
   scheduleRecurring,
+  toRepeatOptions,
   type JobQueue,
   type EnqueuedJob,
   type RecurringSchedule,
