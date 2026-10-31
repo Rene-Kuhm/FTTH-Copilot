@@ -25,13 +25,16 @@
 export type WriteFailureClass = 'permanent' | 'transient';
 
 /**
- * Códigos de Prisma que describen un evento imposible de guardar.
+ * Códigos de Prisma que describen un **dato** que no entra en el esquema.
  *
  * `P2000` valor demasiado largo, `P2003` foreign key, `P2005`/`P2006` valor
  * malformado para el tipo de la columna, `P2023` datos inconsistentes en una
  * columna, `P2025` la fila referenciada no existe.
+ *
+ * Son de ese evento por naturaleza: se mandan al dead-letter uno por uno
+ * aunque fallen doscientos seguidos con el mismo código.
  */
-const PERMANENT_PRISMA_CODES = new Set([
+const DATA_PRISMA_CODES = new Set([
   'P2000',
   'P2003',
   'P2005',
@@ -39,6 +42,15 @@ const PERMANENT_PRISMA_CODES = new Set([
   'P2023',
   'P2025',
 ]);
+
+/**
+ * Códigos de Prisma que describen un **esquema** que no está listo.
+ *
+ * `P2021`/`P2022` la tabla o la columna no existe. Es lo que pasa cuando el
+ * worker arranca con código nuevo antes de que corra `prisma migrate deploy`:
+ * falla todo junto y no hay que perder un solo evento.
+ */
+const SCHEMA_PRISMA_CODES = new Set(['P2021', 'P2022']);
 
 /**
  * Códigos de Prisma que describen un store no disponible.
@@ -81,12 +93,23 @@ const TRANSIENT_SQLSTATE_PREFIXES = ['08'];
 const TRANSIENT_SQLSTATES = new Set(['57P01', '57P02', '57P03', '53300', '40001', '40P01']);
 
 /**
- * Clases SQLSTATE de datos e integridad: el valor no cumple el esquema.
+ * Clases SQLSTATE de **dato**: el valor no cumple el esquema.
  *
- * `22` son excepciones de datos, `23` violaciones de integridad, `42` columnas
- * o tablas inexistentes y errores de sintaxis.
+ * `22` son excepciones de datos (valor demasiado largo, mal formado, fuera de
+ * rango). Son de ese evento.
  */
-const PERMANENT_SQLSTATE_PREFIXES = ['22', '23', '42'];
+const DATA_SQLSTATE_PREFIXES = ['22'];
+
+/**
+ * Clases SQLSTATE de **integridad**: el valor no cumple una restricción.
+ *
+ * `23` cubre la violación de foreign key (`23503`), la de unicidad y la de
+ * "falta un valor obligatorio" (`23502`). Las dos primeras son del dato; la
+ * tercera puede serlo de una migración, así que va al cubo del esquema.
+ */
+const SCHEMA_SQLSTATE_PREFIXES = ['42'];
+const DATA_SQLSTATES = new Set(['23503', '23505', '23514']);
+const SCHEMA_SQLSTATES = new Set(['23502']);
 
 /** Lee el campo `code` de un error sin asumir su forma. */
 function codeOf(error: unknown): string | null {
@@ -129,6 +152,18 @@ export interface WriteFailure {
   recognized: boolean;
   /** El código tal como vino, para agrupar fallos y para el dead-letter. */
   code: string | null;
+  /**
+   * De quién es el problema.
+   *
+   *   - `event` — el dato de ese evento no entra en el esquema (una foreign
+   *     key que no existe, un valor demasiado largo). Es de **ese** evento por
+   *     naturaleza: aunque fallen 250 seguidos con el mismo código, cada uno
+   *     va al dead-letter por separado.
+   *   - `store` — el esquema o la configuración de la base. Si falla todo
+   *     junto, el problema es de la base y no se pierde nada.
+   *   - `unclassified` — nadie sabe.
+   */
+  scope: 'event' | 'store' | 'unclassified';
 }
 
 export function classifyWriteErrorDetailed(error: unknown): WriteFailure {
@@ -136,29 +171,60 @@ export function classifyWriteErrorDetailed(error: unknown): WriteFailure {
   const name = nameOf(error);
 
   if (name === 'PrismaClientValidationError') {
-    return { class: 'permanent', recognized: true, code: 'PrismaClientValidationError' };
+    // El cliente rechazó los datos antes de mandarlos: es el payload.
+    return {
+      class: 'permanent',
+      recognized: true,
+      code: 'PrismaClientValidationError',
+      scope: 'event',
+    };
   }
 
   if (code !== null) {
-    if (PERMANENT_PRISMA_CODES.has(code)) return { class: 'permanent', recognized: true, code };
-    if (TRANSIENT_PRISMA_CODES.has(code)) return { class: 'transient', recognized: true, code };
-    if (TRANSIENT_SOCKET_CODES.has(code)) return { class: 'transient', recognized: true, code };
-    if (TRANSIENT_SQLSTATES.has(code)) return { class: 'transient', recognized: true, code };
+    if (DATA_PRISMA_CODES.has(code)) {
+      return { class: 'permanent', recognized: true, code, scope: 'event' };
+    }
+    if (SCHEMA_PRISMA_CODES.has(code)) {
+      return { class: 'permanent', recognized: true, code, scope: 'store' };
+    }
+    if (TRANSIENT_PRISMA_CODES.has(code)) {
+      return { class: 'transient', recognized: true, code, scope: 'store' };
+    }
+    if (TRANSIENT_SOCKET_CODES.has(code)) {
+      return { class: 'transient', recognized: true, code, scope: 'store' };
+    }
+    if (TRANSIENT_SQLSTATES.has(code)) {
+      return { class: 'transient', recognized: true, code, scope: 'store' };
+    }
     for (const prefix of TRANSIENT_SQLSTATE_PREFIXES) {
       if (code.startsWith(prefix) && /^\d/.test(code)) {
-        return { class: 'transient', recognized: true, code };
+        return { class: 'transient', recognized: true, code, scope: 'store' };
       }
     }
-    for (const prefix of PERMANENT_SQLSTATE_PREFIXES) {
-      if (code.length === 5 && code.startsWith(prefix)) {
-        return { class: 'permanent', recognized: true, code };
+    if (code.length === 5) {
+      if (DATA_SQLSTATE_PREFIXES.some((prefix) => code.startsWith(prefix))) {
+        // Excepción de datos: el valor no entra en el esquema.
+        return { class: 'permanent', recognized: true, code, scope: 'event' };
+      }
+      if (DATA_SQLSTATES.has(code)) {
+        return { class: 'permanent', recognized: true, code, scope: 'event' };
+      }
+      if (SCHEMA_SQLSTATES.has(code)) {
+        return { class: 'permanent', recognized: true, code, scope: 'store' };
+      }
+      if (SCHEMA_SQLSTATE_PREFIXES.includes(code.slice(0, 2))) {
+        return { class: 'permanent', recognized: true, code, scope: 'store' };
+      }
+      // El resto de la clase 23 son violaciones de integridad por el dato.
+      if (code.startsWith('23')) {
+        return { class: 'permanent', recognized: true, code, scope: 'event' };
       }
     }
   }
 
   // Sin clasificación concluyente se reintenta: perder telemetría guardable es
   // peor que retrasarla.
-  return { class: 'transient', recognized: false, code };
+  return { class: 'transient', recognized: false, code, scope: 'unclassified' };
 }
 
 /** Decide si un evento que no se pudo guardar es permanente o pasajero. */

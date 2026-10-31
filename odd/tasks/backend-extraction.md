@@ -208,6 +208,11 @@ de la tabla de abajo referencia al menos uno.
   `pnpm typecheck && pnpm lint && pnpm test`. Cuando aplique, también
   `pnpm --filter @ftth-copilot/eval run test` y los tests de durabilidad de la
   Fase 4.
+- **S19** — Los eventos que fueron al dead-letter se pueden **reprocesar**:
+  un comando `replay:dead-letter` los vuelve a encolar. Como el `ingestId` es
+  único y se inserta con `skipDuplicates`, el replay no puede duplicar un
+  evento que ya se había guardado. Sin esto, el dead-letter guarda los datos
+  pero en la práctica es pérdida: nadie puede recuperarlos.
 - **S18** — Observabilidad: profundidad de cola, latencia de job, retries y
   dead-letters se exportan al stack VictoriaMetrics existente.
 
@@ -235,6 +240,7 @@ tarea.
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
 | T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. |
 | T16 | S18               | pending | pending | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
+| T18 | S19                | pending | pending | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
 | T17 | S1, S17            | pending | pending | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
 
 ## Plan de rollback
@@ -512,3 +518,25 @@ debe romperse) y los tests de durabilidad de las fases 4.
   Consecuencia de diseño aceptada: en un lote que falla se escriben dos veces
   los eventos que sí se pueden guardar (lote primero, evento por evento
   después). Es idempotente, así que cuesta una escritura repetida, no datos.
+- **L24** (2026-10-31) — La regla de "fallo compartido" miraba solo el lote, y
+  eso reintroducía el bloqueo de L19 en su forma más probable: una OLT con un
+  `connectionId` inválido en `SNMP_SENDER_REGISTRY_JSON` manda 250+ traps
+  seguidos en una tormenta de LOS, el lote queda 100% envenenado con el mismo
+  código de foreign key, la regla lo lee como "la base no está lista" y no
+  manda nada al dead-letter; el lote siguiente es idéntico, y todo lo que venga
+  de cualquier otra OLT queda trabado para siempre.
+  Arreglo: los permanentes se separan por **alcance**.
+  - `scope: 'event'` — el dato de ese evento no entra en el esquema
+    (`P2000/P2003/P2005/P2006/P2023/P2025`, `PrismaClientValidationError`,
+    SQLSTATE `22*`, `23503`/`23505`/`23514`). Es de ese evento por naturaleza y
+    va al dead-letter **aunque fallen todos juntos**.
+  - `scope: 'store'` — el esquema o la configuración de la base (`P2021/P2022`,
+    SQLSTATE `42*`, `23502`, y los transitorios). Es el único cubo al que se le
+    aplica la regla de no perder nada cuando falla todo junto.
+  - `scope: 'unclassified'` — nadie sabe; también entra en la regla.
+  Test: 300 traps con FK inválida seguidos de eventos válidos → los 300 al
+  dead-letter y los válidos guardados.
+- **L25** (2026-10-31) — Se agrega S19/T18 (Fase 6): sin un replay, el
+  dead-letter guarda los datos pero no los devuelve, así que en la práctica es
+  pérdida. Cuando el operador corrige el registro de la OLT, los traps tienen
+  que poder volver, y el `ingestId` único hace que el replay sea idempotente.

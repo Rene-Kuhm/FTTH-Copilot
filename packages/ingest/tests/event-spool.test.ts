@@ -280,6 +280,51 @@ describe('EventDrainer', () => {
     expect(spool.stats().backlog).toBe(0);
   });
 
+  it('dead-letters a whole batch poisoned by one misconfigured sender', async () => {
+    // The real case: an OLT whose `connectionId` does not exist in
+    // `SNMP_SENDER_REGISTRY_JSON` sends a burst of traps — an LOS storm during
+    // an incident. Every event of the batch fails with the same foreign-key
+    // code. That is NOT "the database is not ready": it is 300 bad events, and
+    // treating them as a shared failure would stall the queue forever, for
+    // every other OLT too.
+    const BAD = 300;
+    const spool = new DurableSpool<Payload>({ dir });
+    for (let i = 0; i < BAD; i++) spool.append({ message: `bad-${i}` });
+    spool.append({ message: 'good-1' });
+    spool.append({ message: 'good-2' });
+
+    const stored: string[] = [];
+    const drainer = new EventDrainer<Payload>({
+      spool,
+      batchSize: 250,
+      write: async (entries) => {
+        for (const entry of entries) {
+          if (entry.payload.message.startsWith('bad-')) {
+            throw Object.assign(new Error('foreign key violated'), { code: 'P2003' });
+          }
+          stored.push(entry.payload.message);
+        }
+      },
+      backoffMs: noBackoff,
+    });
+
+    // Drain until the spool is empty.
+    for (let i = 0; i < 20 && spool.stats().backlog > 0; i++) {
+      await drainer.drainOnce();
+    }
+
+    const backlog = spool.stats().backlog;
+    spool.close();
+
+    const dlq = readFileSync(join(dir, 'events.dlq.jsonl'), 'utf8');
+    // Every bad event reached the dead-letter file…
+    expect(dlq.split('\n').filter((line) => line.includes('bad-')).length).toBe(BAD);
+    // …and the valid events behind them were stored, not blocked by them.
+    expect(stored).toEqual(['good-1', 'good-2']);
+    expect(backlog).toBe(0);
+    expect(spool.stats().deadLettered).toBe(BAD);
+  });
+
   it('never dead-letters when every event fails with the same code (a deploy window)', async () => {
     const spool = new DurableSpool<Payload>({ dir });
     spool.append({ message: 'a' });

@@ -220,8 +220,19 @@ export class EventDrainer<T> {
 
     // ── Regla 1: el fallo es de la base, no de los eventos ────────────────
     const distinctCodes = new Set(failures.map((failure) => failure.detailed?.code ?? 'unknown'));
+
+    // La regla solo vale para lo que puede ser un problema de la base. Un
+    // error del **dato** es de ese evento por naturaleza: una OLT con un
+    // `connectionId` inválido puede mandar 250 traps seguidos en una tormenta
+    // de LOS, todos con el mismo código de foreign key. Tratarlos como "la
+    // base no está lista" dejaría el lote entero trabado para siempre y, con
+    // él, todo lo que venga de cualquier otra OLT.
+    const anyEventScoped = failures.some((failure) => failure.detailed?.scope === 'event');
     const allFailedAlike =
-      storedInPass === 0 && failures.length === outcomes.length && distinctCodes.size === 1;
+      !anyEventScoped &&
+      storedInPass === 0 &&
+      failures.length === outcomes.length &&
+      distinctCodes.size === 1;
 
     if (allFailedAlike) {
       const code = [...distinctCodes][0] ?? 'unknown';
