@@ -92,6 +92,10 @@ describe('Gate 8: External Contribution Lifecycle (Sanitized Capture to L2)', ()
     });
 
     try {
+      // UDP has no connection: a trap sent before the socket is bound is
+      // dropped by the kernel without an error. Wait for 'listening' first.
+      await receiver.ready();
+
       // 4. Send trap with sanitized data over UDP loopback
       await sendSnmpTestTrap({
         port: TEST_PORT,
@@ -109,7 +113,9 @@ describe('Gate 8: External Contribution Lifecycle (Sanitized Capture to L2)', ()
 
       // Await event processing
       let attempts = 0;
-      while (!receivedTelemetry && attempts < 40) {
+      // Up to 5 s: the receiver is bound, so this only waits for processing,
+      // which a coverage-instrumented CI runner can make slow.
+      while (!receivedTelemetry && attempts < 200) {
         await new Promise((r) => setTimeout(r, 25));
         attempts++;
       }
@@ -127,5 +133,5 @@ describe('Gate 8: External Contribution Lifecycle (Sanitized Capture to L2)', ()
     } finally {
       await new Promise<void>((resolve) => receiver.close(() => resolve()));
     }
-  });
+  }, 15_000);
 });
