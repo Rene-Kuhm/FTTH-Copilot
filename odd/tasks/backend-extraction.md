@@ -234,7 +234,7 @@ tarea.
 | T8  | S4, S6             | inline  | `ce8eb5b` | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
 | T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | inline  | `e2c6cb7`, `chore(infra)` | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
-| T11 | S3, S16            | inline  | `T11` (este commit) | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
+| T11 | S3, S16            | inline  | `b1313ee`, `0b8d5a4`-equivalente | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5                | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
 | T13 | S5                | pending | pending | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. |
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
@@ -540,3 +540,28 @@ debe romperse) y los tests de durabilidad de las fases 4.
   dead-letter guarda los datos pero no los devuelve, así que en la práctica es
   pérdida. Cuando el operador corrige el registro de la OLT, los traps tienen
   que poder volver, y el `ingestId` único hace que el replay sea idempotente.
+- **L26** (2026-10-31) — T12, inventario de las 61 rutas de `app/api/**`. El
+  plan suponía que varias rutas disparaban trabajo de fondo inline; el código
+  no lo confirma. Clasificadas por lo que realmente hacen:
+  - **Lectura con datos ya persistidos** (la mayoría): no hay nada que
+    encolar.
+  - **Lectura que va a la NMS en el momento**: `dashboard` (GET con
+    `getNetworkOverview`/`listOlts`/`listOnus`), `alerts` y `chat` sólo
+    construyen el conector (descifrar + instanciar, sin red). El `dashboard`
+    no es trabajo de fondo sino una lectura que el usuario espera: sacarlo de
+    la ruta es leer el estado que el poller ya persiste, no encolar.
+  - **Acción interactiva**: `connectors/[id]/test` (el usuario pide el ping y
+    espera la respuesta) y `chat` (las tools del agente llaman a la NMS dentro
+    de la conversación). Deben seguir respondiendo en el momento.
+  - **Trabajo de fondo inline, candidato real a T12**: `incidents/[id]/investigate`.
+    Corre `runInvestigationPipeline` en el proceso web con un `Promise.race`
+    contra 8 s; si se pasa, devuelve **202 "pending"** y el pipeline sigue
+    corriendo como promesa suelta — sin retry, sin durabilidad, y se muere con
+    el proceso. Es exactamente el caso de T12, y se puede arreglar **sin
+    cambiar el contrato**: el 202 ya existe, sólo cambia quién ejecuta el
+    pipeline después del presupuesto.
+  - **Candidato blando**: `maintenance-windows/[id]/reevaluate` recorre todos
+    los incidentes activos con escrituras y notificaciones en el request.
+  Bloqueante para encolar `investigate`: `runInvestigationPipeline` vive en
+  `apps/web/lib/investigations/` y el worker no puede importar de la app; hay
+  que mudarlo a un package, igual que se hizo con el scheduler y el ingest.
