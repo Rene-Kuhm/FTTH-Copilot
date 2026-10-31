@@ -2,6 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
   - "packages/connectors/*"
+  # services/worker (TypeScript background worker). services/laya is a Python
+  # mirror with no package.json, so pnpm ignores it.
+  - "services/*"
 overrides:
   vite: 6.4.3
   deepmerge-ts: ">=8.0.0"
