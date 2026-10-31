@@ -334,3 +334,28 @@ debe romperse) y los tests de durabilidad de las fases 4.
   El límite de slice del harness se registra acá porque el plan completo
   supera el corte de ~400 líneas: cada commit se mantiene por debajo con
   tests y documentación al lado del comportamiento.
+- **L10** (2026-10-31) — Fase 3: el obstáculo real no es la cola, es que el
+  código del loop vive en `apps/web` y el worker no puede importar de una app
+  Next. Dos unidades se mudan a packages, sin cambiar una línea de lógica:
+  - `buildConnectorFromConnection` → `packages/connectors/factory`
+    (`@ftth-copilot/connectors-factory`). No puede vivir en `connectors-core`:
+    los tres connectors implementados dependen de `core`, así que la fábrica
+    ahí invertiría la dependencia.
+  - `runScheduledPoll` / `runScheduledFirmwareAudit` / `runScheduledFecCollection`,
+    los helpers de lock y el registro de health → `packages/scheduler`
+    (`@ftth-copilot/scheduler`).
+  La web conserva su API pública re-exportando desde los packages: ningún call
+  site del web cambia, y el worker importa los packages (S14).
+- **L11** (2026-10-31) — Quién agenda el loop recurrente: el WORKER, no la
+  web. S4 exige que el deployable web "no polea, ni audita, ni bindea UDP, ni
+  programa nada", así que la web no crea schedules; el worker los registra al
+  arrancar con `upsertJobScheduler` (idempotente por `schedulerId`) y encola
+  el primer tick al instante, para no perder el warm-up de 5 s que hoy hace
+  el loop en proceso. Esto resuelve la tensión entre la redacción de T6
+  ("convertir `startPollingLoop` en productor de jobs repetibles") y S4: el
+  loop deja de ser un `setInterval` y pasa a ser un job; quién lo agenda lo
+  decide el flag, no la forma del código.
+- **L12** (2026-10-31) — T8 mueve SOLO los tres loops recurrentes. Los
+  receptores de syslog y SNMP siguen en la web hasta T9/T10: el worker todavía
+  no los recibe, y sacarlos antes dejaría la ingesta de syslog sin destino
+  (traps y syslog no se pueden perder — regla de dominio).
