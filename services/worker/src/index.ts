@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     const schedules = await registerRecurringSchedules({ env });
     for (const loop of schedules.registered) {
       console.log(
-        `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick: ${loop.firstTickJobId})`,
+        `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick at ${new Date(loop.firstTickAtMs).toISOString()})`,
       );
     }
     for (const loop of schedules.skipped) {
