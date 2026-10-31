@@ -53,7 +53,11 @@ describe('the periodic drain of the durable spool', () => {
   it('is registered even when no receiver is enabled: it is the safety net', async () => {
     const result = await registerRecurringSchedules({ env: {} });
 
-    expect(result.registered.map((loop) => loop.scope)).toEqual(['ingest-drain']);
+    // The investigation sweep has no flag either: both are safety nets.
+    expect(result.registered.map((loop) => loop.scope)).toEqual([
+      'ingest-drain',
+      'investigation-sweep',
+    ]);
   });
 
   it('lands on the ingest queue with the drain job', async () => {
@@ -69,8 +73,10 @@ describe('the periodic drain of the durable spool', () => {
     await registerRecurringSchedules({ env: {} });
 
     const ids = schedules().map((schedule) => schedule.schedulerId);
-    expect(new Set(ids).size).toBe(1);
-    expect(ids[0]).toBe(recurringSchedulerId('ingest-drain'));
+    // Two loops without a flag, each registered twice: still one id per loop.
+    expect(new Set(ids)).toEqual(
+      new Set([recurringSchedulerId('ingest-drain'), recurringSchedulerId('investigation-sweep')]),
+    );
   });
 
   it('carries the payload the drain handler understands', async () => {

@@ -876,6 +876,9 @@ importers:
       '@ftth-copilot/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
+      '@ftth-copilot/investigations':
+        specifier: workspace:*
+        version: link:../../packages/investigations
       '@ftth-copilot/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

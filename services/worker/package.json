@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@ftth-copilot/ingest": "workspace:*",
+    "@ftth-copilot/investigations": "workspace:*",
     "@ftth-copilot/jobs": "workspace:*",
     "@ftth-copilot/scheduler": "workspace:*",
     "tsx": "^4.19.2"

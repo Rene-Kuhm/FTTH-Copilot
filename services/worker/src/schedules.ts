@@ -146,6 +146,24 @@ export const INGEST_DRAIN_LOOP: LoopDefinition<'ingest'> = {
   defaultIntervalMs: 30_000,
 };
 
+/**
+ * The sweep of abandoned investigation attempts.
+ *
+ * An attempt can stay `pending` forever if the process that ran it died, or if
+ * it was stuck before the fix of task T12. `expired` does not block the
+ * "investigate" button, so the sweep is what gives the operator the incident
+ * back. No enable flag, for the same reason as the drain: it is a safety net.
+ * The TTL itself is read by the handler from `INVESTIGATION_PENDING_TTL_MS`.
+ */
+export const INVESTIGATION_SWEEP_LOOP: LoopDefinition<'investigationSweep'> = {
+  scope: 'investigation-sweep',
+  queue: 'investigationSweep',
+  jobName: JOB_NAMES.investigationSweep,
+  data: {},
+  intervalFlag: 'INVESTIGATION_SWEEP_INTERVAL_MS',
+  defaultIntervalMs: 60_000,
+};
+
 /** A loop that was registered. */
 export interface RegisteredLoop {
   /** Stable scope of the loop. */
@@ -277,6 +295,7 @@ export async function registerRecurringSchedules(
     FIRMWARE_LOOP,
     FEC_LOOP,
     INGEST_DRAIN_LOOP,
+    INVESTIGATION_SWEEP_LOOP,
   ] as LoopDefinition<QueueKey>[]) {
     const outcome = await registerLoop(definition, env, connection);
     if ('schedulerId' in outcome) {

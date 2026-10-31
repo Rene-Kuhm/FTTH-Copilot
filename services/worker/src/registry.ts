@@ -13,6 +13,7 @@
 
 import { type JobHandlers, type JobName } from '@ftth-copilot/jobs';
 import { drainSpool } from '@ftth-copilot/ingest';
+import { executeInvestigationAttempt, expireStaleRuns } from '@ftth-copilot/investigations';
 import {
   runScheduledFecCollection,
   runScheduledFirmwareAudit,
@@ -72,7 +73,47 @@ export const JOB_HANDLERS: JobHandlers = {
     }
     return result;
   },
+  /**
+   * Runs one attempt of an incident investigation.
+   *
+   * The decision (retry, fail, skip) lives in `@ftth-copilot/investigations`;
+   * this handler only tells BullMQ about it. Throwing is what makes BullMQ
+   * retry with its backoff, so only a `retry` outcome throws: a `failed`
+   * attempt already left the run `failed`, and retrying it would only run the
+   * pipeline again for nothing.
+   */
+  'investigation-run': async (data, job) => {
+    const outcome = await executeInvestigationAttempt(data, {
+      attemptsMade: job.attemptsMade,
+      maxAttempts: job.opts.attempts ?? 1,
+    });
+    if (outcome.status === 'retry') {
+      throw outcome.error instanceof Error ? outcome.error : new Error(String(outcome.error));
+    }
+    if (outcome.status === 'failed') {
+      console.warn(`[worker] investigation ${data.runId}/${data.versionId} failed: ${outcome.reason}`);
+    }
+    return outcome;
+  },
+  /** Expires the investigation attempts that stayed `pending` past their TTL. */
+  'investigation-sweep': async (data) => {
+    const ttlMs = data.ttlMs ?? investigationPendingTtlMs();
+    const expired = await expireStaleRuns({ ttlMs });
+    if (expired > 0) {
+      console.warn(`[worker] investigation sweep expired ${expired} abandoned attempt(s)`);
+    }
+    return { expired };
+  },
 };
+
+/** Default age after which a `pending` investigation attempt is abandoned. */
+export const DEFAULT_INVESTIGATION_PENDING_TTL_MS = 15 * 60 * 1000;
+
+/** TTL of a `pending` attempt, from `INVESTIGATION_PENDING_TTL_MS`. */
+export function investigationPendingTtlMs(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number.parseInt(env['INVESTIGATION_PENDING_TTL_MS'] ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INVESTIGATION_PENDING_TTL_MS;
+}
 
 /**
  * Names of the jobs this worker can execute right now.

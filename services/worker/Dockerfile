@@ -90,6 +90,12 @@ COPY packages/soc/package.json ./packages/soc/package.json
 COPY packages/soc/src ./packages/soc/src
 COPY packages/security/package.json ./packages/security/package.json
 COPY packages/security/src ./packages/security/src
+COPY packages/investigations/package.json ./packages/investigations/package.json
+COPY packages/investigations/src ./packages/investigations/src
+COPY packages/evidence/package.json ./packages/evidence/package.json
+COPY packages/evidence/src ./packages/evidence/src
+COPY packages/agent-core/package.json ./packages/agent-core/package.json
+COPY packages/agent-core/src ./packages/agent-core/src
 COPY services/worker/package.json ./services/worker/package.json
 COPY services/worker/src ./services/worker/src
 

@@ -3,6 +3,7 @@ import {
   JOB_NAMES,
   QUEUE_NAMES,
   ingestDrainJobId,
+  investigationJobId,
   recurringSchedulerId,
   sanitizeJobScope,
   windowJobId,
@@ -10,8 +11,15 @@ import {
 
 describe('queue and job vocabulary', () => {
   it('gives every logical queue a physical name', () => {
-    expect(Object.keys(QUEUE_NAMES).sort()).toEqual(['fec', 'firmware', 'ingest', 'poll']);
-    expect(new Set(Object.values(QUEUE_NAMES)).size).toBe(4);
+    expect(Object.keys(QUEUE_NAMES).sort()).toEqual([
+      'fec',
+      'firmware',
+      'ingest',
+      'investigation',
+      'investigationSweep',
+      'poll',
+    ]);
+    expect(new Set(Object.values(QUEUE_NAMES)).size).toBe(6);
   });
 
   it('names every queue after the work it carries', () => {
@@ -97,5 +105,23 @@ describe('recurringSchedulerId', () => {
     const id = recurringSchedulerId('poll:connections');
     expect(id).toBe(recurringSchedulerId('poll:connections'));
     expect(id).not.toContain(':');
+  });
+});
+
+describe('investigationJobId', () => {
+  it('derives one id per attempt, without the ":" BullMQ rejects', () => {
+    const id = investigationJobId('r_abc', 'v_def');
+    expect(id).toBe('investigation-r_abc-v_def');
+    expect(id).not.toContain(':');
+  });
+
+  it('is stable for the same attempt and distinct across attempts', () => {
+    expect(investigationJobId('r_abc', 'v_1')).toBe(investigationJobId('r_abc', 'v_1'));
+    expect(investigationJobId('r_abc', 'v_1')).not.toBe(investigationJobId('r_abc', 'v_2'));
+  });
+
+  it('refuses an empty run or version id', () => {
+    expect(() => investigationJobId('', 'v_1')).toThrow();
+    expect(() => investigationJobId('r_abc', ' ')).toThrow();
   });
 });

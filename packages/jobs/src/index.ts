@@ -11,6 +11,7 @@ export {
   sanitizeJobScope,
   windowJobId,
   ingestDrainJobId,
+  investigationJobId,
   recurringSchedulerId,
   type QueueKey,
   type JobName,
@@ -23,6 +24,8 @@ export {
   type FirmwareAuditPayload,
   type FecCollectionPayload,
   type IngestDrainPayload,
+  type InvestigationRunPayload,
+  type InvestigationSweepPayload,
 } from './definitions';
 
 export {

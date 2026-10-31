@@ -19,6 +19,13 @@ const mocks = vi.hoisted(() => ({
   runScheduledFirmwareAudit: vi.fn(),
   runScheduledFecCollection: vi.fn(),
   tryStart: vi.fn(),
+  executeInvestigationAttempt: vi.fn(),
+  expireStaleRuns: vi.fn(),
+}));
+
+vi.mock('@ftth-copilot/investigations', () => ({
+  executeInvestigationAttempt: mocks.executeInvestigationAttempt,
+  expireStaleRuns: mocks.expireStaleRuns,
 }));
 
 vi.mock('@ftth-copilot/scheduler', () => ({
@@ -41,13 +48,15 @@ beforeEach(() => {
 });
 
 describe('job handler registry', () => {
-  it('registers the three recurring loops and the ingest drain', () => {
+  it('registers the recurring loops, the ingest drain and the investigation jobs', () => {
     expect(registeredJobNames().sort()).toEqual(
       [
         JOB_NAMES.fecCollection,
         JOB_NAMES.firmwareAudit,
         JOB_NAMES.ingestDrain,
         JOB_NAMES.pollConnections,
+        JOB_NAMES.investigationRun,
+        JOB_NAMES.investigationSweep,
       ].sort(),
     );
   });
@@ -98,5 +107,62 @@ describe('job handlers', () => {
 
     expect(mocks.tryStart).toHaveBeenCalledTimes(1);
     expect(mocks.tryStart.mock.calls[0]?.[0]).toBe('polling');
+  });
+});
+
+describe('investigation jobs', () => {
+  const payload = {
+    tenantId: 't1',
+    incidentId: 'inc-1',
+    runId: 'r_1',
+    versionId: 'v_1',
+    userId: 'u1',
+    startedAtMs: 0,
+  };
+  const job = (attemptsMade: number) =>
+    ({ attemptsMade, opts: { attempts: 3 } }) as unknown as Parameters<
+      NonNullable<typeof JOB_HANDLERS['investigation-run']>
+    >[1];
+  const runHandler = JOB_HANDLERS['investigation-run']!;
+
+  it('hands the retry context of the queue to the attempt', async () => {
+    mocks.executeInvestigationAttempt.mockResolvedValue({ status: 'skipped', reason: 'x' });
+
+    await runHandler(payload, job(1));
+
+    expect(mocks.executeInvestigationAttempt).toHaveBeenCalledWith(payload, {
+      attemptsMade: 1,
+      maxAttempts: 3,
+    });
+  });
+
+  it('throws only on a retry outcome, so BullMQ retries with its backoff', async () => {
+    mocks.executeInvestigationAttempt.mockResolvedValue({
+      status: 'retry',
+      error: new Error('connection refused'),
+    });
+
+    await expect(runHandler(payload, job(0))).rejects.toThrow('connection refused');
+  });
+
+  it('does not throw on a failed attempt: the run is already failed', async () => {
+    mocks.executeInvestigationAttempt.mockResolvedValue({ status: 'failed', reason: 'bad data' });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(runHandler(payload, job(2))).resolves.toEqual({ status: 'failed', reason: 'bad data' });
+  });
+
+  it('sweeps with the TTL of the environment', async () => {
+    mocks.expireStaleRuns.mockResolvedValue(0);
+    const previous = process.env['INVESTIGATION_PENDING_TTL_MS'];
+    process.env['INVESTIGATION_PENDING_TTL_MS'] = '120000';
+    try {
+      await JOB_HANDLERS['investigation-sweep']!({}, job(0) as never);
+    } finally {
+      if (previous === undefined) delete process.env['INVESTIGATION_PENDING_TTL_MS'];
+      else process.env['INVESTIGATION_PENDING_TTL_MS'] = previous;
+    }
+
+    expect(mocks.expireStaleRuns).toHaveBeenCalledWith({ ttlMs: 120000 });
   });
 });

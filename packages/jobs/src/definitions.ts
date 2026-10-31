@@ -22,6 +22,8 @@ export const QUEUE_NAMES = {
   firmware: 'ftth-firmware',
   fec: 'ftth-fec',
   ingest: 'ftth-ingest',
+  investigation: 'ftth-investigation',
+  investigationSweep: 'ftth-investigation-sweep',
 } as const;
 
 /** Logical key of a queue. */
@@ -33,6 +35,8 @@ export const JOB_NAMES = {
   firmwareAudit: 'firmware-audit',
   fecCollection: 'fec-collection',
   ingestDrain: 'ingest-drain',
+  investigationRun: 'investigation-run',
+  investigationSweep: 'investigation-sweep',
 } as const;
 
 /**
@@ -74,12 +78,40 @@ export interface IngestDrainPayload {
   ingestId?: string;
 }
 
+/**
+ * Run one attempt of an incident investigation.
+ *
+ * `versionId` identifies the attempt: the run row is reused across attempts,
+ * and only the attempt whose `versionId` is the run's `currentVersionId` may
+ * close it. The job id derives from `runId` + `versionId`, so the same attempt
+ * is never executed twice. `tenantId` is re-checked against the incident by
+ * the worker before anything runs.
+ */
+export interface InvestigationRunPayload {
+  tenantId: string;
+  incidentId: string;
+  runId: string;
+  versionId: string;
+  /** User who requested the investigation. */
+  userId: string;
+  windowDays?: number;
+  /** When the attempt started, in epoch milliseconds. */
+  startedAtMs: number;
+}
+
+/** Expire the investigation attempts that stayed `pending` past their TTL. */
+export interface InvestigationSweepPayload {
+  ttlMs?: number;
+}
+
 /** Payload type of every known job name. */
 export interface JobPayloadMap {
   [JOB_NAMES.pollConnections]: PollConnectionsPayload;
   [JOB_NAMES.firmwareAudit]: FirmwareAuditPayload;
   [JOB_NAMES.fecCollection]: FecCollectionPayload;
   [JOB_NAMES.ingestDrain]: IngestDrainPayload;
+  [JOB_NAMES.investigationRun]: InvestigationRunPayload;
+  [JOB_NAMES.investigationSweep]: InvestigationSweepPayload;
 }
 
 /** Every known job name. */
@@ -102,6 +134,8 @@ export interface QueueJobMap {
   firmware: typeof JOB_NAMES.firmwareAudit;
   fec: typeof JOB_NAMES.fecCollection;
   ingest: typeof JOB_NAMES.ingestDrain;
+  investigation: typeof JOB_NAMES.investigationRun;
+  investigationSweep: typeof JOB_NAMES.investigationSweep;
 }
 
 /** Payload carried by the jobs of a given queue. */
@@ -149,6 +183,19 @@ export function ingestDrainJobId(source: string, ingestId: string): string {
     throw new Error('ingestDrainJobId requires a non-empty ingest id');
   }
   return `${sanitizeJobScope(`ingest-drain-${source}`)}-${sanitizeJobScope(ingestId)}`;
+}
+
+/**
+ * Job id of one investigation attempt.
+ *
+ * Derived from the run and the attempt, so a double click, a retried request
+ * or a second producer can never enqueue the same attempt twice.
+ */
+export function investigationJobId(runId: string, versionId: string): string {
+  if (runId.trim().length === 0 || versionId.trim().length === 0) {
+    throw new Error('investigationJobId requires a non-empty run id and version id');
+  }
+  return `investigation-${sanitizeJobScope(runId)}-${sanitizeJobScope(versionId)}`;
 }
 
 /**

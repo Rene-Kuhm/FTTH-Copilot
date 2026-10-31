@@ -13,6 +13,15 @@ export {
 export { consumeInvestigationQuota } from './quota';
 
 export {
+  executeInvestigationAttempt,
+  isRetryableInvestigationError,
+  type InvestigationAttempt,
+  type AttemptOutcome,
+  type AttemptRetryContext,
+  type PipelineRunner,
+} from './execute';
+
+export {
   beginInvestigationAttempt,
   completeInvestigation,
   failInvestigation,
