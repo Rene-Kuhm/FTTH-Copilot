@@ -591,3 +591,42 @@ debe romperse) y los tests de durabilidad de las fases 4.
   refactor: es un arreglo, y suma la spec S20 (todo run termina en un estado
   final; el barrido de `pending` viejos es necesario aunque no hubiera bug,
   porque en producción ya puede haber filas trabadas).
+- **L29** (2026-10-31) — Unidad **7b**: dos bugs de carrera en el cierre de
+  investigaciones, encontrados en la revisión de la unidad 7. La causa común:
+  `InvestigationRun` es **una sola fila por incidente** y se reutiliza entre
+  versiones, así que `requestedAt` (que sólo se escribe al crear) y los updates
+  por `(tenantId, runId)` no sirven como control de concurrencia.
+  1. El barrido expiraba un run **que estaba corriendo**: un incidente
+     investigado hace días y relanzado ahora queda `pending` con un
+     `requestedAt` viejo, el barrido lo expira en plena ejecución y el usuario
+     puede lanzar otro → dos pipelines en paralelo (viola S20).
+  2. Un intento viejo **pisaba el estado del nuevo**: si v1 termina tarde marca
+     `ready` (o `failed`) mientras corre v2.
+  Arreglo:
+  - Migración **aditiva** en `InvestigationRun`: `currentVersionId String?` (el
+    intento vigente) y `attemptStartedAt DateTime?` (su arranque).
+  - La ruta setea ambas cada vez que pone el run en `pending`, al crear y al
+    relanzar.
+  - El barrido filtra por `attemptStartedAt`. **Es nullable**, así que tiene que
+    ver también las filas `pending` que ya existen (backfill
+    `attemptStartedAt = updatedAt` en la migración, u `OR` con `requestedAt`
+    cuando es null); si no, las trabadas de producción quedan trabadas para
+    siempre.
+  - `completeInvestigation` / `failInvestigation` cambian el estado sólo con
+    `updateMany where { tenantId, runId, status: 'pending', currentVersionId }`.
+    Si el intento ya no es el vigente, la versión puede quedar como historia
+    pero el estado del run no se toca.
+  - `completeInvestigation` en una `$transaction` (versión + `AgentActionLog` +
+    estado): si el proceso muere a la mitad, hoy queda la versión guardada y el
+    run `pending`.
+  - `failInvestigation` registra `AgentActionLog` con
+    `toolName: '__investigation_failed__'` y el motivo, en vez de dejarlo sólo
+    en la consola.
+  Momento del deploy, aceptado: un pipeline corriendo en modo `embedded` al
+  momento de la migración no va a poder cerrar (su fila no tiene
+  `currentVersionId`) y va a terminar expirando. Con el código actual ese
+  resultado se perdía igual.
+  Tests: (a) un run viejo relanzado **no** se expira mientras corre; (b) un
+  intento viejo que termina tarde **no** pone `ready` al run del intento nuevo;
+  (c) uno que falla tarde **no** pone `failed`; (d) una fila `pending` vieja
+  **sin** `attemptStartedAt` se expira.
