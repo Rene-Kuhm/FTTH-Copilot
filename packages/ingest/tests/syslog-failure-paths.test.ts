@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseSyslogMessage, extractSourceIpFromMessage } from '@ftth-copilot/security';
-import { snapshotHealth } from '@/lib/monitoring/scheduler-health';
+import { snapshotHealth } from '@ftth-copilot/scheduler';
 
 /**
  * Failure-path coverage for the syslog receiver.
@@ -20,10 +20,10 @@ import { snapshotHealth } from '@/lib/monitoring/scheduler-health';
 const spoolWrite = vi.fn<(payload: unknown) => string | null>();
 const dropCounter = vi.fn();
 
-vi.mock('@/lib/monitoring/event-ingest', async () => {
+vi.mock('../src/ingest', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/monitoring/event-ingest')
-  >('@/lib/monitoring/event-ingest');
+    typeof import('../src/ingest')
+  >('../src/ingest');
   return {
     ...actual,
     spoolEvent: (payload: unknown) => spoolWrite(payload),
@@ -33,7 +33,7 @@ vi.mock('@/lib/monitoring/event-ingest', async () => {
   };
 });
 
-const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
+const { startSyslogReceiver } = await import('../src/syslog-receiver');
 
 function lastErrorFor(key: string): string {
   return snapshotHealth()[key]?.lastError ?? '';

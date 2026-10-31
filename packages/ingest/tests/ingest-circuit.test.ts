@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { TelemetryEvent } from '@ftth-copilot/shared';
 
 /**
  * End-to-end proof of the ingest circuit: UDP socket -> spool -> drainer ->
@@ -80,31 +79,30 @@ const db = createFakeDatabase();
 
 vi.mock('@ftth-copilot/db', () => ({ prisma: db.prisma }));
 
-import type { DeviceEventPayload } from '@/lib/monitoring/event-ingest';
+import type { DeviceEventPayload } from '../src/ingest';
 
-const { spoolSnmpTrap } = await import('@/lib/monitoring/snmp-ingest');
-const { startEventDrainer, stopEventDrainer } = await import(
-  '@/lib/monitoring/event-ingest'
-);
+const { spoolEvent, startEventDrainer, stopEventDrainer } = await import('../src/ingest');
 const { ingestEvents } = await import('@ftth-copilot/soc');
 
-function trap(overrides: Partial<TelemetryEvent> = {}): TelemetryEvent {
-  return {
-    schema: 'ftth.telemetry.v1',
+/**
+ * Spools the payload the SNMP path would spool for a trap.
+ *
+ * The SNMP receiver stays in the web until task T10, so this spec cannot
+ * import `spoolSnmpTrap` any more. It builds the very same payload and
+ * spools it through the package, which is the circuit under test: spool ->
+ * drainer -> Postgres.
+ */
+function spoolTrap(overrides: { deviceId?: string } = {}): string | null {
+  return spoolEvent({
     tenantId: 'tenant-circuit',
+    connectionId: 'conn-1',
+    severity: 4,
+    category: 'access',
+    message: 'link_down | OLT OLT-CIRCUIT-01 | vendor=Huawei',
+    occurredAt: new Date('2026-10-06T10:00:00.000Z'),
     deviceKind: 'OLT',
-    deviceId: 'OLT-CIRCUIT-01',
-    source: 'snmp-trap',
-    ts: '2026-10-06T10:00:00.000Z',
-    metrics: {},
-    tags: {
-      connectionId: 'conn-1',
-      trapCategory: 'link_down',
-      severity: 'warning',
-      vendor: 'Huawei',
-    },
-    ...overrides,
-  };
+    deviceId: overrides.deviceId ?? 'OLT-CIRCUIT-01',
+  });
 }
 
 describe('ingest circuit: spool -> drainer -> Postgres', () => {
@@ -129,7 +127,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
     for (let i = 0; i < maxRounds; i++) {
       const before = db.inserted;
       // Read the queue the way the drainer does.
-      const { DurableSpool } = await import('@/lib/monitoring/event-spool');
+      const { DurableSpool } = await import('../src/spool');
       const spool = new DurableSpool<DeviceEventPayload>({ dir });
       const { entries, nextOffset } = spool.readBatch(100);
       spool.close();
@@ -145,7 +143,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
   }
 
   it('carries a trap all the way into a row with its identity and severity', async () => {
-    spoolSnmpTrap(trap());
+    spoolTrap();
     await drainUntilIdle();
 
     expect(db.inserted).toBe(1);
@@ -162,7 +160,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
 
   it('keeps the event on disk when the database is down and stores it after', async () => {
     db.goDown();
-    spoolSnmpTrap(trap());
+    spoolTrap();
 
     // The hot path must succeed regardless of the database.
     const queued = readFileSync(join(dir, 'events.jsonl'), 'utf8');
@@ -175,16 +173,16 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
     expect(db.inserted).toBe(1);
     // The spool is left empty: a full drain resets the offset because the
     // active file is rotated, so asserting on the offset value would be wrong.
-    const { DurableSpool } = await import('@/lib/monitoring/event-spool');
+    const { DurableSpool } = await import('../src/spool');
     const spool = new DurableSpool<DeviceEventPayload>({ dir });
     expect(spool.readBatch(10).entries).toHaveLength(0);
     spool.close();
   });
 
   it('does not duplicate a batch replayed after a crash mid-drain', async () => {
-    spoolSnmpTrap(trap());
+    spoolTrap();
 
-    const { DurableSpool } = await import('@/lib/monitoring/event-spool');
+    const { DurableSpool } = await import('../src/spool');
 
     // First attempt succeeds against the database...
     const first = new DurableSpool<DeviceEventPayload>({ dir });
@@ -216,7 +214,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
   it('stores a burst of distinct traps without losing or merging any', async () => {
     const COUNT = 500;
     for (let i = 0; i < COUNT; i++) {
-      spoolSnmpTrap(trap({ deviceId: `OLT-${i}` }));
+      spoolTrap({ deviceId: `OLT-${i}` });
     }
 
     await drainUntilIdle(30);
@@ -226,11 +224,11 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
   });
 
   it('leaves the spool empty once everything is stored', async () => {
-    spoolSnmpTrap(trap());
-    spoolSnmpTrap(trap({ deviceId: 'OLT-SECOND' }));
+    spoolTrap();
+    spoolTrap({ deviceId: 'OLT-SECOND' });
     await drainUntilIdle();
 
-    const { DurableSpool } = await import('@/lib/monitoring/event-spool');
+    const { DurableSpool } = await import('../src/spool');
     const spool = new DurableSpool<DeviceEventPayload>({ dir });
     expect(spool.readBatch(100).entries).toHaveLength(0);
     spool.close();

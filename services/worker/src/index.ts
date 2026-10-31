@@ -15,6 +15,7 @@
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
 import { registeredJobNames } from './registry';
 import { registerRecurringSchedules } from './schedules';
+import { startWorkerSyslogReceiver } from './syslog';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
 
 /** How often the same queue error is logged, in milliseconds. */
@@ -105,6 +106,15 @@ async function main(): Promise<void> {
     console.error('[worker] could not register the recurring schedules:', error);
   }
 
+  // The worker owns the syslog socket: it binds it, spools every datagram
+  // into the durable spool and enqueues the drain job. The gate is the one
+  // of the package (`SYSLOG_RECEIVER_ENABLED=true` and `SYSLOG_TENANT_ID`
+  // set), so a worker without them never binds a port.
+  const syslog = startWorkerSyslogReceiver({ env });
+  console.log(
+    '[worker] syslog receiver started (gate: SYSLOG_RECEIVER_ENABLED=true and SYSLOG_TENANT_ID set)',
+  );
+
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (closing) return;
@@ -113,6 +123,7 @@ async function main(): Promise<void> {
 
     try {
       await server.close();
+      await syslog.stop();
       await fleet.close();
     } catch (error) {
       console.error('[worker] error while shutting down:', error);

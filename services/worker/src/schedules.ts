@@ -193,6 +193,14 @@ async function registerLoop<Q extends QueueKey>(
   const schedulerId = recurringSchedulerId(definition.scope);
   const queue = createJobQueue(definition.queue, connection);
 
+  // A queue without an error listener prints raw stack traces when Redis is
+  // unreachable. The schedule registration below is best-effort on purpose
+  // (a Redis outage must not take the worker down), so the failure has to be
+  // reported in one readable line instead.
+  queue.on('error', (error: Error) => {
+    console.warn(`[worker] queue "${definition.scope}" error: ${error.message}`);
+  });
+
   try {
     // The schedule produces its first job at `startDateMs` and then follows
     // the period from there, so the loop ticks five seconds after the worker

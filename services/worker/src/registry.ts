@@ -12,6 +12,7 @@
  */
 
 import { type JobHandlers, type JobName } from '@ftth-copilot/jobs';
+import { drainSpool } from '@ftth-copilot/ingest';
 import {
   runScheduledFecCollection,
   runScheduledFirmwareAudit,
@@ -40,6 +41,26 @@ export const JOB_HANDLERS: JobHandlers = {
   },
   'fec-collection': async () => {
     await tryStart('fec', runScheduledFecCollection);
+  },
+  /**
+   * Drains the durable spool into Postgres.
+   *
+   * The handler drains the whole spool, not only the event of the payload:
+   * an enqueue that was lost with the queue down must not leave the event
+   * on disk forever. The next job (of the next event, or the retry of this
+   * one) drains it.
+   *
+   * A failed batch leaves the events on disk, so the job fails and BullMQ
+   * retries it with a backoff instead of dropping the work.
+   */
+  'ingest-drain': async () => {
+    const result = await drainSpool();
+    if (result.failed > 0) {
+      throw new Error(
+        `ingest drain could not store ${result.failed} events; they stay in the spool`,
+      );
+    }
+    return result;
   },
 };
 

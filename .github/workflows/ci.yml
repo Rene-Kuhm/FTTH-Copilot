@@ -347,6 +347,8 @@ jobs:
       # Database 9 keeps the queue specs away from anything else on this
       # Redis instance.
       JOBS_TEST_REDIS_URL: redis://localhost:6379/9
+      # The worker's integration suite writes to the database it is given.
+      SYSLOG_TENANT_ID: it-worker-tenant
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -394,6 +396,12 @@ jobs:
       # behavior of the queue is never exercised anywhere.
       - name: Run job queue integration tests
         run: pnpm --filter @ftth-copilot/jobs test:integration
+
+      # The worker's integration suite exercises the durable ingest path end
+      # to end: the receiver spools a datagram, the drain job writes it into
+      # Postgres, and the same event is never ingested twice.
+      - name: Run worker integration tests
+        run: pnpm --filter @ftth-copilot/worker test:integration
 
   # ────────────────────────────────────────────────────────────
   # 7) Gate final — job "resumen" que agrupa todo lo anterior.

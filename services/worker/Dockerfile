@@ -41,10 +41,10 @@ RUN pnpm --filter @ftth-copilot/db exec prisma generate
 # so the source of every package in the dependency closure is part of the
 # image. The closure of `@ftth-copilot/worker` is:
 #
-#   jobs → scheduler → { db → shared, monitoring → { alerts → detection,
-#   analytics, connectors-core }, soc → { alerts, security, db },
-#   analytics, connectors-factory → { db, connectors-{core, smartolt,
-#   mikrowisp, mikrotik} } }
+#   worker → { jobs, ingest → { scheduler → { db → shared, monitoring → { alerts
+#   → detection, analytics, connectors-core }, soc → { alerts, security, db },
+#   analytics, connectors-factory → { db, connectors-{core, smartolt, mikrowisp,
+#   mikrotik} } }, security } }
 #
 # `--ignore-scripts` keeps the install hermetic: the only native artifact the
 # image needs is the Prisma query engine, which is copied from the stage above.
@@ -55,6 +55,8 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/jobs/package.json ./packages/jobs/package.json
 COPY packages/jobs/src ./packages/jobs/src
+COPY packages/ingest/package.json ./packages/ingest/package.json
+COPY packages/ingest/src ./packages/ingest/src
 COPY packages/scheduler/package.json ./packages/scheduler/package.json
 COPY packages/scheduler/src ./packages/scheduler/src
 COPY packages/connectors/core/package.json ./packages/connectors/core/package.json
@@ -108,6 +110,17 @@ ENV WORKER_HOST=0.0.0.0
 RUN apk add --no-cache libc6-compat openssl wget \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 worker
+
+# The durable spool directory.
+#
+# It has to exist in the image, owned by the user the worker runs as: a
+# named volume mounted here is initialized from the image's directory, and
+# it inherits that ownership. Without it the volume is created owned by root
+# and the receiver cannot write a single event into it — every datagram is
+# received and dropped with EACCES.
+RUN mkdir -p /var/lib/ftth-copilot/spool \
+    && chown -R worker:nodejs /var/lib/ftth-copilot/spool \
+    && chmod 750 /var/lib/ftth-copilot/spool
 
 COPY --from=dependencies --chown=worker:nodejs /app ./
 COPY --from=prisma-client --chown=worker:nodejs \

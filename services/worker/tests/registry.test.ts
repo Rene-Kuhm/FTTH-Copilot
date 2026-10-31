@@ -41,9 +41,14 @@ beforeEach(() => {
 });
 
 describe('job handler registry', () => {
-  it('registers the three recurring loops', () => {
+  it('registers the three recurring loops and the ingest drain', () => {
     expect(registeredJobNames().sort()).toEqual(
-      [JOB_NAMES.fecCollection, JOB_NAMES.firmwareAudit, JOB_NAMES.pollConnections].sort(),
+      [
+        JOB_NAMES.fecCollection,
+        JOB_NAMES.firmwareAudit,
+        JOB_NAMES.ingestDrain,
+        JOB_NAMES.pollConnections,
+      ].sort(),
     );
   });
 
@@ -56,10 +61,10 @@ describe('job handler registry', () => {
     }
   });
 
-  it('has no handler for the ingest job (it arrives with the syslog/SNMP move)', () => {
+  it('has a handler for the ingest job: the syslog receiver spools and the job drains', () => {
     expect(
       Object.prototype.hasOwnProperty.call(JOB_HANDLERS, JOB_NAMES.ingestDrain),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

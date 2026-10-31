@@ -114,6 +114,9 @@ importers:
       '@ftth-copilot/evidence':
         specifier: workspace:*
         version: link:../../packages/evidence
+      '@ftth-copilot/ingest':
+        specifier: workspace:*
+        version: link:../../packages/ingest
       '@ftth-copilot/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -588,6 +591,40 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/ingest:
+    dependencies:
+      '@ftth-copilot/scheduler':
+        specifier: workspace:*
+        version: link:../scheduler
+      '@ftth-copilot/security':
+        specifier: workspace:*
+        version: link:../security
+      '@ftth-copilot/soc':
+        specifier: workspace:*
+        version: link:../soc
+    devDependencies:
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.20.0
+        version: 8.71.0(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(happy-dom@20.14.5)(vite@6.4.3(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/jobs:
     dependencies:
       bullmq:
@@ -793,6 +830,9 @@ importers:
 
   services/worker:
     dependencies:
+      '@ftth-copilot/ingest':
+        specifier: workspace:*
+        version: link:../../packages/ingest
       '@ftth-copilot/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -803,6 +843,12 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
     devDependencies:
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@ftth-copilot/soc':
+        specifier: workspace:*
+        version: link:../../packages/soc
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.5

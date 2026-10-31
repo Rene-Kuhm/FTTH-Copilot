@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 
 const spoolDir = mkdtempSync(join(tmpdir(), 'syslog-e2e-'));
 
-vi.mock('@/lib/monitoring/event-ingest', async () => {
+vi.mock('../src/ingest', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/monitoring/event-ingest')
-  >('@/lib/monitoring/event-ingest');
+    typeof import('../src/ingest')
+  >('../src/ingest');
   return actual;
 });
 
@@ -20,13 +20,31 @@ vi.mock('@/lib/monitoring/event-ingest', async () => {
  * Postgres.
  */
 describe('syslog receiver durability', () => {
-  let startSyslogReceiver: typeof import('@/lib/monitoring/syslog').startSyslogReceiver;
+  let startSyslogReceiver: typeof import('../src/syslog-receiver').startSyslogReceiver;
   let stopReceiver: (() => void) | null = null;
 
-  const BASE_PORT = 15514;
   // A fresh port per test: closing a dgram socket is async, so reusing the
   // same port races the previous listener and the bind fails with EADDRINUSE.
-  let port = BASE_PORT;
+  let port = 0;
+
+  /**
+   * A free UDP port, asked from the kernel.
+   *
+   * A fixed base port collides with whatever else listens on the machine (the
+   * repo's own demo stack binds 15514/15515), and a fixed port also races the
+   * previous listener of this suite. Asking for port 0 solves both.
+   */
+  function freeUdpPort(): Promise<number> {
+    const probe = dgram.createSocket('udp4');
+    return new Promise((resolve, reject) => {
+      probe.once('error', reject);
+      probe.bind(0, '127.0.0.1', () => {
+        const address = probe.address();
+        const found = typeof address === 'object' && address !== null ? address.port : 0;
+        probe.close(() => resolve(found));
+      });
+    });
+  }
 
   function sendDatagram(message: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -52,7 +70,7 @@ describe('syslog receiver durability', () => {
   }
 
   beforeEach(async () => {
-    port += 1;
+    port = await freeUdpPort();
     process.env['EVENT_SPOOL_DIR'] = spoolDir;
     process.env['SYSLOG_RECEIVER_ENABLED'] = 'true';
     process.env['SYSLOG_TENANT_ID'] = 'tenant-test';
@@ -60,7 +78,7 @@ describe('syslog receiver durability', () => {
     process.env['SYSLOG_MAX_EVENTS_PER_MINUTE'] = '10000';
 
     vi.resetModules();
-    ({ startSyslogReceiver } = await import('@/lib/monitoring/syslog'));
+    ({ startSyslogReceiver } = await import('../src/syslog-receiver'));
   });
 
   afterEach(async () => {
@@ -68,7 +86,7 @@ describe('syslog receiver durability', () => {
     stopReceiver = null;
     // The drainer outlives the receiver (it is shared), so it must be stopped
     // explicitly or it keeps committing offsets against the deleted spool.
-    const { stopEventDrainer } = await import('@/lib/monitoring/event-ingest');
+    const { stopEventDrainer } = await import('../src/ingest');
     stopEventDrainer();
     rmSync(join(spoolDir, 'events.jsonl'), { force: true });
     rmSync(join(spoolDir, 'events.offset'), { force: true });
@@ -105,9 +123,9 @@ describe('syslog receiver durability', () => {
     process.env['SYSLOG_MAX_EVENTS_PER_MINUTE'] = '1';
 
     vi.resetModules();
-    ({ startSyslogReceiver } = await import('@/lib/monitoring/syslog'));
+    ({ startSyslogReceiver } = await import('../src/syslog-receiver'));
     const { recordDroppedEvent, eventIngestStats } = await import(
-      '@/lib/monitoring/event-ingest'
+      '../src/ingest'
     );
 
     stopReceiver = startSyslogReceiver();

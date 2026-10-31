@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { DurableSpool } from '@/lib/monitoring/event-spool';
-import { EventDrainer } from '@/lib/monitoring/event-drainer';
+import { DurableSpool } from '../src/spool';
+import { EventDrainer } from '../src/drainer';
 
 interface Payload {
   message: string;

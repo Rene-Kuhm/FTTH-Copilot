@@ -41,6 +41,42 @@ export interface QueueCounter {
 }
 
 /**
+ * Live state of the ingest path.
+ *
+ * The syslog receiver binds a UDP port and the spool holds the events that
+ * were received but not stored yet. Both have to be visible: a socket that
+ * failed to bind and a backlog that grows are the two failures an operator
+ * must see before they become lost telemetry.
+ */
+export interface IngestRuntimeState {
+  /** Whether the syslog UDP socket is bound. */
+  syslogBound: boolean;
+  /** Whether the syslog receiver is expected to run in this process. */
+  syslogExpected: boolean;
+  /** Last error recorded for the syslog service. */
+  syslogLastError: string | null;
+  /** Events waiting in the durable spool. */
+  backlog: number;
+  /** Events the spool refused (hard size limit). */
+  dropped: number;
+  /** Events moved to the dead-letter file. */
+  deadLettered: number;
+  /** Events discarded by the receiver's rate limit. */
+  rateLimited: number;
+}
+
+/** The ingest state of a worker that owns no ingest path. */
+const EMPTY_INGEST_STATE: IngestRuntimeState = {
+  syslogBound: false,
+  syslogExpected: false,
+  syslogLastError: null,
+  backlog: 0,
+  dropped: 0,
+  deadLettered: 0,
+  rateLimited: 0,
+};
+
+/**
  * The live state of the worker fleet.
  *
  * Implemented by `src/workers.ts` (the real fleet) and by plain objects in
@@ -56,6 +92,11 @@ export interface WorkerRuntime {
   readonly startedAtMs: number;
   /** Per-queue job counters, keyed by physical queue name. */
   readonly counters: ReadonlyMap<string, QueueCounter>;
+  /**
+   * Live state of the ingest path (the syslog socket and the durable
+   * spool). Optional: a runtime without it reports a zeroed ingest state.
+   */
+  readonly ingest?: IngestRuntimeState;
 }
 
 /** Overall status of the worker. */
@@ -73,6 +114,8 @@ export interface HealthPayload {
   queues: string[];
   /** Whether the Redis connection is established. */
   redisReady: boolean;
+  /** State of the ingest path: the syslog socket and the durable spool. */
+  ingest: IngestRuntimeState;
 }
 
 /** Options of `startHealthServer`. */
@@ -124,6 +167,7 @@ export function buildHealthPayload(runtime: WorkerRuntime, now: number = Date.no
     startedAt: new Date(runtime.startedAtMs).toISOString(),
     queues: [...runtime.queues],
     redisReady: runtime.redisReady,
+    ingest: runtime.ingest ?? EMPTY_INGEST_STATE,
   };
 }
 
@@ -179,6 +223,16 @@ export function renderPrometheusMetrics(runtime: WorkerRuntime, now: number = Da
       `ftth_copilot_worker_jobs_failed_total{queue="${escapeLabel(queue)}"} ${counterOf(runtime, queue).failed}`,
     );
   }
+  lines.push('');
+
+  // The spool backlog is a gauge, not a counter: it is the number of events
+  // received and not stored yet, and it goes down when the drain catches up.
+  const ingest = runtime.ingest ?? EMPTY_INGEST_STATE;
+  lines.push(
+    '# HELP ftth_copilot_worker_ingest_spool_backlog Events received and not stored yet, waiting in the durable spool.',
+  );
+  lines.push('# TYPE ftth_copilot_worker_ingest_spool_backlog gauge');
+  lines.push(`ftth_copilot_worker_ingest_spool_backlog ${ingest.backlog}`);
   lines.push('');
 
   return lines.join('\n') + '\n';

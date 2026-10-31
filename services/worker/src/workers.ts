@@ -19,6 +19,7 @@ import {
   type RedisConnectionOptions,
 } from '@ftth-copilot/jobs';
 import { JOB_HANDLERS } from './registry';
+import { readIngestState } from './ingest-state';
 import type { QueueCounter, WorkerRuntime } from './health';
 
 /** Jobs of a queue that run at the same time. Defaults to 1. */
@@ -108,6 +109,11 @@ export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
     },
     get redisReady(): boolean {
       return workers.length > 0 && readyQueues.size === workers.length;
+    },
+    // The state of the ingest path is read on every request: a backlog that
+    // grows has to be visible before it becomes lost telemetry.
+    get ingest() {
+      return readIngestState();
     },
     startedAtMs,
     counters,

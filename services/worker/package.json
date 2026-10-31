@@ -19,11 +19,14 @@
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
+    "@ftth-copilot/ingest": "workspace:*",
     "@ftth-copilot/jobs": "workspace:*",
     "@ftth-copilot/scheduler": "workspace:*",
     "tsx": "^4.19.2"
   },
   "devDependencies": {
+    "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/soc": "workspace:*",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.11",

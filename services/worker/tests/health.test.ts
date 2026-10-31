@@ -37,6 +37,15 @@ function healthyRuntime(): WorkerRuntime {
       ['ftth-fec', { completed: 7, failed: 0 }],
       ['ftth-ingest', { completed: 0, failed: 0 }],
     ]),
+    ingest: {
+      syslogBound: true,
+      syslogExpected: true,
+      syslogLastError: null,
+      backlog: 3,
+      dropped: 1,
+      deadLettered: 2,
+      rateLimited: 4,
+    },
   };
 }
 
@@ -84,6 +93,24 @@ describe('GET /healthz', () => {
     expect(body.uptimeSeconds).toBeGreaterThanOrEqual(5);
     expect(Number.isNaN(Date.parse(body.startedAt))).toBe(false);
   });
+
+  it('reports the state of the syslog receiver and of the durable spool', async () => {
+    const response = await fetch(`${baseUrl}/healthz`);
+    const body = await response.json();
+
+    // A socket that failed to bind must not be invisible: that was the
+    // original bug report ("el puerto syslog puede estar ocupado y el
+    // error no queda informado").
+    expect(body.ingest).toEqual({
+      syslogBound: true,
+      syslogExpected: true,
+      syslogLastError: null,
+      backlog: 3,
+      dropped: 1,
+      deadLettered: 2,
+      rateLimited: 4,
+    });
+  });
 });
 
 describe('GET /metrics', () => {
@@ -125,6 +152,15 @@ describe('GET /metrics', () => {
 
     expect(body).toContain('ftth_copilot_worker_redis_ready 1');
   });
+
+  it('exposes the spool backlog as a gauge', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    // A growing backlog has to be visible before it becomes data loss.
+    expect(body).toContain('# TYPE ftth_copilot_worker_ingest_spool_backlog gauge');
+    expect(body).toContain('ftth_copilot_worker_ingest_spool_backlog 3');
+  });
 });
 
 describe('when Redis is unreachable', () => {
@@ -162,6 +198,21 @@ describe('when Redis is unreachable', () => {
     expect(response.status).toBe(200);
     expect(body).toContain('ftth_copilot_worker_redis_ready 0');
     expect(body).toContain('ftth_copilot_worker_jobs_completed_total{queue="ftth-poll"} 0');
+  });
+
+  it('reports a zeroed ingest state when the worker owns no ingest path', async () => {
+    const response = await fetch(`${baseUrl}/healthz`);
+    const body = await response.json();
+
+    expect(body.ingest).toEqual({
+      syslogBound: false,
+      syslogExpected: false,
+      syslogLastError: null,
+      backlog: 0,
+      dropped: 0,
+      deadLettered: 0,
+      rateLimited: 0,
+    });
   });
 });
 

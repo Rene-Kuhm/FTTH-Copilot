@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { DurableSpool, type SpoolEntry } from '@/lib/monitoring/event-spool';
-import { EventDrainer } from '@/lib/monitoring/event-drainer';
+import { DurableSpool, type SpoolEntry } from '../src/spool';
+import { EventDrainer } from '../src/drainer';
 
 /**
  * Burst and backpressure behaviour of the ingest spool.
@@ -346,13 +346,13 @@ describe('syslog receiver under a burst', () => {
   });
 
   it('accounts for every datagram it accepts from a fast burst', async () => {
-    vi.doMock('@/lib/monitoring/event-ingest', async () => ({
+    vi.doMock('../src/ingest', async () => ({
       spoolEvent: (p: unknown) => spoolEvent(p),
       recordDroppedEvent: () => {},
       startEventDrainer: () => {},
     }));
 
-    const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
+    const { startSyslogReceiver } = await import('../src/syslog-receiver');
     stop = startSyslogReceiver();
     await new Promise((r) => setTimeout(r, 200));
 
