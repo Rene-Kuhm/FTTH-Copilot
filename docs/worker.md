@@ -57,6 +57,8 @@ Three properties follow from the split:
 | `WORKER_PORT`  | `8081`                   | Port of the worker's health and metrics server.                          |
 | `WORKER_HOST`  | `0.0.0.0`                | Interface the health server binds to.                                   |
 | `WORKER_CONCURRENCY` | `1`                | Jobs of a queue that run at the same time.                              |
+| `INVESTIGATION_PENDING_TTL_MS` | `900000` | Age after which a `pending` investigation attempt is abandoned and expires, so the incident can be investigated again. Must exceed the longest real investigation, retries included. |
+| `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often that sweep runs: in the worker under `worker`, in the web process under `embedded`. |
 
 ### Redis is published on the loopback, with a password
 
@@ -196,6 +198,18 @@ The extraction is phased, and each phase moves one thing. Today:
 - **The SNMP receiver** runs in the worker too, for the same reason, and the
   web no longer drains the spool in process: the worker drains it through
   the queue, and two drainers would advance the same offset.
+- **Incident investigations** run in the worker under `BACKEND_MODE=worker`.
+  `POST /api/incidents/:id/investigate` claims the attempt under a
+  per-incident Postgres advisory lock (so simultaneous requests start one
+  attempt), enqueues it on `ftth-investigation` with the job id
+  `investigation-<runId>-<versionId>`, and waits for the result in Postgres up
+  to the HTTP budget: `201` if it finished, `202` if not. The worker re-checks
+  that the incident belongs to the tenant of the payload, skips an attempt
+  that is no longer the run's `currentVersionId`, retries only transient
+  errors (at most 3 attempts), and otherwise leaves the run `failed`. Under
+  `embedded` the web runs the pipeline itself and closes that same promise
+  even after answering `202`. Either way an attempt ends `ready` or `failed`,
+  or the sweep moves it to `expired`; it is never left `pending` forever.
 
 Until the extraction is complete (phase 6 of `odd/tasks/backend-extraction.md`),
 `apps/web/instrumentation.ts` still starts the receivers when
