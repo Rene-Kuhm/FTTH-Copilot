@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@ftth-copilot/db';
+import { DeviceKind, Prisma, prisma } from '@ftth-copilot/db';
 import { topologyNodeKindSchema } from '@ftth-copilot/shared';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/**
+ * Whether a device kind is one of the kinds a confirmed incident can have.
+ *
+ * The query string accepts every topology node kind, but `DeviceKind` (the
+ * enum of `ConfirmedIncident.deviceKind`) only has `OLT` and `ONU`. The
+ * generated enum is the source of truth: a hand-written list would drift
+ * from the schema the day a kind is added.
+ */
+function isDeviceKind(value: string): value is DeviceKind {
+  return (Object.values(DeviceKind) as string[]).includes(value);
+}
 
 /**
  * GET /api/ops/runbooks
@@ -45,8 +57,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     : undefined;
 
   // Build OR conditions for runbook matching
-   
-  const orConditions: any[] = [];
+
+  const orConditions: Prisma.RunbookWhereInput[] = [];
 
   if (deviceKind && deviceId && alertKind && severity) {
     orConditions.push({ deviceKind, deviceId, alertKind, severity });
@@ -64,8 +76,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     orConditions.push({ deviceKind: null, deviceId: null, alertKind, severity });
   }
 
-   
-  const runbookWhere: any = orConditions.length > 0
+  const runbookWhere: Prisma.RunbookWhereInput = orConditions.length > 0
     ? { tenantId: user.tenantId, OR: orConditions }
     : { tenantId: user.tenantId };
 
@@ -80,8 +91,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   // Pull confirmed incident history as derived runbook content
-   
-  const confirmedWhere: any = deviceKind ? { tenantId: user.tenantId, deviceKind } : { tenantId: user.tenantId };
+
+  // `ConfirmedIncident.deviceKind` is the `DeviceKind` enum (OLT, ONU), but
+  // the query string accepts every topology node kind (CTO, PON_PORT,
+  // SPLITTER...). A kind outside the enum is not a confirmed-incident kind,
+  // so the filter is left out instead of being sent to Prisma: an invalid
+  // enum value throws, and the route answered 500 for those kinds.
+  const confirmedWhere: Prisma.ConfirmedIncidentWhereInput =
+    deviceKind && isDeviceKind(deviceKind)
+      ? { tenantId: user.tenantId, deviceKind }
+      : { tenantId: user.tenantId };
 
   const relatedConfirmed = await prisma.confirmedIncident.findMany({
     where: confirmedWhere,
