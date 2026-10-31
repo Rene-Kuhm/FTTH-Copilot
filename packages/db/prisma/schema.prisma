@@ -699,6 +699,15 @@ model InvestigationRun {
   // constant 'pending' until Phase 3 starts producing versions.
   status            String         @default("pending")
   requestedAt       DateTime       @default(now())
+  // The run row is reused across attempts (one row per incident), so
+  // `requestedAt` only says when the row was created. These two columns
+  // identify the attempt in flight: every transition out of `pending` is
+  // conditioned on `currentVersionId`, so a late attempt can never overwrite
+  // the state of a newer one, and the stale sweep measures the age of the
+  // current attempt, not of the row. Nullable: rows written before this
+  // column existed have no attempt recorded.
+  currentVersionId  String?
+  attemptStartedAt  DateTime?
   windowStart       DateTime?
   windowEnd         DateTime?
   createdAt         DateTime       @default(now())
@@ -713,6 +722,7 @@ model InvestigationRun {
   @@unique([tenantId, runId])
   @@index([tenantId, requestedAt])
   @@index([tenantId, incidentId])
+  @@index([status, attemptStartedAt])
   @@map("investigation_runs")
 }
 

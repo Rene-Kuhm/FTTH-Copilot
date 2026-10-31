@@ -2,6 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
   - "packages/connectors/*"
+  # services/worker (TypeScript background worker). services/laya is a Python
+  # mirror with no package.json, so pnpm ignores it.
+  - "services/*"
 overrides:
   vite: 6.4.3
   deepmerge-ts: ">=8.0.0"
@@ -15,3 +18,9 @@ allowBuilds:
   esbuild: false
   sharp: false
   unrs-resolver: false
+  # Optional native accelerator for msgpackr (a BullMQ dependency). The pure-JS
+  # fallback is used instead, matching the repo's policy for optional
+  # accelerators (esbuild, sharp, unrs-resolver).
+  msgpackr-extract: false
+minimumReleaseAgeExclude:
+  - bullmq@6.5.3

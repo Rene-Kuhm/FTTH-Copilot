@@ -7,6 +7,12 @@ const mocks = vi.hoisted(() => ({
   hasPermission: vi.fn(),
   consumeInvestigationQuota: vi.fn(),
   runInvestigationPipeline: vi.fn(),
+  claimInvestigationAttempt: vi.fn(),
+  completeInvestigation: vi.fn(),
+  failInvestigation: vi.fn(),
+  awaitAttemptOutcome: vi.fn(),
+  enqueueInvestigationAttempt: vi.fn(),
+  workerOwnsBackgroundWork: vi.fn(),
   persistInvestigationVersion: vi.fn(),
   getLatestInvestigationVersion: vi.fn(),
   prismaIncidentFindFirst: vi.fn(),
@@ -33,7 +39,31 @@ vi.mock('@/lib/investigations/quota', () => ({
 
 vi.mock('@/lib/investigations/pipeline', () => ({
   runInvestigationPipeline: mocks.runInvestigationPipeline,
+  claimInvestigationAttempt: mocks.claimInvestigationAttempt,
+  completeInvestigation: mocks.completeInvestigation,
+  failInvestigation: mocks.failInvestigation,
+  awaitAttemptOutcome: mocks.awaitAttemptOutcome,
 }));
+
+vi.mock('@/lib/investigations/dispatch', () => ({
+  enqueueInvestigationAttempt: mocks.enqueueInvestigationAttempt,
+}));
+
+vi.mock('@ftth-copilot/jobs', () => ({
+  workerOwnsBackgroundWork: mocks.workerOwnsBackgroundWork,
+}));
+
+/** Embedded mode, and every request owns a fresh attempt. */
+function primeAttemptMocks(): void {
+  mocks.workerOwnsBackgroundWork.mockReturnValue(false);
+  mocks.claimInvestigationAttempt.mockImplementation(async () => ({
+    kind: 'claimed',
+    runId: 'r_gate3_1',
+    versionId: 'v_attempt',
+    attemptStartedAt: new Date('2026-09-09T00:00:00.000Z'),
+  }));
+  mocks.failInvestigation.mockResolvedValue(true);
+}
 
 vi.mock('@ftth-copilot/db', () => ({
   prisma: {
@@ -167,6 +197,7 @@ describe('Gate 3 — End-to-End Investigation Lifecycle Integration', () => {
     }));
     mocks.prismaInvestigationRunUpdate.mockResolvedValue({ id: 'db-run-1', status: 'ready' });
     mocks.prismaAgentActionLogCreate.mockResolvedValue({ id: 'log-1' });
+    primeAttemptMocks();
   });
 
   afterEach(() => {
@@ -178,7 +209,7 @@ describe('Gate 3 — End-to-End Investigation Lifecycle Integration', () => {
     const mockV1 = createMockResult('v_gate3_1', 1);
 
     mocks.runInvestigationPipeline.mockResolvedValueOnce(mockV0);
-    mocks.persistInvestigationVersion.mockResolvedValueOnce({
+    mocks.completeInvestigation.mockResolvedValueOnce({
       versionId: 'v_gate3_0',
       versionIndex: 0,
       runId: 'r_gate3_1',
@@ -246,15 +277,10 @@ describe('Gate 3 — End-to-End Investigation Lifecycle Integration', () => {
     expect(feedbackBody.label).toBe('confirmed');
     expect(feedbackBody.idempotent).toBe(false);
 
-    // 3. Technician requests re-investigation with { refresh: true }
-    mocks.prismaInvestigationRunFindFirst.mockResolvedValueOnce({
-      id: 'db-run-1',
-      runId: 'r_gate3_1',
-      tenantId: 'tenant-a',
-      status: 'ready',
-    });
+    // 3. Technician requests re-investigation with { refresh: true }. The
+    //    claim (mocked) owns the run lookup now, under its per-incident lock.
     mocks.runInvestigationPipeline.mockResolvedValueOnce(mockV1);
-    mocks.persistInvestigationVersion.mockResolvedValueOnce({
+    mocks.completeInvestigation.mockResolvedValueOnce({
       versionId: 'v_gate3_1',
       versionIndex: 1,
       runId: 'r_gate3_1',
@@ -321,6 +347,7 @@ describe('Gate 3 — LLM Provider Fault Resilience with Controlled Responses', (
     }));
     mocks.prismaInvestigationRunUpdate.mockResolvedValue({ id: 'db-run-1', status: 'ready' });
     mocks.prismaAgentActionLogCreate.mockResolvedValue({ id: 'log-1' });
+    primeAttemptMocks();
   });
 
   it('gracefully handles upstream LLM 500 error / network disconnect without unhandled route failure', async () => {
@@ -337,7 +364,7 @@ describe('Gate 3 — LLM Provider Fault Resilience with Controlled Responses', (
     });
 
     mocks.runInvestigationPipeline.mockResolvedValueOnce(fallbackResult);
-    mocks.persistInvestigationVersion.mockResolvedValueOnce({
+    mocks.completeInvestigation.mockResolvedValueOnce({
       versionId: 'v_down_0',
       versionIndex: 0,
       runId: 'r_gate3_down',

@@ -57,6 +57,17 @@ RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# The durable spool directory.
+#
+# It has to exist in the image, owned by the user the app runs as: a named
+# volume mounted here is initialized from the image's directory and inherits
+# that ownership. The worker image creates the same directory with the same
+# ownership (both run as uid 1001), so the volume is writable no matter which
+# of the two containers initializes it first.
+RUN mkdir -p /var/lib/ftth-copilot/spool \
+    && chown -R nextjs:nodejs /var/lib/ftth-copilot/spool \
+    && chmod 750 /var/lib/ftth-copilot/spool
+
 # Copy Prisma schema and engines for runtime queries
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 

@@ -37,6 +37,9 @@ export {
 // ── Fase 3.5 — immutable investigation version persistence & snapshot store ──
 export {
   persistInvestigationVersion,
+  insertInvestigationVersion,
+  validateInvestigationResult,
+  type DbTransactionClient,
   getLatestInvestigationVersion,
   getInvestigationVersionById,
   listInvestigationVersions,

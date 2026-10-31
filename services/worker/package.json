@@ -1,0 +1,39 @@
+{
+  "name": "@ftth-copilot/worker",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@ftth-copilot/ingest": "workspace:*",
+    "@ftth-copilot/investigations": "workspace:*",
+    "@ftth-copilot/jobs": "workspace:*",
+    "@ftth-copilot/scheduler": "workspace:*",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/shared": "workspace:*",
+    "@ftth-copilot/soc": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.18.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

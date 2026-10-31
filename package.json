@@ -45,7 +45,8 @@
     "c4:check": "tsx scripts/render-c4.ts --check",
     "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts",
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
-    "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts"
+    "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts",
+    "verify:syslog-source-ip": "tsx scripts/verify-syslog-source-ip.ts"
   },
   "overrides": {
     "brace-expansion": ">=1.1.20"

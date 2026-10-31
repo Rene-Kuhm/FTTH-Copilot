@@ -1,0 +1,158 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { startSnmpReceiver } from '../src/snmp-receiver';
+import { snapshotHealth, __resetSchedulerHealth } from '@ftth-copilot/scheduler';
+import { sendSnmpTestTrap, type RawSnmpEvidenceEnvelope } from '@ftth-copilot/monitoring';
+
+describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    __resetSchedulerHealth();
+    process.env = { ...originalEnv };
+    delete process.env['SNMP_RECEIVER_ENABLED'];
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('is disabled by default and does not bind a socket (Rule 10)', async () => {
+    const stop = startSnmpReceiver();
+    const health = snapshotHealth();
+    expect(health['snmp']?.expected).toBe(false);
+    expect(health['snmp']?.bound).toBe(false);
+    await stop();
+  });
+
+  it('marks service as expected when SNMP_RECEIVER_ENABLED is true and receives real binary traps', async () => {
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+    process.env['SNMP_UDP_PORT'] = '12198';
+
+    const receivedEvents: any[] = [];
+    const receivedEvidences: RawSnmpEvidenceEnvelope[] = [];
+
+    const stop = startSnmpReceiver({
+      address: '127.0.0.1',
+      registrations: [
+        {
+          senderIp: '127.0.0.1',
+          tenantId: 'tenant-web',
+          connectionId: 'conn-web-1',
+          oltId: 'OLT-WEB-01',
+          vendor: 'Huawei',
+          community: 'public',
+        },
+      ],
+      onEvent: (event) => {
+        receivedEvents.push(event);
+      },
+      onEvidence: (evidence) => {
+        receivedEvidences.push(evidence);
+      },
+    });
+
+    const health = snapshotHealth();
+    expect(health['snmp']?.expected).toBe(true);
+
+    // Wait deterministically for the UDP socket to be bound in the OS
+    await stop.ready();
+
+    const healthBound = snapshotHealth();
+    expect(healthBound['snmp']?.bound).toBe(true);
+
+    try {
+      await sendSnmpTestTrap({
+        port: 12198,
+        host: '127.0.0.1',
+        version: 'v2c',
+        trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
+        varbinds: [
+          {
+            oid: '1.3.6.1.2.1.2.2.1.1.1',
+            value: 42,
+          },
+        ],
+      });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0].metrics.snmpTrapOid).toBe('1.3.6.1.6.3.1.1.5.3');
+      expect(receivedEvents[0].deviceId).toBe('OLT-WEB-01');
+
+      expect(receivedEvidences).toHaveLength(1);
+      expect(receivedEvidences[0].credentialsRedacted).toBe(true);
+      expect(receivedEvidences[0].fingerprint).toBeDefined();
+    } finally {
+      await stop();
+    }
+
+    const healthAfter = snapshotHealth();
+    expect(healthAfter['snmp']?.bound).toBe(false);
+  });
+
+  it('handles bind collision gracefully, marks bound as false, and rejects ready() without hanging', async () => {
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+    process.env['SNMP_UDP_PORT'] = '12197';
+
+    const stop1 = startSnmpReceiver({
+      address: '127.0.0.1',
+    });
+    await stop1.ready();
+
+    let errorCount = 0;
+    const stop2 = startSnmpReceiver({
+      address: '127.0.0.1',
+      onError: () => {
+        errorCount++;
+      },
+    });
+
+    try {
+      await expect(stop2.ready()).rejects.toThrow(/EADDRINUSE/);
+      expect(errorCount).toBe(1);
+      const health = snapshotHealth();
+      expect(health['snmp']?.bound).toBe(false);
+    } finally {
+      await stop1();
+      await stop2();
+    }
+  });
+
+  it('handles immediate stop() before listening without reviving bound or leaving port in use', async () => {
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+    process.env['SNMP_UDP_PORT'] = '12196';
+
+    const stop1 = startSnmpReceiver({
+      address: '127.0.0.1',
+    });
+    // Immediately stop before ready() or listening
+    await stop1();
+
+    const boundAfterStop = snapshotHealth()['snmp']?.bound;
+
+    // Wait a brief tick to see if any late listening event revives bound
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const boundAfterLateTick = snapshotHealth()['snmp']?.bound;
+
+    let stop2Error: Error | null = null;
+    let stop2: ReturnType<typeof startSnmpReceiver> | null = null;
+    try {
+      stop2 = startSnmpReceiver({
+        address: '127.0.0.1',
+        onError: (err) => {
+          stop2Error = err;
+        },
+      });
+      await stop2.ready();
+    } catch (err: unknown) {
+      stop2Error = err instanceof Error ? err : new Error(String(err));
+    } finally {
+      if (stop2) await stop2();
+    }
+
+    expect(boundAfterStop).toBe(false);
+    expect(boundAfterLateTick).toBe(false);
+    expect(stop2Error).toBeNull();
+  });
+});
