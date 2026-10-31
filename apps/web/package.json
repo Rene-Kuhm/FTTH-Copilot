@@ -47,6 +47,7 @@
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/eval": "workspace:*",
     "@ftth-copilot/evidence": "workspace:*",
+    "@ftth-copilot/jobs": "workspace:*",
     "@ftth-copilot/monitoring": "workspace:*",
     "@ftth-copilot/scheduler": "workspace:*",
     "@ftth-copilot/security": "workspace:*",

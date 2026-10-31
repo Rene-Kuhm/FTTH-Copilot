@@ -359,3 +359,33 @@ debe romperse) y los tests de durabilidad de las fases 4.
   receptores de syslog y SNMP siguen en la web hasta T9/T10: el worker todavía
   no los recibe, y sacarlos antes dejaría la ingesta de syslog sin destino
   (traps y syslog no se pueden perder — regla de dominio).
+- **L13** (2026-10-31) — Comportamiento REAL del Job Scheduler de BullMQ
+  6.5.3, medido contra Redis y no asumido (esto corrigió un defecto real de
+  la primera implementación de T6):
+  - Sin `startDate`, el scheduler `every` produce su primer job **de
+    inmediato** (`waiting: 1, delay: 0` tras el upsert). El one-shot del
+    primer tick que se había implementado encima producía **dos polls en
+    cada arranque**.
+  - `startDate` sí difiere el primer tick, pero el Lua lo lee con `tonumber`:
+    hay que pasar **milisegundos epoch**, no un `Date` (un `Date` serializa a
+    string, `tonumber` devuelve nil y el tick sale inmediato igual). Medido
+    con valor numérico: `delay: 4998` para un arranque en +5 s.
+  - `offset` no sirve para diferir el primer tick: alinea la grilla
+    (`floor(now/every)*every + offset`), no retrasa el arranque.
+  - La cadencia es estable y no deriva: la iteración siguiente es
+    `prevMillis + every`. Medido: ticks a 4 ms, 5050 ms y 10059 ms con
+    `every: 5000`.
+  - El re-upsert **no** resetea la grilla: una segunda réplica que registra el
+    mismo schedule no produce un tick extra (medido: tras el re-upsert queda
+    un job pendiente y el consumo no cambia). Esto es lo que sostiene S7 sin
+    necesitar un `jobId` por ventana.
+  Corrección aplicada: se eliminó el one-shot del primer tick y el schedule
+  arranca en `now + WARMUP_MS` (5 s), que reproduce el warm-up del loop en
+  proceso con un único tick.
+- **L14** (2026-10-31) — El handler de cada loop llama a la unidad ejecutable
+  a través de `tryStart`, igual que el loop en proceso: se conservan el
+  single-flight, el lock consultivo y el registro de health, y el error se
+  traga como antes. Consecuencia: el `attempts: 3` de la cola es una red de
+  seguridad (un error de cableado sí se reintenta), no el mecanismo de retry
+  de los loops. El retry con backoff y el dead-letter llegan con la ingesta
+  (T9-T11), que es donde la regla de dominio los exige.

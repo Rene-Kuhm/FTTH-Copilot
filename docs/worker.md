@@ -115,7 +115,18 @@ the same rows the embedded path writes.
 
 ## What is still in the web
 
+The extraction is phased, and each phase moves one thing. Today:
+
+- **The recurring loops** (polling, firmware audit, FEC collection) already run
+  in the worker. Under `BACKEND_MODE=worker` the web does not start them; it
+  marks them as *not expected* in its own health registry so `/api/health`
+  stays honest about what this process is responsible for.
+- **The syslog and SNMP receivers** are still in the web. The worker does not
+  receive them yet, and moving them before it can would silently drop every
+  trap and every syslog message — the domain rule is that they are never
+  lost.
+
 Until the extraction is complete (phase 6 of `odd/tasks/backend-extraction.md`),
-`apps/web/instrumentation.ts` still starts the loops when `BACKEND_MODE` is
-`embedded`. That is the rollback path, and it is removed only after the worker
-has run green in staging.
+`apps/web/instrumentation.ts` still starts the receivers when
+`BACKEND_MODE` is `embedded`. That is the rollback path, and it is removed
+only after the worker has run green in staging.

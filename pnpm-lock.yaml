@@ -114,6 +114,9 @@ importers:
       '@ftth-copilot/evidence':
         specifier: workspace:*
         version: link:../../packages/evidence
+      '@ftth-copilot/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@ftth-copilot/monitoring':
         specifier: workspace:*
         version: link:../../packages/monitoring
