@@ -403,6 +403,13 @@ jobs:
       - name: Run worker integration tests
         run: pnpm --filter @ftth-copilot/worker test:integration
 
+      # The investigation closure is a concurrency contract that only a real
+      # Postgres can prove: one attempt per incident under simultaneous
+      # requests (advisory lock), transitions only for the attempt in flight,
+      # and the sweep measuring the age of the attempt, not of the row.
+      - name: Run investigation integration tests
+        run: pnpm --filter @ftth-copilot/investigations test:integration
+
   # ────────────────────────────────────────────────────────────
   # 7) Gate final — job "resumen" que agrupa todo lo anterior.
   #    Configurar ESTE job como required status check en la
