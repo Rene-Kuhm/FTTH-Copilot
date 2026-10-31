@@ -227,7 +227,7 @@ tarea.
 | T6  | S3, S7, S14        | inline  | `01f6ca5` | Convertir `startPollingLoop` en productor de jobs repetibles (`jobId` estable por ventana) + handler en el worker que llama `pollConnections`. Idempotente ante doble réplica. |
 | T7  | S3, S7, S14        | inline  | `01f6ca5` | Igual para `startFirmwareAuditLoop` y `startFecCollectionLoop`. |
 | T8  | S4, S6             | inline  | `ce8eb5b` | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
-| T9  | S3, S8             | pending | pending | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
+| T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | pending | pending | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
 | T11 | S3, S16            | pending | pending | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5                | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
