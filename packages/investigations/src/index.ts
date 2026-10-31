@@ -12,6 +12,14 @@ export {
 
 export { consumeInvestigationQuota } from './quota';
 
+export { awaitAttemptOutcome, type AwaitedAttempt, type AwaitAttemptArgs } from './await';
+
+export {
+  claimInvestigationAttempt,
+  type ClaimInvestigationArgs,
+  type ClaimOutcome,
+} from './claim';
+
 export {
   executeInvestigationAttempt,
   isRetryableInvestigationError,

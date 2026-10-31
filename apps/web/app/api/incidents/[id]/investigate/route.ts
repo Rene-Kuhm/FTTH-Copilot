@@ -1,10 +1,18 @@
-import { NextResponse } from 'next/server';
-import { Prisma, prisma, getLatestInvestigationVersion, persistInvestigationVersion } from '@ftth-copilot/db';
+import { NextResponse, after } from 'next/server';
+import { prisma, getLatestInvestigationVersion } from '@ftth-copilot/db';
+import { workerOwnsBackgroundWork } from '@ftth-copilot/jobs';
+import type { InvestigationResult } from '@ftth-copilot/shared';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
-import { generateFeedbackId } from '@/lib/investigations/feedback';
 import { consumeInvestigationQuota } from '@/lib/investigations/quota';
-import { runInvestigationPipeline } from '@/lib/investigations/pipeline';
+import {
+  awaitAttemptOutcome,
+  claimInvestigationAttempt,
+  completeInvestigation,
+  failInvestigation,
+  runInvestigationPipeline,
+} from '@/lib/investigations/pipeline';
+import { enqueueInvestigationAttempt } from '@/lib/investigations/dispatch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +51,7 @@ export async function GET(
 
   const run = await prisma.investigationRun.findFirst({
     where: { tenantId: user.tenantId, incidentId: incident.id },
+    orderBy: { createdAt: 'asc' },
     select: { id: true, runId: true, status: true, requestedAt: true },
   });
   if (!run) {
@@ -76,8 +85,17 @@ export async function GET(
 
 /**
  * POST /api/incidents/:id/investigate — initiates or refreshes a cognitive investigation run.
- * Enforces quotas, bounds execution time, protects against concurrent duplicates,
- * and persists immutable version snapshots.
+ *
+ * The pipeline runs exactly once per attempt (S20):
+ *  - `claimInvestigationAttempt` decides under a per-incident lock whether
+ *    this request owns a new attempt, so simultaneous requests never start
+ *    two;
+ *  - in `worker` mode the route only enqueues the attempt and waits for its
+ *    result up to the HTTP budget (201 if it finished, 202 if not);
+ *  - in `embedded` mode the route runs the pipeline and attaches the closure
+ *    to THAT promise: past the budget it answers 202 and the same promise
+ *    still stores the result (or leaves the run `failed`) when it settles.
+ *    It never starts the pipeline a second time.
  */
 export async function POST(
   req: Request,
@@ -113,162 +131,156 @@ export async function POST(
   const isRefresh = Boolean(body.refresh);
   const timeoutMs = Math.min(body.timeoutMs ?? DEFAULT_TIMEOUT_MS, 15000);
 
-  // 3. Existing run check & duplicate protection
-  const existingRun = await prisma.investigationRun.findFirst({
-    where: { tenantId: user.tenantId, incidentId: incident.id },
-    select: { id: true, runId: true, status: true },
+  // 3. Claim the attempt (atomic per incident)
+  const claim = await claimInvestigationAttempt({
+    tenantId: user.tenantId,
+    incidentId: incident.id,
+    connectionId: incident.connectionId ?? null,
+    userId: user.id,
+    refresh: isRefresh,
   });
 
-  if (existingRun) {
-    // If run is currently in-flight, protect against duplicate executions
-    if (existingRun.status === 'pending') {
-      return NextResponse.json(
-        {
-          runId: existingRun.runId,
-          status: 'pending',
-          retryAfterMs: 3000,
-          message: 'Investigation is currently processing',
-        },
-        { status: 202 },
-      );
-    }
-
-    // If run is ready and refresh is not requested, return idempotently
-    if (existingRun.status === 'ready' && !isRefresh) {
-      const latest = await getLatestInvestigationVersion({
-        tenantId: user.tenantId,
-        runId: existingRun.runId,
-      });
-      return NextResponse.json(
-        {
-          runId: existingRun.runId,
-          versionId: latest?.versionId ?? null,
-          versionIndex: latest?.versionIndex ?? 0,
-          status: existingRun.status,
-          idempotent: true,
-          result: latest?.snapshot ?? null,
-        },
-        { status: 200 },
-      );
-    }
-  }
-
-  // 4. Setup runId & versionId
-  const runId = existingRun ? existingRun.runId : `r_${generateFeedbackId().slice(2)}`;
-  const versionId = `v_${generateFeedbackId().slice(2)}`;
-
-  // Ensure run row exists with status = 'pending'
-  if (!existingRun) {
-    await prisma.investigationRun.create({
-      data: {
-        tenantId: user.tenantId,
-        connectionId: incident.connectionId ?? null,
-        incidentId: incident.id,
-        requestedByUserId: user.id,
-        runId,
-        status: 'pending',
-      },
-    });
-  } else {
-    await prisma.investigationRun.update({
-      where: { id: existingRun.id },
-      data: { status: 'pending' },
-    });
-  }
-
-  // 5. Execute pipeline bounded by timeout
-  const startTime = Date.now();
-
-  try {
-    const pipelinePromise = runInvestigationPipeline({
-      tenantId: user.tenantId,
-      incidentId: incident.id,
-      runId,
-      versionId,
-      deviceId: incident.deviceId,
-      deviceKind: incident.deviceKind,
-      connectionId: incident.connectionId ?? null,
-      windowDays: body.windowDays,
-    });
-
-    let timer: NodeJS.Timeout | undefined;
-    const timeoutPromise = new Promise<'timeout'>((resolve) => {
-      timer = setTimeout(() => resolve('timeout'), timeoutMs);
-    });
-
-    const outcome = await Promise.race([pipelinePromise, timeoutPromise]);
-    if (timer) clearTimeout(timer);
-
-    if (outcome === 'timeout') {
-      // Execution budget exceeded: return 202 Accepted pending response
-      return NextResponse.json(
-        {
-          runId,
-          versionId,
-          status: 'pending',
-          retryAfterMs: 3000,
-          message: 'Investigation execution pending: maximum HTTP wait exceeded',
-        },
-        { status: 202 },
-      );
-    }
-
-    // 6. Persist immutable version snapshot
-    const persisted = await persistInvestigationVersion({
-      tenantId: user.tenantId,
-      runId,
-      investigationResult: outcome,
-      requestedByUserId: user.id,
-    });
-
-    await prisma.agentActionLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        toolName: '__investigation_open__',
-        parameters: {
-          incidentId: incident.id,
-          runId,
-          versionId: persisted.versionId,
-        } as unknown as object,
-        result: runId,
-        durationMs: Date.now() - startTime,
-      },
-    });
-
+  if (claim.kind === 'pending') {
     return NextResponse.json(
       {
+        runId: claim.runId,
+        status: 'pending',
+        retryAfterMs: 3000,
+        message: 'Investigation is currently processing',
+      },
+      { status: 202 },
+    );
+  }
+
+  if (claim.kind === 'ready') {
+    const latest = await getLatestInvestigationVersion({
+      tenantId: user.tenantId,
+      runId: claim.runId,
+    });
+    return NextResponse.json(
+      {
+        runId: claim.runId,
+        versionId: latest?.versionId ?? null,
+        versionIndex: latest?.versionIndex ?? 0,
+        status: 'ready',
+        idempotent: true,
+        result: latest?.snapshot ?? null,
+      },
+      { status: 200 },
+    );
+  }
+
+  const { runId, versionId } = claim;
+  const attempt = {
+    tenantId: user.tenantId,
+    incidentId: incident.id,
+    runId,
+    versionId,
+    userId: user.id,
+    windowDays: body.windowDays,
+    startedAtMs: claim.attemptStartedAt.getTime(),
+  };
+  const pendingResponse = () =>
+    NextResponse.json(
+      {
         runId,
-        versionId: persisted.versionId,
-        versionIndex: persisted.versionIndex,
+        versionId,
+        status: 'pending',
+        retryAfterMs: 3000,
+        message: 'Investigation execution pending: maximum HTTP wait exceeded',
+      },
+      { status: 202 },
+    );
+  const readyResponse = (version: { versionId: string; versionIndex: number }, result: unknown) =>
+    NextResponse.json(
+      {
+        runId,
+        versionId: version.versionId,
+        versionIndex: version.versionIndex,
         status: 'ready',
         idempotent: false,
-        result: persisted.snapshot,
+        result,
       },
       { status: 201 },
     );
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2002'
-    ) {
-      // Race: parallel creation collapsed by unique constraints
-      const latest = await getLatestInvestigationVersion({
-        tenantId: user.tenantId,
-        runId,
+  const failedResponse = () =>
+    NextResponse.json(
+      { runId, versionId, status: 'failed', error: 'Investigation failed' },
+      { status: 500 },
+    );
+
+  // 4a. Worker mode: enqueue, then wait for the worker up to the budget.
+  if (workerOwnsBackgroundWork()) {
+    try {
+      await enqueueInvestigationAttempt(attempt);
+    } catch (err) {
+      // Without the job nobody would ever close this attempt: fail it now so
+      // the incident can be investigated again, and tell the caller.
+      const reason = `could not enqueue the investigation: ${err instanceof Error ? err.message : String(err)}`;
+      await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
+        console.error('[investigate] could not fail an unqueued attempt', closeErr);
       });
       return NextResponse.json(
-        {
-          runId,
-          versionId: latest?.versionId ?? null,
-          versionIndex: latest?.versionIndex ?? 0,
-          status: 'ready',
-          idempotent: true,
-          result: latest?.snapshot ?? null,
-        },
-        { status: 200 },
+        { runId, versionId, status: 'failed', error: 'Investigation queue unavailable' },
+        { status: 503 },
       );
     }
-    throw err;
+
+    const outcome = await awaitAttemptOutcome({
+      tenantId: user.tenantId,
+      runId,
+      versionId,
+      timeoutMs,
+    });
+    if (outcome.kind === 'ready') return readyResponse(outcome.version, outcome.version.snapshot);
+    if (outcome.kind === 'failed') return failedResponse();
+    return pendingResponse();
   }
+
+  // 4b. Embedded mode: run here, and close THIS promise whatever its timing.
+  type Closed =
+    | { kind: 'ready'; version: { versionId: string; versionIndex: number }; result: InvestigationResult }
+    | { kind: 'failed' };
+
+  const closing: Promise<Closed> = runInvestigationPipeline({
+    tenantId: user.tenantId,
+    incidentId: incident.id,
+    runId,
+    versionId,
+    deviceId: incident.deviceId,
+    deviceKind: incident.deviceKind,
+    connectionId: incident.connectionId ?? null,
+    windowDays: body.windowDays,
+  })
+    .then(async (result): Promise<Closed> => {
+      const version = await completeInvestigation({ ...attempt, investigationResult: result });
+      return { kind: 'ready', version, result };
+    })
+    .catch(async (err: unknown): Promise<Closed> => {
+      const reason = err instanceof Error ? err.message : String(err);
+      await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
+        console.error('[investigate] could not record a failed attempt', closeErr);
+      });
+      return { kind: 'failed' };
+    });
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+  });
+  const outcome = await Promise.race([closing, timeout]);
+  if (timer) clearTimeout(timer);
+
+  if (outcome === 'timeout') {
+    // The same promise keeps running and closes the attempt when it settles.
+    // `after` tells Next to keep the request's work alive past the response.
+    try {
+      after(() => closing);
+    } catch {
+      // Outside a request scope (unit tests): the promise runs on its own.
+    }
+    return pendingResponse();
+  }
+  if (outcome.kind === 'failed') return failedResponse();
+  return readyResponse(outcome.version, outcome.result);
 }

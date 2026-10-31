@@ -47,6 +47,11 @@ const LOOPS: Array<{ queue: QueueKey; jobName: string; schedulerId: string }> = 
     jobName: JOB_NAMES.ingestDrain,
     schedulerId: 'scheduler-ingest-drain',
   },
+  {
+    queue: 'investigationSweep',
+    jobName: JOB_NAMES.investigationSweep,
+    schedulerId: 'scheduler-investigation-sweep',
+  },
 ];
 
 const ENV_ALL_ENABLED = {
@@ -162,11 +167,12 @@ suite('recurring schedules (integration)', () => {
       connection: CONNECTION,
     });
 
-    // The periodic drain has no flag: it is the safety net of the ingestion
-    // and it is always registered.
+    // The periodic drain and the investigation sweep have no flag: they are
+    // safety nets and they are always registered.
     expect(result.registered.map((loop) => loop.scope)).toEqual([
       'poll-connections',
       'ingest-drain',
+      'investigation-sweep',
     ]);
     expect(result.skipped.map((loop) => loop.scope)).toEqual(
       expect.arrayContaining(['firmware-audit', 'fec-collection']),

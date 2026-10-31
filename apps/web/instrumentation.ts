@@ -57,6 +57,11 @@ export async function register(): Promise<void> {
       const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
       startSyslogReceiver();
 
+      // Abandoned investigation attempts: in worker mode the worker sweeps
+      // them on a schedule; here nothing else would.
+      const { startInvestigationSweep } = await import('@/lib/investigations/sweep');
+      startInvestigationSweep();
+
       // The SNMP receiver was implemented and unit-tested but never wired
       // here, so SNMP_RECEIVER_ENABLED=true used to expose port 1162 with
       // nothing binding it. It stays off by default; this only honours the

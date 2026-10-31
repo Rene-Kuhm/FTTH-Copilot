@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   startEventDrainer: vi.fn(),
   startSnmpReceiver: vi.fn(),
   markNotExpected: vi.fn(),
+  startInvestigationSweep: vi.fn(),
+}));
+
+vi.mock('@/lib/investigations/sweep', () => ({
+  startInvestigationSweep: mocks.startInvestigationSweep,
 }));
 
 vi.mock('@/lib/monitoring/scheduler', () => ({
@@ -91,6 +96,22 @@ describe('instrumentation: who owns the background work', () => {
     expect(mocks.startPollingLoop).toHaveBeenCalledOnce();
     expect(mocks.startFirmwareAuditLoop).toHaveBeenCalledOnce();
     expect(mocks.startFecCollectionLoop).toHaveBeenCalledOnce();
+  });
+
+  it('sweeps abandoned investigation attempts in process when the mode is embedded', async () => {
+    process.env['BACKEND_MODE'] = 'embedded';
+
+    await register();
+
+    expect(mocks.startInvestigationSweep).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the investigation sweep to the worker when the worker owns the background work', async () => {
+    process.env['BACKEND_MODE'] = 'worker';
+
+    await register();
+
+    expect(mocks.startInvestigationSweep).not.toHaveBeenCalled();
   });
 
   it('does not start the recurring loops when the worker owns them', async () => {

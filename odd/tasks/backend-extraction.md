@@ -646,3 +646,38 @@ debe romperse) y los tests de durabilidad de las fases 4.
   la condición de `currentVersionId` fallan (b), (c) y el de "expirado no vuelve
   a ready"; con el barrido por `requestedAt` falla (a); sin el fallback falla
   (d). packages/db integración 15/15; `turbo --force` 67/67, 0 en caché.
+- **L31** (2026-10-31) — Unidades **8-11 hechas** (T12 cerrada).
+  - **8** (d376289): cola `ftth-investigation`, job id
+    `investigation-<runId>-<versionId>`, `executeInvestigationAttempt` en
+    `@ftth-copilot/investigations` (re-verifica que el incidente sea del tenant
+    del payload, saltea sin correr el pipeline un intento que ya no es el
+    vigente, reintenta solo errores pasajeros — Prisma P1xxx/P2024/P2028,
+    sockets, HTTP 429/5xx — con tope 3, y si no, `failInvestigation`). Barrido
+    `ftth-investigation-sweep` como loop del worker sin flag (red de seguridad,
+    como el drenado).
+  - **Hallazgo nuevo**: la unicidad de `InvestigationRun` es
+    `(tenantId, runId)`, no por incidente. Dos pedidos simultáneos veían los dos
+    "no hay run", creaban dos filas y corrían dos pipelines.
+    `claimInvestigationAttempt` decide bajo `pg_advisory_xact_lock` por
+    `(tenantId, incidentId)`, sin cambio de schema (un índice único por
+    incidente fallaría con duplicados existentes). Test con 4 pedidos
+    simultáneos → 1 intento, 1 fila; con la ventana ensanchada por un punto de
+    prueba, **sin** el lock el test falla (verificado).
+  - **9**: la ruta usa el claim. Modo `worker`: encola y espera el resultado
+    consultando Postgres hasta el presupuesto (201/202/500); si no puede
+    encolar, marca el intento `failed` y responde 503. Modo `embedded`: corre el
+    pipeline y engancha el cierre a ESA promesa (`.then(complete)` /
+    `.catch(fail)`); pasado el presupuesto responde 202 y la misma promesa cierra
+    el intento, mantenida viva con `after()` de Next. Nunca se lanza dos veces.
+    Prueba de mutación: relanzar el pipeline tras el 202 rompe 2 tests; correr
+    el pipeline en modo worker rompe 1.
+  - **10**: barrido también en modo `embedded` (intervalo en proceso,
+    `unref`), `INVESTIGATION_PENDING_TTL_MS` (15 min) e
+    `INVESTIGATION_SWEEP_INTERVAL_MS` (60 s) en `.env.example` y `turbo.json`.
+  - **11**: tests — >presupuesto termina con la versión guardada (misma
+    promesa); error → `failed` y reintentable; pending viejo → `expired`;
+    pedidos simultáneos → una ejecución; tenant ajeno rechazado sin correr el
+    pipeline; espera acotada (`awaitAttemptOutcome`).
+  Evidencia: `turbo --force` 67/67, 0 en caché (web 565, worker 65, jobs 36);
+  integración real: investigations 30, db 15, jobs 6, worker 15 (Postgres +
+  Redis levantados).
