@@ -1,0 +1,42 @@
+/**
+ * `@ftth-copilot/investigations` — el pipeline de investigación y su cierre.
+ *
+ * Vive en un package porque el worker no puede importar de la app Next, y
+ * porque el cierre tiene que ser el mismo lo ejecute quien lo ejecute.
+ */
+
+export {
+  runInvestigationPipeline,
+  type RunInvestigationPipelineArgs,
+} from './pipeline';
+
+export { consumeInvestigationQuota } from './quota';
+
+export { awaitAttemptOutcome, type AwaitedAttempt, type AwaitAttemptArgs } from './await';
+
+export {
+  claimInvestigationAttempt,
+  type ClaimInvestigationArgs,
+  type ClaimOutcome,
+} from './claim';
+
+export {
+  executeInvestigationAttempt,
+  isRetryableInvestigationError,
+  type InvestigationAttempt,
+  type AttemptOutcome,
+  type AttemptRetryContext,
+  type PipelineRunner,
+} from './execute';
+
+export {
+  beginInvestigationAttempt,
+  completeInvestigation,
+  failInvestigation,
+  expireStaleRuns,
+  type BeginInvestigationAttemptArgs,
+  type CompleteInvestigationArgs,
+  type CompleteInvestigationResult,
+  type FailInvestigationArgs,
+  type ExpireStaleRunsArgs,
+} from './complete';

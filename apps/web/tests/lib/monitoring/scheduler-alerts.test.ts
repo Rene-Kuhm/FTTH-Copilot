@@ -18,7 +18,7 @@ vi.mock('@ftth-copilot/monitoring', () => ({
   pollConnections: mocks.pollConnections,
 }));
 
-vi.mock('@/lib/connectors/chat-client', () => ({
+vi.mock('@ftth-copilot/connectors-factory', () => ({
   buildConnectorFromConnection: mocks.buildConnectorFromConnection,
 }));
 

@@ -41,6 +41,82 @@ services:
       - ftth-demo
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Redis — durable job queue for the background worker.
+  #
+  # Self-hosted: no managed broker. Append-only persistence is on because
+  # the queue holds the ingest backlog, and a job that was accepted but not
+  # yet drained must survive a Redis restart.
+  # ─────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.10.2-alpine
+    container_name: ftth_demo_redis
+    restart: unless-stopped
+    environment:
+      # The healthcheck authenticates with it.
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      # A published port does not go through the host firewall, so Redis
+      # never listens without a password.
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_demo_data:/data
+    healthcheck:
+      # It authenticates: a bare `redis-cli ping` gets NOAUTH and still
+      # exits 0, so it would report a healthy Redis that nobody can use.
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ftth-demo
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Worker — background job runner (backend extraction).
+  #
+  # Behind a profile on purpose: while BACKEND_MODE=embedded (the default)
+  # the web still runs the loops, and running both would poll the NMS twice.
+  #   docker compose -f docker-compose.demo.yml --profile worker up
+  #
+  # It uses the host network so the syslog receiver sees the real source IP
+  # of every datagram: Docker's userland proxy for UDP would rewrite it to
+  # the bridge gateway and merge every OLT into a single source.
+  # ─────────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    container_name: ftth_demo_worker
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      # The web runs inside the compose network, so 127.0.0.1 would be the
+      # web container itself. It reaches Redis by service name.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
+      WORKER_HOST: 127.0.0.1
+    volumes:
+      - spool_demo_data:/var/lib/ftth-copilot/spool
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    profiles:
+      - worker
+
+  # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
   # Session mode: required for Prisma (prepared statements + LISTEN/NOTIFY).
   # Reduces postgres connections from N×M to N+M under heavy load.
@@ -100,6 +176,12 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      # The durable queue. Redis is published on the loopback only and
+      # requires a password; see the redis service below.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
+      # The web owns the `web` subdirectory of the spool volume: the worker
+      # owns `worker`, and two processes must never write the same spool.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
       # Connect directly to postgres.
@@ -269,6 +351,8 @@ services:
 
 volumes:
   postgres_demo_data:
+  redis_demo_data:
+  spool_demo_data:
   victoriametrics_demo_data:
   ntfy_cache:
 

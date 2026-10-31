@@ -54,6 +54,29 @@ NMS_ALLOW_PRIVATE_NETWORKS=false
 METRICS_POLLER_ENABLED=false
 METRICS_BEARER_TOKEN=
 
+# ── Background worker (backend extraction) ───────────────────────────────
+# Redis backs the durable job queue (BullMQ). Self-hosted in the compose
+# stack; there is no managed broker.
+# Inside Docker use redis://redis:6379; on the host use localhost:6379.
+REDIS_URL=redis://redis:6379
+# Password of the Redis instance. Redis is published by Docker, and a
+# published port does NOT go through the host firewall — so the instance
+# must never be reachable without a password.
+# The compose files build REDIS_URL out of this value, so it is the single
+# place to change it.
+# Generate it as hex:  openssl rand -hex 32
+# The value is embedded in redis://:<password>@host:port, so characters like
+# @ : / # % ? would change the meaning of that URL.
+REDIS_PASSWORD=change-me
+# Who owns the background work (polling, firmware audit, FEC, syslog/SNMP
+# reception and the event drainer):
+#   embedded = inside the web process, the behavior of today
+#   worker   = in the separate services/worker process
+# The default stays 'embedded' until the worker has run green in staging.
+# Rollback is this one variable, plus not deploying the worker.
+# See docs/worker.md.
+BACKEND_MODE=embedded
+
 # ── Alert channels (disabled in demo) ──────────────────────────────────────
 ALERT_WEBHOOK_URL=
 TELEGRAM_BOT_TOKEN=

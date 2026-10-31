@@ -374,6 +374,12 @@ jobs:
       - name: Build all packages
         run: mise run build
 
+      # The worker is a separate deployable, so its image is built here and
+      # not just its TypeScript: a Dockerfile that references a path or a
+      # script that does not exist must fail CI, not a deployment.
+      - name: Build worker image
+        run: docker build -f services/worker/Dockerfile -t ftth-copilot-worker:ci .
+
   # ────────────────────────────────────────────────────────────
   # 4) E2E — valida la navegación y los contratos UI/API.
   # ────────────────────────────────────────────────────────────
@@ -483,7 +489,7 @@ jobs:
   #    Postgres real (service container), sin mocks.
   # ────────────────────────────────────────────────────────────
   test-integration:
-    name: Integration Tests (Postgres)
+    name: Integration Tests (Postgres + Redis)
     runs-on: ubuntu-latest
     # Mínimo privilegio: este job sólo lee el repo.
     permissions:
@@ -504,8 +510,24 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # The durable job queue (BullMQ) needs a real Redis: the retry and
+      # dead-letter behavior of the queue cannot be asserted against a mock.
+      redis:
+        image: redis:8.10.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://ftth:ftth@localhost:5432/ftth_copilot
+      # Database 9 keeps the queue specs away from anything else on this
+      # Redis instance.
+      JOBS_TEST_REDIS_URL: redis://localhost:6379/9
+      # The worker's integration suite writes to the database it is given.
+      SYSLOG_TENANT_ID: it-worker-tenant
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -551,6 +573,25 @@ jobs:
 
       - name: Run integration tests
         run: pnpm --filter @ftth-copilot/alerts test:integration
+
+      # The queue specs are excluded from `vitest run` so unit and coverage
+      # runs stay hermetic. Without this step the retry and dead-letter
+      # behavior of the queue is never exercised anywhere.
+      - name: Run job queue integration tests
+        run: pnpm --filter @ftth-copilot/jobs test:integration
+
+      # The worker's integration suite exercises the durable ingest path end
+      # to end: the receiver spools a datagram, the drain job writes it into
+      # Postgres, and the same event is never ingested twice.
+      - name: Run worker integration tests
+        run: pnpm --filter @ftth-copilot/worker test:integration
+
+      # The investigation closure is a concurrency contract that only a real
+      # Postgres can prove: one attempt per incident under simultaneous
+      # requests (advisory lock), transitions only for the attempt in flight,
+      # and the sweep measuring the age of the attempt, not of the row.
+      - name: Run investigation integration tests
+        run: pnpm --filter @ftth-copilot/investigations test:integration
 
   # ────────────────────────────────────────────────────────────
   # 6) Título de la PR — los merges son squash, así que el título

@@ -28,11 +28,11 @@ import type { INmsConnector, OnuDetail, OnuSummary } from '@ftth-copilot/connect
  *      reason: 'rate_limit', … }` (no token / cookie / Authorization fields).
  *
  * The scheduler module imports `@ftth-copilot/db` (Prisma singleton),
- * `@/lib/connectors/chat-client`, and `@ftth-copilot/analytics`. All three are
- * mocked here so the test never touches a real DB or HTTP client. The
+ * `@ftth-copilot/connectors-factory`, and `@ftth-copilot/analytics`. All three
+ * are mocked here so the test never touches a real DB or HTTP client. The
  * `pickFecFanOutSlice` / `fitsRateBudget` / `assembleOnuDetailPoints` /
  * `mapAllSettled` helpers are EXERCISED end-to-end via the unmocked analytics
- * package — we only mock the boundaries (prisma + chat-client factory).
+ * package — we only mock the boundaries (prisma + connector factory).
  */
 
 const mocks = vi.hoisted(() => ({
@@ -52,7 +52,7 @@ vi.mock('@ftth-copilot/db', () => ({
   },
 }));
 
-vi.mock('@/lib/connectors/chat-client', () => ({
+vi.mock('@ftth-copilot/connectors-factory', () => ({
   buildConnectorFromConnection: mocks.buildConnectorFromConnection,
 }));
 

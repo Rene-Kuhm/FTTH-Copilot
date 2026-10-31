@@ -8,6 +8,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ftth}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-ftth_copilot}
+    # Published on the loopback only. The worker runs with the host network
+    # (it has to, to receive syslog with the real source IP), so it reaches
+    # the database through the host instead of the compose network. Binding
+    # it to 127.0.0.1 keeps the database reachable from the server and from
+    # nowhere else.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +23,52 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - ftth-network
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Redis — durable job queue for the background worker.
+  #
+  # Self-hosted: no managed broker. Append-only persistence is on because
+  # the queue holds the ingest backlog, and a job that was accepted but not
+  # yet drained must survive a Redis restart. The volume is persistent
+  # state: losing it loses queued work.
+  # ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.10.2-alpine
+    restart: unless-stopped
+    environment:
+      # The healthcheck authenticates with it.
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      # The queue holds the ingest backlog and the worker reaches Redis
+      # through the host. A published port does NOT go through the host
+      # firewall, so Redis must never be reachable without a password:
+      # without it, anyone could inject jobs into the queue — fake events
+      # that end up stored as DeviceEvent — or abuse the known
+      # `CONFIG SET` trick to write files on the server.
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    env_file:
+      - .env.prod
+    ports:
+      # Only the loopback: the worker runs on the host network and reaches
+      # Redis there.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      # It authenticates: a bare `redis-cli ping` gets NOAUTH and still
+      # exits 0, so it would report a healthy Redis that nobody can use.
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - ftth-network
 
@@ -46,9 +99,16 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      # The durable queue. Redis is published on the loopback only and
+      # requires a password; see the redis service below.
+      # The web runs inside the compose network, so 127.0.0.1 would be the
+      # web container itself. It reaches Redis by service name.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       # Durable ingest spool. MUST be a persistent volume: events buffered
       # while Postgres is unreachable are lost if the container is recreated.
-      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      # The web owns the `web` subdirectory of that volume: the worker owns
+      # `worker`, and two processes must never write the same spool.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       # The kernel drops UDP datagrams silently once this buffer fills, so a
       # link flap needs headroom here.
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
@@ -60,8 +120,10 @@ services:
       - spool_data:/var/lib/ftth-copilot/spool
     ports:
       - "${PORT:-3001}:3001"
-      - "${SNMP_UDP_PORT:-1162}:1162/udp"
-      - "${SYSLOG_UDP_PORT:-5514}:5514/udp"
+      # The syslog (5514) and SNMP (1162) ports are not published here: in
+      # worker mode the worker binds them on the host network, and two
+      # processes cannot bind the same UDP port. They move back to this
+      # service when BACKEND_MODE=embedded.
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +131,53 @@ services:
         condition: service_completed_successfully
     networks:
       - ftth-network
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Worker — background job runner (backend extraction).
+  #
+  # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
+  # and the event drainer. Behind a profile on purpose: while
+  # BACKEND_MODE=embedded (the default) the web still runs those loops, and
+  # running both would poll the NMS twice and double-bind the UDP socket.
+  #   docker compose --profile worker up
+  #
+  # It uses the host network on purpose: the syslog receiver is attributed
+  # by the source IP of the datagram, and Docker's userland proxy for UDP
+  # rewrites that address to the bridge gateway — every OLT would look like
+  # the same source and the brute-force detectors would merge distinct
+  # attacks into one. With the host network the kernel delivers the datagram
+  # with the real source address.
+  #
+  # The spool volume is mounted here as well: in worker mode the worker is
+  # the one that receives syslog/SNMP and spools it, so the buffered events
+  # must survive a restart of this container.
+  # ─────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-ftth_copilot}"
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
+      SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
+      # The health server stays on the loopback: with the host network it
+      # would otherwise listen on every public interface of the server.
+      WORKER_HOST: 127.0.0.1
+    volumes:
+      - spool_data:/var/lib/ftth-copilot/spool
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    profiles:
+      - worker
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)
@@ -252,3 +361,5 @@ volumes:
   postgres_data:
   # VictoriaMetrics persistent storage — losing this loses all metrics history.
   victoriametrics_prod_data:
+  # Redis job queue — losing this loses queued background work.
+  redis_data:
