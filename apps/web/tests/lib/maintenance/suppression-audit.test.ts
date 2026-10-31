@@ -25,7 +25,7 @@ describe('Suppression Audit Log (Fase 5.4)', () => {
       reason: 'inside_active_maintenance_window',
     };
 
-    const result = await recordSuppressionAudit(mockPrisma as any, input);
+    const result = await recordSuppressionAudit(mockPrisma, input);
     expect(result).toEqual({ id: 'log-1' });
     expect(mockCreate).toHaveBeenCalledWith({
       data: {
@@ -70,7 +70,7 @@ describe('Suppression Audit Log (Fase 5.4)', () => {
       },
     };
 
-    const results = await listSuppressedEvents(mockPrisma as any, {
+    const results = await listSuppressedEvents(mockPrisma, {
       tenantId: 'tenant-1',
       windowId: 'win-123',
     });
