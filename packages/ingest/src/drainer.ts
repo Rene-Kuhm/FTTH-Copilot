@@ -1,4 +1,5 @@
 import type { DurableSpool, SpoolEntry } from './spool';
+import { classifyWriteError, errorMessage as describeError } from './errors';
 
 /**
  * Drains the durable spool into Postgres in batches.
@@ -17,7 +18,6 @@ export interface EventDrainerOptions<T> {
   /** Entries per insert. Larger batches amortise the round trip. */
   batchSize?: number;
   /** Consecutive failed batches tolerated before quarantining the batch. */
-  maxConsecutiveFailures?: number;
   /** Backoff steps in ms, indexed by consecutive failure count. */
   backoffMs?: number[];
   pollMs?: number;
@@ -40,7 +40,6 @@ export class EventDrainer<T> {
   private readonly spool: DurableSpool<T>;
   private readonly write: BatchWriter<T>;
   private readonly batchSize: number;
-  private readonly maxConsecutiveFailures: number;
   private readonly backoffMs: number[];
   private readonly pollMs: number;
 
@@ -58,7 +57,6 @@ export class EventDrainer<T> {
     this.spool = options.spool;
     this.write = options.write;
     this.batchSize = options.batchSize ?? 250;
-    this.maxConsecutiveFailures = options.maxConsecutiveFailures ?? 10;
     this.backoffMs = options.backoffMs ?? DEFAULT_BACKOFF_MS;
     this.pollMs = options.pollMs ?? 1_000;
 
@@ -113,36 +111,82 @@ export class EventDrainer<T> {
     } catch (err) {
       this.consecutiveFailures++;
 
-      // Past the threshold the batch cannot be stored. Quarantine it rather
-      // than blocking the queue forever; the dead-letter file keeps the data
-      // so an operator can replay it once the database is healthy.
-      if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
-        for (const entry of entries) {
-          this.spool.deadLetter(entry, errorMessage(err));
-        }
-        this.spool.commit(nextOffset, entries.length);
-        this.consecutiveFailures = 0;
-        this.nextAttemptAt = 0;
-        this.onQuarantined?.(entries.length);
+      // Un error pasajero no manda nada al dead-letter: los eventos se quedan
+      // en disco y se reintentan. Una caída del store tiene que ser un
+      // retraso, no una pérdida.
+      if (classifyWriteError(err) === 'transient') {
+        this.scheduleBackoff();
+        this.onBatchFailed?.(err, entries.length);
         return {
           drained: 0,
-          failed: 0,
-          quarantined: entries.length,
+          failed: entries.length,
+          quarantined: 0,
           deferred: false,
         };
       }
 
-      this.scheduleBackoff();
-      this.onBatchFailed?.(err, entries.length);
-      return {
-        drained: 0,
-        failed: entries.length,
-        quarantined: 0,
-        deferred: false,
-      };
+      // El lote falló por algo permanente: uno de los eventos no puede
+      // guardarse nunca. Se reintenta evento por evento para que ese evento no
+      // bloquee a los que están detrás.
+      return this.retryOneByOne(entries.length);
     } finally {
       this.draining = false;
     }
+  }
+
+  /**
+   * Reintenta evento por evento un lote que falló por un motivo permanente.
+   *
+   * El caso real: un evento con una foreign key inválida hace fallar el lote
+   * entero. Sin esto, ese evento queda primero en la cola y **todos** los
+   * posteriores fallan con él, incluidos los de remitentes sanos.
+   *
+   * Cada evento se lee solo, se escribe solo y se comitea solo:
+   *
+   *   - se guardó → cuenta como drenado;
+   *   - falló por algo permanente → va al dead-letter con la razón, y se sigue
+   *     con el próximo;
+   *   - falló por algo pasajero → se corta acá y el resto queda en disco,
+   *     porque el store dejó de estar disponible.
+   */
+  private async retryOneByOne(remaining: number): Promise<DrainResult> {
+    let drained = 0;
+    let quarantined = 0;
+    let failed = 0;
+
+    for (let i = 0; i < remaining; i++) {
+      const { entries, nextOffset } = this.spool.readBatch(1);
+      if (entries.length === 0) break;
+      const entry = entries[0]!;
+
+      try {
+        await this.write([entry]);
+        this.spool.commit(nextOffset, 1);
+        drained += 1;
+      } catch (err) {
+        if (classifyWriteError(err) === 'transient') {
+          // El store volvió a caerse: el resto queda en disco.
+          failed += 1;
+          this.scheduleBackoff();
+          this.onBatchFailed?.(err, 1);
+          break;
+        }
+
+        this.spool.deadLetter(entry, describeError(err));
+        this.spool.commit(nextOffset, 1);
+        quarantined += 1;
+        this.onQuarantined?.(1);
+      }
+    }
+
+    if (failed === 0) {
+      // El lote quedó resuelto: todo se guardó o fue al dead-letter por un
+      // motivo permanente. No queda nada que reintentar.
+      this.consecutiveFailures = 0;
+      this.nextAttemptAt = 0;
+    }
+
+    return { drained, failed, quarantined, deferred: failed > 0 };
   }
 
   stats(): { consecutiveFailures: number; draining: boolean } {
@@ -156,8 +200,4 @@ export class EventDrainer<T> {
     const index = Math.min(this.consecutiveFailures - 1, this.backoffMs.length - 1);
     this.nextAttemptAt = Date.now() + (this.backoffMs[index] ?? 30_000);
   }
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

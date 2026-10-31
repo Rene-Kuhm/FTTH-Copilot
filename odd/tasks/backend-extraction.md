@@ -229,7 +229,7 @@ tarea.
 | T8  | S4, S6             | inline  | `ce8eb5b` | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
 | T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | inline  | `e2c6cb7`, `chore(infra)` | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
-| T11 | S3, S16            | pending | pending | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
+| T11 | S3, S16            | inline  | `T11` (este commit) | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5                | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
 | T13 | S5                | pending | pending | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. |
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
@@ -461,3 +461,32 @@ debe romperse) y los tests de durabilidad de las fases 4.
   contrapartida de "retry rápido no, para no mandar eventos vivos al
   dead-letter"; una política de dead-letter por evento (no por lote) es el
   candidato natural para T11.
+- **L20** (2026-10-31) — T11: el dead-letter del spool pasa a ser **por
+  evento y solo para fallos permanentes**. El defecto que tenía: al pasar un
+  umbral de lotes fallidos se mandaba **el lote entero** al dead-letter, así
+  que (a) una caída de Postgres de unos minutos habría perdido el backlog
+  completo — lo contrario de durable — y (b) un solo evento inválido quedaba
+  primero en la cola y hacía fallar a todos los siguientes, incluidos los de
+  remitentes sanos. La política ahora es:
+  - **Pasajero** (store no disponible o clasificación no concluyente): nunca
+    va al dead-letter. Los eventos se quedan en disco y se reintentan. **Todo
+    lo no reconocido es pasajero**: equivocarse hacia el retry solo retrasa la
+    escritura; equivocarse hacia el dead-letter la pierde.
+  - **Permanente** (Prisma `P2000/P2003/P2005/P2006/P2023/P2025`,
+    `PrismaClientValidationError`, SQLSTATE `22*`/`23*`/`42*`): el lote se
+    reintenta **evento por evento**, mandando al dead-letter solo los que
+    fallan por ese motivo, y se sigue con los demás. Si en el medio aparece un
+    error pasajero, se corta y el resto queda en disco.
+  La cuarentena por umbral desapareció junto con su opción
+  (`maxConsecutiveFailures`), que dejó de significar algo.
+- **L21** (2026-10-31) — Dos datos medidos que cambiaron decisiones de
+  infraestructura en los hallazgos de la revisión:
+  - Con Docker 29.9.2 **dos contenedores distintos reportan el mismo id de
+    namespace de pids** (`pid:[4026534096]`), así que el namespace solo no
+    distingue contenedores. La identidad del candado exige namespace **y**
+    hostname; con uno solo, dos contenedores con el mismo directorio se
+    confundían con el mismo proceso.
+  - `redis-cli ping` sin autenticar responde `NOAUTH` y **sale con código 0**:
+    el healthcheck reportaba sano un Redis que nadie podía usar.
+- **L22** (2026-10-31) — T11 se hizo inline: el subagente de escritura falló
+  sin dejar cambios parciales (se reporta como no disponible, no se reintenta).

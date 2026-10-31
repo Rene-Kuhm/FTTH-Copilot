@@ -77,3 +77,5 @@ export {
   storeEvidence,
   type NormalizedEvidence,
 } from './snmp-evidence';
+
+export { classifyWriteError, errorMessage, type WriteFailureClass } from './errors';

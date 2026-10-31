@@ -109,7 +109,6 @@ describe('backlog accumulated while the database is down', () => {
         throw new Error('Database connection refused');
       },
       batchSize: 100,
-      maxConsecutiveFailures: 1000,
       backoffMs: [0],
     });
 

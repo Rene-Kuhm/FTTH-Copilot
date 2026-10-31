@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DurableSpool } from '../src/spool';
@@ -223,30 +223,94 @@ describe('EventDrainer', () => {
     expect(spool.stats().backlog).toBe(0);
   });
 
-  it('quarantines a batch that keeps failing instead of blocking forever', async () => {
+  it('never dead-letters a batch that fails for an unclassified reason', async () => {
     const spool = new DurableSpool<Payload>({ dir });
     spool.append({ message: 'poison' });
 
     const drainer = new EventDrainer<Payload>({
       spool,
+      // No `code`: the reason cannot be classified, so it must be retried.
       write: async () => {
         throw new Error('permanently broken');
       },
-      maxConsecutiveFailures: 3,
       backoffMs: noBackoff,
     });
 
-    await drainer.drainOnce();
-    await drainer.drainOnce();
-    const third = await drainer.drainOnce();
+    // However many times it fails, nothing is dead-lettered and the event
+    // stays on disk: a wrong guess loses telemetry, a retry only delays it.
+    for (let i = 0; i < 20; i++) await drainer.drainOnce();
     spool.close();
 
-    expect(third.quarantined).toBe(1);
+    expect(existsSync(join(dir, 'events.dlq.jsonl'))).toBe(false);
+    expect(spool.stats().backlog).toBe(1);
+  });
+
+  it('dead-letters a single event that can never be stored, and stores the rest', async () => {
+    const spool = new DurableSpool<Payload>({ dir });
+    spool.append({ message: 'good-before' });
+    spool.append({ message: 'poison' });
+    spool.append({ message: 'good-after' });
+
+    const stored: string[] = [];
+    const drainer = new EventDrainer<Payload>({
+      spool,
+      write: async (entries) => {
+        for (const entry of entries) {
+          if (entry.payload.message === 'poison') {
+            throw Object.assign(new Error('foreign key violated'), { code: 'P2003' });
+          }
+          stored.push(entry.payload.message);
+        }
+      },
+      backoffMs: noBackoff,
+    });
+
+    const result = await drainer.drainOnce();
+    spool.close();
+
+    expect(result.quarantined).toBe(1);
+    // The events behind the poisonous one are not blocked by it.
+    expect(stored).toContain('good-before');
+    expect(stored).toContain('good-after');
+
     const dlq = readFileSync(join(dir, 'events.dlq.jsonl'), 'utf8');
     expect(dlq).toContain('poison');
-    expect(dlq).toContain('permanently broken');
-    // Quarantining frees the queue; the data is not destroyed.
+    expect(dlq).toContain('foreign key violated');
+    expect(dlq).not.toContain('good-before');
     expect(spool.stats().backlog).toBe(0);
+  });
+
+  it('stops the per-event retry when the store goes down mid-batch', async () => {
+    const spool = new DurableSpool<Payload>({ dir });
+    spool.append({ message: 'poison' });
+    spool.append({ message: 'kept-on-disk' });
+
+    let downAfterFirst = false;
+    const drainer = new EventDrainer<Payload>({
+      spool,
+      write: async (entries) => {
+        const message = entries[0]!.payload.message;
+        if (message === 'poison') {
+          throw Object.assign(new Error('foreign key violated'), { code: 'P2003' });
+        }
+        // The database goes down right after the poisonous event is handled.
+        downAfterFirst = true;
+        throw Object.assign(new Error('connection refused'), { code: 'P1001' });
+      },
+      backoffMs: noBackoff,
+    });
+
+    const result = await drainer.drainOnce();
+    const backlog = spool.stats().backlog;
+    spool.close();
+
+    expect(downAfterFirst).toBe(true);
+    expect(result.quarantined).toBe(1);
+    expect(result.failed).toBe(1);
+    // The event after the outage stays on disk: it is not lost.
+    expect(backlog).toBe(1);
+    const dlq = readFileSync(join(dir, 'events.dlq.jsonl'), 'utf8');
+    expect(dlq).not.toContain('kept-on-disk');
   });
 
   it('defers while backing off so a failing database is not hammered', async () => {

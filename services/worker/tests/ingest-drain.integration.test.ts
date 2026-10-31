@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import dgram from 'node:dgram';
@@ -131,6 +131,49 @@ dbSuite('ingest drain (Postgres integration)', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]?.message).toBe('integration event');
     expect(stored[0]?.ingestId).toMatch(/^[0-9a-f]{8}-[0-9a-z]+$/);
+  });
+
+  it('dead-letters an event with a broken foreign key and stores the ones around it', async () => {
+    const { spoolEvent } = await import('@ftth-copilot/ingest');
+
+    // The real case measured in the Log: a sender registry that names a
+    // connection which does not exist. Before, that event failed the batch and
+    // **every later event** failed behind it, including healthy ones.
+    spoolEvent({
+      tenantId: TENANT,
+      category: 'other',
+      message: 'good before',
+      severity: 4,
+      connectionId: null,
+    });
+    spoolEvent({
+      tenantId: TENANT,
+      category: 'other',
+      message: 'broken foreign key',
+      severity: 4,
+      // No such NmsConnection.
+      connectionId: 'connection-that-does-not-exist',
+    });
+    spoolEvent({
+      tenantId: TENANT,
+      category: 'other',
+      message: 'good after',
+      severity: 4,
+      connectionId: null,
+    });
+
+    await JOB_HANDLERS[JOB_NAMES.ingestDrain]?.({ source: 'syslog' }, {} as never);
+
+    const stored = await rows();
+    const messages = stored.map((row) => row.message).sort();
+    expect(messages).toEqual(['good after', 'good before']);
+
+    // The poisonous event is in the dead-letter file, with the reason, and it
+    // is the only one there.
+    const dlq = readFileSync(join(dir, 'events.dlq.jsonl'), 'utf8');
+    expect(dlq).toContain('broken foreign key');
+    expect(dlq).not.toContain('good before');
+    expect(dlq).not.toContain('good after');
   });
 
   it('is a no-op on an empty spool', async () => {
