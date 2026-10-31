@@ -490,3 +490,25 @@ debe romperse) y los tests de durabilidad de las fases 4.
     el healthcheck reportaba sano un Redis que nadie podía usar.
 - **L22** (2026-10-31) — T11 se hizo inline: el subagente de escritura falló
   sin dejar cambios parciales (se reporta como no disponible, no se reintenta).
+- **L23** (2026-10-31) — Dos ajustes finales al dead-letter, de la revisión de
+  T11. El drenado pasa a resolverse en **dos fases**: como las escrituras son
+  idempotentes (el `ingestId` único absorbe un duplicado), primero se prueba
+  todo el lote sin comitear nada y recién con el panorama completo se decide.
+  Sin eso no se distingue "este evento está roto" de "la base todavía no está
+  lista", y confundirlas es lo que mandaba el backlog entero al dead-letter.
+  - **Fallo compartido.** Si nada se guardó y todos fallaron con el mismo
+    código, el problema es de la base o del código (una migración que no
+    corrió: `42P01`/`42703`; un permiso faltante: `42501`; una columna
+    obligatoria nueva: `23502`), no de los eventos. No se manda nada al
+    dead-letter, el lote entero queda en disco y se alerta
+    (`onSharedFailure` → línea `ALERT` en el log del worker).
+  - **Error no reconocido.** Antes se reintentaba para siempre, así que un
+    evento con un error que nadie clasificó (un código nuevo de Prisma, un
+    `TypeError` al mapear un payload) frenaba a todos los de atrás — el mismo
+    bloqueo de L19. Ahora, si el mismo evento falla K veces (5 por defecto) con
+    un error no reconocido **mientras otros se guardan**, va al dead-letter con
+    motivo `unclassified-exhausted`. Combinado con la regla anterior, si todos
+    fallan nunca va nada al dead-letter.
+  Consecuencia de diseño aceptada: en un lote que falla se escriben dos veces
+  los eventos que sí se pueden guardar (lote primero, evento por evento
+  después). Es idempotente, así que cuesta una escritura repetida, no datos.

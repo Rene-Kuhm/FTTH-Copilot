@@ -280,6 +280,79 @@ describe('EventDrainer', () => {
     expect(spool.stats().backlog).toBe(0);
   });
 
+  it('never dead-letters when every event fails with the same code (a deploy window)', async () => {
+    const spool = new DurableSpool<Payload>({ dir });
+    spool.append({ message: 'a' });
+    spool.append({ message: 'b' });
+    spool.append({ message: 'c' });
+
+    const shared: Array<{ code: string; count: number }> = [];
+    const drainer = new EventDrainer<Payload>({
+      spool,
+      // The worker started with new code before `prisma migrate deploy` ran:
+      // every write fails because the table does not exist.
+      write: async () => {
+        throw Object.assign(new Error('relation "device_events" does not exist'), {
+          code: '42P01',
+        });
+      },
+      backoffMs: noBackoff,
+      onSharedFailure: (code, count) => shared.push({ code, count }),
+    });
+
+    for (let i = 0; i < 10; i++) await drainer.drainOnce();
+    spool.close();
+
+    // Nothing goes to the dead-letter file and the backlog is intact: the
+    // events are not what is broken.
+    expect(existsSync(join(dir, 'events.dlq.jsonl'))).toBe(false);
+    expect(spool.stats().backlog).toBe(3);
+    expect(shared.length).toBeGreaterThan(0);
+    expect(shared[0]).toEqual({ code: '42P01', count: 3 });
+  });
+
+  it('dead-letters an event with an unrecognised error once the others keep storing', async () => {
+    const spool = new DurableSpool<Payload>({ dir });
+    // The poisonous event is FIRST, so nothing behind it can advance until it
+    // is resolved.
+    spool.append({ message: 'weird' });
+    spool.append({ message: 'good-1' });
+    spool.append({ message: 'good-2' });
+
+    const stored: string[] = [];
+    const drainer = new EventDrainer<Payload>({
+      spool,
+      write: async (entries) => {
+        const message = entries[0]!.payload.message;
+        if (message === 'weird') {
+          // A brand-new Prisma code nobody has classified yet.
+          throw Object.assign(new TypeError('cannot map payload'), { code: 'P2077' });
+        }
+        stored.push(message);
+      },
+      backoffMs: noBackoff,
+      maxUnclassifiedAttempts: 3,
+    });
+
+    // Below the threshold nothing is dead-lettered.
+    await drainer.drainOnce();
+    await drainer.drainOnce();
+    expect(existsSync(join(dir, 'events.dlq.jsonl'))).toBe(false);
+
+    // On the third attempt the event is exhausted: it goes to the dead-letter
+    // file so the events behind it can be stored.
+    const third = await drainer.drainOnce();
+    spool.close();
+
+    expect(third.quarantined).toBe(1);
+    const dlq = readFileSync(join(dir, 'events.dlq.jsonl'), 'utf8');
+    expect(dlq).toContain('weird');
+    expect(dlq).toContain('unclassified-exhausted');
+    expect(stored).toContain('good-1');
+    expect(stored).toContain('good-2');
+    expect(spool.stats().backlog).toBe(0);
+  });
+
   it('stops the per-event retry when the store goes down mid-batch', async () => {
     const spool = new DurableSpool<Payload>({ dir });
     spool.append({ message: 'poison' });
@@ -332,7 +405,10 @@ describe('EventDrainer', () => {
     spool.close();
 
     expect(deferred.deferred).toBe(true);
-    expect(attempts).toBe(1);
+    // Two writes: the batch attempt, and then the per-event pass that finds out
+    // whether the failure is one event or the whole store. The writes are
+    // idempotent, so the repeat costs nothing.
+    expect(attempts).toBe(2);
   });
 
   it('writes batches of the configured size', async () => {

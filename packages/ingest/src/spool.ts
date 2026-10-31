@@ -429,7 +429,23 @@ export class DurableSpool<T> {
    * A trailing partial line is left for the next call.
    */
   readBatch(limit: number): { entries: SpoolEntry<T>[]; nextOffset: number } {
-    const entries: SpoolEntry<T>[] = [];
+    const { entries, nextOffset } = this.readBatchWithOffsets(limit);
+    return { entries: entries.map((item) => item.entry), nextOffset };
+  }
+
+  /**
+   * Reads a batch and reports, for every entry, the byte offset that follows
+   * it.
+   *
+   * El drenado necesita poder comitear **de a una**: cuando un evento no se
+   * puede guardar, los que están detrás tienen que poder avanzar igual. Con
+   * un solo offset por lote eso no se puede expresar.
+   */
+  readBatchWithOffsets(limit: number): {
+    entries: Array<{ entry: SpoolEntry<T>; endOffset: number }>;
+    nextOffset: number;
+  } {
+    const entries: Array<{ entry: SpoolEntry<T>; endOffset: number }> = [];
     if (this.offset >= this.size || limit <= 0) {
       return { entries, nextOffset: this.offset };
     }
@@ -459,7 +475,13 @@ export class DurableSpool<T> {
         while (newline !== -1 && entries.length < limit) {
           const line = carry.slice(0, newline);
           carry = carry.slice(newline + 1);
-          if (line.trim()) this.pushEntry(entries, line);
+          if (line.trim()) {
+            const one: SpoolEntry<T>[] = [];
+            this.pushEntry(one, line);
+            for (const entry of one) {
+              entries.push({ entry, endOffset: this.offset + consumed - Buffer.byteLength(carry, 'utf8') });
+            }
+          }
           newline = carry.indexOf('\n');
         }
       }

@@ -54,7 +54,17 @@ export const JOB_HANDLERS: JobHandlers = {
    * retries it with a backoff instead of dropping the work.
    */
   'ingest-drain': async () => {
-    const result = await drainSpool();
+    const result = await drainSpool({
+      onSharedFailure: (code, count) => {
+        // Every event failed the same way: the database is not ready (a
+        // migration that did not run, a missing permission). This is an
+        // operator alert, not data loss: nothing was dead-lettered.
+        console.error(
+          `[worker] ALERT ingest drain: all ${count} events failed with ${code}. ` +
+            'The events stay in the spool; check the schema and permissions.',
+        );
+      },
+    });
     if (result.failed > 0) {
       throw new Error(
         `ingest drain could not store ${result.failed} events; they stay in the spool`,

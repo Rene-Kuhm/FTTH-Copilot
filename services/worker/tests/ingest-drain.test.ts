@@ -56,9 +56,12 @@ describe('the ingest drain handler', () => {
       {} as never,
     );
 
-    // The handler takes no argument: a missed enqueue (a queue outage) must
-    // not leave the events on disk forever.
-    expect(mocks.drainSpool.mock.calls[0]).toHaveLength(0);
+    // The handler never forwards the payload: it drains whatever is in the
+    // spool, so a missed enqueue (a queue outage) cannot leave the events on
+    // disk forever. It only passes configuration (the alert callback).
+    const passed = mocks.drainSpool.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(passed?.ingestId).toBeUndefined();
+    expect(passed?.source).toBeUndefined();
   });
 
   it('fails the job when the events could not be stored', async () => {

@@ -105,6 +105,15 @@ export interface DrainSpoolOptions {
    * Injecting it is what lets a drain be tested without a database.
    */
   write?: BatchWriter<DeviceEventPayload>;
+  /**
+   * Se llama cuando **todo** el lote falló con el mismo código.
+   *
+   * No es un evento roto: es la base sin migrar o sin permisos. Hay que
+   * alertar y dejar el backlog intacto, nunca mandarlo al dead-letter.
+   */
+  onSharedFailure?: (code: string, count: number) => void;
+  /** Intentos de un evento con un error no reconocido antes del dead-letter. */
+  maxUnclassifiedAttempts?: number;
 }
 
 /** Outcome of a drain. */
@@ -139,6 +148,8 @@ export async function drainSpool(options: DrainSpoolOptions = {}): Promise<Drain
     spool,
     write: options.write ?? writeBatch,
     batchSize: options.batchSize,
+    onSharedFailure: options.onSharedFailure,
+    maxUnclassifiedAttempts: options.maxUnclassifiedAttempts,
   });
 
   const result: DrainSpoolResult = {

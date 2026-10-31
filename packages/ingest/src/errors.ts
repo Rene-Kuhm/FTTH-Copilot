@@ -115,30 +115,53 @@ export function errorMessage(error: unknown): string {
  * Postgres trae el SQLSTATE en el mismo campo, así que se prueban los dos
  * conjuntos contra el mismo valor.
  */
-export function classifyWriteError(error: unknown): WriteFailureClass {
+/** Clasificación detallada de un fallo de escritura. */
+export interface WriteFailure {
+  /** Qué hacer con el evento. */
+  class: WriteFailureClass;
+  /**
+   * Si el error está reconocido.
+   *
+   * `false` significa que el código no está en ninguna lista: se reintenta,
+   * pero si el **mismo** evento falla así muchas veces mientras otros se
+   * guardan, el problema es de ese evento y no del store.
+   */
+  recognized: boolean;
+  /** El código tal como vino, para agrupar fallos y para el dead-letter. */
+  code: string | null;
+}
+
+export function classifyWriteErrorDetailed(error: unknown): WriteFailure {
   const code = codeOf(error);
   const name = nameOf(error);
 
-  // Un error de validación de Prisma es el cliente rechazando los datos antes
-  // de mandarlos: el evento nunca va a entrar así.
-  if (name === 'PrismaClientValidationError') return 'permanent';
+  if (name === 'PrismaClientValidationError') {
+    return { class: 'permanent', recognized: true, code: 'PrismaClientValidationError' };
+  }
 
   if (code !== null) {
-    if (PERMANENT_PRISMA_CODES.has(code)) return 'permanent';
-    if (TRANSIENT_PRISMA_CODES.has(code)) return 'transient';
-    if (TRANSIENT_SOCKET_CODES.has(code)) return 'transient';
-    if (TRANSIENT_SQLSTATES.has(code)) return 'transient';
+    if (PERMANENT_PRISMA_CODES.has(code)) return { class: 'permanent', recognized: true, code };
+    if (TRANSIENT_PRISMA_CODES.has(code)) return { class: 'transient', recognized: true, code };
+    if (TRANSIENT_SOCKET_CODES.has(code)) return { class: 'transient', recognized: true, code };
+    if (TRANSIENT_SQLSTATES.has(code)) return { class: 'transient', recognized: true, code };
     for (const prefix of TRANSIENT_SQLSTATE_PREFIXES) {
-      if (code.startsWith(prefix) && /^\d/.test(code)) return 'transient';
+      if (code.startsWith(prefix) && /^\d/.test(code)) {
+        return { class: 'transient', recognized: true, code };
+      }
     }
     for (const prefix of PERMANENT_SQLSTATE_PREFIXES) {
-      // Solo un SQLSTATE real (`22503`), no un código de Prisma que empiece
-      // con los mismos dígitos.
-      if (code.length === 5 && code.startsWith(prefix)) return 'permanent';
+      if (code.length === 5 && code.startsWith(prefix)) {
+        return { class: 'permanent', recognized: true, code };
+      }
     }
   }
 
   // Sin clasificación concluyente se reintenta: perder telemetría guardable es
   // peor que retrasarla.
-  return 'transient';
+  return { class: 'transient', recognized: false, code };
+}
+
+/** Decide si un evento que no se pudo guardar es permanente o pasajero. */
+export function classifyWriteError(error: unknown): WriteFailureClass {
+  return classifyWriteErrorDetailed(error).class;
 }
