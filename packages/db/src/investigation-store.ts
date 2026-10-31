@@ -3,6 +3,7 @@ import {
   type InvestigationResult,
 } from '@ftth-copilot/shared';
 import { prisma as defaultPrisma } from './client';
+import type { Prisma } from './generated/client/index.js';
 
 export interface PersistInvestigationVersionArgs {
   tenantId: string;
@@ -51,6 +52,59 @@ export async function persistInvestigationVersion(
 
   // 2. Atomic transaction to determine versionIndex and insert row
   const row = await client.$transaction(async (tx) => {
+    const { created, runRowId } = await insertValidatedVersion(tx, args, validated);
+
+    await tx.investigationRun.update({
+      where: { id: runRowId },
+      data: { status: 'ready' },
+    });
+
+    return created;
+  });
+
+  return toPersistedVersion(row);
+}
+
+/** Transaction client accepted by the in-transaction helpers. */
+export type DbTransactionClient = Prisma.TransactionClient;
+
+/**
+ * Validates an investigation result against `ftth.investigation-result.v1`
+ * and the caller's tenant. Throws on any mismatch, before touching the store.
+ */
+export function validateInvestigationResult(
+  tenantId: string,
+  investigationResult: InvestigationResult,
+): InvestigationResult {
+  const validated = investigationResultSchema.parse(investigationResult);
+  if (validated.tenantId !== tenantId) {
+    throw new Error(
+      `Tenant mismatch: investigationResult has tenant '${validated.tenantId}', arguments have '${tenantId}'`,
+    );
+  }
+  return validated;
+}
+
+/**
+ * Inserts an immutable InvestigationVersion inside the caller's transaction
+ * and does NOT touch the run status. The caller decides the transition — which
+ * is what lets `completeInvestigation` condition it on the attempt in flight.
+ */
+export async function insertInvestigationVersion(
+  tx: DbTransactionClient,
+  args: PersistInvestigationVersionArgs,
+): Promise<PersistedInvestigationVersion> {
+  const validated = validateInvestigationResult(args.tenantId, args.investigationResult);
+  const { created } = await insertValidatedVersion(tx, args, validated);
+  return toPersistedVersion(created);
+}
+
+async function insertValidatedVersion(
+  tx: DbTransactionClient,
+  args: PersistInvestigationVersionArgs,
+  validated: InvestigationResult,
+) {
+  {
     let run = await tx.investigationRun.findFirst({
       where: { tenantId: args.tenantId, runId: args.runId },
       select: { id: true, tenantId: true, runId: true },
@@ -100,14 +154,13 @@ export async function persistInvestigationVersion(
       },
     });
 
-    await tx.investigationRun.update({
-      where: { id: run.id },
-      data: { status: 'ready' },
-    });
+    return { created, runRowId: run.id };
+  }
+}
 
-    return created;
-  });
+type VersionRow = Awaited<ReturnType<DbTransactionClient['investigationVersion']['create']>>;
 
+function toPersistedVersion(row: VersionRow): PersistedInvestigationVersion {
   return {
     id: row.id,
     tenantId: row.tenantId,

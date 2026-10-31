@@ -630,3 +630,19 @@ debe romperse) y los tests de durabilidad de las fases 4.
   intento viejo que termina tarde **no** pone `ready` al run del intento nuevo;
   (c) uno que falla tarde **no** pone `failed`; (d) una fila `pending` vieja
   **sin** `attemptStartedAt` se expira.
+- **L30** (2026-10-31) — Unidad 7b **hecha**. Migración
+  `20261031180000_investigation_attempt` (aditiva: `currentVersionId`,
+  `attemptStartedAt`, índice `(status, attemptStartedAt)`, backfill de
+  `attemptStartedAt = updatedAt` para las filas `pending` existentes; sin drift
+  contra el schema). Hallazgo al implementar: `persistInvestigationVersion`
+  (packages/db) **también** ponía `ready` sin condición dentro de su propia
+  transacción, así que el bug 2 vivía en dos lugares. Se separó
+  `insertInvestigationVersion(tx, …)`, que inserta sin tocar el estado, y
+  `completeInvestigation` hace versión + `AgentActionLog` + transición
+  condicional en una sola `$transaction`. `beginInvestigationAttempt` es el
+  único punto que pone un run en `pending` con su intento. El barrido usa
+  `attemptStartedAt` con fallback a `requestedAt` cuando es nulo.
+  Evidencia: integración contra Postgres real 12/12; prueba de mutación — sin
+  la condición de `currentVersionId` fallan (b), (c) y el de "expirado no vuelve
+  a ready"; con el barrido por `requestedAt` falla (a); sin el fallback falla
+  (d). packages/db integración 15/15; `turbo --force` 67/67, 0 en caché.

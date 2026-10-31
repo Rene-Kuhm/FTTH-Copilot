@@ -13,9 +13,11 @@ export {
 export { consumeInvestigationQuota } from './quota';
 
 export {
+  beginInvestigationAttempt,
   completeInvestigation,
   failInvestigation,
   expireStaleRuns,
+  type BeginInvestigationAttemptArgs,
   type CompleteInvestigationArgs,
   type CompleteInvestigationResult,
   type FailInvestigationArgs,
