@@ -224,9 +224,9 @@ tarea.
 | T3  | S3                 | inline  | `6eeced2` | RED→GREEN: tests de `packages/jobs` (encolar, consumir, retry, dead-letter) contra Redis real, siguiendo la convención del repo (suite gated por env, config de integración aparte). Sin tocar la web aún. |
 | T4  | S1, S14            | inline  | `82eb4e9` | Crear `services/worker` (package TS + `Dockerfile` + entrypoint) que levanta un `Worker` BullMQ vacío y expone `/healthz` + métricas. Tener el proceso desplegable y observable antes de moverle trabajo. |
 | T5  | S1, S17            | inline  | `chore(infra)` | Servicio `worker` en los compose files; CI: job de build+test del worker; `BACKEND_MODE` documentado. |
-| T6  | S3, S7, S14        | pending | pending | Convertir `startPollingLoop` en productor de jobs repetibles (`jobId` estable por ventana) + handler en el worker que llama `pollConnections`. Idempotente ante doble réplica. |
-| T7  | S3, S7, S14        | pending | pending | Igual para `startFirmwareAuditLoop` y `startFecCollectionLoop`. |
-| T8  | S4, S6             | pending | pending | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
+| T6  | S3, S7, S14        | inline  | `01f6ca5` | Convertir `startPollingLoop` en productor de jobs repetibles (`jobId` estable por ventana) + handler en el worker que llama `pollConnections`. Idempotente ante doble réplica. |
+| T7  | S3, S7, S14        | inline  | `01f6ca5` | Igual para `startFirmwareAuditLoop` y `startFecCollectionLoop`. |
+| T8  | S4, S6             | inline  | `ce8eb5b` | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
 | T9  | S3, S8             | pending | pending | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | pending | pending | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
 | T11 | S3, S16            | pending | pending | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
