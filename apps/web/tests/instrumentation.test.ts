@@ -64,6 +64,7 @@ describe('instrumentation: who owns the background work', () => {
     vi.clearAllMocks();
     process.env['NEXT_RUNTIME'] = 'nodejs';
     delete process.env['BACKEND_MODE'];
+    delete process.env['SNMP_RECEIVER_ENABLED'];
   });
 
   afterEach(() => {
@@ -71,6 +72,7 @@ describe('instrumentation: who owns the background work', () => {
     else process.env['NEXT_RUNTIME'] = originalRuntime;
     if (originalMode === undefined) delete process.env['BACKEND_MODE'];
     else process.env['BACKEND_MODE'] = originalMode;
+    delete process.env['SNMP_RECEIVER_ENABLED'];
   });
 
   it('starts the recurring loops when the mode is embedded', async () => {
@@ -137,6 +139,46 @@ describe('instrumentation: who owns the background work', () => {
     await register();
 
     expect(mocks.startSyslogReceiver).toHaveBeenCalledOnce();
+  });
+
+  it('does not start the SNMP receiver when the worker owns it', async () => {
+    process.env['BACKEND_MODE'] = 'worker';
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+
+    await register();
+
+    // Another UDP port, same rule: the kernel hands each datagram to one
+    // socket, and the worker owns the SNMP one now.
+    expect(mocks.startSnmpReceiver).not.toHaveBeenCalled();
+    // The web must not drain the spool either: the worker drains it through
+    // the queue, and two drainers would advance the same offset.
+    expect(mocks.startEventDrainer).not.toHaveBeenCalled();
+  });
+
+  it('reports the SNMP receiver as not expected in this process when the worker owns it', async () => {
+    process.env['BACKEND_MODE'] = 'worker';
+
+    await register();
+
+    expect(mocks.markNotExpected).toHaveBeenCalledWith('snmp');
+  });
+
+  it('starts the SNMP receiver in embedded mode when the flag is on', async () => {
+    process.env['BACKEND_MODE'] = 'embedded';
+    process.env['SNMP_RECEIVER_ENABLED'] = 'true';
+
+    await register();
+
+    expect(mocks.startSnmpReceiver).toHaveBeenCalledOnce();
+  });
+
+  it('does not start the SNMP receiver in embedded mode when the flag is off', async () => {
+    process.env['BACKEND_MODE'] = 'embedded';
+    delete process.env['SNMP_RECEIVER_ENABLED'];
+
+    await register();
+
+    expect(mocks.startSnmpReceiver).not.toHaveBeenCalled();
   });
 
   it('does nothing outside the nodejs runtime', async () => {

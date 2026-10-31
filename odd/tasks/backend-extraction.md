@@ -228,7 +228,7 @@ tarea.
 | T7  | S3, S7, S14        | inline  | `01f6ca5` | Igual para `startFirmwareAuditLoop` y `startFecCollectionLoop`. |
 | T8  | S4, S6             | inline  | `ce8eb5b` | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
 | T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
-| T10 | S3, S8             | pending | pending | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
+| T10 | S3, S8             | inline  | `e2c6cb7`, `chore(infra)` | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
 | T11 | S3, S16            | pending | pending | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5                | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
 | T13 | S5                | pending | pending | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. |
@@ -420,3 +420,44 @@ debe romperse) y los tests de durabilidad de las fases 4.
   plan lo ubicaba en T10: un job encolado sin consumidor se acumularía en la
   cola sin efecto. T10 queda con el receptor SNMP y el drainer en proceso
   como última etapa.
+- **L17** (2026-10-31) — Dos bloqueantes reportados por la revisión de las
+  Fases 1-2 y T9, y lo que se aprendió al arreglarlos:
+  - **Redis abierto a internet.** El compose lo publicaba en todas las
+    interfaces y sin contraseña; los puertos publicados por Docker no pasan
+    por el firewall del host. Ahora se publica solo en `127.0.0.1`, arranca
+    con `--requirepass` y `REDIS_PASSWORD` es obligatoria (el compose falla
+    cerrado si falta), con `REDIS_URL` construida a partir de ella en un
+    único lugar.
+  - **Productor que colgaba.** Medido: con el retry por defecto de ioredis,
+    un productor con Redis inalcanzable (o con la contraseña mal) se quedaba
+    esperando en vez de fallar. Ahora el productor tiene
+    `maxRetriesPerRequest: 3` y falla.
+  - **Spool compartido.** La web y el worker montaban el mismo volumen y el
+    spool es un solo `events.jsonl` con un solo `events.offset`: dos
+    procesos avanzarían el mismo offset y cualquiera podría rotar el archivo
+    mientras el otro escribía. Ahora cada proceso tiene su subdirectorio
+    (`spool/web`, `spool/worker`) y el spool **rechaza** un directorio que ya
+    tiene otro proceso vivo, en vez de corromperlo en silencio.
+- **L18** (2026-10-31) — El guard de exclusión del spool necesitó dos
+  correcciones que solo aparecieron corriendo el worker en Docker:
+  - **El pid no es identidad.** En un contenedor el proceso es siempre PID 1,
+    así que tras un reinicio `kill(pid, 0)` decía "vivo" y el lock viejo
+    bloqueaba el directorio para siempre: todos los drains fallaban con
+    "already owned by process 1". Ahora el lock registra la **identidad del
+    proceso** (`startTicks` de `/proc/<pid>/stat` campo 22 + `boot_id` del
+    kernel) y compara: mismo pid con distinto start time = pid reciclado =
+    lock rancio. En plataformas sin `/proc` cae a `kill(pid, 0)`.
+  - **Formato versionado.** Un lock sin identidad no se puede verificar.
+    Lleva `v: 2`; sin `v` se reclama con un warning (el guard y la identidad
+    viajan juntos, así que un lock sin versión es de una versión previa). Un
+    `readOwner` que no copiaba el campo `v` hacía que **todo** lock se viera
+    como legacy y se reclamara: los tests de exclusión lo detectaron.
+- **L19** (2026-10-31) — Hallazgo para T11 (no se arregla acá, es del código
+  movido): un `connectionId` inválido en `SNMP_SENDER_REGISTRY_JSON` hace
+  fallar el drenado con un FK constraint, y como el drenado **se detiene en
+  el primer lote fallido**, ese evento bloquea a todos los siguientes —
+  incluidos los de senders válidos — hasta que la causa se arregle. Medido:
+  el backlog volvió a 0 solo cuando la fila referenciada existió. Es la
+  contrapartida de "retry rápido no, para no mandar eventos vivos al
+  dead-letter"; una política de dead-letter por evento (no por lote) es el
+  candidato natural para T11.

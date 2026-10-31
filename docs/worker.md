@@ -36,6 +36,7 @@ task breakdown live in `odd/tasks/backend-extraction.md`.
                         └───────────────┘
 
    OLT ──── syslog/UDP ────▶  host :5514 ────▶ worker (binds it directly)
+   NMS ──── traps/UDP ─────▶  host :1162 ────▶ worker (binds it directly)
 ```
 
 Three properties follow from the split:
@@ -181,8 +182,9 @@ The extraction is phased, and each phase moves one thing. Today:
   so the two processes could never bind it at the same time: the kernel
   hands each datagram to one socket and the other would wait forever for
   messages that never arrive.
-- **The SNMP receiver** is still in the web. The worker does not receive it
-  yet (task T10).
+- **The SNMP receiver** runs in the worker too, for the same reason, and the
+  web no longer drains the spool in process: the worker drains it through
+  the queue, and two drainers would advance the same offset.
 
 Until the extraction is complete (phase 6 of `odd/tasks/backend-extraction.md`),
 `apps/web/instrumentation.ts` still starts the receivers when

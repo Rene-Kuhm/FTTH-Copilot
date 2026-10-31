@@ -113,11 +113,10 @@ services:
       - spool_data:/var/lib/ftth-copilot/spool
     ports:
       - "${PORT:-3001}:3001"
-      # The syslog port (5514) is not published here: in worker mode the
-      # worker binds it on the host network, and two processes cannot bind
-      # the same UDP port. It moves back to this service when
-      # BACKEND_MODE=embedded.
-      - "${SNMP_UDP_PORT:-1162}:1162/udp"
+      # The syslog (5514) and SNMP (1162) ports are not published here: in
+      # worker mode the worker binds them on the host network, and two
+      # processes cannot bind the same UDP port. They move back to this
+      # service when BACKEND_MODE=embedded.
     depends_on:
       postgres:
         condition: service_healthy
