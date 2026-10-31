@@ -219,11 +219,11 @@ tarea.
 
 | ID  | Spec                | Route   | Commit  | Tarea |
 | --- | ------------------- | ------- | ------- | ----- |
-| T1  | S2, S14             | inline  | pending | Crear `packages/jobs`: setup de BullMQ (conexión Redis desde env), definición tipada de colas y nombres de job, helpers `enqueue`/`defineWorker`. Un único punto tipado para la cola, reusable por web y worker. |
-| T2  | S2, S6, S9          | inline  | pending | Añadir servicio `redis` a `docker-compose.yml` / `docker-compose.demo.yml` / `docker-compose.prod.yml` y variables en `.env.example` (`REDIS_URL`, `BACKEND_MODE=embedded`). |
-| T3  | S3                 | inline  | pending | RED→GREEN: tests de `packages/jobs` (encolar, consumir, retry, dead-letter) contra Redis real, siguiendo la convención del repo (suite gated por env, config de integración aparte). Sin tocar la web aún. |
-| T4  | S1, S14            | inline  | pending | Crear `services/worker` (package TS + `Dockerfile` + entrypoint) que levanta un `Worker` BullMQ vacío y expone `/healthz` + métricas. Tener el proceso desplegable y observable antes de moverle trabajo. |
-| T5  | S1, S17            | inline  | pending | Servicio `worker` en los compose files; CI: job de build+test del worker; `BACKEND_MODE` documentado. |
+| T1  | S2, S14             | inline  | `32abc93`, `6eeced2` | Crear `packages/jobs`: setup de BullMQ (conexión Redis desde env), definición tipada de colas y nombres de job, helpers `enqueue`/`defineWorker`. Un único punto tipado para la cola, reusable por web y worker. |
+| T2  | S2, S6, S9          | inline  | `chore(infra)` | Añadir servicio `redis` a `docker-compose.yml` / `docker-compose.demo.yml` / `docker-compose.prod.yml` y variables en `.env.example` (`REDIS_URL`, `BACKEND_MODE=embedded`). |
+| T3  | S3                 | inline  | `6eeced2` | RED→GREEN: tests de `packages/jobs` (encolar, consumir, retry, dead-letter) contra Redis real, siguiendo la convención del repo (suite gated por env, config de integración aparte). Sin tocar la web aún. |
+| T4  | S1, S14            | inline  | `82eb4e9` | Crear `services/worker` (package TS + `Dockerfile` + entrypoint) que levanta un `Worker` BullMQ vacío y expone `/healthz` + métricas. Tener el proceso desplegable y observable antes de moverle trabajo. |
+| T5  | S1, S17            | inline  | `chore(infra)` | Servicio `worker` en los compose files; CI: job de build+test del worker; `BACKEND_MODE` documentado. |
 | T6  | S3, S7, S14        | pending | pending | Convertir `startPollingLoop` en productor de jobs repetibles (`jobId` estable por ventana) + handler en el worker que llama `pollConnections`. Idempotente ante doble réplica. |
 | T7  | S3, S7, S14        | pending | pending | Igual para `startFirmwareAuditLoop` y `startFecCollectionLoop`. |
 | T8  | S4, S6             | pending | pending | Bajo `BACKEND_MODE=worker`, `instrumentation.ts` NO arranca estos loops. Bajo `embedded`, comportamiento idéntico a hoy. RED→GREEN del selector. |
@@ -318,3 +318,19 @@ debe romperse) y los tests de durabilidad de las fases 4.
   loops y el worker correría los suyos, con doble polling a la NMS y doble
   bind del socket UDP. Un profile hace que esa combinación exija una acción
   explícita.
+- **L9** (2026-10-31) — Estrategia de entrega (slices de commit). La feature
+  se entrega en commits revisables, cada uno verde por sí solo:
+  1. `docs(odd)` — este plan y su mirror (commit `c5fac53`).
+  2. `feat(jobs)` — vocabulario tipado de la cola (nombres, payloads, ids de
+     ventana, `BACKEND_MODE`) + sus tests unitarios.
+  3. `feat(jobs)` — runtime productor/consumidor (BullMQ) + tests de
+     integración contra Redis real.
+  4. `feat(worker)` — servidor de salud y métricas del worker + sus tests.
+  5. `feat(worker)` — arranque del proceso (entrypoint, workers, registro de
+     handlers).
+  6. `chore(infra)` — Redis y worker en el compose, CI con Redis, y
+     documentación de `BACKEND_MODE`.
+
+  El límite de slice del harness se registra acá porque el plan completo
+  supera el corte de ~400 líneas: cada commit se mantiene por debajo con
+  tests y documentación al lado del comportamiento.

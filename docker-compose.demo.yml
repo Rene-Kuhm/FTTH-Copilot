@@ -41,6 +41,59 @@ services:
       - ftth-demo
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Redis — durable job queue for the background worker.
+  #
+  # Self-hosted: no managed broker. Append-only persistence is on because
+  # the queue holds the ingest backlog, and a job that was accepted but not
+  # yet drained must survive a Redis restart.
+  # ─────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.10.2-alpine
+    container_name: ftth_demo_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_demo_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ftth-demo
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Worker — background job runner (backend extraction).
+  #
+  # Behind a profile on purpose: while BACKEND_MODE=embedded (the default)
+  # the web still runs the loops, and running both would poll the NMS twice.
+  #   docker compose -f docker-compose.demo.yml --profile worker up
+  # ─────────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    container_name: ftth_demo_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    profiles:
+      - worker
+    networks:
+      - ftth-demo
+
+  # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
   # Session mode: required for Prisma (prepared statements + LISTEN/NOTIFY).
   # Reduces postgres connections from N×M to N+M under heavy load.
@@ -269,6 +322,7 @@ services:
 
 volumes:
   postgres_demo_data:
+  redis_demo_data:
   victoriametrics_demo_data:
   ntfy_cache:
 

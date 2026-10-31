@@ -6,7 +6,7 @@
 
 ## Status
 
-done — 2026-10-31 (compose files only; `.env.example` blocked by the sandbox, variables documented in `docs/demo-env-template.md` + `docs/worker.md`)
+done — 2026-10-31 (compose files; `.env.example` bloqueado por el sandbox, las variables quedaron en `docs/demo-env-template.md` y `docs/worker.md`)
 
 ## Spec
 

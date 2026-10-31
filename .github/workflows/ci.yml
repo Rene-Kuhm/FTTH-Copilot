@@ -205,6 +205,12 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
+      # The worker is a separate deployable, so its image is built here and
+      # not just its TypeScript: a Dockerfile that references a path or a
+      # script that does not exist must fail CI, not a deployment.
+      - name: Build worker image
+        run: docker build -f services/worker/Dockerfile -t ftth-copilot-worker:ci .
+
   # ────────────────────────────────────────────────────────────
   # 4) E2E — valida la navegación y los contratos UI/API.
   # ────────────────────────────────────────────────────────────
@@ -307,7 +313,7 @@ jobs:
   #    Postgres real (service container), sin mocks.
   # ────────────────────────────────────────────────────────────
   test-integration:
-    name: Integration Tests (Postgres)
+    name: Integration Tests (Postgres + Redis)
     runs-on: ubuntu-latest
     needs:
       - lint-and-typecheck
@@ -325,8 +331,22 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # The durable job queue (BullMQ) needs a real Redis: the retry and
+      # dead-letter behavior of the queue cannot be asserted against a mock.
+      redis:
+        image: redis:8.10.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://ftth:ftth@localhost:5432/ftth_copilot
+      # Database 9 keeps the queue specs away from anything else on this
+      # Redis instance.
+      JOBS_TEST_REDIS_URL: redis://localhost:6379/9
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -368,6 +388,12 @@ jobs:
 
       - name: Run integration tests
         run: pnpm --filter @ftth-copilot/alerts test:integration
+
+      # The queue specs are excluded from `vitest run` so unit and coverage
+      # runs stay hermetic. Without this step the retry and dead-letter
+      # behavior of the queue is never exercised anywhere.
+      - name: Run job queue integration tests
+        run: pnpm --filter @ftth-copilot/jobs test:integration
 
   # ────────────────────────────────────────────────────────────
   # 7) Gate final — job "resumen" que agrupa todo lo anterior.

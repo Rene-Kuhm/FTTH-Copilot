@@ -6,7 +6,7 @@
 
 ## Status
 
-in progress — 2026-10-31
+done — 2026-10-31
 
 ## Spec
 

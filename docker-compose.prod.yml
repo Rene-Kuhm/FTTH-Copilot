@@ -19,6 +19,32 @@ services:
     networks:
       - ftth-network
 
+  # ─────────────────────────────────────────────────────────────────────
+  # Redis — durable job queue for the background worker.
+  #
+  # Self-hosted: no managed broker. Append-only persistence is on because
+  # the queue holds the ingest backlog, and a job that was accepted but not
+  # yet drained must survive a Redis restart. The volume is persistent
+  # state: losing it loses queued work.
+  # ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.10.2-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    env_file:
+      - .env.prod
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ftth-network
+
   db-migrate:
     build:
       context: .
@@ -67,6 +93,43 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
+    networks:
+      - ftth-network
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Worker — background job runner (backend extraction).
+  #
+  # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
+  # and the event drainer. Behind a profile on purpose: while
+  # BACKEND_MODE=embedded (the default) the web still runs those loops, and
+  # running both would poll the NMS twice and double-bind the UDP socket.
+  #   docker compose --profile worker up
+  #
+  # The spool volume is mounted here as well: in worker mode the worker is
+  # the one that receives syslog/SNMP and spools it, so the buffered events
+  # must survive a restart of this container.
+  # ─────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
+    volumes:
+      - spool_data:/var/lib/ftth-copilot/spool
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    profiles:
+      - worker
     networks:
       - ftth-network
 
@@ -252,3 +315,5 @@ volumes:
   postgres_data:
   # VictoriaMetrics persistent storage — losing this loses all metrics history.
   victoriametrics_prod_data:
+  # Redis job queue — losing this loses queued background work.
+  redis_data:

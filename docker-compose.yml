@@ -5,7 +5,7 @@
 #
 # For observability (metrics, dashboards), use docker-compose.demo.yml or
 # docker-compose.prod.yml which include the VictoriaMetrics service.
-# This base compose provides postgres + optional laya only.
+# This base compose provides postgres + redis + optional laya only.
 ---
 services:
   postgres:
@@ -25,6 +25,62 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Redis — durable job queue for the background worker.
+  #
+  # Self-hosted on purpose: no managed broker, no SaaS (see the project's
+  # non-goals). Append-only persistence is on because the queue holds the
+  # ingest backlog: a job that was accepted and not yet drained must
+  # survive a Redis restart, otherwise a trap is lost.
+  # ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.10.2-alpine
+    container_name: ftth_copilot_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Worker — background job runner (backend extraction).
+  #
+  # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
+  # and the event drainer. It is behind a profile on purpose: while
+  # BACKEND_MODE=embedded (the default) the web still runs those loops, and
+  # running both would poll the NMS twice and double-bind the UDP socket.
+  # Deploy it only with BACKEND_MODE=worker:
+  #   docker compose --profile worker up
+  # ─────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    container_name: ftth_copilot_worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      WORKER_PORT: "8081"
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - worker
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)
@@ -56,3 +112,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
