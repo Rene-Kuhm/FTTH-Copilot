@@ -24,8 +24,9 @@ task breakdown live in `odd/tasks/backend-extraction.md`.
                                                    │  jobs
                     ┌───────────────────────────┐  │
                     │  services/worker          │◀─┘
+                    │  (host network)           │
                     │  - poll / firmware / FEC  │
-                    │  - syslog + SNMP receiver │
+                    │  - syslog receiver        │
                     │  - event drainer          │
                     └───────────┬───────────────┘
                                 │ reads / writes
@@ -33,6 +34,8 @@ task breakdown live in `odd/tasks/backend-extraction.md`.
                         ┌───────────────┐
                         │   Postgres    │  source of truth
                         └───────────────┘
+
+   OLT ──── syslog/UDP ────▶  host :5514 ────▶ worker (binds it directly)
 ```
 
 Three properties follow from the split:
@@ -87,6 +90,45 @@ combination that is actively harmful: the web would keep its own loops *and*
 the worker would run its own, so the NMS would be polled twice and both
 processes would try to bind the UDP socket.
 
+## The worker runs on the host network
+
+The worker service uses `network_mode: host`. This is not a convenience, it is
+a correctness requirement.
+
+The syslog receiver attributes an event to the IP found in the message body
+and falls back to the **UDP source address** when the body has no IP literal.
+Docker's userland proxy for UDP rewrites that source address to the bridge
+gateway, so every OLT would look like the same source and the brute-force
+detectors would merge distinct attacks into one — the exact bug
+`packages/security/src/source-ip.ts` was written to prevent. Measured on this
+repository's Docker (29.9.2): with a user-defined network, as compose uses,
+Docker does start a `docker-proxy` for the published UDP port.
+
+With the host network the kernel delivers the datagram with the real source
+address. The price is that the worker reaches Postgres and Redis through the
+ports the host publishes instead of through the compose network, and that its
+health server must stay on the loopback (`WORKER_HOST=127.0.0.1`) so it does
+not listen on every public interface of the server.
+
+Check it on a real deployment:
+
+```bash
+pnpm verify:syslog-source-ip
+```
+
+The script sends a syslog datagram whose body carries **no IP literal** — the
+path that depends on the UDP source address — and then reads the stored event
+back. It exits non-zero when the recorded source is not the address the
+datagram was sent from.
+
+## The spool lives on a volume
+
+The receiver writes every datagram to a durable spool on disk before it
+enqueues the drain job. If the spool lived in the container's filesystem, a
+restart would delete exactly the events that were buffered but not yet written
+to Postgres. The worker mounts `spool_data` and points `EVENT_SPOOL_DIR` at
+it.
+
 ## Health and metrics
 
 The worker serves two endpoints:
@@ -121,10 +163,12 @@ The extraction is phased, and each phase moves one thing. Today:
   in the worker. Under `BACKEND_MODE=worker` the web does not start them; it
   marks them as *not expected* in its own health registry so `/api/health`
   stays honest about what this process is responsible for.
-- **The syslog and SNMP receivers** are still in the web. The worker does not
-  receive them yet, and moving them before it can would silently drop every
-  trap and every syslog message — the domain rule is that they are never
-  lost.
+- **The syslog receiver** already runs in the worker. It binds the UDP port,
+  so the two processes could never bind it at the same time: the kernel
+  hands each datagram to one socket and the other would wait forever for
+  messages that never arrive.
+- **The SNMP receiver** is still in the web. The worker does not receive it
+  yet (task T10).
 
 Until the extraction is complete (phase 6 of `odd/tasks/backend-extraction.md`),
 `apps/web/instrumentation.ts` still starts the receivers when

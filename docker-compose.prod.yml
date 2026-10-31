@@ -8,6 +8,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ftth}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-ftth_copilot}
+    # Published on the loopback only. The worker runs with the host network
+    # (it has to, to receive syslog with the real source IP), so it reaches
+    # the database through the host instead of the compose network. Binding
+    # it to 127.0.0.1 keeps the database reachable from the server and from
+    # nowhere else.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -86,8 +93,11 @@ services:
       - spool_data:/var/lib/ftth-copilot/spool
     ports:
       - "${PORT:-3001}:3001"
+      # The syslog port (5514) is not published here: in worker mode the
+      # worker binds it on the host network, and two processes cannot bind
+      # the same UDP port. It moves back to this service when
+      # BACKEND_MODE=embedded.
       - "${SNMP_UDP_PORT:-1162}:1162/udp"
-      - "${SYSLOG_UDP_PORT:-5514}:5514/udp"
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,6 +115,13 @@ services:
   # running both would poll the NMS twice and double-bind the UDP socket.
   #   docker compose --profile worker up
   #
+  # It uses the host network on purpose: the syslog receiver is attributed
+  # by the source IP of the datagram, and Docker's userland proxy for UDP
+  # rewrites that address to the bridge gateway — every OLT would look like
+  # the same source and the brute-force detectors would merge distinct
+  # attacks into one. With the host network the kernel delivers the datagram
+  # with the real source address.
+  #
   # The spool volume is mounted here as well: in worker mode the worker is
   # the one that receives syslog/SNMP and spools it, so the buffered events
   # must survive a restart of this container.
@@ -114,13 +131,18 @@ services:
       context: .
       dockerfile: services/worker/Dockerfile
     restart: unless-stopped
+    network_mode: host
     env_file:
       - .env.prod
     environment:
       NODE_ENV: production
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-ftth_copilot}"
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
+      # The health server stays on the loopback: with the host network it
+      # would otherwise listen on every public interface of the server.
+      WORKER_HOST: 127.0.0.1
     volumes:
       - spool_data:/var/lib/ftth-copilot/spool
     depends_on:
@@ -130,8 +152,6 @@ services:
         condition: service_completed_successfully
     profiles:
       - worker
-    networks:
-      - ftth-network
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)

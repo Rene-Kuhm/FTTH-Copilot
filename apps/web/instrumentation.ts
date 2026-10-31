@@ -14,10 +14,11 @@
  * poll, it does not audit, it does not collect FEC telemetry, and it does
  * not schedule anything.
  *
- * The syslog and SNMP receivers still live in the web: the worker does not
- * receive them yet (tasks T9 and T10 of the extraction), and moving them
- * before it can receive them would silently drop every trap and every
- * syslog message.
+ * The syslog receiver moved to the worker too (task T9): it binds a UDP
+ * port, and two processes cannot bind the same port — the kernel would hand
+ * the datagrams to one of them and the other would sit there silently
+ * believing it was receiving. The SNMP receiver still lives in the web
+ * (task T10).
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -32,8 +33,15 @@ export async function register(): Promise<void> {
       markNotExpected('firmware');
       markNotExpected('fec');
 
+      // The syslog receiver binds a UDP port and the worker owns it now.
+      // The web must not bind it: the kernel delivers a datagram to one
+      // socket only, so the second one would wait forever for messages that
+      // never arrive.
+      markNotExpected('syslog');
+      markNotExpected('syslog-detection');
+
       console.log(
-        '[instrumentation] BACKEND_MODE=worker — the recurring loops run in services/worker',
+        '[instrumentation] BACKEND_MODE=worker — the recurring loops and the syslog receiver run in services/worker',
       );
     } else {
       const { startPollingLoop, startFirmwareAuditLoop, startFecCollectionLoop } =
@@ -41,10 +49,10 @@ export async function register(): Promise<void> {
       startPollingLoop();
       startFirmwareAuditLoop();
       startFecCollectionLoop();
-    }
 
-    const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
-    startSyslogReceiver();
+      const { startSyslogReceiver } = await import('@/lib/monitoring/syslog');
+      startSyslogReceiver();
+    }
 
     // The SNMP receiver was implemented and unit-tested but never wired here,
     // so SNMP_RECEIVER_ENABLED=true used to expose port 1162 with nothing

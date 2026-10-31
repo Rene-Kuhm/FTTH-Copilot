@@ -58,6 +58,16 @@ services:
   # running both would poll the NMS twice and double-bind the UDP socket.
   # Deploy it only with BACKEND_MODE=worker:
   #   docker compose --profile worker up
+  #
+  # It uses the host network on purpose. The syslog receiver is attributed by
+  # the source IP of the datagram, and Docker's userland proxy for UDP
+  # rewrites that address to the bridge gateway: every OLT would look like
+  # the same source, and the brute-force detectors would merge distinct
+  # attacks into one. With the host network the kernel delivers the datagram
+  # with the real source address.
+  #
+  # Consequence: the worker reaches Postgres and Redis through the ports the
+  # host publishes, not through the compose network.
   # ─────────────────────────────────────────────────────────────────────
   worker:
     build:
@@ -65,11 +75,20 @@ services:
       dockerfile: services/worker/Dockerfile
     container_name: ftth_copilot_worker
     restart: unless-stopped
+    network_mode: host
     environment:
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
+      # The spool must survive a restart: it holds the events that were
+      # received but not yet written to Postgres.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      # The health server stays on the loopback: with the host network it
+      # would otherwise listen on every public interface of the server.
+      WORKER_HOST: 127.0.0.1
       WORKER_PORT: "8081"
       NODE_ENV: production
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+    volumes:
+      - spool_data:/var/lib/ftth-copilot/spool
     depends_on:
       redis:
         condition: service_healthy
@@ -113,3 +132,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  # Buffered syslog/SNMP events awaiting a write to Postgres. Losing this
+  # volume loses telemetry.
+  spool_data:

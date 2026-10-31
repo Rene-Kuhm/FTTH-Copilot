@@ -111,8 +111,28 @@ describe('instrumentation: who owns the background work', () => {
     expect(mocks.markNotExpected).toHaveBeenCalledWith('fec');
   });
 
-  it('keeps the syslog receiver in the web until it moves to the worker', async () => {
+  it('does not start the syslog receiver when the worker owns it', async () => {
     process.env['BACKEND_MODE'] = 'worker';
+
+    await register();
+
+    // The receiver binds a UDP port. Two processes cannot bind the same
+    // port: the kernel delivers each datagram to one socket, so the web
+    // would wait forever for messages the worker is receiving.
+    expect(mocks.startSyslogReceiver).not.toHaveBeenCalled();
+  });
+
+  it('reports the syslog receiver as not expected in this process when the worker owns it', async () => {
+    process.env['BACKEND_MODE'] = 'worker';
+
+    await register();
+
+    expect(mocks.markNotExpected).toHaveBeenCalledWith('syslog');
+    expect(mocks.markNotExpected).toHaveBeenCalledWith('syslog-detection');
+  });
+
+  it('starts the syslog receiver when the mode is embedded', async () => {
+    process.env['BACKEND_MODE'] = 'embedded';
 
     await register();
 

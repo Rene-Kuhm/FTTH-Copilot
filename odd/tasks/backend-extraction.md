@@ -389,3 +389,34 @@ debe romperse) y los tests de durabilidad de las fases 4.
   seguridad (un error de cableado sí se reintenta), no el mecanismo de retry
   de los loops. El retry con backoff y el dead-letter llegan con la ingesta
   (T9-T11), que es donde la regla de dominio los exige.
+
+- **L15** (2026-10-31) — T9 (syslog al worker) y las tres trampas de la
+  infraestructura, medidas y no asumidas:
+  - **IP de origen.** Medido en Docker 29.9.2: en una red definida por
+    usuario — que es lo que usa compose — Docker levanta `docker-proxy` para
+    el puerto UDP publicado, y el proxy reescribe la IP de origen al gateway
+    del bridge. El receptor de syslog atribuye por la IP del cuerpo del
+    mensaje y cae al `rinfo.address` cuando el cuerpo no trae una, así que
+    todas las OLT se verían como la misma fuente y los detectores de fuerza
+    bruta volverían a fusionar ataques distintos (el bug que
+    `packages/security/src/source-ip.ts` existe para evitar). En el bridge por
+    defecto no hay proxy (DNAT) y la IP se preserva, pero ese bridge no da
+    resolución de nombres de servicio. Decisión: el worker usa
+    `network_mode: host`. Consecuencia: alcanza Postgres y Redis por los
+    puertos publicados del host, y su servidor de salud queda en
+    `WORKER_HOST=127.0.0.1` para no escuchar en las interfaces públicas.
+    Verificación: `pnpm verify:syslog-source-ip` manda un datagrama **sin IP
+    en el cuerpo** (el único camino que depende de la IP de origen) y
+    comprueba que el evento guardado lleva la dirección real.
+  - **Spool en volumen.** El spool debe vivir en un volumen persistente: en
+    el filesystem del contenedor, un reinicio borraría justo los eventos que
+    se bufferingaron y todavía no se escribieron en Postgres. El worker
+    monta `spool_data` y apunta `EVENT_SPOOL_DIR` ahí.
+  - **Nunca los dos a la vez.** En modo worker la web no bindea el socket de
+    syslog (el kernel entrega cada datagrama a un solo socket) ni publica el
+    puerto: el mapeo `5514` sale del servicio `app` en el mismo commit que el
+    selector de `instrumentation.ts`.
+- **L16** (2026-10-31) — T9 incluye el handler del job de drenado, aunque el
+  plan lo ubicaba en T10: un job encolado sin consumidor se acumularía en la
+  cola sin efecto. T10 queda con el receptor SNMP y el drainer en proceso
+  como última etapa.

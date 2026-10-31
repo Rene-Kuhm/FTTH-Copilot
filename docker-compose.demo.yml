@@ -70,6 +70,10 @@ services:
   # Behind a profile on purpose: while BACKEND_MODE=embedded (the default)
   # the web still runs the loops, and running both would poll the NMS twice.
   #   docker compose -f docker-compose.demo.yml --profile worker up
+  #
+  # It uses the host network so the syslog receiver sees the real source IP
+  # of every datagram: Docker's userland proxy for UDP would rewrite it to
+  # the bridge gateway and merge every OLT into a single source.
   # ─────────────────────────────────────────────────────────────────────────
   worker:
     build:
@@ -77,12 +81,17 @@ services:
       dockerfile: services/worker/Dockerfile
     container_name: ftth_demo_worker
     restart: unless-stopped
+    network_mode: host
     env_file:
       - .env
     environment:
       NODE_ENV: development
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
+      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      WORKER_HOST: 127.0.0.1
+    volumes:
+      - spool_demo_data:/var/lib/ftth-copilot/spool
     depends_on:
       redis:
         condition: service_healthy
@@ -90,8 +99,6 @@ services:
         condition: service_completed_successfully
     profiles:
       - worker
-    networks:
-      - ftth-demo
 
   # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
@@ -323,6 +330,7 @@ services:
 volumes:
   postgres_demo_data:
   redis_demo_data:
+  spool_demo_data:
   victoriametrics_demo_data:
   ntfy_cache:
 
