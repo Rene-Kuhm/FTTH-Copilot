@@ -64,8 +64,9 @@ REDIS_URL=redis://redis:6379
 # must never be reachable without a password.
 # The compose files build REDIS_URL out of this value, so it is the single
 # place to change it.
-# Keep it free of the characters that are reserved in a URL (: @ / ? # [ ])
-# so it can be embedded in redis://:<password>@host:port.
+# Generate it as hex:  openssl rand -hex 32
+# The value is embedded in redis://:<password>@host:port, so characters like
+# @ : / # % ? would change the meaning of that URL.
 REDIS_PASSWORD=change-me
 # Who owns the background work (polling, firmware audit, FEC, syslog/SNMP
 # reception and the event drainer):

@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import {
   closeSync,
   existsSync,
@@ -5,6 +6,7 @@ import {
   openSync,
   readFileSync,
   readSync,
+  readlinkSync,
   renameSync,
   rmSync,
   statSync,
@@ -45,6 +47,17 @@ export interface DurableSpoolOptions {
   maxBytes?: number;
   /** Refuse new records past this size, counting the drop instead. */
   hardMaxBytes?: number;
+  /** How often the owner refreshes the lock of the directory. */
+  heartbeatMs?: number;
+  /**
+   * How long a lock from another process table (another container) is
+   * honoured before it is considered abandoned.
+   *
+   * A pid cannot be checked across containers, so freshness is the only
+   * signal left: a live owner keeps refreshing the lock, a dead one does
+   * not.
+   */
+  foreignOwnerStaleMs?: number;
 }
 
 export interface SpoolStats {
@@ -63,6 +76,12 @@ export interface SpoolStats {
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 const DEFAULT_HARD_MAX_BYTES = 256 * 1024 * 1024;
 const READ_CHUNK = 256 * 1024;
+
+/** Default period of the lock heartbeat. */
+const DEFAULT_HEARTBEAT_MS = 5_000;
+
+/** Default age at which a lock from another container is considered stale. */
+const DEFAULT_FOREIGN_OWNER_STALE_MS = 30_000;
 
 /**
  * Distinct per process boot, so ids cannot collide across restarts. Combined
@@ -118,6 +137,19 @@ interface SpoolOwner {
   startTicks?: number | null;
   /** Kernel boot id, so a reboot invalidates every lock. */
   bootId?: string | null;
+  /**
+   * Pid namespace the owner lives in.
+   *
+   * A pid only means something inside its own namespace: in container B,
+   * `kill(pid, 0)` answers about container B's process, not about the one
+   * that wrote this lock in container A. A different namespace means the
+   * pid cannot be verified at all.
+   */
+  pidNs?: string | null;
+  /** Hostname of the owner, a human-readable companion to `pidNs`. */
+  hostname?: string | null;
+  /** Last time the owner refreshed the lock, in epoch milliseconds. */
+  heartbeatAt?: number | null;
 }
 
 /**
@@ -158,6 +190,22 @@ function readStartTicks(pid: number): number | null {
   }
 }
 
+/**
+ * Identifier of the pid table this process lives in.
+ *
+ * Two processes in different pid namespaces (two containers) can share a pid
+ * and a start time by coincidence, and a pid means nothing outside its own
+ * namespace: `kill(pid, 0)` in container B answers about container B's pid,
+ * not about the process that wrote the lock in container A.
+ */
+function readPidNamespace(): string | null {
+  try {
+    return readlinkSync('/proc/self/ns/pid');
+  } catch {
+    return null;
+  }
+}
+
 /** Kernel boot id, or null when it cannot be read. */
 function readBootId(): string | null {
   try {
@@ -186,6 +234,15 @@ export class DurableSpool<T> {
   /** Path of the lock file, while this instance owns the directory. */
   private lockPath: string | null = null;
 
+  /** Period of the lock heartbeat, in milliseconds. */
+  private readonly heartbeatMs: number;
+
+  /** Age at which a foreign lock is considered abandoned, in milliseconds. */
+  private readonly foreignOwnerStaleMs: number;
+
+  /** Timer that keeps the lock fresh while this instance owns it. */
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
+
   private dropped = 0;
   private corrupt = 0;
   private deadLettered = 0;
@@ -207,6 +264,9 @@ export class DurableSpool<T> {
 
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     this.hardMaxBytes = options.hardMaxBytes ?? DEFAULT_HARD_MAX_BYTES;
+    this.heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+    this.foreignOwnerStaleMs =
+      options.foreignOwnerStaleMs ?? DEFAULT_FOREIGN_OWNER_STALE_MS;
 
     mkdirSync(this.dir, { recursive: true });
     this.claimDirectory();
@@ -231,18 +291,12 @@ export class DurableSpool<T> {
     const lockPath = join(this.dir, LOCK_FILE);
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const owner: SpoolOwner = {
-        v: LOCK_VERSION,
-        pid: process.pid,
-        token: this.token,
-        startedAt: new Date().toISOString(),
-        startTicks: readStartTicks(process.pid),
-        bootId: readBootId(),
-      };
+      const owner = this.ownerRecord();
       try {
         // `wx` fails when the file exists: the claim is atomic.
         writeFileSync(lockPath, JSON.stringify(owner), { flag: 'wx' });
         this.lockPath = lockPath;
+        this.startHeartbeat();
         return;
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
@@ -250,7 +304,8 @@ export class DurableSpool<T> {
         const current = this.readOwner(lockPath);
         if (current !== null && this.isOwnerAlive(current)) {
           throw new Error(
-            `the spool directory ${this.dir} is already owned by process ${current.pid}. ` +
+            `the spool directory ${this.dir} is already owned by process ${current.pid}` +
+              `${current.hostname ? ` on ${current.hostname}` : ''}. ` +
               'Two processes must never share a spool: they would advance the same offset ' +
               'and rotate the same file. Give each process its own directory ' +
               '(for example .../spool/web and .../spool/worker).',
@@ -277,6 +332,9 @@ export class DurableSpool<T> {
         startedAt: parsed.startedAt ?? '',
         startTicks: typeof parsed.startTicks === 'number' ? parsed.startTicks : null,
         bootId: typeof parsed.bootId === 'string' ? parsed.bootId : null,
+        pidNs: typeof parsed.pidNs === 'string' ? parsed.pidNs : null,
+        hostname: typeof parsed.hostname === 'string' ? parsed.hostname : null,
+        heartbeatAt: typeof parsed.heartbeatAt === 'number' ? parsed.heartbeatAt : null,
       };
     } catch {
       return null;
@@ -307,6 +365,16 @@ export class DurableSpool<T> {
     if (owner.bootId !== null && bootId !== null && owner.bootId !== bootId) {
       // The machine rebooted: whoever held this lock is gone.
       return false;
+    }
+
+    // A pid only means something inside its own process table. When the
+    // owner lived in another one (another container), its pid cannot be
+    // checked from here: the pid in THIS table may be an unrelated process
+    // — in a container it is almost always pid 1 — so `kill(pid, 0)` would
+    // answer the wrong question. Freshness is the only signal left: a live
+    // owner keeps refreshing the lock.
+    if (!this.sameProcessTable(owner)) {
+      return this.foreignOwnerIsFresh(owner);
     }
 
     if (owner.startTicks === null || owner.startTicks === undefined) {
@@ -445,7 +513,102 @@ export class DurableSpool<T> {
     };
   }
 
+  /** The record written into the lock file. */
+  private ownerRecord(): SpoolOwner {
+    return {
+      v: LOCK_VERSION,
+      pid: process.pid,
+      token: this.token,
+      startedAt: new Date().toISOString(),
+      startTicks: readStartTicks(process.pid),
+      bootId: readBootId(),
+      pidNs: readPidNamespace(),
+      hostname: hostname(),
+      heartbeatAt: Date.now(),
+    };
+  }
+
+  /**
+   * Whether the owner lives in the same process table as this process.
+   *
+   * Both signals are needed. The pid namespace alone is not enough: measured
+   * with Docker 29.9.2, two freshly created containers can report the *same*
+   * pid namespace id, so a pid from one would look inspectable from the
+   * other. The hostname alone is not enough either: it is a deployment
+   * choice and two containers can be given the same one.
+   *
+   * When a signal is unavailable on either side (a platform without `/proc`)
+   * it does not count against the match — otherwise a lock written before
+   * hostnames were recorded would never be recognised as our own.
+   */
+  private sameProcessTable(owner: SpoolOwner): boolean {
+    const mine = readPidNamespace();
+    if (mine !== null && owner.pidNs !== null && owner.pidNs !== undefined) {
+      if (mine !== owner.pidNs) return false;
+    }
+
+    if (owner.hostname !== null && owner.hostname !== undefined) {
+      if (hostname() !== owner.hostname) return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Whether a lock from another pid namespace is still being refreshed.
+   *
+   * A live owner refreshes the lock every `heartbeatMs`; a container that was
+   * killed stops refreshing it. Treating a fresh foreign lock as occupied is
+   * what stops two containers from sharing a directory by mistake; treating a
+   * stale one as abandoned is what stops a killed container from blocking the
+   * directory forever.
+   */
+  private foreignOwnerIsFresh(owner: SpoolOwner): boolean {
+    const beat = owner.heartbeatAt;
+    if (typeof beat !== 'number' || !Number.isFinite(beat)) {
+      // No heartbeat recorded: it cannot be verified, and it is not from this
+      // container (the namespace differs). Refuse rather than steal.
+      return true;
+    }
+    return Date.now() - beat < this.foreignOwnerStaleMs;
+  }
+
+  /** Keeps the lock fresh while this instance owns the directory. */
+  private startHeartbeat(): void {
+    if (this.heartbeatMs <= 0 || this.lockPath === null) return;
+
+    this.heartbeat = setInterval(() => {
+      if (this.lockPath === null) return;
+      try {
+        // Rewrite only if this instance still owns the lock: a taken-over
+        // directory must not be overwritten by its previous owner.
+        const current = this.readOwner(this.lockPath);
+        if (current === null || current.token !== this.token) {
+          this.stopHeartbeat();
+          return;
+        }
+        writeFileSync(this.lockPath, JSON.stringify(this.ownerRecord()));
+      } catch {
+        // A failed refresh is not fatal: the next tick retries, and the worst
+        // case is that another container considers this lock abandoned.
+      }
+    }, this.heartbeatMs);
+
+    // The heartbeat must never keep the process alive on its own.
+    this.heartbeat.unref?.();
+  }
+
+  /** Stops the heartbeat. */
+  private stopHeartbeat(): void {
+    if (this.heartbeat !== null) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = null;
+    }
+  }
+
   close(): void {
+    this.stopHeartbeat();
+
     if (this.fd !== null) {
       closeSync(this.fd);
       this.fd = null;

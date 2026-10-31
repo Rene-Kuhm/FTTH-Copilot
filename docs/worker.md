@@ -51,8 +51,8 @@ Three properties follow from the split:
 
 | Variable       | Default                  | Meaning                                                                 |
 | -------------- | ------------------------ | ----------------------------------------------------------------------- |
-| `REDIS_URL`    | `redis://127.0.0.1:6379` | Redis instance that holds the queue.                                    |
-| `REDIS_PASSWORD` | —                      | Password of the Redis instance. Required in the compose stacks.          |
+| `REDIS_URL`    | `redis://127.0.0.1:6379` | Redis instance that holds the queue. In compose the web reaches Redis by service name (`redis:6379`); the worker, which runs on the host network, uses `127.0.0.1`. |
+| `REDIS_PASSWORD` | —                      | Password of the Redis instance. Required in the compose stacks; generate it with `openssl rand -hex 32`. |
 | `BACKEND_MODE` | `embedded`               | `embedded` = the web runs the loops (today). `worker` = the worker runs them. |
 | `WORKER_PORT`  | `8081`                   | Port of the worker's health and metrics server.                          |
 | `WORKER_HOST`  | `0.0.0.0`                | Interface the health server binds to.                                   |
@@ -66,9 +66,20 @@ ufw says otherwise. The compose stacks therefore publish it on `127.0.0.1`
 only, and start it with `--requirepass`.
 
 The password comes from `REDIS_PASSWORD` and the compose files build
-`REDIS_URL` out of it, so it is defined in exactly one place. Keep it free
-of the characters that are reserved in a URL (`: @ / ? # [ ]`), because it is
-embedded in `redis://:<password>@host:port`.
+`REDIS_URL` out of it, so it is defined in exactly one place.
+
+```bash
+# Generate it like this: hex has no characters that need escaping in a URL.
+REDIS_PASSWORD=$(openssl rand -hex 32)
+```
+
+Use a hex value on purpose. The password is embedded in
+`redis://:<password>@host:port`, and characters like `@ : / # % ?` change the
+meaning of that URL — the worker would fail to connect with a confusing error
+while the Redis container looks perfectly healthy. Hex only uses `0-9a-f`.
+
+If the password must contain other characters, percent-encode it before it
+goes into the URL.
 
 `BACKEND_MODE` is read by `@ftth-copilot/jobs` (`backendMode()`), so both the
 web and the worker agree on it. The default stays `embedded` until the worker

@@ -137,6 +137,103 @@ describe('spool directory ownership', () => {
     }
   });
 
+  it('refuses a fresh lock from another pid namespace (another container)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      // Two containers pointed at one directory by mistake. The lock comes
+      // from a process table this one cannot inspect, so its pid says
+      // nothing: the heartbeat is the only signal, and it is fresh.
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          v: 2,
+          pid: 1,
+          token: 'other-container',
+          startedAt: new Date().toISOString(),
+          startTicks: 123,
+          bootId: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+          pidNs: 'pid:[a-different-namespace]',
+          hostname: 'other-container-id',
+          heartbeatAt: Date.now(),
+        }),
+      );
+
+      expect(() => new DurableSpool<{ n: number }>({ dir })).toThrow(/already owned by process 1/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes over a lock from another pid namespace that stopped beating', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      // A container that was killed. Its lock cannot be verified from here,
+      // but it stopped refreshing it — so it is abandoned, and refusing
+      // would lose the telemetry this spool protects.
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          v: 2,
+          pid: 1,
+          token: 'killed-container',
+          startedAt: new Date().toISOString(),
+          startTicks: 123,
+          bootId: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+          pidNs: 'pid:[a-different-namespace]',
+          hostname: 'killed-container-id',
+          heartbeatAt: Date.now() - 10 * 60 * 1000,
+        }),
+      );
+
+      const spool = new DurableSpool<{ n: number }>({ dir });
+      expect(spool.append({ n: 1 })).not.toBeNull();
+      spool.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps its own lock fresh while it owns the directory', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      const spool = new DurableSpool<{ n: number }>({ dir, heartbeatMs: 20 });
+      const first = JSON.parse(readFileSync(join(dir, 'owner.lock'), 'utf8'));
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      const second = JSON.parse(readFileSync(join(dir, 'owner.lock'), 'utf8'));
+      expect(second.heartbeatAt).toBeGreaterThan(first.heartbeatAt);
+      expect(second.token).toBe(first.token);
+      spool.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('names the container of the conflicting owner', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          v: 2,
+          pid: 1,
+          token: 'other-container',
+          startedAt: new Date().toISOString(),
+          startTicks: 123,
+          bootId: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+          pidNs: 'pid:[a-different-namespace]',
+          hostname: 'container-b7f2',
+          heartbeatAt: Date.now(),
+        }),
+      );
+
+      expect(() => new DurableSpool<{ n: number }>({ dir })).toThrow(/on container-b7f2/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('takes over a directory whose owner is gone', () => {
     const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
     try {
