@@ -83,7 +83,14 @@
     "LAYA_MODEL",
     "LAYA_MODEL_VERSION",
     "LAYA_LOG_LEVEL",
-    "LAYA_PORT"
+    "LAYA_PORT",
+    "REDIS_URL",
+    "REDIS_PORT",
+    "BACKEND_MODE",
+    "WORKER_PORT",
+    "WORKER_HOST",
+    "WORKER_CONCURRENCY",
+    "JOBS_TEST_REDIS_URL"
   ],
   "tasks": {
     "build": {
