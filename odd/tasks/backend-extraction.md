@@ -208,6 +208,12 @@ de la tabla de abajo referencia al menos uno.
   `pnpm typecheck && pnpm lint && pnpm test`. Cuando aplique, también
   `pnpm --filter @ftth-copilot/eval run test` y los tests de durabilidad de la
   Fase 4.
+- **S20** — Toda investigación iniciada termina en un estado final: `ready`
+  con su versión persistida, o `failed`. Una investigación `pending` más vieja
+  que `INVESTIGATION_PENDING_TTL_MS` pasa a `expired`, y el incidente se puede
+  volver a investigar. El pipeline corre **una sola vez** por `runId`+`versionId`
+  (el id fijo del job lo garantiza), tanto si excede el presupuesto HTTP de 8 s
+  como si falla.
 - **S19** — Los eventos que fueron al dead-letter se pueden **reprocesar**:
   un comando `replay:dead-letter` los vuelve a encolar. Como el `ingestId` es
   único y se inserta con `skipDuplicates`, el replay no puede duplicar un
@@ -235,7 +241,7 @@ tarea.
 | T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | inline  | `e2c6cb7`, `chore(infra)` | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
 | T11 | S3, S16            | inline  | `b1313ee`, `0b8d5a4`-equivalente | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
-| T12 | S5                | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
+| T12 | S5, S20            | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
 | T13 | S5                | pending | pending | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. |
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
 | T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. |
@@ -565,3 +571,23 @@ debe romperse) y los tests de durabilidad de las fases 4.
   Bloqueante para encolar `investigate`: `runInvestigationPipeline` vive en
   `apps/web/lib/investigations/` y el worker no puede importar de la app; hay
   que mudarlo a un package, igual que se hizo con el scheduler y el ingest.
+- **L27** (2026-10-31) — Alcance de T12 decidido: **sólo** `investigate`.
+  `reevaluate` queda afuera (cambia lo que recibe el cliente para ganar poco) y
+  `dashboard` leyendo estado persistido también (toca lo que ve el NOC en el
+  primer minuto, merece su propio plan ODD).
+- **L28** (2026-10-31) — Al revisar `investigate` para confirmar el alcance
+  apareció un bug que ya está en `main`, más grave que el del inventario:
+  1. Si el pipeline pasa los 8 s, la ruta devuelve 202 pero **el resultado se
+     tira**: `persistInvestigationVersion` sólo se llama en el camino rápido.
+     La promesa sigue corriendo (y gastando LLM) y nadie guarda nada.
+  2. La investigación queda `pending` para siempre: ningún camino la pasa a
+     `failed` ni a `expired`.
+  3. No se puede reintentar: el chequeo de "hay un pending" corre antes que el
+     de refresh, así que cada intento nuevo devuelve 202 eternamente.
+  4. Cualquier error del pipeline que no sea `P2002` se relanza y también deja
+     el run en `pending`.
+  Consecuencia: cualquier investigación de más de 8 s, o que falle, inutiliza
+  el botón "investigar" de ese incidente sin vuelta atrás. Por eso T12 no es un
+  refactor: es un arreglo, y suma la spec S20 (todo run termina en un estado
+  final; el barrido de `pending` viejos es necesario aunque no hubiera bug,
+  porque en producción ya puede haber filas trabadas).
