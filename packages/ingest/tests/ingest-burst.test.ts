@@ -307,12 +307,15 @@ describe('torn writes during a burst', () => {
     spool.append({ message: 'after', n: 1 });
     spool.close();
 
+    // The previous instance is closed first: a spool directory belongs to
+    // one live instance, and the recovered one is still holding it.
+    recovered.close();
+
     const third = new DurableSpool<Payload>({ dir });
     const { entries } = third.readBatch(100);
     expect(entries.map((e) => e.payload.n)).toEqual([0, 1]);
     expect(third.stats().corrupt).toBe(1);
     third.close();
-    void recovered;
   });
 });
 /**

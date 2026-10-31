@@ -105,6 +105,18 @@ function spoolTrap(overrides: { deviceId?: string } = {}): string | null {
   });
 }
 
+/**
+ * The spool instance this process owns.
+ *
+ * Imported dynamically on purpose: a static import of the package would
+ * pull the database module in before the `vi.mock` factory above is
+ * initialized.
+ */
+async function spoolForTests() {
+  const { __spoolForTests } = await import('../src/ingest');
+  return __spoolForTests();
+}
+
 describe('ingest circuit: spool -> drainer -> Postgres', () => {
   let dir: string;
 
@@ -126,11 +138,11 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
   async function drainUntilIdle(maxRounds = 10): Promise<void> {
     for (let i = 0; i < maxRounds; i++) {
       const before = db.inserted;
-      // Read the queue the way the drainer does.
-      const { DurableSpool } = await import('../src/spool');
-      const spool = new DurableSpool<DeviceEventPayload>({ dir });
+      // Read the queue the way the drainer does, through the instance this
+      // process already owns: a spool directory belongs to one live
+      // instance, and a second one would advance the same offset.
+      const spool = await spoolForTests();
       const { entries, nextOffset } = spool.readBatch(100);
-      spool.close();
       if (entries.length === 0) return;
 
       await ingestEvents(
@@ -173,19 +185,15 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
     expect(db.inserted).toBe(1);
     // The spool is left empty: a full drain resets the offset because the
     // active file is rotated, so asserting on the offset value would be wrong.
-    const { DurableSpool } = await import('../src/spool');
-    const spool = new DurableSpool<DeviceEventPayload>({ dir });
+    const spool = await spoolForTests();
     expect(spool.readBatch(10).entries).toHaveLength(0);
-    spool.close();
   });
 
   it('does not duplicate a batch replayed after a crash mid-drain', async () => {
     spoolTrap();
 
-    const { DurableSpool } = await import('../src/spool');
-
     // First attempt succeeds against the database...
-    const first = new DurableSpool<DeviceEventPayload>({ dir });
+    const first = await spoolForTests();
     const batch = first.readBatch(100);
     await ingestEvents(
       batch.entries.map((entry) => ({ ...entry.payload, ingestId: entry.ingestId })),
@@ -194,9 +202,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
 
     // ...but the process dies before committing the offset, so the same
     // batch is read again on restart.
-    first.close();
-
-    const second = new DurableSpool<DeviceEventPayload>({ dir });
+    const second = await spoolForTests();
     const replay = second.readBatch(100);
     expect(replay.entries).toHaveLength(1);
     expect(replay.entries[0].ingestId).toBe(batch.entries[0].ingestId);
@@ -205,7 +211,6 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
       replay.entries.map((entry) => ({ ...entry.payload, ingestId: entry.ingestId })),
     );
     second.commit(replay.nextOffset, replay.entries.length);
-    second.close();
 
     // skipDuplicates is what makes the replay a no-op.
     expect(db.inserted).toBe(1);
@@ -228,9 +233,7 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
     spoolTrap({ deviceId: 'OLT-SECOND' });
     await drainUntilIdle();
 
-    const { DurableSpool } = await import('../src/spool');
-    const spool = new DurableSpool<DeviceEventPayload>({ dir });
+    const spool = await spoolForTests();
     expect(spool.readBatch(100).entries).toHaveLength(0);
-    spool.close();
   });
 });

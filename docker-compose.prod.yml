@@ -37,11 +37,26 @@ services:
   redis:
     image: redis:8.10.2-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      # The queue holds the ingest backlog and the worker reaches Redis
+      # through the host. A published port does NOT go through the host
+      # firewall, so Redis must never be reachable without a password:
+      # without it, anyone could inject jobs into the queue — fake events
+      # that end up stored as DeviceEvent — or abuse the known
+      # `CONFIG SET` trick to write files on the server.
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     env_file:
       - .env.prod
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      # Only the loopback: the worker runs on the host network and reaches
+      # Redis there.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -79,9 +94,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      # The durable queue. Redis is published on the loopback only and
+      # requires a password; see the redis service below.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
       # Durable ingest spool. MUST be a persistent volume: events buffered
       # while Postgres is unreachable are lost if the container is recreated.
-      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      # The web owns the `web` subdirectory of that volume: the worker owns
+      # `worker`, and two processes must never write the same spool.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       # The kernel drops UDP datagrams silently once this buffer fills, so a
       # link flap needs headroom here.
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
@@ -136,9 +156,9 @@ services:
       - .env.prod
     environment:
       NODE_ENV: production
-      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-ftth_copilot}"
-      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
       # The health server stays on the loopback: with the host network it
       # would otherwise listen on every public interface of the server.

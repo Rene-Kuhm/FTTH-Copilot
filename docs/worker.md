@@ -51,22 +51,36 @@ Three properties follow from the split:
 | Variable       | Default                  | Meaning                                                                 |
 | -------------- | ------------------------ | ----------------------------------------------------------------------- |
 | `REDIS_URL`    | `redis://127.0.0.1:6379` | Redis instance that holds the queue.                                    |
+| `REDIS_PASSWORD` | —                      | Password of the Redis instance. Required in the compose stacks.          |
 | `BACKEND_MODE` | `embedded`               | `embedded` = the web runs the loops (today). `worker` = the worker runs them. |
 | `WORKER_PORT`  | `8081`                   | Port of the worker's health and metrics server.                          |
 | `WORKER_HOST`  | `0.0.0.0`                | Interface the health server binds to.                                   |
 | `WORKER_CONCURRENCY` | `1`                | Jobs of a queue that run at the same time.                              |
 
+### Redis is published on the loopback, with a password
+
+A port published by Docker does **not** go through the host firewall, so a
+Redis published on all interfaces is reachable from the internet even when
+ufw says otherwise. The compose stacks therefore publish it on `127.0.0.1`
+only, and start it with `--requirepass`.
+
+The password comes from `REDIS_PASSWORD` and the compose files build
+`REDIS_URL` out of it, so it is defined in exactly one place. Keep it free
+of the characters that are reserved in a URL (`: @ / ? # [ ]`), because it is
+embedded in `redis://:<password>@host:port`.
+
 `BACKEND_MODE` is read by `@ftth-copilot/jobs` (`backendMode()`), so both the
 web and the worker agree on it. The default stays `embedded` until the worker
 has run green in staging.
 
-> **Pending:** `REDIS_URL` and `BACKEND_MODE` are documented in
-> `docs/demo-env-template.md`, but they are still missing from the repository
-> root `.env.example` — the agent sandbox blocks writes to that path. Add
-> these two lines to it:
+> **Pending:** `REDIS_URL`, `REDIS_PASSWORD` and `BACKEND_MODE` are documented
+> in `docs/demo-env-template.md`, but they are still missing from the
+> repository root `.env.example` — the agent sandbox blocks writes to that
+> path. Add these three lines to it:
 >
 > ```bash
 > REDIS_URL=redis://localhost:6379
+> REDIS_PASSWORD=change-me
 > BACKEND_MODE=embedded
 > ```
 

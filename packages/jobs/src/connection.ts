@@ -38,9 +38,15 @@ export function redisUrl(env: NodeJS.ProcessEnv = process.env): string {
 
 /**
  * Connection options for a producer (the web enqueuing jobs).
+ *
+ * The retry limit is finite on purpose: a producer that cannot reach Redis
+ * has to fail fast, not hang. With the default (20 retries with a growing
+ * delay) a request that enqueues while Redis is unreachable — or with the
+ * wrong password — waits instead of answering, and the caller cannot tell
+ * whether the work was accepted.
  */
 export function redisConnectionOptions(env: NodeJS.ProcessEnv = process.env): RedisConnectionOptions {
-  return { url: redisUrl(env) };
+  return { url: redisUrl(env), maxRetriesPerRequest: 3 };
 }
 
 /**

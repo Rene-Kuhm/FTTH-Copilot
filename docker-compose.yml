@@ -38,9 +38,21 @@ services:
     image: redis:8.10.2-alpine
     container_name: ftth_copilot_redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      # The queue holds the ingest backlog and the worker reaches Redis
+      # through the host. A published port does NOT go through the host
+      # firewall, so Redis must never be reachable without a password.
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      # Only the loopback: the worker runs on the host network and reaches
+      # Redis there.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -77,11 +89,11 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
       # The spool must survive a restart: it holds the events that were
       # received but not yet written to Postgres.
-      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
       # The health server stays on the loopback: with the host network it
       # would otherwise listen on every public interface of the server.
       WORKER_HOST: 127.0.0.1

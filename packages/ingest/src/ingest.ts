@@ -196,6 +196,20 @@ export function eventIngestStats(): EventIngestStats {
 }
 
 /** Test seam: inject a spool without touching the module singleton. */
+/**
+ * Test seam: the spool instance this process is using.
+ *
+ * A spool directory belongs to one live instance — two of them would
+ * advance the same offset. A test that needs to read what the process
+ * spooled has to read through this instance instead of opening a second one.
+ */
+export function __spoolForTests(): DurableSpool<DeviceEventPayload> {
+  return getSpool();
+}
+
 export function __setSpoolForTests(next: DurableSpool<DeviceEventPayload> | null): void {
+  // The replaced instance is closed, not leaked: a spool directory belongs
+  // to one live instance, and a leaked one would keep holding its lock.
+  spool?.close();
   spool = next;
 }

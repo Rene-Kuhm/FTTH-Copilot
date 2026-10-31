@@ -59,6 +59,14 @@ METRICS_BEARER_TOKEN=
 # stack; there is no managed broker.
 # Inside Docker use redis://redis:6379; on the host use localhost:6379.
 REDIS_URL=redis://redis:6379
+# Password of the Redis instance. Redis is published by Docker, and a
+# published port does NOT go through the host firewall — so the instance
+# must never be reachable without a password.
+# The compose files build REDIS_URL out of this value, so it is the single
+# place to change it.
+# Keep it free of the characters that are reserved in a URL (: @ / ? # [ ])
+# so it can be embedded in redis://:<password>@host:port.
+REDIS_PASSWORD=change-me
 # Who owns the background work (polling, firmware audit, FEC, syslog/SNMP
 # reception and the event drainer):
 #   embedded = inside the web process, the behavior of today

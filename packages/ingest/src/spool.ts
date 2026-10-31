@@ -6,6 +6,7 @@ import {
   readFileSync,
   readSync,
   renameSync,
+  rmSync,
   statSync,
   writeSync,
   writeFileSync,
@@ -84,6 +85,35 @@ const BOOT_ID = randomUUID().slice(0, 8);
  */
 let ingestSequence = 0;
 
+/**
+ * Name of the lock file that gives a spool directory to one process.
+ */
+const LOCK_FILE = 'owner.lock';
+
+/** Owner of a spool directory. */
+interface SpoolOwner {
+  pid: number;
+  token: string;
+  startedAt: string;
+}
+
+/**
+ * Whether a process is still running.
+ *
+ * `kill(pid, 0)` does not signal anything; it only asks the kernel. EPERM
+ * means the process exists but belongs to another user, which still counts
+ * as alive.
+ */
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 export class DurableSpool<T> {
   private readonly dir: string;
   private readonly dataPath: string;
@@ -96,6 +126,12 @@ export class DurableSpool<T> {
   private fd: number | null = null;
   private size = 0;
   private offset = 0;
+
+  /** Identifies this instance as the owner of the directory. */
+  private readonly token = randomUUID();
+
+  /** Path of the lock file, while this instance owns the directory. */
+  private lockPath: string | null = null;
 
   private dropped = 0;
   private corrupt = 0;
@@ -120,8 +156,68 @@ export class DurableSpool<T> {
     this.hardMaxBytes = options.hardMaxBytes ?? DEFAULT_HARD_MAX_BYTES;
 
     mkdirSync(this.dir, { recursive: true });
+    this.claimDirectory();
     this.size = this.currentSize();
     this.offset = this.readOffset();
+  }
+
+  /**
+   * Takes the ownership of the directory.
+   *
+   * A spool directory belongs to ONE process. Two processes would keep their
+   * own copy of the offset in memory, both would advance the same
+   * `events.offset` file, and either of them could rotate `events.jsonl`
+   * while the other was still writing into it: events would be lost or
+   * ingested twice. That is exactly what the domain rule forbids.
+   *
+   * The ownership is a lock file. The second process to open the directory
+   * fails loudly instead of corrupting it; a lock whose owner is gone (the
+   * process died) is taken over, so a crash never blocks the next boot.
+   */
+  private claimDirectory(): void {
+    const lockPath = join(this.dir, LOCK_FILE);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const owner: SpoolOwner = {
+        pid: process.pid,
+        token: this.token,
+        startedAt: new Date().toISOString(),
+      };
+      try {
+        // `wx` fails when the file exists: the claim is atomic.
+        writeFileSync(lockPath, JSON.stringify(owner), { flag: 'wx' });
+        this.lockPath = lockPath;
+        return;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+
+        const current = this.readOwner(lockPath);
+        if (current !== null && isProcessAlive(current.pid)) {
+          throw new Error(
+            `the spool directory ${this.dir} is already owned by process ${current.pid}. ` +
+              'Two processes must never share a spool: they would advance the same offset ' +
+              'and rotate the same file. Give each process its own directory ' +
+              '(for example .../spool/web and .../spool/worker).',
+          );
+        }
+
+        // The owner is gone: the lock is stale, take it over.
+        rmSync(lockPath, { force: true });
+      }
+    }
+
+    throw new Error(`could not claim the spool directory ${this.dir}`);
+  }
+
+  /** Reads the owner of the directory, or null when it cannot be read. */
+  private readOwner(lockPath: string): SpoolOwner | null {
+    try {
+      const parsed = JSON.parse(readFileSync(lockPath, 'utf8')) as Partial<SpoolOwner>;
+      if (typeof parsed.pid !== 'number' || typeof parsed.token !== 'string') return null;
+      return { pid: parsed.pid, token: parsed.token, startedAt: parsed.startedAt ?? '' };
+    } catch {
+      return null;
+    }
   }
 
   /** Durable enqueue. Returns the assigned id, or null when refused. */
@@ -248,6 +344,16 @@ export class DurableSpool<T> {
     if (this.fd !== null) {
       closeSync(this.fd);
       this.fd = null;
+    }
+
+    // Release the directory, but only if this instance is still its owner:
+    // a process that took over a stale lock must not remove the new owner's.
+    if (this.lockPath !== null) {
+      const owner = this.readOwner(this.lockPath);
+      if (owner !== null && owner.token === this.token) {
+        rmSync(this.lockPath, { force: true });
+      }
+      this.lockPath = null;
     }
   }
 

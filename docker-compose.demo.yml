@@ -51,9 +51,18 @@ services:
     image: redis:8.10.2-alpine
     container_name: ftth_demo_redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      # A published port does not go through the host firewall, so Redis
+      # never listens without a password.
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_demo_data:/data
     healthcheck:
@@ -86,9 +95,9 @@ services:
       - .env
     environment:
       NODE_ENV: development
-      REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
-      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
       WORKER_HOST: 127.0.0.1
     volumes:
       - spool_demo_data:/var/lib/ftth-copilot/spool
@@ -160,6 +169,12 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      # The durable queue. Redis is published on the loopback only and
+      # requires a password; see the redis service below.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
+      # The web owns the `web` subdirectory of the spool volume: the worker
+      # owns `worker`, and two processes must never write the same spool.
+      EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
       # Connect directly to postgres.
