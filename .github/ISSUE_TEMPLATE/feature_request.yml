@@ -1,0 +1,100 @@
+name: Feature request
+description: Propose a capability, an integration or a change of behavior in FTTH-Copilot
+title: "[Feat]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Before you propose
+
+        Use this form for capabilities that do not exist yet. For a defect in existing behavior, use
+        the **Bug report** template.
+
+        Proposals are reviewed against operational safety, evidence quality, tenant isolation and the
+        repository's licensing model. See [CONTRIBUTING.md](https://github.com/Rene-Kuhm/FTTH-Copilot/blob/main/CONTRIBUTING.md)
+        before you send code.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator or engineering problem does this solve? Describe the situation today, not the solution.
+      placeholder: |
+        Today the NOC correlates an outage by exporting ONU state from three NMS platforms and
+        comparing the spreadsheets by hand. The first actionable correlation takes ~15 minutes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should FTTH-Copilot do? Describe the observable behavior, not the implementation.
+      placeholder: The agent correlates ONUs across OLTs in one answer and returns the candidate root cause with its evidence.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Where would this capability live?
+      options:
+        - Agent / investigation (packages/agent-core)
+        - OLT connectors (SmartOLT, Mikrowisp, MikroTik)
+        - Monitoring / SNMP polling (packages/monitoring)
+        - Detection and alerts (packages/detection, packages/alerts)
+        - Evidence and provenance (packages/evidence)
+        - Analytics and reporting (packages/analytics)
+        - SOC and assisted routing (packages/soc, Laya)
+        - Web application (apps/web)
+        - Desktop or Android client
+        - Deployment, CI or release automation
+        - Documentation only
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you already try, and why does it not work?
+      placeholder: We tried exporting the data to a spreadsheet and correlating manually; it does not scale beyond a few OLTs.
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      description: Who benefits and what measurable outcome do you expect (time to first action, false-positive rate, coverage)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: How would we prove it works? Name the test, the measurement or the evidence you would accept.
+      placeholder: A golden-file investigation case plus the eval corpus extended with one attack case for the new surface.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: considerations
+    attributes:
+      label: Considerations
+      description: Select every consideration that applies to this proposal.
+      options:
+        - label: Multi-tenant isolation is affected (new queries, cache keys or persisted references)
+        - label: Security, permissions or credentials are involved
+        - label: A database migration or a change of stored data is required
+        - label: A configuration, CLI flag or public contract changes
+        - label: Operational rollout, monitoring or rollback needs to be documented
+        - label: None of the above
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What is explicitly out of scope for the first iteration?

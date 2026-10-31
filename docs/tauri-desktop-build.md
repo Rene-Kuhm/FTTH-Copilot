@@ -72,14 +72,26 @@ apps/web/src-tauri/target/release/bundle/
 
 ### CI build
 
-The workflow `.github/workflows/tauri-desktop.yml` builds:
+The build lives in the reusable workflow `.github/workflows/build-desktop.yml`
+(it compiles **and** signs, so the provenance attributes the builder that
+actually produced the installer). Two workflows call it:
+
+- `.github/workflows/tauri-desktop.yml` — validation build: on every push to
+  `main` or `tauri-desktop`, and on PRs touching `apps/web/**`. Nothing is
+  signed here.
+- `.github/workflows/release.yml` — release build: it is dispatched by
+  `release-please.yml` when a release is published (and also fires on a tag
+  push matching `v*`). The installers are attested (SLSA Build Level 3,
+  keyless) and attached to the release.
 
 | OS | Targets | Artifacts |
 |---|---|---|
-| Linux (Ubuntu 22.04) | `.deb`, AppImage | `ftth-copilot-linux-deb`, `ftth-copilot-linux-appimage` |
-| Windows (windows-latest) | NSIS, MSI | `ftth-copilot-windows-nsis`, `ftth-copilot-windows-msi` |
+| Linux (Ubuntu 22.04) | `.deb`, AppImage | `ftth-copilot-desktop-linux-deb`, `ftth-copilot-desktop-linux-appimage` |
+| Windows (windows-latest) | NSIS, MSI | `ftth-copilot-desktop-windows-nsis`, `ftth-copilot-desktop-windows-msi` |
 
-Tag pushes (`v*`) automatically attach all artifacts to the GitHub release.
+Publishing a release attaches all the installers to the GitHub release:
+`release-please.yml` dispatches `release.yml`, which builds them, attests them
+and uploads them.
 
 ### Customizing the API URL
 

@@ -38,6 +38,11 @@
     "check:sources:health": "tsx scripts/check-research-sources-health.ts",
     "check:contribution": "tsx scripts/validate-contribution.ts",
     "check:conflicts": "tsx scripts/check-oid-conflicts.ts",
+    "check:supply-chain": "tsx scripts/check-supply-chain.ts",
+    "contract:generate": "tsx scripts/generate-api-contract.ts",
+    "contract:check": "tsx scripts/generate-api-contract.ts --check",
+    "c4:render": "tsx scripts/render-c4.ts",
+    "c4:check": "tsx scripts/render-c4.ts --check",
     "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts",
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
     "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts",
@@ -48,6 +53,7 @@
   },
   "devDependencies": {
     "@ftth-copilot/alerts": "workspace:*",
+    "@types/node": "^22.10.0",
     "@ftth-copilot/analytics": "workspace:*",
     "@ftth-copilot/connectors-mikrotik": "workspace:*",
     "@ftth-copilot/connectors-mikrowisp": "workspace:*",
@@ -59,6 +65,7 @@
     "eslint": "^9.18.0",
     "tsx": "^4.19.2",
     "turbo": "^2.5.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "yaml": "^2.9.1"
   }
 }
