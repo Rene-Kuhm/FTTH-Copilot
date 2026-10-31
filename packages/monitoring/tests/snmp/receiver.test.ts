@@ -299,7 +299,11 @@ describe('Managed SNMP Receiver (Roadmap Fase 0)', () => {
 
       expect(received).toHaveLength(0);
     } finally {
-      receiver.close();
+      // Closing a dgram socket is asynchronous. The next test binds the same
+      // port on purpose (it checks that the port was released), so the close
+      // has to be awaited: otherwise the two sockets race and the bind fails
+      // with EADDRINUSE.
+      await new Promise<void>((resolve) => receiver.close(() => resolve()));
     }
   });
 
