@@ -41,6 +41,9 @@ function healthyRuntime(): WorkerRuntime {
       syslogBound: true,
       syslogExpected: true,
       syslogLastError: null,
+      snmpBound: true,
+      snmpExpected: true,
+      snmpLastError: null,
       backlog: 3,
       dropped: 1,
       deadLettered: 2,
@@ -105,11 +108,25 @@ describe('GET /healthz', () => {
       syslogBound: true,
       syslogExpected: true,
       syslogLastError: null,
+      snmpBound: true,
+      snmpExpected: true,
+      snmpLastError: null,
       backlog: 3,
       dropped: 1,
       deadLettered: 2,
       rateLimited: 4,
     });
+  });
+
+  it('reports the state of the SNMP receiver', async () => {
+    const response = await fetch(`${baseUrl}/healthz`);
+    const body = await response.json();
+
+    // The trap receiver is a second socket: the operator has to know that
+    // it is down without asking the trap pipeline.
+    expect(body.ingest.snmpBound).toBe(true);
+    expect(body.ingest.snmpExpected).toBe(true);
+    expect(body.ingest.snmpLastError).toBeNull();
   });
 });
 
@@ -208,6 +225,9 @@ describe('when Redis is unreachable', () => {
       syslogBound: false,
       syslogExpected: false,
       syslogLastError: null,
+      snmpBound: false,
+      snmpExpected: false,
+      snmpLastError: null,
       backlog: 0,
       dropped: 0,
       deadLettered: 0,

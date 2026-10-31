@@ -47,6 +47,9 @@ export interface QueueCounter {
  * were received but not stored yet. Both have to be visible: a socket that
  * failed to bind and a backlog that grows are the two failures an operator
  * must see before they become lost telemetry.
+ *
+ * The SNMP receiver is the same story with a second socket: the operator has
+ * to know that the trap receiver is down without asking the trap pipeline.
  */
 export interface IngestRuntimeState {
   /** Whether the syslog UDP socket is bound. */
@@ -55,6 +58,12 @@ export interface IngestRuntimeState {
   syslogExpected: boolean;
   /** Last error recorded for the syslog service. */
   syslogLastError: string | null;
+  /** Whether the SNMP UDP socket is bound. */
+  snmpBound: boolean;
+  /** Whether the SNMP receiver is expected to run in this process. */
+  snmpExpected: boolean;
+  /** Last error recorded for the SNMP service. */
+  snmpLastError: string | null;
   /** Events waiting in the durable spool. */
   backlog: number;
   /** Events the spool refused (hard size limit). */
@@ -70,6 +79,9 @@ const EMPTY_INGEST_STATE: IngestRuntimeState = {
   syslogBound: false,
   syslogExpected: false,
   syslogLastError: null,
+  snmpBound: false,
+  snmpExpected: false,
+  snmpLastError: null,
   backlog: 0,
   dropped: 0,
   deadLettered: 0,

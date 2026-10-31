@@ -1,0 +1,155 @@
+import {
+  createManagedSnmpReceiver,
+  parseAndNormalizeSnmpTrap,
+  type SnmpSenderRegistration,
+  type RawSnmpEvidenceEnvelope,
+} from '@ftth-copilot/monitoring';
+import type { TelemetryEvent } from '@ftth-copilot/shared';
+import {
+  recordError as recordSchedulerError,
+  recordSuccess as recordSchedulerSuccess,
+  markExpected as markSchedulerExpected,
+  markNotExpected as markSchedulerNotExpected,
+  recordSnmpBound,
+} from '@ftth-copilot/scheduler';
+import { startEventDrainer } from './ingest';
+
+function positiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export interface SnmpReceiverOptions {
+  address?: string;
+  registrations?: SnmpSenderRegistration[];
+  /** Receives the normalised trap. Persist it here or it is gone. */
+  onEvent?: (event: TelemetryEvent) => void;
+  onEvidence?: (evidence: RawSnmpEvidenceEnvelope) => void;
+  onError?: (error: Error) => void;
+  onReady?: () => void;
+  /**
+   * Whether the receiver starts the in-process drainer when the socket binds.
+   *
+   * Defaults to false: the SNMP receiver never drained by itself, the web
+   * starts the drainer explicitly. The worker drains through the durable job
+   * queue instead, so it turns it off.
+   */
+  startInProcessDrainer?: boolean;
+}
+
+export type SnmpStopFn = (() => Promise<void>) & {
+  ready: () => Promise<void>;
+};
+
+/**
+ * Starts an SNMP UDP trap receiver in observation mode (Roadmap Fase 6 & Fase 0).
+ *
+ * Disabled unless SNMP_RECEIVER_ENABLED=true, so dev, test and default environments
+ * never bind a socket without explicit intent (Roadmap Rule 10).
+ */
+export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
+  if (process.env['SNMP_RECEIVER_ENABLED'] !== 'true') {
+    markSchedulerNotExpected('snmp');
+    recordSnmpBound(false);
+    const noop = (() => Promise.resolve()) as SnmpStopFn;
+    noop.ready = () => Promise.resolve();
+    return noop;
+  }
+
+  markSchedulerExpected('snmp');
+  recordSnmpBound(false);
+
+  // Load registered senders from options or env JSON (Roadmap 6.2)
+  let rawRegistrations: SnmpSenderRegistration[] = opts.registrations ?? [];
+  if (rawRegistrations.length === 0 && process.env['SNMP_SENDER_REGISTRY_JSON']) {
+    try {
+      rawRegistrations = JSON.parse(process.env['SNMP_SENDER_REGISTRY_JSON']);
+    } catch {
+      recordSchedulerError('snmp', 'Failed to parse SNMP_SENDER_REGISTRY_JSON');
+    }
+  }
+
+  const port = positiveInt(process.env['SNMP_UDP_PORT'], 1162);
+  const address = opts.address ?? process.env['SNMP_BIND_ADDRESS'] ?? '0.0.0.0';
+
+  let isStopped = false;
+
+  const receiverHandle = createManagedSnmpReceiver({
+    port,
+    address,
+    registrations: rawRegistrations,
+    guardOptions: {
+      maxPayloadBytes: positiveInt(process.env['SNMP_MAX_PAYLOAD_BYTES'], 2048),
+      maxEventsPerWindow: positiveInt(process.env['SNMP_MAX_EVENTS_PER_MINUTE'], 1000),
+      windowMs: 60000,
+      dedupWindowMs: positiveInt(process.env['SNMP_DEDUP_WINDOW_MS'], 5000),
+    },
+    disableAuthorization: process.env['SNMP_DISABLE_AUTH'] === 'true',
+    onNotification: (notification, senderContext, evidence) => {
+      try {
+        const normalized = parseAndNormalizeSnmpTrap(
+          {
+            version: notification.version,
+            trapOid: notification.trapOid,
+            varbinds: notification.varbinds,
+            receivedAtMs: notification.receivedAtMs,
+            sysUpTime: notification.sysUpTime,
+            eventTime: notification.eventTime,
+            pduType: notification.pduType,
+          },
+          senderContext,
+        );
+        recordSchedulerSuccess('snmp');
+        opts.onEvent?.(normalized);
+        opts.onEvidence?.(evidence);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        recordSchedulerError('snmp', `parse/normalize failed: ${msg}`);
+      }
+    },
+    onReady: () => {
+      if (isStopped) return;
+      recordSnmpBound(true);
+      opts.onReady?.();
+    },
+    onError: (err, sourceIp) => {
+      recordSnmpBound(false);
+      if (isStopped) return;
+      opts.onError?.(err);
+      recordSchedulerError('snmp', `receiver error [${sourceIp ?? 'unknown'}]: ${err.message}`);
+    },
+  });
+
+  const stopFn = (() => {
+    isStopped = true;
+    recordSnmpBound(false);
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          recordSchedulerError('snmp', 'close timeout reached, forcing unbound state');
+          recordSnmpBound(false);
+          resolve();
+        }
+      }, 500);
+
+      receiverHandle.close(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          recordSnmpBound(false);
+          resolve();
+        }
+      });
+    });
+  }) as SnmpStopFn;
+
+  stopFn.ready = () => receiverHandle.ready();
+
+  // The in-process drainer belongs to the embedded web. The worker drains
+  // through the durable job queue instead.
+  if (opts.startInProcessDrainer === true) startEventDrainer();
+
+  return stopFn;
+}

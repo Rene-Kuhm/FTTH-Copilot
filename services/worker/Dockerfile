@@ -41,10 +41,12 @@ RUN pnpm --filter @ftth-copilot/db exec prisma generate
 # so the source of every package in the dependency closure is part of the
 # image. The closure of `@ftth-copilot/worker` is:
 #
-#   worker → { jobs, ingest → { scheduler → { db → shared, monitoring → { alerts
-#   → detection, analytics, connectors-core }, soc → { alerts, security, db },
-#   analytics, connectors-factory → { db, connectors-{core, smartolt, mikrowisp,
-#   mikrotik} } }, security } }
+#   worker → { jobs, ingest → { db → shared, monitoring → { alerts →
+#   detection, analytics, connectors-core }, scheduler → { db → shared,
+#   monitoring → { alerts → detection, analytics, connectors-core }, soc →
+#   { alerts, security, db }, analytics, connectors-factory → { db,
+#   connectors-{core, smartolt, mikrowisp, mikrotik} } }, security, shared,
+#   soc → { alerts, security, db } } }
 #
 # `--ignore-scripts` keeps the install hermetic: the only native artifact the
 # image needs is the Prisma query engine, which is copied from the stage above.

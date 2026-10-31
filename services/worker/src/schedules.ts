@@ -79,8 +79,14 @@ export interface LoopDefinition<Q extends QueueKey> {
   jobName: QueueJobMap[Q];
   /** Payload carried by every tick. */
   data: QueueData<Q>;
-  /** Env flag that enables the loop. */
-  enabledFlag: string;
+  /**
+   * Env flag that enables the loop.
+   *
+   * Optional: a loop without a flag is always registered. The periodic drain
+   * of the spool is such a loop — it is the safety net of the ingestion, and
+   * a safety net that only exists when a flag says so is not one.
+   */
+  enabledFlag?: string;
   /** Env var with the period of the loop, in milliseconds. */
   intervalFlag: string;
   /** Period used when the env var is unset or invalid, in milliseconds. */
@@ -118,6 +124,26 @@ export const FEC_LOOP: LoopDefinition<'fec'> = {
   enabledFlag: 'FEC_COLLECTION_ENABLED',
   intervalFlag: 'FEC_COLLECTION_INTERVAL_MS',
   defaultIntervalMs: 3_600_000,
+};
+
+/**
+ * The periodic drain of the durable spool.
+ *
+ * Every received trap enqueues its own drain job, but that enqueue can fail
+ * with Redis down: the trap is already safe on disk, and nothing would ask
+ * for it to be drained until another trap arrived. This schedule is the net
+ * that catches it.
+ *
+ * The payload names the `syslog` source, but the handler drains the whole
+ * spool whatever the source says, so one schedule covers both receivers.
+ */
+export const INGEST_DRAIN_LOOP: LoopDefinition<'ingest'> = {
+  scope: 'ingest-drain',
+  queue: 'ingest',
+  jobName: JOB_NAMES.ingestDrain,
+  data: { source: 'syslog' },
+  intervalFlag: 'INGEST_DRAIN_INTERVAL_MS',
+  defaultIntervalMs: 30_000,
 };
 
 /** A loop that was registered. */
@@ -182,7 +208,7 @@ async function registerLoop<Q extends QueueKey>(
   env: NodeJS.ProcessEnv,
   connection: RedisConnectionOptions,
 ): Promise<RegisteredLoop | SkippedLoop> {
-  if (env[definition.enabledFlag] !== 'true') {
+  if (definition.enabledFlag !== undefined && env[definition.enabledFlag] !== 'true') {
     return {
       scope: definition.scope,
       reason: `${definition.enabledFlag} is not "true"`,
@@ -246,7 +272,12 @@ export async function registerRecurringSchedules(
   const registered: RegisteredLoop[] = [];
   const skipped: SkippedLoop[] = [];
 
-  for (const definition of [POLL_LOOP, FIRMWARE_LOOP, FEC_LOOP] as LoopDefinition<QueueKey>[]) {
+  for (const definition of [
+    POLL_LOOP,
+    FIRMWARE_LOOP,
+    FEC_LOOP,
+    INGEST_DRAIN_LOOP,
+  ] as LoopDefinition<QueueKey>[]) {
     const outcome = await registerLoop(definition, env, connection);
     if ('schedulerId' in outcome) {
       registered.push(outcome);

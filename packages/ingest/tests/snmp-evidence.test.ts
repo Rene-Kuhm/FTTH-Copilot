@@ -36,7 +36,7 @@ const {
   purgeTenantEvidence,
   readIdentifyingVars,
   EVIDENCE_RETENTION_DAYS,
-} = await import('@/lib/monitoring/snmp-evidence');
+} = await import('../src/snmp-evidence');
 
 function varbind(overrides: Partial<SnmpVarbindDetail> = {}): SnmpVarbindDetail {
   return {

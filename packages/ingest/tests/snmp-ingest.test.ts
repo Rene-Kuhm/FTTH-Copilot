@@ -4,14 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sendSnmpTestTrap } from '@ftth-copilot/monitoring';
 import type { TelemetryEvent } from '@ftth-copilot/shared';
-import {
-  mapTrapCategory,
-  mapTrapSeverity,
-  describeTrap,
-  spoolSnmpTrap,
-} from '@/lib/monitoring/snmp-ingest';
-import { startEventDrainer, stopEventDrainer } from '@/lib/monitoring/event-ingest';
-import { startSnmpReceiver } from '@/lib/monitoring/snmp';
+import { mapTrapCategory, mapTrapSeverity, describeTrap, spoolSnmpTrap } from '../src/snmp-ingest';
+import { startEventDrainer, stopEventDrainer } from '../src/ingest';
+import { startSnmpReceiver } from '../src/snmp-receiver';
 
 function telemetryEvent(overrides: Partial<TelemetryEvent> = {}): TelemetryEvent {
   return {

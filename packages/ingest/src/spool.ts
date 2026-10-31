@@ -90,19 +90,43 @@ let ingestSequence = 0;
  */
 const LOCK_FILE = 'owner.lock';
 
+/**
+ * Version of the lock format.
+ *
+ * The identity fields below (start time, boot id) are what make a lock
+ * survive a restart without blocking the directory forever. A lock without
+ * them cannot be checked for liveness, so it is treated as stale: the guard
+ * shipped together with the identity, and the alternative — refusing
+ * forever — would lose exactly the telemetry the spool protects.
+ */
+const LOCK_VERSION = 2;
+
 /** Owner of a spool directory. */
 interface SpoolOwner {
+  /** Format version of this lock. */
+  v?: number;
   pid: number;
   token: string;
   startedAt: string;
+  /**
+   * Start time of the process, in clock ticks since boot (`/proc/<pid>/stat`
+   * field 22). Together with `bootId` this identifies a process **instance**,
+   * not just a pid: a pid is recycled, and inside a container the worker is
+   * almost always pid 1 — so after a restart `kill(pid, 0)` happily reports
+   * the *new* process as alive and the lock would never be released.
+   */
+  startTicks?: number | null;
+  /** Kernel boot id, so a reboot invalidates every lock. */
+  bootId?: string | null;
 }
 
 /**
- * Whether a process is still running.
+ * Whether a pid is still running.
  *
  * `kill(pid, 0)` does not signal anything; it only asks the kernel. EPERM
  * means the process exists but belongs to another user, which still counts
- * as alive.
+ * as alive. It cannot tell a pid from the process that held it before, so it
+ * is only the fallback when `/proc` is not available.
  */
 function isProcessAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -111,6 +135,35 @@ function isProcessAlive(pid: number): boolean {
     return true;
   } catch (err) {
     return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Start time of a process, in clock ticks since boot.
+ *
+ * Returns null when `/proc` cannot answer: the process is gone, or the
+ * platform has no `/proc` at all (macOS).
+ */
+function readStartTicks(pid: number): number | null {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    // The command name is in parentheses and may contain spaces, so the
+    // fields are counted from the closing parenthesis: field 3 is index 0,
+    // and start time is field 22.
+    const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    const ticks = Number.parseInt(rest[19] ?? '', 10);
+    return Number.isFinite(ticks) ? ticks : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Kernel boot id, or null when it cannot be read. */
+function readBootId(): string | null {
+  try {
+    return readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() || null;
+  } catch {
+    return null;
   }
 }
 
@@ -179,9 +232,12 @@ export class DurableSpool<T> {
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const owner: SpoolOwner = {
+        v: LOCK_VERSION,
         pid: process.pid,
         token: this.token,
         startedAt: new Date().toISOString(),
+        startTicks: readStartTicks(process.pid),
+        bootId: readBootId(),
       };
       try {
         // `wx` fails when the file exists: the claim is atomic.
@@ -192,7 +248,7 @@ export class DurableSpool<T> {
         if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
 
         const current = this.readOwner(lockPath);
-        if (current !== null && isProcessAlive(current.pid)) {
+        if (current !== null && this.isOwnerAlive(current)) {
           throw new Error(
             `the spool directory ${this.dir} is already owned by process ${current.pid}. ` +
               'Two processes must never share a spool: they would advance the same offset ' +
@@ -214,10 +270,59 @@ export class DurableSpool<T> {
     try {
       const parsed = JSON.parse(readFileSync(lockPath, 'utf8')) as Partial<SpoolOwner>;
       if (typeof parsed.pid !== 'number' || typeof parsed.token !== 'string') return null;
-      return { pid: parsed.pid, token: parsed.token, startedAt: parsed.startedAt ?? '' };
+      return {
+        v: typeof parsed.v === 'number' ? parsed.v : undefined,
+        pid: parsed.pid,
+        token: parsed.token,
+        startedAt: parsed.startedAt ?? '',
+        startTicks: typeof parsed.startTicks === 'number' ? parsed.startTicks : null,
+        bootId: typeof parsed.bootId === 'string' ? parsed.bootId : null,
+      };
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Whether the recorded owner is still the process that took the lock.
+   *
+   * A pid alone is not an identity: the kernel recycles it, and inside a
+   * container this process is almost always pid 1, so a lock left behind by
+   * a previous container would look "alive" forever and block the spool on
+   * every restart. The instance is identified by pid **plus** its start time
+   * (and the boot id, so a reboot invalidates everything).
+   */
+  private isOwnerAlive(owner: SpoolOwner): boolean {
+    if (owner.v !== LOCK_VERSION) {
+      // Written by a version that could not record the identity of the
+      // process. It cannot be checked, so it is taken over — with a warning,
+      // because the operator should know the directory was reclaimed.
+      console.warn(
+        `[spool] taking over ${this.dir}: its lock was written by an older version and cannot be verified`,
+      );
+      return false;
+    }
+
+    const bootId = readBootId();
+    if (owner.bootId !== null && bootId !== null && owner.bootId !== bootId) {
+      // The machine rebooted: whoever held this lock is gone.
+      return false;
+    }
+
+    if (owner.startTicks === null || owner.startTicks === undefined) {
+      // A lock from an older version, or a platform without `/proc`.
+      return isProcessAlive(owner.pid);
+    }
+
+    const currentTicks = readStartTicks(owner.pid);
+    if (currentTicks === null) {
+      // No such process, or `/proc` cannot answer: nothing to protect.
+      return isProcessAlive(owner.pid) && readStartTicks(process.pid) === null;
+    }
+
+    // Same pid and same start time means the very same process instance.
+    // A different start time means the pid was recycled by a new process.
+    return currentTicks === owner.startTicks;
   }
 
   /** Durable enqueue. Returns the assigned id, or null when refused. */

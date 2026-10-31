@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { startSnmpReceiver } from '@/lib/monitoring/snmp';
-import {
-  snapshotHealth,
-  __resetSchedulerHealth,
-} from '@/lib/monitoring/scheduler-health';
+import { startSnmpReceiver } from '../src/snmp-receiver';
+import { snapshotHealth, __resetSchedulerHealth } from '@ftth-copilot/scheduler';
 import { sendSnmpTestTrap, type RawSnmpEvidenceEnvelope } from '@ftth-copilot/monitoring';
 
 describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {

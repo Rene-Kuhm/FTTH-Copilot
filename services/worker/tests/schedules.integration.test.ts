@@ -42,6 +42,11 @@ const LOOPS: Array<{ queue: QueueKey; jobName: string; schedulerId: string }> = 
     jobName: JOB_NAMES.fecCollection,
     schedulerId: 'scheduler-fec-collection',
   },
+  {
+    queue: 'ingest',
+    jobName: JOB_NAMES.ingestDrain,
+    schedulerId: 'scheduler-ingest-drain',
+  },
 ];
 
 const ENV_ALL_ENABLED = {
@@ -157,7 +162,12 @@ suite('recurring schedules (integration)', () => {
       connection: CONNECTION,
     });
 
-    expect(result.registered.map((loop) => loop.scope)).toEqual(['poll-connections']);
+    // The periodic drain has no flag: it is the safety net of the ingestion
+    // and it is always registered.
+    expect(result.registered.map((loop) => loop.scope)).toEqual([
+      'poll-connections',
+      'ingest-drain',
+    ]);
     expect(result.skipped.map((loop) => loop.scope)).toEqual(
       expect.arrayContaining(['firmware-audit', 'fec-collection']),
     );
@@ -175,5 +185,27 @@ suite('recurring schedules (integration)', () => {
       const schedulers = await queueOf(loop.queue).getJobSchedulers();
       expect(schedulers[0]?.key).toBe(loop.schedulerId);
     }
+  });
+
+  it('registers exactly one drain schedule, even when called twice', async () => {
+    await registerRecurringSchedules({ env: ENV_ALL_ENABLED, connection: CONNECTION });
+    await registerRecurringSchedules({ env: ENV_ALL_ENABLED, connection: CONNECTION });
+
+    // The upsert is idempotent per scheduler id, so a second replica does
+    // not create a second drain schedule.
+    const schedulers = await queueOf('ingest').getJobSchedulers();
+    expect(schedulers).toHaveLength(1);
+    expect(schedulers[0]?.key).toBe('scheduler-ingest-drain');
+  });
+
+  it('produces the drain tick on the same queue the drain jobs land on', async () => {
+    await registerRecurringSchedules({ env: ENV_ALL_ENABLED, connection: CONNECTION });
+
+    // The drain schedule lives on the ingest queue, which is also where the
+    // receiver enqueues its one-shot drain jobs: the worker consumes both.
+    const jobs = await queueOf('ingest').getJobs(['waiting', 'delayed'], 0, 10);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.name).toBe(JOB_NAMES.ingestDrain);
+    expect(jobs[0]?.data).toEqual({ source: 'syslog' });
   });
 });

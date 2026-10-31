@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -55,6 +55,88 @@ describe('spool directory ownership', () => {
     }
   });
 
+  it('takes over a lock whose process id was recycled by another process', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      // The failure this pins: inside a container the worker is pid 1, so
+      // after a restart there IS a live process with the pid of the lock.
+      // `kill(pid, 0)` says "alive" and the spool would be blocked forever.
+      // The lock records the start time of the process that took it, so a
+      // pid with a different start time is a different process.
+      const selfStat = readFileSync('/proc/self/stat', 'utf8');
+      const selfTicks = Number.parseInt(
+        selfStat.slice(selfStat.lastIndexOf(')') + 2).split(' ')[19] ?? '',
+        10,
+      );
+      const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          v: 2,
+          pid: process.pid,
+          token: 'previous-container',
+          startedAt: new Date().toISOString(),
+          // Same pid, different instance.
+          startTicks: selfTicks - 1,
+          bootId,
+        }),
+      );
+
+      const spool = new DurableSpool<{ n: number }>({ dir });
+      expect(spool.append({ n: 1 })).not.toBeNull();
+      spool.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes over a lock left by a previous boot', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          v: 2,
+          pid: process.pid,
+          token: 'before-the-reboot',
+          startedAt: new Date().toISOString(),
+          startTicks: 1,
+          bootId: 'a-boot-that-is-not-this-one',
+        }),
+      );
+
+      const spool = new DurableSpool<{ n: number }>({ dir });
+      expect(spool.append({ n: 1 })).not.toBeNull();
+      spool.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes over a lock from an older format that cannot be verified', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    try {
+      // No version, no identity: there is no way to know whether the process
+      // is gone. Refusing would lose the telemetry the spool protects, so
+      // the lock is reclaimed with a warning.
+      writeFileSync(
+        join(dir, 'owner.lock'),
+        JSON.stringify({
+          pid: process.pid,
+          token: 'legacy',
+          startedAt: new Date().toISOString(),
+        }),
+      );
+
+      const spool = new DurableSpool<{ n: number }>({ dir });
+      expect(spool.append({ n: 1 })).not.toBeNull();
+      spool.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('takes over a directory whose owner is gone', () => {
     const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
     try {
@@ -63,7 +145,7 @@ describe('spool directory ownership', () => {
       // block every future boot.
       writeFileSync(
         join(dir, 'owner.lock'),
-        JSON.stringify({ pid: 2 ** 30, token: 'stale', startedAt: new Date().toISOString() }),
+        JSON.stringify({ v: 2, pid: 2 ** 30, token: 'stale', startedAt: new Date().toISOString() }),
       );
 
       const spool = new DurableSpool<{ n: number }>({ dir });

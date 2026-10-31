@@ -593,19 +593,25 @@ importers:
 
   packages/ingest:
     dependencies:
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@ftth-copilot/monitoring':
+        specifier: workspace:*
+        version: link:../monitoring
       '@ftth-copilot/scheduler':
         specifier: workspace:*
         version: link:../scheduler
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:../security
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../soc
     devDependencies:
-      '@ftth-copilot/db':
-        specifier: workspace:*
-        version: link:../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.5
@@ -846,6 +852,9 @@ importers:
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../../packages/soc

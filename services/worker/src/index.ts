@@ -15,6 +15,7 @@
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
 import { registeredJobNames } from './registry';
 import { registerRecurringSchedules } from './schedules';
+import { startWorkerSnmpReceiver } from './snmp';
 import { startWorkerSyslogReceiver } from './syslog';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
 
@@ -83,37 +84,53 @@ async function main(): Promise<void> {
     }`,
   );
 
+  // The worker owns the syslog socket: it binds it, spools every datagram
+  // into the durable spool and enqueues the drain job. The gate is the one
+  // of the package (`SYSLOG_RECEIVER_ENABLED=true` and `SYSLOG_TENANT_ID`
+  // set), so a worker without them never binds a port.
+  //
+  // The sockets come up BEFORE the schedules: a UDP socket that binds is
+  // what keeps the telemetry alive, and it does not need Redis. A boot that
+  // waited for the schedule registration would leave the ports unbound
+  // while Redis is down, and the traps would be dropped by the kernel.
+  const syslog = startWorkerSyslogReceiver({ env });
+  console.log(
+    '[worker] syslog receiver started (gate: SYSLOG_RECEIVER_ENABLED=true and SYSLOG_TENANT_ID set)',
+  );
+
+  // The worker owns the SNMP socket too: it binds it, spools every trap
+  // into the durable spool and enqueues the drain job. The gate is the one
+  // of the package (`SNMP_RECEIVER_ENABLED=true`), so a worker without it
+  // never binds a port.
+  const snmp = startWorkerSnmpReceiver({ env });
+  console.log('[worker] SNMP receiver started (gate: SNMP_RECEIVER_ENABLED=true)');
+
   // The worker owns the schedule of the recurring loops: it registers one
   // recurring schedule per enabled loop and enqueues the first tick
   // immediately. Registering twice is a no-op (the schedule is an upsert keyed
   // by a stable scheduler id), so a restart — or a second replica — never
   // creates two schedules.
   //
-  // A Redis outage must not take the process down: the health endpoint keeps
-  // reporting the degradation and the schedules are registered on the next
-  // boot.
-  try {
-    const schedules = await registerRecurringSchedules({ env });
-    for (const loop of schedules.registered) {
-      console.log(
-        `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick at ${new Date(loop.firstTickAtMs).toISOString()})`,
-      );
-    }
-    for (const loop of schedules.skipped) {
-      console.log(`[worker] schedule "${loop.scope}" not registered: ${loop.reason}`);
-    }
-  } catch (error) {
-    console.error('[worker] could not register the recurring schedules:', error);
-  }
-
-  // The worker owns the syslog socket: it binds it, spools every datagram
-  // into the durable spool and enqueues the drain job. The gate is the one
-  // of the package (`SYSLOG_RECEIVER_ENABLED=true` and `SYSLOG_TENANT_ID`
-  // set), so a worker without them never binds a port.
-  const syslog = startWorkerSyslogReceiver({ env });
-  console.log(
-    '[worker] syslog receiver started (gate: SYSLOG_RECEIVER_ENABLED=true and SYSLOG_TENANT_ID set)',
-  );
+  // The registration runs in the background: Redis may be down, and a boot
+  // that waited for it would delay the sockets (and the shutdown handler)
+  // for as long as the outage lasts. A Redis outage must not take the
+  // process down: the health endpoint keeps reporting the degradation, the
+  // traps keep landing in the durable spool, and the registration completes
+  // on its own when Redis comes back.
+  void registerRecurringSchedules({ env })
+    .then((schedules) => {
+      for (const loop of schedules.registered) {
+        console.log(
+          `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick at ${new Date(loop.firstTickAtMs).toISOString()})`,
+        );
+      }
+      for (const loop of schedules.skipped) {
+        console.log(`[worker] schedule "${loop.scope}" not registered: ${loop.reason}`);
+      }
+    })
+    .catch((error: unknown) => {
+      console.error('[worker] could not register the recurring schedules:', error);
+    });
 
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
@@ -124,6 +141,7 @@ async function main(): Promise<void> {
     try {
       await server.close();
       await syslog.stop();
+      await snmp.stop();
       await fleet.close();
     } catch (error) {
       console.error('[worker] error while shutting down:', error);

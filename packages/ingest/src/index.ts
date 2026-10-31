@@ -11,6 +11,12 @@
  *     batch into Postgres.
  *   - `syslog-receiver.ts` — the UDP syslog receiver. It parses, classifies
  *     and spools every datagram; it never writes to the database itself.
+ *   - `snmp-receiver.ts` — the UDP SNMP trap receiver. It normalises every
+ *     trap and hands it to the caller; it never writes to the database itself.
+ *   - `snmp-ingest.ts` — the mapping of a normalised trap onto the device
+ *     event row, and its hand-off to the durable spool.
+ *   - `snmp-evidence.ts` — the store of the raw trap evidence, with its own
+ *     retention policy. It is forensics, not a dashboard event.
  *
  * The code moved here verbatim from `apps/web/lib/monitoring/*`: the web
  * still uses it (embedded mode) and re-exports it, while the worker binds the
@@ -47,3 +53,27 @@ export {
 } from './ingest';
 
 export { startSyslogReceiver, type SyslogReceiverOptions } from './syslog-receiver';
+
+export {
+  startSnmpReceiver,
+  type SnmpReceiverOptions,
+  type SnmpStopFn,
+} from './snmp-receiver';
+
+export {
+  describeTrap,
+  mapTrapCategory,
+  mapTrapSeverity,
+  spoolSnmpTrap,
+} from './snmp-ingest';
+
+export {
+  EVIDENCE_RETENTION_DAYS,
+  normalizeEvidence,
+  purgeExpiredEvidence,
+  purgeTenantEvidence,
+  readIdentifyingVars,
+  retentionDeadline,
+  storeEvidence,
+  type NormalizedEvidence,
+} from './snmp-evidence';

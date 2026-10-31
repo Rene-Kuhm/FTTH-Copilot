@@ -17,12 +17,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/monitoring": "workspace:*",
     "@ftth-copilot/scheduler": "workspace:*",
     "@ftth-copilot/security": "workspace:*",
+    "@ftth-copilot/shared": "workspace:*",
     "@ftth-copilot/soc": "workspace:*"
   },
   "devDependencies": {
-    "@ftth-copilot/db": "workspace:*",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.11",
