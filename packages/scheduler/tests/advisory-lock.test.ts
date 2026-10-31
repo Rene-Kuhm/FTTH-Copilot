@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest';
 
 /**
  * Distributed lock for the scheduler loops.
@@ -39,6 +39,15 @@ function sqlOf(call: unknown): string {
 function paramOf(call: unknown): unknown {
   return (call as [readonly string[], unknown])[1];
 }
+
+// The first `await import('../src/index')` loads the whole scheduler graph
+// (monitoring, soc, analytics). Under coverage instrumentation on a CI runner
+// that cold import alone has taken over 6 s, which made the first test of the
+// file time out on its 5 s budget. Loading it once here keeps each test's
+// budget for the behavior it checks; the module is cached afterwards.
+beforeAll(async () => {
+  await import('../src/index');
+}, 60_000);
 
 beforeEach(() => {
   vi.clearAllMocks();

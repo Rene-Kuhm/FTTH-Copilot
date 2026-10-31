@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * FEC collection tick of the scheduler.
@@ -92,6 +92,15 @@ function setEnv(values: Partial<Record<EnvKey, string | undefined>>): void {
 function clearFecEnv(): void {
   for (const key of ENV_KEYS) delete process.env[key];
 }
+
+// The first `await import('../src/index')` loads the whole scheduler graph
+// (monitoring, soc, analytics). Under coverage instrumentation on a CI runner
+// that cold import alone has taken over 6 s, which made the first test of the
+// file time out on its 5 s budget. Loading it once here keeps each test's
+// budget for the behavior it checks; the module is cached afterwards.
+beforeAll(async () => {
+  await import('../src/index');
+}, 60_000);
 
 beforeEach(() => {
   clearFecEnv();
