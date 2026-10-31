@@ -42,3 +42,20 @@ export {
 } from './connection';
 
 export { toJobsOptions, type EnqueueOptions } from './options';
+
+export {
+  createJobQueue,
+  enqueueJob,
+  scheduleRecurring,
+  type JobQueue,
+  type EnqueuedJob,
+  type RecurringSchedule,
+} from './queue';
+
+export {
+  defineWorker,
+  type JobHandler,
+  type JobHandlers,
+  type JobWorker,
+  type WorkerOptions,
+} from './worker';
