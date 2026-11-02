@@ -2,7 +2,8 @@
 
 ## Meta
 
-- Status: pr_open
+- Status: merged (PR #266, `feat/victoriametrics-observability`) — queda sólo la
+  verificación funcional (VM-6), que necesita el compose levantado
 - Started: 2026-10-04
 - Project: FTTH-Copilot
 - Location: /home/tecnodespegue/proyectos/FTTH-Copilot
@@ -92,26 +93,43 @@ After (target):
 ## Acceptance Criteria
 
 - [ ] `docker-compose.yml` includes `victoriametrics` service with correct scrape config.
-- [ ] `docker-compose.prod.yml` includes `victoriametrics` service.
-- [ ] VM UI accessible at port 8428 with auth (if bearer configured).
+  → **Descartado por decisión (2026-11-01):** `docker-compose.yml` es el compose de
+  desarrollo mínimo (`postgres` + `redis` + `laya` opcional). Su propio header dice
+  que la observabilidad va en `docker-compose.demo.yml` o `docker-compose.prod.yml`.
+  Agregar VM ahí duplicaría el servicio sin necesidad. Ver VM-1.
+- [x] `docker-compose.prod.yml` includes `victoriametrics` service.
+  → 19 referencias a `victoriametrics` (servicio + `vmalert` + volumen).
+- [x] VM UI accessible at port 8428 with auth (if bearer configured).
+  → `docs/production-deployment.md:319` documenta `open http://localhost:8428`
+  (VMUI) y el `:curl` con `-G .../api/v1/query`.
 - [ ] VM scrapes `/api/metrics` successfully (visible in VM → Metrics explore).
-- [ ] Grafana can add VM as datasource using Prometheus-compatible URL.
-- [ ] `METRICS_BEARER_TOKEN` propagates to VM scrape config.
-- [ ] `.env.example` documents `VICTORIAMETRICS_*` variables.
-- [ ] `docs/production-deployment.md` updated with VM section.
-- [ ] Existing Prometheus scrape config example deprecated (or updated to vmagent).
+  → La config está (`docker/victoriametrics-scrape.yml`: `metrics_path: /api/metrics`,
+  `authorization` con `__METRICS_BEARER_TOKEN__`), pero **verificar que aparecen
+  series en VMUI requiere levantar el compose**: es la parte de VM-6.
+- [x] Grafana can add VM as datasource using Prometheus-compatible URL.
+  → `docs/production-deployment.md:356` documenta URL, Access y header `Authorization`.
+- [x] `METRICS_BEARER_TOKEN` propagates to VM scrape config.
+  → `docker/victoriametrics-entrypoint.sh` lo interpola; `compose.demo.yml:225` y
+  `compose.prod.yml:229` lo pasan al servicio.
+- [x] `.env.example` documents `VICTORIAMETRICS_*` variables.
+  → 10 variables `VICTORIAMETRICS_*` (líneas 279-310).
+- [x] `docs/production-deployment.md` updated with VM section.
+  → §5.2 y el diagrama de contenedores.
+- [x] Existing Prometheus scrape config example deprecated (or updated to vmagent).
+  → **No aplica:** no existe ningún `prometheus.yml` en el repo. El scrape config
+  es `docker/victoriametrics-scrape.yml` y usa `-promscrape.config` (flag del
+  servidor single-node), no vmagent. Ver VM-5.
 - [ ] Functional verification: metrics visible in VM after demo startup.
-- [ ] `pnpm lint && pnpm typecheck && pnpm test` pass (no breaking changes).
+  → Ver VM-6.
+- [x] `pnpm lint && pnpm typecheck && pnpm test` pass (no breaking changes).
+  → `turbo run typecheck lint --force` 47/47; `turbo run test --force` 24/24.
 
 ## Task Breakdown
 
-- [ ] VM-1: Add VictoriaMetrics to docker-compose.yml with scrape config.
+- [x] VM-1: Add VictoriaMetrics to docker-compose.yml with scrape config.
+  → **Descartado por decisión (2026-11-01):** el compose base es de desarrollo
+  mínimo y su header ya apunta a demo/prod para observabilidad. No se agrega VM ahí.
 
-> VM-1 es el unico pendiente real. Es discutible: `docker-compose.yml` es un
-> compose de desarrollo minimo (solo `postgres` y `laya`), no un espejo de
-> produccion, asi que agregar VM ahi solo tiene sentido si el desarrollo local
-> necesita consultar metricas.
->
 > VM-5 (deprecar un `prometheus.yml` de ejemplo) no tiene objeto: no existe
 > ningun `prometheus.yml` en el repositorio que deprecar. VM-6 y VM-7 son
 > verificacion funcional, no codigo.
@@ -119,10 +137,17 @@ After (target):
 - [x] VM-3: Update .env.example with VICTORIAMETRICS_* variables.
 - [x] VM-4: Update docs/production-deployment.md (replace Prometheus section).
 - [x] METRICS_BEARER_TOKEN propagates to the scrape config (compose.prod y compose.demo).
-- [ ] VM-1: Add VictoriaMetrics to docker-compose.yml with scrape config.
-- [ ] VM-5: Deprecate/update prometheus.yml example → vmagent.yml.
+- [x] VM-5: Deprecate/update prometheus.yml example → vmagent.yml.
+  → **No aplica:** no hay `prometheus.yml` en el repo. El scrape config real es
+  `docker/victoriametrics-scrape.yml` con `-promscrape.config` (servidor single-node).
+  Crear un `vmagent.yml` sería superficie sin consumidor: la imagen single-node no
+  corre vmagent, y el compose corre el servidor con su propio scrape config.
 - [ ] VM-6: Functional verification in demo environment.
+  → Requiere `docker compose -f docker-compose.demo.yml up` y comprobar series en
+  VMUI. Docker está disponible en esta máquina; la verificación no se ejecutó.
 - [ ] VM-7: Final checks, commit, PR.
+  → El código ya está mergeado (PR #266, `feat/victoriametrics-observability`, y
+  #267). Lo que queda es VM-6 y decidir si el checklist se cierra como está.
 
 ## Progress Log
 

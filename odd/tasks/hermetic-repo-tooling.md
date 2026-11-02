@@ -54,15 +54,21 @@ versiones y tareas corran en local y en CI, verificar la documentación contra e
 (zero-drift) y dotar de contexto agent-first a cada módulo. Depende de que exista la
 documentación y del CI base para enganchar los jobs.
 
-- [ ] Entorno hermético: `mise.toml` con versiones exactas y `mise.lock` commiteado; tareas
+- [x] Entorno hermético: `mise.toml` con versiones exactas y `mise.lock` commiteado; tareas
   `mise run build`, `test`, `lint`, `docs-test` y `repo-map`; el CI instala con el mismo mise
   (`jdx/mise-action`) y corre esas mismas tareas
-- [ ] Documentación viva (zero-drift): todo bloque de código ejecutable de `README.md` y `docs/`
+  → `mise.toml` + `mise.lock` commiteados; 14 tareas declaradas; el CI usa `jdx/mise-action`
+  (11 usos) y corre `lint`, `typecheck`, `docs-test`, `repo-map`, `contract:check`,
+  `test-scripts`, `c4:check`, `test:coverage-check` y `build`.
+- [x] Documentación viva (zero-drift): todo bloque de código ejecutable de `README.md` y `docs/`
   se ejecuta en CI con `mise run docs-test`; un ejemplo roto no se mergea
-- [ ] Contexto agent-first: un `AGENTS.md` corto en cada módulo principal con sus propias reglas
+  → job `Docs (zero-drift) & repo map` en CI. Local: 361 bloques en 104 archivos, 0 errores.
+- [x] Contexto agent-first: un `AGENTS.md` corto en cada módulo principal con sus propias reglas
   (qué invariantes cuida, cómo se prueba, qué no tocar); `mise run repo-map` imprime el esqueleto
   del repo (módulos, símbolos exportados con sus firmas y tipos, dependencias entre módulos, sin
   implementación) en menos de ~8.000 tokens
+  → 18 `AGENTS.md` versionados (12 paquetes, `apps/web`, 4 conectores, `services/laya`);
+  `repo-map` imprime ~2.186 palabras.
 
 Owns: mise.toml, mise.lock, scripts/, apps/**/AGENTS.md, packages/**/AGENTS.md,
 services/**/AGENTS.md, .github/workflows/
