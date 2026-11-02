@@ -274,3 +274,32 @@ mano desde la pestaña Actions, para reintentar sin republicar la release.
 verifica que el workflow que publica la release despacha al que atesta, y que
 ese workflow acepta `workflow_dispatch`. Si alguien borra el dispatch, el
 check falla y el CI se pone rojo.
+
+### 9.5 La línea base del changelog
+
+release-please arma el changelog de cada release con los commits que encuentra
+entre la línea base y `HEAD`. La línea base es el `last-release-sha` de
+`release-please-config.json`.
+
+La línea base tiene que apuntar al commit del último release publicado. Si
+apunta a un commit más viejo, la release nueva repite las entradas del release
+anterior y arrastra notas que ya se publicaron — un `BREAKING CHANGE:` de un
+commit viejo, por ejemplo, que en la 0.4.0 anunciaba una incompatibilidad que
+nunca existió.
+
+`pnpm check:release-range` verifica esa relación contra el `CHANGELOG.md` que
+se va a publicar:
+
+- todo commit que aparece en la sección más reciente tiene que estar dentro
+  del rango [línea base, `HEAD`];
+- la sección más reciente no puede repetir una entrada de la sección anterior.
+
+Es hermético —lee el changelog, el config y la historia del repo— y corre en el
+CI, así que el pull request de release es el primero que ve el changelog
+repetido, antes de que se publique.
+
+La línea base actual es el merge del pull request #266, el último pull request
+publicado en la `v0.3.0`. A partir de la `v0.4.0` el problema no se repite:
+release-please publica cada release con el SHA del commit en
+`target_commitish`, así que resuelve por su cuenta el último release y la
+línea base queda como red de seguridad.

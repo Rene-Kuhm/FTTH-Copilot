@@ -30,6 +30,7 @@ Todos los comandos se ejecutan desde la raíz del repo. Requisitos: Node ≥ 22,
 | `check:sources:health` | Reachability de las URLs de fuentes | `scripts/check-research-sources-health.ts` |
 | `check:contribution` | Gate de contribución de vendor | `scripts/validate-contribution.ts` |
 | `check:conflicts` | Colisiones de OID entre vendors | `scripts/check-oid-conflicts.ts` |
+| `check:release-range` | El changelog de la release en curso no repite un release ya publicado | `scripts/check-release-range.ts` |
 | `generate:matrix` | Imprime la matriz | `scripts/generate-compatibility-matrix.ts` |
 | `generate:matrix:write` | Escribe `docs/compatibility-matrix.md` | ídem con `--write` |
 | `sanitize:snmp` | Sanea capturas SNMP | `scripts/sanitize-snmp-capture.ts` |
