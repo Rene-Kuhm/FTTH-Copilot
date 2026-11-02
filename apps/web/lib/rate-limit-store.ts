@@ -18,7 +18,6 @@
 import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
 import { createLogger } from '@ftth-copilot/shared';
-import { redisConnectionOptions } from '@ftth-copilot/jobs';
 
 import {
   RATE_LIMITS,
@@ -240,19 +239,36 @@ function createRedisClient(url: string): RateLimitRedisClient {
 }
 
 /**
+ * La URL de la Redis donde vive la cuenta global.
+ *
+ * Es la misma variable que usa la cola del worker (`REDIS_URL`), así que el
+ * límite y la cola cuentan en la misma Redis, con la misma contraseña y el
+ * mismo índice de base de datos.
+ *
+ * `undefined` significa que no hay Redis configurada: en ese caso el límite
+ * queda en memoria y es por instancia.
+ *
+ * La resolución vive acá y no en `@ftth-copilot/jobs` a propósito: el paquete
+ * de la cola se mockea entero en los tests de rutas, y el limiter no puede
+ * depender de un módulo que los tests reemplazan. La invariante -que las dos
+ * capas apunten a la misma Redis- la vigila un test, no el acoplamiento.
+ */
+export function rateLimitRedisUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const configured = env['REDIS_URL']?.trim();
+  return configured && configured.length > 0 ? configured : undefined;
+}
+
+/**
  * Fábrica del almacén.
  *
  * Con `REDIS_URL` va a Redis (límite global); sin ella, en memoria (límite
  * por instancia, el de siempre).
- *
- * La URL sale de `redisConnectionOptions()` de `@ftth-copilot/jobs`: es la
- * misma Redis que usa la cola del worker, con la misma contraseña y el mismo
- * índice de base de datos.
  */
 export function createRateLimitStore(env: NodeJS.ProcessEnv = process.env): RateLimitStore {
-  const url = redisConnectionOptions(env).url;
-  const configured = env['REDIS_URL']?.trim();
-  if (!configured) {
+  const url = rateLimitRedisUrl(env);
+  if (!url) {
     return { ...createInMemoryRateLimitStore(), kind: 'memory' };
   }
   return createRedisRateLimitStore(url);

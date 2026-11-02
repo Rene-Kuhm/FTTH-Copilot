@@ -6,11 +6,13 @@
  * funcionando, pero por instancia. Con `REDIS_URL` el límite es global.
  */
 import { describe, expect, it } from 'vitest';
+import { redisConnectionOptions } from '@ftth-copilot/jobs';
 
 import {
   createRateLimitStore,
   createRedisRateLimitStore,
   getRateLimitStore,
+  rateLimitRedisUrl,
   type RateLimitRedisClient,
 } from '@/lib/rate-limit-store';
 
@@ -65,6 +67,19 @@ describe('createRateLimitStore — el respaldo en memoria', () => {
     const store = createRateLimitStore(envWith({ REDIS_URL: '   ' }));
 
     expect(store.kind).toBe('memory');
+  });
+});
+
+describe('rateLimitRedisUrl — la misma Redis que la cola', () => {
+  it('apunta a la misma URL que usa la cola del worker', () => {
+    const env = envWith({ REDIS_URL: 'redis://:secreto@redis:6379/3' });
+
+    // Si la cola cambia cómo resuelve su Redis, este test avisa.
+    expect(rateLimitRedisUrl(env)).toBe(redisConnectionOptions(env).url);
+  });
+
+  it('sin REDIS_URL no hay URL: el límite queda en memoria', () => {
+    expect(rateLimitRedisUrl(envWith({ REDIS_URL: undefined }))).toBeUndefined();
   });
 });
 
