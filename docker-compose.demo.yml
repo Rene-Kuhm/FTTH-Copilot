@@ -105,7 +105,13 @@ services:
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
-      WORKER_HOST: 127.0.0.1
+      # The worker listens on every interface of the host, and not only on
+      # the loopback: the VictoriaMetrics container scrapes it through the
+      # host gateway, and with the host network it reaches the host by
+      # address, not by 127.0.0.1. This is a development stack; in
+      # production the health server stays on the loopback and the scrape
+      # is pointed at a private interface (see docs/worker.md).
+      WORKER_HOST: 0.0.0.0
     volumes:
       - spool_demo_data:/var/lib/ftth-copilot/spool
     depends_on:
@@ -205,6 +211,11 @@ services:
       # Single-node VictoriaMetrics takes a Prometheus scrape config via
       # -promscrape.config. The wrapper renders the two variable fields.
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
+      # The worker scrape is a SECOND -promscrape.config, and it is only
+      # passed to VictoriaMetrics when this is set. The worker runs on the
+      # host network, so from this container it is reachable at the host
+      # gateway — see the `extra_hosts` below.
+      VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-host.docker.internal:8081}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-development}
       VM_RETENTION_PERIOD: ${VICTORIAMETRICS_RETENTION:-1}
@@ -215,6 +226,7 @@ services:
       - victoriametrics_demo_data:/storage
       - ./docker/victoriametrics-entrypoint.sh:/opt/vm/entrypoint.sh:ro
       - ./docker/victoriametrics-scrape.yml:/etc/victoriametrics/scrape.yml.tmpl:ro
+      - ./docker/victoriametrics-scrape-worker.yml:/etc/victoriametrics/scrape-worker.yml.tmpl:ro
     healthcheck:
       # 127.0.0.1, not localhost: inside this image localhost resolves to ::1
       # first and VictoriaMetrics listens on IPv4 only, so localhost refuses.

@@ -226,6 +226,13 @@ services:
     entrypoint: ["/bin/sh", "/opt/vm/entrypoint.sh"]
     environment:
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
+      # The worker scrape is a SECOND -promscrape.config, and it is only
+      # passed to VictoriaMetrics when this is set. Empty by default: the
+      # worker runs on the host network and its health server stays on the
+      # loopback, so a deployment that does not point this at a reachable
+      # address would show a target that is permanently down.
+      # See docs/worker.md for the recipe.
+      VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-production}
       # Retention is expressed in months: 12 = 1 year, 60 = 5 years.
@@ -237,6 +244,7 @@ services:
       - victoriametrics_prod_data:/storage
       - ./docker/victoriametrics-entrypoint.sh:/opt/vm/entrypoint.sh:ro
       - ./docker/victoriametrics-scrape.yml:/etc/victoriametrics/scrape.yml.tmpl:ro
+      - ./docker/victoriametrics-scrape-worker.yml:/etc/victoriametrics/scrape-worker.yml.tmpl:ro
     healthcheck:
       # 127.0.0.1, not localhost: inside this image localhost resolves to ::1
       # first and VictoriaMetrics listens on IPv4 only, so localhost refuses.
