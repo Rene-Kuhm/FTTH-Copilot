@@ -317,6 +317,33 @@ describe('agent tools', () => {
     expect(parsed.error).toContain('topología');
   });
 
+  // ── Descripciones de tools: son la interfaz que ve el modelo ──
+
+  it('list_onus deriva a search_by_customer_name cuando hay que buscar por nombre', () => {
+    const tool = buildTools(connector()).find((t) => t.name === 'list_onus');
+
+    // Sin esta derivación el modelo filtra "mentalmente" una lista entera.
+    expect(tool?.description).toContain('search_by_customer_name');
+  });
+
+  it('get_onus_with_low_signal sugiere los umbrales que usa el motor de detección', () => {
+    const tool = buildTools(connector()).find((t) => t.name === 'get_onus_with_low_signal');
+    const schema = tool?.input_schema as {
+      properties?: Record<string, { description?: string }>;
+    };
+    const thresholdDescription = schema.properties?.['thresholdDbm']?.description ?? '';
+
+    // El motor de detección dispara a -27 dBm (`packages/detection/src/signal-drift.ts`).
+    expect(thresholdDescription).toContain('-27');
+    expect(thresholdDescription).not.toContain('-28');
+  });
+
+  it('search_by_customer_name dice qué devuelve cuando no encuentra coincidencias', () => {
+    const tool = buildTools(connector()).find((t) => t.name === 'search_by_customer_name');
+
+    expect(tool?.description).toContain('No encontrado en el NMS');
+  });
+
   it('filters out expired (validTo != null) edges before computing the downstream set', async () => {
     const edges: TopologyEdge[] = [
       {
