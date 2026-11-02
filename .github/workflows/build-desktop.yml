@@ -238,6 +238,14 @@ jobs:
       NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://demo.ftth-copilot.com' }}
       NEXT_PUBLIC_PLATFORM: 'tauri'
 
+    # En Windows el shell por defecto de `run:` es pwsh: los steps de este job
+    # son bash (`set -euo pipefail`, `jq`, `$(...)`). Sin esto, el SBOM y los
+    # bundles de atestación mueren con ParserError (así se cayó la v0.4.0).
+    # El step que es PowerShell lo declara él mismo con `shell: pwsh`.
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
