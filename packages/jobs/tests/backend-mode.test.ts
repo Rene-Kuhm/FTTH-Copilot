@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 import {
   BACKEND_MODES,
   DEFAULT_BACKEND_MODE,
@@ -7,7 +8,7 @@ import {
 } from '../src/backend-mode';
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  __setLogSinkForTests(null);
 });
 
 describe('backendMode', () => {
@@ -26,9 +27,11 @@ describe('backendMode', () => {
   });
 
   it('falls back to embedded for an unknown value and says so', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const lines: string[] = [];
+    __setLogSinkForTests((line) => lines.push(line));
     expect(backendMode({ BACKEND_MODE: 'distributed' })).toBe(BACKEND_MODES.embedded);
-    expect(warn).toHaveBeenCalledOnce();
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'warn', name: 'backend-mode', value: 'distributed' });
   });
 });
 

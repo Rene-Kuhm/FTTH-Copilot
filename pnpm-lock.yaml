@@ -701,6 +701,9 @@ importers:
 
   packages/jobs:
     dependencies:
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
       bullmq:
         specifier: ^6.5.3
         version: 6.5.3(ioredis@5.11.1(supports-color@8.1.1))

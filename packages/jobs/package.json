@@ -18,6 +18,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ftth-copilot/shared": "workspace:*",
     "bullmq": "^6.5.3",
     "ioredis": "^5.11.1"
   },
