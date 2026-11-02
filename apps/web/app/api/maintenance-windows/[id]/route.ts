@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { auditMaintenance } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * DELETE /api/maintenance-windows/:id — cancel a maintenance window.
@@ -33,6 +34,8 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json(
       { error: 'forbidden', missing: 'manage_maintenance' },

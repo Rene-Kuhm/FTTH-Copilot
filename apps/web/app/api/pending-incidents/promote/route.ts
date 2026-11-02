@@ -4,6 +4,7 @@ import { promotePendingIncidents } from '@/lib/promote-pending-incidents';
 import { loadTenantPolicy } from '@/lib/policies/load-tenant-policy';
 import { prisma } from '@ftth-copilot/db';
 import type { TenantPolicy } from '@ftth-copilot/shared';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/pending-incidents/promote — admin promotion path for Fase D.
@@ -37,9 +38,11 @@ const loadPoliciesForPromotion = async (
   return map;
 };
 
-export async function POST(_req: Request): Promise<NextResponse> {
+export async function POST(req: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (user.role !== 'OWNER') {
     return NextResponse.json(
       { error: 'Solo OWNER puede promover incidentes confirmados por el agente.' },

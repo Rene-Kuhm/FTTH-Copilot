@@ -3,6 +3,7 @@ import { deleteConnector } from '@/lib/connectors/server';
 import { auditConnector } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
 import { getCurrentUser } from '@/lib/auth/server';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 
@@ -14,6 +15,8 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   const { id } = await ctx.params;
   const ok = await deleteConnector(id);
   if (!ok) {
