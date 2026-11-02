@@ -17,6 +17,8 @@
  */
 export * from './types';
 export * from './errors';
+export * from './version';
 export * from './labels';
 export * from './events';
 export * from './sufficiency';
+export * from './snapshot';
