@@ -304,6 +304,9 @@ services:
     environment:
       - NTFY_CACHE_DURATION=1h
       - NTFY_AUTH_STATIC=none
+    # The image's default command prints the help and exits: the server runs
+    # under the `serve` subcommand.
+    command: ["serve"]
     networks:
       - ftth-demo
 
