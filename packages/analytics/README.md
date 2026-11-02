@@ -34,6 +34,7 @@ Dependencias de workspace: `@ftth-copilot/connectors-core` (interfaz
 | `src/scenario.ts` | `buildNocDegradationScenario(meta, opts?)`: genera una serie sintética de degradación de una ONU (RX bajando sin cruzar el umbral de offline, FEC corregidos creciendo, incorregibles en el último tercio y bias cayendo) para probar el NOC sin hardware. |
 | `src/scheduler-helpers.ts` | Helpers puros del fan-out programado: `pickFecFanOutSlice` (rotación determinista sobre la lista de ONUs), `fitsRateBudget` (techo de requests por hora), `assembleOnuDetailPoints` (puntos FEC/ópticos/LOS de un `OnuDetail`, salteando campos no finitos) y `mapAllSettled` (concurrencia acotada que captura el error por ítem). |
 | `src/sla.ts` | `computeUptime(samples, window)`: reparte la ventana en tiempo medido (entre muestras consecutivas) y no medido (antes de la primera muestra y después de la última), y devuelve `uptimePercent` (o `null` si no hay par de muestras) junto con `coveragePercent`. |
+| `src/index.ts` | Barrel público. Re-exporta los módulos de arriba; es lo que importa `@ftth-copilot/analytics`. |
 
 ## Ejemplo de uso real
 
@@ -95,10 +96,10 @@ pnpm --filter @ftth-copilot/analytics lint          # eslint .
 ```
 
 Los tests viven en `tests/`, un archivo por módulo: `anomaly.test.ts`,
-`collect.test.ts`, `correlation-score.test.ts`, `scenario.test.ts`,
-`scheduler-helpers.test.ts` y `sla.test.ts`. `retention.ts` no tiene archivo
-propio: se cubre dentro de `ingest.test.ts` (mockea `@ftth-copilot/db`, así que
-no hace falta una base real).
+`collect.test.ts`, `correlation-score.test.ts`, `ingest.test.ts`,
+`scenario.test.ts`, `scheduler-helpers.test.ts` y `sla.test.ts`.
+`retention.ts` no tiene archivo propio: se cubre dentro de `ingest.test.ts`
+(mockea `@ftth-copilot/db`, así que no hace falta una base real).
 
 ## Fuente de verdad
 
