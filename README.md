@@ -71,6 +71,15 @@ build falla.
 
 ![Flujo de datos: de las fuentes a la evidencia, a los tres planos y a la salida](docs/architecture/c4/views/dataflow.svg)
 
+La topología en ejecución tiene **tres** procesos y no uno: la web (UI y
+BFF), el **worker** (el trabajo de fondo: polling, auditoría de firmware,
+FEC, receptores syslog/SNMP y drenado del spool) y **Redis** (la cola durable
+que los conecta). El worker es un deployable propio, con su propio ciclo de
+vida: un deploy de la web no corta el monitoreo, y el tier web escala en
+horizontal sin duplicar el trabajo. El contrato operativo —topología,
+despliegue, métricas y runbook de rollback— está en
+[`docs/worker.md`](docs/worker.md).
+
 Cuatro invariantes cruzan todo el sistema: **tenant-aware** (todo toca `tenantId`), **evidence-first** (TruthGate rechaza lo que la evidencia no sostiene), **fail-open** (si Laya o el LLM fallan, el pipeline continúa) y **shadow mode first** (Laya registra su decisión antes de influir en el routing).
 
 El mapa completo de módulos, límites y dependencias está en [`ARCHITECTURE.md`](ARCHITECTURE.md). La especificación de la arquitectura interactiva está en [`docs/architecture/ftth-copilot-architecture.html`](docs/architecture/ftth-copilot-architecture.html).

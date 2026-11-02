@@ -37,6 +37,8 @@ task breakdown live in `odd/tasks/backend-extraction.md`.
 
    OLT ──── syslog/UDP ────▶  host :5514 ────▶ worker (binds it directly)
    NMS ──── traps/UDP ─────▶  host :1162 ────▶ worker (binds it directly)
+
+   VictoriaMetrics ◀──── scrape /metrics ──── worker
 ```
 
 Three properties follow from the split:
@@ -46,6 +48,10 @@ Three properties follow from the split:
 - **The web tier scales horizontally.** The loops run once, in the worker.
 - **A slow poll no longer competes with HTTP.** Different processes, different
   event loops.
+
+Redis is what makes the split reversible: the jobs that the web enqueues are
+in the queue, not in the web's memory, so turning the worker off does not
+lose them.
 
 ## Environment
 
@@ -57,6 +63,8 @@ Three properties follow from the split:
 | `WORKER_PORT`  | `8081`                   | Port of the worker's health and metrics server.                          |
 | `WORKER_HOST`  | `0.0.0.0`                | Interface the health server binds to.                                   |
 | `WORKER_CONCURRENCY` | `1`                | Jobs of a queue that run at the same time.                              |
+| `METRICS_BEARER_TOKEN` | —              | Bearer token that `/metrics` requires. Shared with the app's `/api/metrics`, so the scrape configuration of the whole stack carries one credential. Without it `/metrics` is open, which is only safe on the loopback. |
+| `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` | — | `host:port` of the worker as the VictoriaMetrics container sees it. Empty by default: the scrape job is only added when it is set. See [Que VictoriaMetrics raspe al worker](#que-victoriametrics-raspe-al-worker). |
 | `INVESTIGATION_PENDING_TTL_MS` | `900000` | Age after which a `pending` investigation attempt is abandoned and expires, so the incident can be investigated again. Must exceed the longest real investigation, retries included. |
 | `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often that sweep runs: in the worker under `worker`, in the web process under `embedded`. |
 
@@ -170,18 +178,146 @@ The worker serves two endpoints:
 `degraded`. A worker that cannot be seen is worse than no worker, because the
 failure would be silent.
 
+`/metrics` requires the bearer token when `METRICS_BEARER_TOKEN` is set, the
+same way the app does on `/api/metrics`. `/healthz` stays open: it is the
+container's own health check, and it only exposes coarse operational state.
+
+### What the worker exports
+
+| Metric | Type | What it answers |
+| ------ | ---- | --------------- |
+| `ftth_copilot_worker_queue_depth{queue}` | gauge | Jobs pending in that queue. The backlog. |
+| `ftth_copilot_worker_queue_jobs{queue,state}` | gauge | The same, broken down by state: `waiting`, `active`, `delayed`, `prioritized`, `waiting-children`, `completed`, `failed`. |
+| `ftth_copilot_worker_queue_depth_readable{queue}` | gauge | `1` when the depth could be read from Redis, `0` when it could not. **A queue that could not be counted reports a depth of zero; this is the gauge that says the zero is "I do not know" and not "the queue is empty".** |
+| `ftth_copilot_worker_job_duration_seconds_bucket{queue,le}` | histogram | How long the jobs take. |
+| `ftth_copilot_worker_jobs_completed_total{queue}` | counter | Jobs that finished successfully. |
+| `ftth_copilot_worker_jobs_failed_total{queue}` | counter | Failed attempts. |
+| `ftth_copilot_worker_jobs_retried_total{queue}` | counter | Failed attempts that BullMQ will retry. Retries hide a failure: the work eventually succeeds, but it is paying for the attempts. |
+| `ftth_copilot_worker_ingest_spool_backlog` | gauge | Events received and not stored yet. |
+| `ftth_copilot_worker_ingest_dead_lettered_total` | counter | Events moved to the dead-letter file because they could not be stored. Recoverable with `pnpm replay:dead-letter`. |
+| `ftth_copilot_worker_ingest_dropped_total` | counter | Events the spool refused because it reached its size limit. **Not recoverable.** |
+| `ftth_copilot_worker_ingest_rate_limited_total` | counter | Events discarded by the rate limit of the receiver. **Not recoverable.** |
+| `ftth_copilot_worker_redis_ready` | gauge | `1` when every queue's Redis connection is established. |
+
+### The minimum panel
+
+Four queries answer "is the background work keeping up?". They are the same
+ones the alerts use, and they run against the VictoriaMetrics API:
+
+```bash
+# 1. Is any queue backing up?
+curl -sG 'http://localhost:8428/api/v1/query' \
+  --data-urlencode 'query=ftth_copilot_worker_queue_depth'
+
+# 2. How slow are the jobs? (p95 over the whole fleet)
+curl -sG 'http://localhost:8428/api/v1/query' \
+  --data-urlencode 'query=histogram_quantile(0.95, sum by (le) (rate(ftth_copilot_worker_job_duration_seconds_bucket[15m])))'
+
+# 3. Is anything failing and being retried?
+curl -sG 'http://localhost:8428/api/v1/query' \
+  --data-urlencode 'query=sum(increase(ftth_copilot_worker_jobs_failed_total[15m]))'
+
+# 4. Is telemetry being lost?
+curl -sG 'http://localhost:8428/api/v1/query' \
+  --data-urlencode 'query=increase(ftth_copilot_worker_ingest_dead_lettered_total[15m])'
+```
+
+The alerts that watch these live in
+[`docker/victoriametrics-alerts.yml`](../docker/victoriametrics-alerts.yml),
+in the group `ftth-copilot-worker`. They stay INACTIVE in a deployment
+without a worker: an alert that fires because a component is not deployed is
+an alert nobody reads.
+
+The contract between the alerts and the exported names is checked by
+`pnpm check:observability`, which runs in CI: an alert on a metric nobody
+exports would stay INACTIVE forever, and the operator would believe they had
+coverage.
+
+### Que VictoriaMetrics raspe al worker
+
+The scrape configuration of the worker is a second job of the **same** scrape
+file: the single-node binary of VictoriaMetrics reads a single
+`-promscrape.config` (the last flag wins), so both jobs have to end up in the
+same file. `docker/victoriametrics-entrypoint.sh` appends the worker job only
+when `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` is set.
+
+The worker runs on the host network, so the target is **not** a compose
+service name: it is the address of the host as the VictoriaMetrics container
+sees it. There are two things to set, and they go together:
+
+```bash
+# 1. The worker has to listen on an address the container can reach.
+#    With the host network, 127.0.0.1 is the host's loopback and the
+#    container does not reach it.
+WORKER_HOST=0.0.0.0
+
+# 2. The scrape target, from the point of view of the VictoriaMetrics
+#    container. `host.docker.internal` resolves to the host gateway.
+VICTORIAMETRICS_WORKER_SCRAPE_TARGET=host.docker.internal:8081
+```
+
+Two caveats, both measured:
+
+- **The host firewall can block it.** A container reaching a port published
+  by the host goes through the host's firewall, and a strict one drops it.
+  The symptom is `up{job="ftth-copilot-worker"} == 0` while the worker
+  answers fine from the host. The alternative is to run the scraper on the
+  host network too.
+- **Set `METRICS_BEARER_TOKEN` when the worker leaves the loopback.** The
+  endpoint is open otherwise, and with `WORKER_HOST=0.0.0.0` open means
+  every interface of the server.
+
+The target is opt-in in both compose files on purpose: the worker runs
+behind a profile, so a target that is always configured would be a target
+that is always down.
+
 ## Rollback
 
-The extraction is reversible without a code revert:
+The extraction is reversible without a code revert.
 
-1. Set `BACKEND_MODE=embedded` in the environment.
-2. Stop the worker (`docker compose --profile worker stop worker`).
-3. Restart the web app so it picks up the flag.
+### When to roll back
+
+| Signal | Meaning |
+| ------ | ------- |
+| `FTTHCopilotWorkerRedisUnreachable` | The worker cannot reach Redis. It is alive but not consuming, and the monitoring is stopped without failing loudly. |
+| `FTTHCopilotWorkerQueueBacklog` | A queue is not being drained for 15 minutes. The worker does not keep up. |
+| `FTTHCopilotWorkerJobsFailing` | The handlers are failing. Check the logs before rolling back: a rollback does not fix a broken handler, it only hides it. |
+| `FTTHCopilotWorkerIngestDeadLettered` / `...EventsLost` | Telemetry is being lost. Roll back only after the events are recovered. |
+
+### How to roll back
+
+```bash
+# 1. Set BACKEND_MODE=embedded in the environment.
+# 2. Stop the worker.
+docker compose --profile worker stop worker
+# 3. Restart the web app so it picks up the flag.
+docker compose restart app
+```
 
 The web goes back to running the loops in-process, which is exactly the
 behavior it had before the extraction. No data migration is involved: the
 queue payload lives in Redis, and the rows the worker would have written are
 the same rows the embedded path writes.
+
+**The order matters.** Stop the worker *before* restarting the web with
+`BACKEND_MODE=embedded`. The two are mutually exclusive while they overlap:
+the web would run its own loops *and* the worker would run its own, so the
+NMS would be polled twice and both processes would try to bind the UDP
+socket. The second one to try gets nothing, silently.
+
+### Verify the rollback
+
+```bash
+# The web owns the loops again.
+curl -s http://localhost:3001/api/health | jq '.services'
+
+# The worker is not consuming anything.
+docker compose --profile worker logs worker | tail -20
+```
+
+The jobs that were in the queue when the worker stopped are **not lost**: they
+stay in Redis, and the web's embedded path picks them up when it restarts.
+That is the whole point of the durable queue.
 
 ## What is still in the web
 

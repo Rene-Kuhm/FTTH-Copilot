@@ -18,21 +18,32 @@
                ▼
         ┌──────────────────┐
         │  FTTH-Copilot    │  Next.js standalone (Docker)
-        │  app (:3001)      │  + Receptor SNMP UDP 1162
-        │                   │  + Receptor Syslog UDP 5514
-        │  + Laya (module)  │  + Laya Decision Layer (<5ms)
-        └────────┬──────────┘
-                 │
-       ┌─────────┴──────────┐
-       ▼                   ▼
+        │  app (:3001)      │  UI + BFF (61 rutas + SSE)
+        │                   │  + Laya (module)
+        │                   │  + Laya Decision Layer (<5ms)
+        └────┬────────┬─────┘
+             │        │ enqueue
+             │        ▼
+             │  ┌──────────────┐
+             │  │ Redis (:6379)│  Cola durable (BullMQ)
+             │  └──────┬───────┘
+             │         │ jobs
+             │         ▼
+             │  ┌──────────────────┐
+             │  │  worker (:8081)  │  Trabajo de fondo
+             │  │  (host network)  │  + Receptor SNMP UDP 1162
+             │  │                  │  + Receptor Syslog UDP 5514
+             │  └────────┬─────────┘
+             │           │
+       ┌─────┴───────────┴─────┐
+       ▼                       ▼
 ┌─────────────┐     ┌─────────────────────────────────────┐
 │ PostgreSQL  │     │ VictoriaMetrics (:8428)              │
 │  (:5432)   │     │ • TSDB (drop-in Prometheus)          │
 │ persistent  │     │ • Built-in Grafana UI                │
 └─────────────┘     │ • Prometheus-compatible API           │
                     │ • Phoenix LLM traces (OTLP :4317)    │
-                    └─────────────────────────────────────┘
-       │
+       │            └─────────────────────────────────────┘
        │  (optional: Docker microservice)
        ▼
 ┌─────────────┐
@@ -41,11 +52,19 @@
 └─────────────┘
 ```
 
+El worker corre detrás del flag `BACKEND_MODE` y solo se despliega con su
+profile (`--profile worker`). Mientras `BACKEND_MODE=embedded` —el default—
+lo ejecuta la propia web. El contrato operativo completo (topología,
+despliegue, métricas y runbook de rollback) está en
+[`docs/worker.md`](worker.md).
+
 | Componente | Puerto | Volumen persistente | Descripción |
 |---|---|---|---|
 | `postgres` | 5432/TCP | `postgres_data` | Base de datos multi-tenant |
 | `app` | 3001/TCP | — | Next.js (sin estado) |
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
+| `redis` | 6379/TCP | `redis_data` | Cola durable de trabajos (BullMQ); solo con `BACKEND_MODE=worker` |
+| `worker` | 8081/TCP | `spool_data` | Trabajo de fondo; profile `worker`; red del host |
 | `victoriametrics` | 8428/TCP | `victoriametrics_prod_data` | TSDB + VMUI + API Prometheus-compatible |
 | `vmalert` | 8880/TCP (interno) | — | Evalúa recording/alerting rules; escribe series vía remote write |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |
