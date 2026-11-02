@@ -1,144 +1,40 @@
 /**
- * Sliding window in-memory rate limiter for Next.js middleware.
+ * Límite de peticiones en el middleware de Edge.
  *
- * Provides per-tenant rate limiting with different limits for:
- * - Normal API routes: 100 req/min
- * - Auth routes: 10 req/min (stricter for brute-force protection)
+ * El middleware corre en el runtime de Edge, donde no hay TCP: no puede
+ * hablar con Redis, y tampoco puede usar Prisma. Así que el límite que aplica
+ * es **por instancia**: con varias réplicas de la web, el límite real es `max`
+ * por réplica.
+ *
+ * Por eso el runtime de Node tiene su propio almacén (`lib/rate-limit-store.ts`)
+ * con Redis, donde el límite es global. Los dos usan el mismo núcleo
+ * (`lib/rate-limit-core.ts`), así que las cuentas no pueden divergir.
+ *
+ * El middleware conserva el límite grueso: es el camino rápido que corre
+ * antes que cualquier ruta, y es la red de seguridad cuando la Redis no está.
  */
+import {
+  RATE_LIMITS,
+  createInMemoryRateLimitStore,
+  getRateLimitKey,
+  rateLimitResponse,
+  type RateLimitConfig,
+  type RateLimitResult,
+} from '../lib/rate-limit-core';
 
-interface RateLimitEntry {
-  count: number;
-  windowStart: number;
-}
+export { RATE_LIMITS, getRateLimitKey, rateLimitResponse };
+export type { RateLimitConfig, RateLimitResult };
 
-// In-memory store (per-instance)
-// In production, use Redis for multi-instance deployments
-const store = new Map<string, RateLimitEntry>();
-
-// Cleanup old entries every 5 minutes
-const CLEANUP_INTERVAL = 5 * 60 * 1000;
-const MAX_WINDOW_AGE = 2 * 60 * 1000; // 2 minutes
-
-let lastCleanup = Date.now();
-
-function cleanup(): void {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL) return;
-  lastCleanup = now;
-
-  for (const [key, entry] of store.entries()) {
-    if (now - entry.windowStart > MAX_WINDOW_AGE) {
-      store.delete(key);
-    }
-  }
-}
-
-export interface RateLimitConfig {
-  /** Max requests per window */
-  max: number;
-  /** Window size in milliseconds */
-  windowMs: number;
-  /** Key prefix for this limiter */
-  keyPrefix: string;
-}
+const store = createInMemoryRateLimitStore();
 
 /**
- * Default rate limits
+ * Comprueba el límite de una clave.
+ *
+ * Devuelve { allowed: boolean; remaining: number; resetAt: number }.
  */
-export const RATE_LIMITS = {
-  normal: {
-    max: 100,
-    windowMs: 60 * 1000, // 1 minute
-    keyPrefix: 'rl',
-  },
-  // Raised for CI/E2E: Playwright runs 2 workers in parallel + retry=1,
-  // auth-real.spec.ts makes ~8 sequential requests per test, and multiple
-  // specs hit auth routes. 200 req/min gives enough headroom.
-  auth: {
-    max: 200,
-    windowMs: 60 * 1000, // 1 minute
-    keyPrefix: 'rl-auth',
-  },
-} as const;
-
-/**
- * Check rate limit for a given key.
- * Returns { allowed: boolean; remaining: number; resetAt: number }
- */
-export function checkRateLimit(
+export async function checkRateLimit(
   key: string,
   config: RateLimitConfig,
-): { allowed: boolean; remaining: number; resetAt: number } {
-  cleanup();
-
-  const now = Date.now();
-  const entry = store.get(key);
-
-  // No entry or window expired - start fresh
-  if (!entry || now - entry.windowStart >= config.windowMs) {
-    store.set(key, { count: 1, windowStart: now });
-    return {
-      allowed: true,
-      remaining: config.max - 1,
-      resetAt: now + config.windowMs,
-    };
-  }
-
-  // Within window - check count
-  if (entry.count >= config.max) {
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAt: entry.windowStart + config.windowMs,
-    };
-  }
-
-  // Increment count
-  entry.count++;
-  return {
-    allowed: true,
-    remaining: config.max - entry.count,
-    resetAt: entry.windowStart + config.windowMs,
-  };
-}
-
-/**
- * Get rate limit key for a request.
- * Uses tenant ID from JWT or falls back to IP for unauthenticated requests.
- */
-export function getRateLimitKey(
-  request: Request,
-  keyPrefix: string,
-  tenantId?: string,
-): string {
-  // Try to get tenant from JWT
-  if (tenantId) {
-    return `${keyPrefix}:tenant:${tenantId}`;
-  }
-
-  // Fall back to IP
-  const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0]!.trim() : 'unknown';
-  return `${keyPrefix}:ip:${ip}`;
-}
-
-/**
- * Create a Next.js Response with rate limit headers.
- */
-export function rateLimitResponse(resetAt: number): Response {
-  const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
-  return new Response(
-    JSON.stringify({
-      error: 'Too many requests',
-      retryAfter,
-    }),
-    {
-      status: 429,
-      headers: {
-        'content-type': 'application/json',
-        'retry-after': String(retryAfter),
-        'x-ratelimit-reset': String(resetAt),
-      },
-    },
-  );
+): Promise<RateLimitResult> {
+  return store.consume(key, config, Date.now());
 }

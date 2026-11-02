@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -111,6 +112,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
@@ -142,6 +145,8 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
@@ -185,6 +190,8 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

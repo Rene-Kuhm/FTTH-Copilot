@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/maintenance-windows/:id/reevaluate — re-evaluate
@@ -47,6 +48,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json(
       { error: 'forbidden', missing: 'manage_maintenance' },

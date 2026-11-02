@@ -14,6 +14,7 @@ import {
   runInvestigationPipeline,
 } from '@/lib/investigations/pipeline';
 import { enqueueInvestigationAttempt } from '@/lib/investigations/dispatch';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 const log = createLogger({ name: 'investigate' });
 
@@ -107,6 +108,8 @@ export async function POST(
   const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'view_network')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
