@@ -8,6 +8,7 @@ import { join } from 'path';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,9 +80,11 @@ export async function GET(_req: Request, { params }: RouteContext): Promise<Next
 }
 
 /** DELETE /api/fiber-plans/[id] */
-export async function DELETE(_req: Request, { params }: RouteContext): Promise<NextResponse> {
+export async function DELETE(req: Request, { params }: RouteContext): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'view_network')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

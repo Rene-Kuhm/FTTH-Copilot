@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { redactSecrets, auditNotification, type NotificationChannel as Channel } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -81,6 +82,8 @@ export async function GET(): Promise<Response> {
 export async function POST(req: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -117,6 +120,8 @@ export async function POST(req: NextRequest): Promise<Response> {
 export async function PATCH(req: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -146,6 +151,8 @@ export async function PATCH(req: NextRequest): Promise<Response> {
 export async function DELETE(req: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -176,6 +183,8 @@ export async function DELETE(req: NextRequest): Promise<Response> {
 export async function PUT(req: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }

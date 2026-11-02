@@ -10,6 +10,7 @@ import {
 } from '@/lib/maintenance/overlap';
 import { auditMaintenance } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/maintenance-windows — create a maintenance window.
@@ -39,6 +40,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json(
       { error: 'forbidden', missing: 'manage_maintenance' },

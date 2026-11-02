@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { tokenize } from '@ftth-copilot/evidence';
 import { auditIncident } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/incidents/:id/confirm — operator confirmation path for Fase D.
@@ -45,6 +46,8 @@ export async function POST(
 ): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'view_network')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
