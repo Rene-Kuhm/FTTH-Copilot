@@ -48,7 +48,7 @@ y solo con la suite de integracion de `packages/db`.
 ### Tier 3 — posterior
 
 - [x] T7 Capa de AI/agente
-- [ ] T8 Performance y concurrencia
+- [x] T8 Performance y concurrencia
 
 ## Bugs encontrados por los tests
 
@@ -214,9 +214,112 @@ absoluto**, dependia del update de estado del candidato que ocurre despues.
 `sourceIncidentId` es nullable, asi que las filas sin incidente de origen no se
 ven afectadas: Postgres trata los NULL como distintos en un indice unico.
 
+### T8c - N+1 e indices (hecho)
+
+Los tres puntos que quedaban abiertos ("N+1, indices faltantes y paginacion sin limite") se
+auditaron y se corrigieron los que eran reales.
+
+#### Busqueda del N+1
+
+Se revisaron las 61 rutas de `app/api/**` y los paquetes, buscando una query de Prisma
+dentro de un bucle. Salieron cinco candidatos, y sólo dos eran N+1 de verdad:
+
+| Candidato | Veredicto |
+|---|---|
+| `GET /api/ops/oncall` | **N+1 real**: una query de `onCallEntry` por horario |
+| `POST /api/maintenance-windows/:id/reevaluate` | **N+1 real**, y ademas **cuadratico** |
+| `apps/web/lib/ops-notify-dispatch.ts` | No: una query por canal de notificacion, y los canales son pocos (1-5 por tenant) |
+| `apps/web/lib/promote-pending-incidents.ts` | No: ya esta mitigated; lee en lote y el bucle solo escribe |
+| `packages/investigations/src/await.ts` | No: es un sondeo con presupuesto, no una iteracion sobre una coleccion |
+
+#### El N+1 de oncall
+
+`GET /api/ops/oncall` pedia la entrada vigente de cada horario con su propia query:
+
+```
+schedules.map(async (schedule) => prisma.onCallEntry.findFirst({ scheduleId: schedule.id, ... }))
+```
+
+El numero de horarios es dato del tenant y crece con el tamano del NOC: 50 horarios
+significaban 51 queries para dibujar una pantalla. Ahora las entradas vigentes salen en
+**una** query (`scheduleId IN (...)`), y el reparto en memoria usa el mismo criterio que
+el `orderBy` viejo (`startUtc desc`): la primera entrada de cada horario es la vigente.
+
+#### El N+1 cuadratico de la reevaluacion
+
+La ruta de reevaluacion de ventanas comprobaba, **por incidente**, si ya lo habia
+notificado:
+
+```
+for (const inc of incidents) {
+  await prisma.agentActionLog.findFirst({
+    where: { ..., parameters: { path: ['windowId'], equals: id },
+                 result:    { path: ['incidentId'], equals: inc.id } },
+  });
+}
+```
+
+Dos problemas que se multiplican:
+
+1. era una query por incidente;
+2. el filtro es sobre **paths de JSON** (`parameters->>'windowId'`,
+   `result->>'incidentId'`), que ningun indice btree puede servir, asi que cada una de
+   esas queries **escaneaba toda la auditoria del tenant**. Y `AgentActionLog` no tiene
+   retencion: crece para siempre. La ruta era cuadratica en el tamano de la historia de
+   auditoria del tenant.
+
+Ahora la comprobacion es **una** query por ventana: se traen los logs de esa ventana y de
+ahi sale el conjunto de incidentes ya notificados.
+
+#### El indice que faltaba
+
+Con una sola query, el filtro por `toolName` seguia sin indice: el unico utilizable era
+`(tenantId, createdAt)`, que no puede servir el filtro por herramienta, asi que Postgres
+tenia que leer todas las filas de auditoria del tenant.
+
+Se agrega `@@index([tenantId, toolName, createdAt])` a `AgentActionLog` (migracion
+`20261102160000_agent_action_log_tool_index`). Con el, la query acota por tenant y
+herramienta, y el filtro JSON queda sobre un conjunto acotado: los logs de las ventanas
+de reevaluacion de ese tenant, no toda su auditoria.
+
+#### Medicion
+
+Contra Postgres real, con una ventana de 100 incidentes y una auditoria de un solo
+tenant (que es el caso que la ruta tenian):
+
+| Filas de auditoria | Ruta vieja (100 `findFirst`) | Ruta nueva (1 `findMany`) |
+|---|---|---|
+| 20.000 | 44 ms | 0,8 ms |
+| 200.000 | 442 ms | 5,8 ms |
+
+La ruta vieja escala linealmente con el tamano de la auditoria —que no tiene
+retencion—: es la misma forma cuadratica, solo que en el eje del historial. El plan de
+la query nueva es un `Bitmap Index Scan` sobre
+`agent_action_log_tenantId_toolName_createdAt_idx`: lee 3 paginas del indice en vez de
+las 344 del heap.
+
+#### Lo que queda sin indice, y por que
+
+- **El filtro JSON de `parameters` sigue sin indice GIN.** Se podria crear a mano
+  (`jsonb_path_ops`), pero Prisma no declara indices GIN sobre columnas `Json`: si la
+  migracion lo crea a mano, el schema no lo declara y `prisma migrate diff` reporta
+  deriva. Preferible el escaneo acotado a un indice que el repo no puede representar.
+- **`Message.role` no tiene indice.** Revisado: la consulta de la sesion del chat filtra
+  por `conversationId` y ordena por `createdAt`, y el indice `(conversationId, createdAt)`
+  cubre las dos cosas; `role` queda como filtro residual sobre una conversacion, que no
+  tiene volumen. No hace falta un indice mas.
+
+#### Paginacion sin limite
+
+Ya estaba resuelta en T8b y T8b bis (cursor por `(lastSeenAt, id)` en incidentes y
+predicciones). `GET /api/topology/tree` sigue sin limite a proposito: es un grafo
+completo.
+
 ### Otros puntos de T8 aun sin cubrir
 
-N+1, indices faltantes y paginacion sin limite siguen sin auditar.
+La paginacion de incidentes y predicciones ya esta cerrada (T8b, T8b bis). Del barrido de
+N+1 e indices quedan los dos puntos de arriba, ambos documentados y con el motivo de no
+cerrarlos.
 
 ## Pendientes atacados (2026-10-06)
 
