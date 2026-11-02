@@ -34,7 +34,6 @@ Healthchecks: `pg_isready` en postgres (`:28`), `curl /health` en laya (`:50`).
 | Servicio | Imagen | Puertos | Volúmenes |
 |---|---|---|---|
 | `postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}:5432` | `postgres_demo_data` |
-| `pgbouncer` | `edoburu/pgbouncer:1.24` | `${PGBOUNCER_PORT:-6432}:6432` | `docker/pgbouncer.ini`, `docker/pgbouncer-users.txt` (ro) |
 | `db-migrate` | build `.` target `dependencies` | — | — |
 | `app` | build `.` target `runner` | `${PORT:-3001}:3001` | — |
 | `victoriametrics` | `victoria-metrics:v1.153.0` | `${VICTORIAMETRICS_PORT:-8428}:8428` | `victoriametrics_demo_data`, entrypoint + scrape (ro) |
@@ -48,8 +47,12 @@ Red `ftth-demo` (bridge).
 Notas verificadas:
 
 - El build de `app` requiere el build arg `JWT_SECRET` (`:86-132`).
-- `app` conecta **directamente a Postgres**, no a PgBouncer: la imagen de PgBouncer ya no
-  está en Docker Hub (`:110-118`).
+- `app` conecta **directamente a Postgres**, no a PgBouncer: el pooler no es
+  parte del compose de demo. Estaba ahí con una imagen que ya no existe en
+  Docker Hub y su `depends_on` impedía que la app arrancara. La config queda
+  en `docker/pgbouncer.ini` para quien quiera correrlo por su cuenta.
+- `redis` exige `REDIS_PASSWORD`: sin ella el compose no interpola y no
+  levanta (`:50`).
 - `db-seed` necesita `SEED_ADMIN_PASSWORD`, `ALLOW_PRODUCTION_SEED=true` y
   `DEMO_DATA_ENABLED=true` (`:257-259`).
 
@@ -271,3 +274,99 @@ mano desde la pestaña Actions, para reintentar sin republicar la release.
 verifica que el workflow que publica la release despacha al que atesta, y que
 ese workflow acepta `workflow_dispatch`. Si alguien borra el dispatch, el
 check falla y el CI se pone rojo.
+
+### 9.5 La línea base del changelog
+
+release-please arma el changelog de cada release con los commits que encuentra
+entre la línea base y `HEAD`. La línea base es el `last-release-sha` de
+`release-please-config.json`.
+
+La línea base tiene que apuntar al commit del último release publicado. Si
+apunta a un commit más viejo, la release nueva repite las entradas del release
+anterior y arrastra notas que ya se publicaron — un `BREAKING CHANGE:` de un
+commit viejo, por ejemplo, que en la 0.4.0 anunciaba una incompatibilidad que
+nunca existió.
+
+`pnpm check:release-range` verifica esa relación contra el `CHANGELOG.md` que
+se va a publicar:
+
+- todo commit que aparece en la sección más reciente tiene que estar dentro
+  del rango [línea base, `HEAD`];
+- la sección más reciente no puede repetir una entrada de la sección anterior.
+
+Es hermético —lee el changelog, el config y la historia del repo— y corre en el
+CI, así que el pull request de release es el primero que ve el changelog
+repetido, antes de que se publique.
+
+La línea base actual es el merge del pull request #266, el último pull request
+publicado en la `v0.3.0`. A partir de la `v0.4.0` el problema no se repite:
+release-please publica cada release con el SHA del commit en
+`target_commitish`, así que resuelve por su cuenta el último release y la
+línea base queda como red de seguridad.
+
+### 9.6 Token propio de release: el CI del PR de release sin intervención manual
+
+Con el `GITHUB_TOKEN`, el PR de release es un caso raro: lo abre
+release-please, así que sus runs de CI quedan en `action_required` y hay que
+**aprobarlos a mano** en cada release. Como `main` exige el check
+`CI Success` y la protección de la rama lo mira en el HEAD del PR, el PR
+queda trabado hasta que alguien apruebe los runs.
+
+La causa es la regla de anti-recursión: GitHub no dispara workflows por los
+eventos que produce el `GITHUB_TOKEN` del propio repositorio. Un **token
+propio** (un PAT) no está exento de esa regla, así que con él los eventos del
+pipeline sí disparan workflows y el CI del PR de release corre solo.
+
+El secret es **opcional**: sin él, todo funciona exactamente como hasta ahora
+(keyless) y sólo hay que aprobar los runs a mano.
+
+#### Cómo crearlo
+
+1. Crear un **fine-grained PAT** (<https://github.com/settings/personal-access-tokens/new>):
+   - **Repository access**: sólo `FTTH-Copilot`.
+   - **Permissions → Repository permissions**: `Contents: Read and write`,
+     `Pull requests: Read and write`, `Actions: Read and write`. Nada más.
+   - **Expiration**: la más corta que sirva (90 días); se renueva a mano.
+2. Guardarlo como secret del repositorio: **Settings → Secrets and variables →
+   Actions → New repository secret**, nombre `RELEASE_PLEASE_TOKEN`.
+3. Relanzar el workflow de release: `gh workflow run release-please.yml`.
+
+Para volver atrás, borrar el secret: el pipeline vuelve a la ruta keyless.
+
+> La alternativa de una **GitHub App** no está soportada por
+> `release-please-action` v5: la acción no expone inputs de instalación de App
+> y su documentación oficial señala el PAT como la vía para que el CI corra
+> en los PRs de release.
+
+#### Qué cambia cuando el secret existe
+
+| Aspecto | Sin secret (keyless) | Con secret (PAT) |
+|---|---|---|
+| Token de release-please | `GITHUB_TOKEN` | el PAT |
+| CI del PR de release | runs en `action_required`, hay que aprobarlos | corre solo |
+| Build de la release | `workflow_dispatch` desde `release-please.yml` | el `push: tags` la dispara |
+| Push de los version carriers | `GITHUB_TOKEN` (sus runs también hay que aprobarlos) | el PAT (dispara el CI del commit final) |
+
+El segundo punto del push es el que suele pasarse por alto: el paso que
+sincroniza los version carriers empuja a la rama del PR **después** de
+release-please, y ese push es el que deja el PR en su commit final. Si empuja
+con el `GITHUB_TOKEN`, sus runs vuelven a quedar en `action_required` y el
+problema sigue ahí aunque release-please use el PAT.
+
+#### La regla que lo ata
+
+`scripts/lib/supply-chain.ts` tiene la regla `release-token-dispatch`: un
+publicador que usa un token propio **tiene que condicionar su dispatch** a
+que ese token no esté presente. Sin esa condición, el `push: tags` del builder
+y el dispatch construirían la release dos veces (dos compilaciones, dos
+atestaciones y el conflicto de los assets repetidos).
+
+La condición no puede mirar el secret directamente —los secrets no se pueden
+referenciar en un `if:`— así que pasa por una variable de `env:` de job:
+
+```yaml
+env:
+  RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+# ...
+if: steps.release.outputs.release_created == 'true' && env.RELEASE_PLEASE_TOKEN == ''
+```

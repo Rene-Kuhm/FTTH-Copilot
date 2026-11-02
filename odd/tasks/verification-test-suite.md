@@ -34,14 +34,20 @@ y solo con la suite de integracion de `packages/db`.
 
 ### Tier 2 — siguiente
 
-- [ ] T4 Matriz ruta x metodo x rol del middleware
+- [x] T4 Matriz ruta x metodo x rol del middleware
+      → `apps/web/tests/middleware/authorization-matrix.test.ts`: 10 rutas ×
+      5 métodos × 6 identidades (anónimo + MEMBER/OPERATOR/ADMIN/OWNER + un rol
+      desconocido), 63 casos. Fija la frontera de la autorización: las rutas
+      de API no exigen sesión en el middleware (la autorización vive en la
+      ruta) pero sí CSRF en las mutaciones; las rutas protegidas exigen
+      sesión y admiten cualquier rol; las de admin exigen ADMIN u OWNER.
 - [x] T5 Rafagas: 300 datagramas por UDP, backlog de 600 eventos con la base
       caida, techo de disco, escritura partida a mitad de rafaga
-- [ ] T6 Adaptadores de vendor con payloads sinteticos por fabricante
+- [x] T6 Adaptadores de vendor con payloads sinteticos por fabricante
 
 ### Tier 3 — posterior
 
-- [ ] T7 Capa de AI/agente
+- [x] T7 Capa de AI/agente
 - [ ] T8 Performance y concurrencia
 
 ## Bugs encontrados por los tests

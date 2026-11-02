@@ -6,6 +6,7 @@ import {
   checkSupplyChain,
   findCallerPermissionViolations,
   findJobsWithoutPermissions,
+  findReleaseTokenDispatchViolations,
   findReleaseWiringViolations,
   findUnpinnedActions,
   findUnpinnedCompositeActions,
@@ -242,6 +243,8 @@ const PUBLISHER = [
   "      contents: write",
   "    steps:",
   "      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071",
+  "        with:",
+  "          token: ${{ secrets.GITHUB_TOKEN }}",
 ];
 
 const BUILDER = [
@@ -302,6 +305,84 @@ test("findReleaseWiringViolations exige workflow_dispatch en el builder", () => 
   const violations = findReleaseWiringViolations(models);
   assert.equal(violations.length, 1);
   assert.match(violations[0]?.message ?? "", /workflow_dispatch/);
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Regla 5: coherencia entre el token de release y el dispatch del builder.
+//
+// El `GITHUB_TOKEN` no dispara workflows por los eventos que produce (la
+// anti-recursión), así que hoy el publicador tiene que despachar al builder a
+// mano cuando crea el tag. Un token propio (un PAT) sí dispara workflows: el
+// `push: tags` del builder llega solo y el dispatch explícito lo duplicaría
+// (dos builds y dos atestaciones del mismo tag).
+//
+// La regla exige que, cuando el publicador usa un token propio, el dispatch
+// se condicione a que ese token NO esté presente.
+// ──────────────────────────────────────────────────────────────────────
+
+const PUBLISHER_WITH_OWN_TOKEN = [
+  "name: Release",
+  "on:",
+  "  push:",
+  "    branches:",
+  "      - main",
+  "jobs:",
+  "  release:",
+  "    permissions:",
+  "      contents: write",
+  "    env:",
+  "      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}",
+  "    steps:",
+  "      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071",
+  "        with:",
+  "          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}",
+  "      - name: Dispatch the release build",
+  "        run: gh api --method POST repos/${{ github.repository }}/actions/workflows/release.yml/dispatches",
+];
+
+const DISPATCH_LINE =
+  "        run: gh api --method POST repos/${{ github.repository }}/actions/workflows/release.yml/dispatches";
+
+test("findReleaseTokenDispatchViolations exige condicionar el dispatch con un token propio", () => {
+  const models = [
+    model(PUBLISHER_WITH_OWN_TOKEN.join("\n"), ".github/workflows/release-please.yml"),
+    model(BUILDER.join("\n"), ".github/workflows/release.yml"),
+  ];
+
+  const violations = findReleaseTokenDispatchViolations(models);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-token-dispatch");
+  assert.match(violations[0]?.message ?? "", /RELEASE_PLEASE_TOKEN/);
+});
+
+test("findReleaseTokenDispatchViolations acepta el dispatch condicionado al token propio", () => {
+  const publisher = PUBLISHER_WITH_OWN_TOKEN.map((line) =>
+    line === DISPATCH_LINE
+      ? "        if: steps.release.outputs.release_created == 'true' && env.RELEASE_PLEASE_TOKEN == ''\n" + line
+      : line,
+  ).join("\n");
+
+  const models = [
+    model(publisher, ".github/workflows/release-please.yml"),
+    model(BUILDER.join("\n"), ".github/workflows/release.yml"),
+  ];
+
+  assert.deepEqual(findReleaseTokenDispatchViolations(models), []);
+});
+
+test("findReleaseTokenDispatchViolations no se queja del publisher keyless", () => {
+  const publisher = [
+    ...PUBLISHER,
+    "      - name: Dispatch the release build",
+    DISPATCH_LINE,
+  ].join("\n");
+
+  const models = [
+    model(publisher, ".github/workflows/release-please.yml"),
+    model(BUILDER.join("\n"), ".github/workflows/release.yml"),
+  ];
+
+  assert.deepEqual(findReleaseTokenDispatchViolations(models), []);
 });
 
 test("los workflows del repo cumplen la política de supply chain", () => {

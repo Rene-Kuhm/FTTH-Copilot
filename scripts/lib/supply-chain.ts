@@ -6,7 +6,7 @@
  * red. Así la política se testea con `node --test` y se corre en el CI sin
  * depender de nada externo.
  *
- * Tres reglas:
+ * Cuatro reglas:
  *
  *   1. `sha-pinning` — toda acción remota se usa fijada por SHA de commit.
  *      Un tag se puede mover (y una rama, con más razón): el SHA es lo único
@@ -28,12 +28,27 @@
  *      documentadas de esa regla, y es keyless: no hace falta un PAT ni una
  *      GitHub App.
  *
+ *   4. `caller-permissions` — el caller de un workflow reutilizable concede
+ *      todo lo que el workflow llamado pide, o GitHub rechaza el run entero
+ *      con `startup_failure` y cero jobs.
+ *
+ *   5. `release-token-dispatch` — coherencia entre el token del publicador y
+ *      el dispatch del builder. Con el `GITHUB_TOKEN` el dispatch explícito
+ *      es obligatorio (regla 3). Con un token propio (un PAT) el `push: tags`
+ *      del builder ya dispara solo, así que el dispatch tiene que quedar
+ *      condicionado: si no, la release se construye y se atesta dos veces.
+ *
  * Ver `docs/reference/contenedores-y-ci.md` para el detalle de cada regla.
  */
 import { LineCounter, isScalar, parseDocument, visit } from "yaml";
 
 /** Identificador de cada regla de la política. */
-export type PolicyRule = "sha-pinning" | "job-permissions" | "release-wiring" | "caller-permissions";
+export type PolicyRule =
+  | "sha-pinning"
+  | "job-permissions"
+  | "release-wiring"
+  | "caller-permissions"
+  | "release-token-dispatch";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -41,6 +56,20 @@ export interface ActionReference {
   readonly ref: string;
   /** Línea (1-based) donde aparece el `uses:`. */
   readonly line: number;
+}
+
+/** Un step de un job, con lo que la política necesita mirar. */
+export interface WorkflowStep {
+  /** Nombre del step (puede estar vacío). */
+  readonly name: string;
+  /** Condición `if:` del step, si la tiene. */
+  readonly if: string | null;
+  /** Comando `run:` del step, si lo tiene. */
+  readonly run: string | null;
+  /** Acción que el step usa, si usa alguna. */
+  readonly uses: string | null;
+  /** Inputs `with:` del step. */
+  readonly with: Record<string, unknown> | null;
 }
 
 /** Un job de un workflow, con lo que declara sobre sus permisos. */
@@ -61,6 +90,10 @@ export interface WorkflowJob {
    * `null` cuando el job no es un caller (no tiene `uses:` de nivel de job).
    */
   readonly reusableCall: string | null;
+  /** Variables `env:` declaradas a nivel de job. */
+  readonly env: Record<string, string>;
+  /** Steps del job, en orden. */
+  readonly steps: readonly WorkflowStep[];
 }
 
 /** Un workflow del repositorio. */
@@ -163,6 +196,48 @@ function normalizePermissions(value: unknown): string | Record<string, string> |
 }
 
 /**
+ * Normaliza el bloque `env:` de un job a un mapa de variables.
+ *
+ * Sólo se guardan los valores que son escalares: los secretos llegan como
+ * expresión (`${{ secrets.X }}`) y lo que la política necesita es saber qué
+ * variable expone cada secret.
+ */
+function normalizeEnv(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const entries: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === "string") {
+      entries[key] = raw;
+    } else if (typeof raw === "number" || typeof raw === "boolean") {
+      entries[key] = String(raw);
+    }
+  }
+  return entries;
+}
+
+/** Normaliza los steps de un job. */
+function normalizeSteps(value: unknown): WorkflowStep[] {
+  if (!Array.isArray(value)) return [];
+  const steps: WorkflowStep[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) continue;
+    steps.push({
+      name: typeof raw.name === "string" ? raw.name : "",
+      if:
+        typeof raw.if === "string"
+          ? raw.if
+          : typeof raw.if === "boolean"
+            ? String(raw.if)
+            : null,
+      run: typeof raw.run === "string" ? raw.run : null,
+      uses: typeof raw.uses === "string" ? raw.uses : null,
+      with: isRecord(raw.with) ? (raw.with as Record<string, unknown>) : null,
+    });
+  }
+  return steps;
+}
+
+/**
  * Parsea un workflow y extrae lo que la política necesita.
  *
  * Devuelve `null` si el YAML no se puede parsear: un workflow roto es un
@@ -210,6 +285,8 @@ export function parseWorkflow(file: WorkflowFile): WorkflowModel | null {
         name,
         permissions: normalizePermissions(definition.permissions),
         reusableCall,
+        env: normalizeEnv(definition.env),
+        steps: normalizeSteps(definition.steps),
       });
     }
   }
@@ -523,7 +600,101 @@ export function findUnpinnedCompositeActions(
 }
 
 /**
- * Corre las tres reglas sobre un conjunto de workflows.
+ * Regla 5: el token del publicador y el dispatch del builder son coherentes.
+ *
+ * Con el `GITHUB_TOKEN` el dispatch explícito es obligatorio (regla 3): el tag
+ * lo crea el propio token y su evento no dispara ningún workflow.
+ *
+ * Con un token propio (un PAT) pasa lo contrario: el `push: tags` del builder
+ * **sí** dispara, porque la anti-recursión sólo exime al `GITHUB_TOKEN`. Si el
+ * dispatch queda sin condicionar, el builder corre dos veces para el mismo tag:
+ * dos compilaciones, dos atestaciones y el conflicto de los assets repetidos.
+ *
+ * Por eso, cuando el publicador usa un token propio, el dispatch tiene que
+ * quedar condicionado a que ese token **no** esté presente. La condición se
+ * apoya en una variable de `env:` de job, porque los secrets no se pueden
+ * referenciar en un `if:`.
+ */
+export function findReleaseTokenDispatchViolations(
+  models: readonly WorkflowModel[],
+): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+
+  for (const publisher of models) {
+    const secret = findOwnTokenSecret(publisher);
+    if (secret === null) continue;
+
+    const envVar = findTokenEnvVar(publisher, secret);
+    for (const job of publisher.jobs) {
+      for (const step of job.steps) {
+        if (!dispatchesWorkflow(step)) continue;
+        const condition = step.if ?? "";
+        if (envVar !== null && condition.includes(`env.${envVar}`)) continue;
+        violations.push({
+          rule: "release-token-dispatch",
+          path: publisher.path,
+          line: null,
+          message:
+            `el publicador usa el secret "${secret}" y despacha al builder sin ` +
+            `condicionarlo a que ese token esté ausente: con un token propio el ` +
+            `push del tag ya dispara el builder y el dispatch lo construye por ` +
+            `segunda vez (dos builds y dos atestaciones del mismo tag). ` +
+            `Condicioná el step con "env.${envVar ?? "<VAR>"} == ''"`,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * El secret de token propio que usa el publicador, si usa alguno.
+ *
+ * Devuelve el nombre del secret cuando el `token:` del publicador menciona un
+ * secret distinto de `GITHUB_TOKEN`, y `null` cuando la release va keyless.
+ */
+function findOwnTokenSecret(model: WorkflowModel): string | null {
+  for (const job of model.jobs) {
+    for (const step of job.steps) {
+      if (!step.uses || !step.uses.startsWith(`${PUBLISHER_ACTION}@`)) continue;
+      const token = step.with?.["token"];
+      if (typeof token !== "string") continue;
+      for (const match of token.matchAll(/secrets\.([A-Za-z0-9_]+)/g)) {
+        const name = match[1];
+        if (name !== undefined && name !== "GITHUB_TOKEN") return name;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * La variable de `env:` de job que expone ese secret.
+ *
+ * Los secrets no se pueden referenciar en un `if:`: el `if:` tiene que mirar
+ * una variable de entorno, que es lo que esta función localiza.
+ */
+function findTokenEnvVar(model: WorkflowModel, secret: string): string | null {
+  for (const job of model.jobs) {
+    for (const [name, value] of Object.entries(job.env)) {
+      if (value.includes(`secrets.${secret}`)) return name;
+    }
+  }
+  return null;
+}
+
+/** Si un step despacha a otro workflow (por API o por la CLI de `gh`). */
+function dispatchesWorkflow(step: WorkflowStep): boolean {
+  if (step.run === null) return false;
+  return (
+    /actions\/workflows\/[A-Za-z0-9._-]+\.ya?ml\/dispatches/.test(step.run) ||
+    /gh\s+workflow\s+run\s+[A-Za-z0-9._-]+\.ya?ml/.test(step.run)
+  );
+}
+
+/**
+ * Corre las cinco reglas sobre un conjunto de workflows.
  *
  * Devuelve todas las violaciones; una lista vacía significa que el repo
  * cumple la política.
@@ -539,5 +710,6 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
   }
   violations.push(...findReleaseWiringViolations(models));
   violations.push(...findCallerPermissionViolations(models));
+  violations.push(...findReleaseTokenDispatchViolations(models));
   return violations;
 }

@@ -21,7 +21,7 @@ Cuatro invariantes atraviesan todo el sistema. Un cambio que las rompa no es un 
 
 ## 2. Mapa de módulos
 
-El monorepo es un pnpm workspace con Turborepo: `apps/*`, `packages/*` y `packages/connectors/*` (**16 workspaces**). Los paquetes se organizan en capas y solo se importan **hacia abajo**.
+El monorepo es un pnpm workspace con Turborepo: `apps/*`, `packages/*`, `packages/connectors/*` y `services/*` (**23 workspaces**). Los paquetes se organizan en capas y solo se importan **hacia abajo**.
 
 ![Vista C4 de contenedores: dónde vive cada capa del monorepo](docs/architecture/c4/views/container.svg)
 

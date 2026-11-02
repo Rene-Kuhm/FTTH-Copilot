@@ -41,7 +41,7 @@ Separar **el resultado** de **el conocimiento**, y hacer ambos append-only.
   si fue el prompt viejo, las reglas viejas o el modelo viejo. El prompt y el ruleset están
   versionados explícitamente en
   `packages/agent-core/src/investigation-prompt.ts:4-5`
-  (`prompt-investigation@1.0.0`, `ruleset-investigation@1.0.0`).
+  (`prompt-investigation@1.0.1`, `ruleset-investigation@1.0.0`).
 - `InvestigationVersion` **no tiene relación Prisma** con `InvestigationRun`: las versiones
   se consultan por el `runId` blando (comentario `schema.prisma:707-711`).
 

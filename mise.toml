@@ -21,7 +21,7 @@ depends = ["deps"]
 run = "pnpm build"
 
 [tasks.lint]
-description = "ESLint sobre los 16 workspaces y sobre scripts/."
+description = "ESLint sobre los 23 workspaces y sobre scripts/."
 depends = ["deps"]
 run = [
   "pnpm lint",
