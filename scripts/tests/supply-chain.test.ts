@@ -7,6 +7,7 @@ import {
   findCallerPermissionViolations,
   findJobsWithoutPermissions,
   findReleaseTokenDispatchViolations,
+  findReleaseTokenHeaderViolations,
   findReleaseWiringViolations,
   findUnpinnedActions,
   findUnpinnedCompositeActions,
@@ -468,4 +469,113 @@ test("las acciones compuestas del repo cumplen la política de supply chain", ()
     ),
     [],
   );
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Regla 6: el push con token propio no puede arrastrar el token del
+// checkout.
+//
+// `actions/checkout` persiste el `GITHUB_TOKEN` del job en
+// `http.https://github.com/.extraheader`. Git manda **un encabezado por cada
+// valor** de esa clave, y el valor de la línea de comandos no pisa al local:
+// los dos conviven. Un push con token propio que no resetee la lista empuja
+// con la credencial equivocada (o manda dos encabezados de autorización y
+// GitHub lo rechaza).
+//
+// El valor vacío resetea la lista: es lo que documenta `git config` para este
+// caso. Verificado contra un servidor HTTP local: con el reset llega un solo
+// encabezado (el del token propio); sin él, llega el del checkout.
+//
+// La regla exige el reset en el push que manda el token propio.
+// ──────────────────────────────────────────────────────────────────────
+
+const PUBLISHER_WITH_TOKEN_PUSH = [
+  "name: Release",
+  "on:",
+  "  push:",
+  "    branches:",
+  "      - main",
+  "jobs:",
+  "  release:",
+  "    permissions:",
+  "      contents: write",
+  "    env:",
+  "      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}",
+  "    steps:",
+  "      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071",
+  "        with:",
+  "          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}",
+  "      - name: Push the synchronized version carriers",
+  "        run: |",
+  "          git -c \"http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}\" \\",
+  "              push origin \"HEAD:${branch}\"",
+];
+
+const PUBLISHER_WITH_TOKEN_PUSH_RESET = [
+  "name: Release",
+  "on:",
+  "  push:",
+  "    branches:",
+  "      - main",
+  "jobs:",
+  "  release:",
+  "    permissions:",
+  "      contents: write",
+  "    env:",
+  "      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}",
+  "    steps:",
+  "      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071",
+  "        with:",
+  "          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}",
+  "      - name: Push the synchronized version carriers",
+  "        run: |",
+  "          git -c \"http.https://github.com/.extraheader=\" \\",
+  "              -c \"http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}\" \\",
+  "              push origin \"HEAD:${branch}\"",
+];
+
+test("findReleaseTokenHeaderViolations exige resetear la lista de encabezados del push", () => {
+  const models = [
+    model(PUBLISHER_WITH_TOKEN_PUSH.join("\n"), ".github/workflows/release-please.yml"),
+  ];
+
+  const violations = findReleaseTokenHeaderViolations(models);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-token-headers");
+  assert.match(violations[0]?.message ?? "", /extraheader/);
+});
+
+test("findReleaseTokenHeaderViolations acepta el push que resetea la lista", () => {
+  const models = [
+    model(PUBLISHER_WITH_TOKEN_PUSH_RESET.join("\n"), ".github/workflows/release-please.yml"),
+  ];
+
+  assert.deepEqual(findReleaseTokenHeaderViolations(models), []);
+});
+
+test("findReleaseTokenHeaderViolations no se queja del push sin token propio", () => {
+  const publisher = [
+    "name: Release",
+    "on:",
+    "  push:",
+    "    branches:",
+    "      - main",
+    "jobs:",
+    "  release:",
+    "    permissions:",
+    "      contents: write",
+    "    steps:",
+    "      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071",
+    "        with:",
+    "          token: ${{ secrets.GITHUB_TOKEN }}",
+    "      - name: Push the synchronized version carriers",
+    "        run: |",
+    "          git push origin \"HEAD:${branch}\"",
+  ];
+
+  const models = [
+    model(publisher.join("\n"), ".github/workflows/release-please.yml"),
+  ];
+
+  assert.deepEqual(findReleaseTokenHeaderViolations(models), []);
 });
