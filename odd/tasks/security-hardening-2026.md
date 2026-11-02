@@ -2,7 +2,7 @@
 
 **Status**: In Progress
 **Created**: 2026-10-05
-**Last Updated**: 2026-10-05
+**Last Updated**: 2026-11-02
 
 ## Resumen
 
@@ -22,13 +22,13 @@ Este documento tracking todas las mejoras de seguridad identificadas durante la 
 | SEC-004 | brace-expansion DoS | Alto | Override >=1.1.20 | #270 |
 | SEC-005 | Auth middleware centralizado | Crítico | Middleware con redirect a login | #272 |
 | SEC-006 | E2E test bypass para auth | - | globalSetup con __test_bypass | #272 |
+| SEC-008 | Rate limiter in-memory (multi-instance) | Medio | Limite global en Redis, con respaldo en memoria | PR #351 |
 
 ### ⏳ Pendientes
 
 | ID | Hallazgo | Severidad | Estado | Tracking |
 |----|----------|-----------|--------|----------|
 | SEC-007 | braces DoS (GHSA-vfj7-8cjw-p6xm) | Alto | Monitorizando, sin fix upstream | Task: BRACES-1 |
-| SEC-008 | Rate limiter in-memory (multi-instance) | Medio | Documentado como limitacion arquitectural | Requiere infra |
 
 ### ✅ Resueltos en PR #274
 
@@ -63,24 +63,61 @@ huecos estan cerrados ahora.
 
 ## Mejoras en Progreso
 
-### SEC-008: Rate Limiter con Redis
+### ✅ SEC-008: Rate Limiter con Redis (resuelto)
 
-**Problema**: El rate limiter actual usa un Map in-memory que no funciona con múltiples instancias de Next.js en producción.
+**Problema**: El rate limiter anterior usaba un Map in-memory que no funciona con
+múltiples instancias de Next.js en producción.
 
-**Limitación arquitectural**: El middleware corre en Edge runtime donde no se puede usar Prisma ni Redis.
+**Limitación arquitectural que sigue en pie**: el middleware corre en Edge runtime,
+donde no se puede usar Prisma ni Redis (no hay TCP). Por eso el middleware **no**
+puede tener un límite global.
 
-**Solución recomendada para producción**:
-1. Usar rate limiting a nivel de infraestructura:
-   - **Vercel**: Built-in rate limiting
-   - **Cloudflare**: Cloudflare Rate Limiting
-   - **Custom**: Redis + API route (no Edge)
+**Solución implementada** (PR #351): partir el limiter en dos capas que comparten el
+mismo núcleo, y cambiar solo el almacén.
 
-2. Para desarrollo local: in-memory funciona bien
+1. **Núcleo puro** (`apps/web/lib/rate-limit-core.ts`): los límites por defecto, la
+   clave (tenant o IP), la respuesta 429 y el almacén en memoria. Sin runtime, sin
+   Prisma, sin Redis. Las dos capas usan el mismo núcleo, así que no pueden divergir en
+   cómo cuentan.
+2. **Almacén con Redis** (`apps/web/lib/rate-limit-store.ts`): la cuenta vive en la
+   **misma Redis que usa la cola del worker** (la URL sale de
+   `redisConnectionOptions()` de `@ftth-copilot/jobs`). Claves con prefijo `ftth:rl:`
+   para no pisar la cola. `INCR` + `PEXPIRE` + `PTTL` en un único guion de Lua, que es
+   atómico: por separado dejarían una ventana sin caducidad.
+3. **Aplicación en las rutas que mutan estado**: las 26 rutas con `POST`/`PUT`/
+   `PATCH`/`DELETE` llaman a `enforceApiRateLimit(req, user.tenantId)` en el handler,
+   después del chequeo de sesión. Límite: 60 req/min por tenant, global entre réplicas.
+4. **El middleware sigue como fast path** y como red de seguridad: su límite en
+   memoria (100 req/min, 200 en `/api/auth/*`) corre antes que cualquier ruta.
 
-**Estado**: Documentado como limitación. No se implementa en esta fase.
+**Reglas que el código hace explícitas**:
+
+- **Sin `REDIS_URL` no se cae nada**: cae el almacén en memoria y el límite queda por
+  instancia. Es lo esperado en el modo embebido y en desarrollo local.
+- **Si Redis falla, la petición pasa** (fail-open). Un limiter que tumba la API cuando
+  parpadea la Redis es peor que no tener limiter; el middleware de Edge sigue aplicando
+  su límite en memoria.
+- **El primer comando espera a que la conexión esté lista**. Con la cola offline
+  desactivada, un comando que sale durante el handshake se pierde en vez de
+  encolarse: sin esa espera las primeras peticiones de cada proceso no contarían y el
+  límite real sería mayor que el configurado.
+
+**Fuera del alcance, a propósito**: `/api/auth/*` y `/api/chat` ya tienen cuota global
+contra Postgres (`packages/db/src/auth-rate-limit.ts` y `apps/web/lib/rate-limit.ts`).
+Meterles un límite en Redis sería duplicar la misma regla en dos almacenes con reglas
+de caducidad distintas.
+
+**Tests**: `apps/web/tests/lib/rate-limit-core.test.ts` (ventana y concurrencia),
+`apps/web/tests/lib/rate-limit-store.test.ts` (respaldo en memoria, fail-open,
+namespace) y `apps/web/tests/lib/rate-limit-redis.integration.test.ts` (contra una
+Redis de verdad: dos instancias comparten la cuenta, la ventana se reabre, diez
+peticiones concurrentes solo dejan pasar las del cupo, y la primera cuenta de un store
+nuevo ya cuenta).
 
 **Referencias**:
-- docs/production-deployment.md (actualizar con rate limiting strategy)
+- `docs/production-deployment.md` §6.4 — estrategia de rate limiting en producción
+- `docs/how-to/agregar-un-endpoint-de-la-api.md` §5.1 — cómo aplicarlo en un handler
+- `docs/api/README.md` — las tres capas y sus almacenes
 
 ### SEC-009: RBAC en Middleware
 

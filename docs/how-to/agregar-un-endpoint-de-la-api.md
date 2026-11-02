@@ -19,6 +19,7 @@ clasificación el middleware aplica **sólo**:
 | Exención de `/api/health` | Sale antes de todo: sin rate limit, sin CSRF, sin headers de seguridad |
 | CSRF | En `POST`/`PUT`/`DELETE`/`PATCH` exige el header `X-CSRF-Token` igual a la cookie `ftth_csrf`. Sin match ⇒ `403 {error:'Invalid CSRF token'}`. **Exento: `/api/auth/*`** |
 | Rate limit | `/api/auth/*` ⇒ 200 req/60 s; el resto ⇒ 100 req/60 s. Clave `tenant:<tenantId>` del JWT o `ip:<x-forwarded-for>` |
+| Límite de mutación | En las rutas que cambian estado: 60 req/60 s por tenant, contado en Redis y **global entre réplicas**. Va en el handler, no en el middleware (paso 5) |
 | Límite excedido | `429 {error:'Too many requests', retryAfter}` + `retry-after` y `x-ratelimit-reset` |
 | Headers | `x-ratelimit-remaining`, `x-ratelimit-reset`, `nosniff`, `DENY` frame, `referrer-policy`, CSP, HSTS en producción |
 
@@ -27,7 +28,9 @@ clasificación el middleware aplica **sólo**:
 
 El rate limit del middleware es **en memoria y por instancia**
 (`apps/web/middleware/rate-limit.ts`): en despliegues multi-instancia no es un límite
-global. Las cuotas de negocio, que sí van a la base, están aparte (paso 5).
+global. Por eso las rutas que cambian estado agregan, en el handler, un límite
+**global** contado en la Redis compartida (paso 5). Las cuotas de negocio, que sí van a
+la base, están aparte.
 
 ## 2. Resolvé la sesión y el permiso
 
@@ -177,6 +180,34 @@ el usuario: IP de `x-forwarded-for` o `x-real-ip`, user-agent, tenant, actor y r
 
 ## 5. Aplicá la cuota si el endpoint es caro
 
+### 5.1 Límite de mutación (global, en Redis)
+
+Si tu endpoint cambia estado (`POST`, `PUT`, `PATCH`, `DELETE`), el handler aplica un
+límite global de 60 req/min por tenant, contado en la Redis compartida:
+
+```ts
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
+
+const user = await getCurrentUser();
+if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+const limited = await enforceApiRateLimit(req, user.tenantId);
+if (limited) return limited;
+```
+
+La llamada va **después** del chequeo de sesión —una petición sin autenticar no gasta
+la cuota de un tenant— y **antes** del chequeo de permiso, así que el `403` no depende
+de la cuota.
+
+Dos reglas del almacén (`apps/web/lib/rate-limit-store.ts`):
+
+- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria y queda por
+  instancia. Es lo esperado en el modo embebido y en desarrollo local.
+- **Si la Redis falla, la petición pasa**: un limiter que tumba la API cuando parpadea
+  la Redis es peor que no tener limiter. El middleware de Edge sigue aplicando su
+  límite en memoria como red de seguridad.
+
+### 5.2 Cuotas de negocio (en la base)
+
 Las cuotas de negocio van a la base (`RateLimitBucket`) y son por usuario, no por IP:
 
 | Tipo | Función | Variables |
@@ -254,8 +285,8 @@ acción, el outcome y el actor de cada evento.
 - **`403 {error:"Invalid CSRF token"}`** → falta el header `X-CSRF-Token` o no coincide
   con la cookie `ftth_csrf`. Sólo `/api/auth/*` está exento de CSRF.
 - **`429 {error:"Too many requests", retryAfter}`** → rate limit del middleware (100
-  req/min por tenant o IP). Los headers `retry-after` y `x-ratelimit-reset` dicen
-  cuándo reintentar.
+  req/min por tenant o IP) o límite de mutación (60 req/min por tenant, contado en
+  Redis). Los headers `retry-after` y `x-ratelimit-reset` dicen cuándo reintentar.
 - **`401 {error:"Not authenticated"}`** → no hay cookie `ftth_session`, el JWT no valida o
   la fila `Session` no existe / expiró. `getCurrentUser()` exige las dos cosas.
 - **El endpoint responde bien pero devuelve datos de otro tenant** → falta
