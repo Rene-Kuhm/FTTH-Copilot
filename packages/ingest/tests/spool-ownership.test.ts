@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 import { DurableSpool } from '../src/spool';
 
 /**
@@ -116,6 +117,8 @@ describe('spool directory ownership', () => {
 
   it('takes over a lock from an older format that cannot be verified', () => {
     const dir = mkdtempSync(join(tmpdir(), 'spool-owner-'));
+    const lines: string[] = [];
+    __setLogSinkForTests((line) => lines.push(line));
     try {
       // No version, no identity: there is no way to know whether the process
       // is gone. Refusing would lose the telemetry the spool protects, so
@@ -131,8 +134,11 @@ describe('spool directory ownership', () => {
 
       const spool = new DurableSpool<{ n: number }>({ dir });
       expect(spool.append({ n: 1 })).not.toBeNull();
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'warn', name: 'spool', dir });
       spool.close();
     } finally {
+      __setLogSinkForTests(null);
       rmSync(dir, { recursive: true, force: true });
     }
   });
