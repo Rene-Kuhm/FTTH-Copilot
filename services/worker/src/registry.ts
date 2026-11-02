@@ -57,13 +57,13 @@ export const JOB_HANDLERS: JobHandlers = {
    * A failed batch leaves the events on disk, so the job fails and BullMQ
    * retries it with a backoff instead of dropping the work.
    */
-  'ingest-drain': async () => {
+  'ingest-drain': async (_data, job) => {
     const result = await drainSpool({
       onSharedFailure: (code, count) => {
         // Every event failed the same way: the database is not ready (a
         // migration that did not run, a missing permission). This is an
         // operator alert, not data loss: nothing was dead-lettered.
-        log.error('All ingest events failed; events remain in the spool', { count, code });
+        log.error('All ingest events failed; events remain in the spool', { correlationId: job.id, count, code });
       },
     });
     if (result.failed > 0) {
@@ -96,11 +96,11 @@ export const JOB_HANDLERS: JobHandlers = {
     return outcome;
   },
   /** Expires the investigation attempts that stayed `pending` past their TTL. */
-  'investigation-sweep': async (data) => {
+  'investigation-sweep': async (data, job) => {
     const ttlMs = data.ttlMs ?? investigationPendingTtlMs();
     const expired = await expireStaleRuns({ ttlMs });
     if (expired > 0) {
-      log.warn('Investigation sweep expired abandoned attempts', { expired });
+      log.warn('Investigation sweep expired abandoned attempts', { correlationId: job.id, expired });
     }
     return { expired };
   },

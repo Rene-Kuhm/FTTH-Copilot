@@ -10,7 +10,8 @@ const config = [
   },
   ...nextConfig,
   {
-    files: ["app/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "instrumentation.ts"],
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["tests/**", "e2e/**", "scripts/**", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
     rules: { "no-console": "error" },
   },
   // ─────────────────────────────────────────────────────────────────────────
