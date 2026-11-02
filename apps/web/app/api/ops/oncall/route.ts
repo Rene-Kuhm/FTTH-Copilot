@@ -80,25 +80,38 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Find current on-call for each schedule
+  // Find current on-call for each schedule.
+  //
+  // One query for the whole list, not one per schedule: the number of
+  // schedules is tenant data and grows with the size of the NOC, so asking
+  // per schedule made drawing one screen cost one query per schedule.
+  //
+  // The entries come back ordered by `startUtc desc`, so the first one of
+  // each schedule is the current one — the same rule the old per-schedule
+  // `orderBy` applied.
   const now = new Date();
-  const schedulesWithCurrent = await Promise.all(
-    schedules.map(async (schedule) => {
-      const currentEntry = await prisma.onCallEntry.findFirst({
+  const currentEntries = schedules.length
+    ? await prisma.onCallEntry.findMany({
         where: {
-          scheduleId: schedule.id,
+          scheduleId: { in: schedules.map((s) => s.id) },
           startUtc: { lte: now },
           endUtc: { gte: now },
         },
         orderBy: { startUtc: 'desc' },
-      });
+      })
+    : [];
 
-      return {
-        ...schedule,
-        currentEntry,
-      };
-    }),
-  );
+  const currentBySchedule = new Map<string, (typeof currentEntries)[number]>();
+  for (const entry of currentEntries) {
+    if (!currentBySchedule.has(entry.scheduleId)) {
+      currentBySchedule.set(entry.scheduleId, entry);
+    }
+  }
+
+  const schedulesWithCurrent = schedules.map((schedule) => ({
+    ...schedule,
+    currentEntry: currentBySchedule.get(schedule.id) ?? null,
+  }));
 
   return NextResponse.json({ schedules: schedulesWithCurrent });
 }

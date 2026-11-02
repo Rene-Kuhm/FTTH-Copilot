@@ -95,18 +95,33 @@ export async function POST(
   // unique constraint would be ideal; in this version the route
   // itself enforces the "notify once per (window, incident)" rule
   // by checking the log before writing.
-  let notified = 0;
-  let skipped = 0;
-  for (const inc of incidents) {
-    const existing = await prisma.agentActionLog.findFirst({
+  //
+  // The check is ONE query for the whole window, not one per incident.
+  // The old per-incident lookup filtered on JSON paths
+  // (`parameters->>'windowId'`, `result->>'incidentId'`), which no btree
+  // index can serve, so every one of those queries scanned the tenant's
+  // whole audit log — and the audit log has no retention, so the route was
+  // quadratic in the size of the tenant's history.
+  const alreadyNotified = new Set<string>();
+  if (incidents.length > 0) {
+    const notifiedLogs = await prisma.agentActionLog.findMany({
       where: {
         tenantId: user.tenantId,
         toolName: '__maintenance_reeval__',
         parameters: { path: ['windowId'], equals: id },
-        result: { path: ['incidentId'], equals: inc.id },
       },
+      select: { result: true },
     });
-    if (existing !== null) {
+    for (const log of notifiedLogs) {
+      const incidentId = (log.result as { incidentId?: unknown } | null)?.incidentId;
+      if (typeof incidentId === 'string') alreadyNotified.add(incidentId);
+    }
+  }
+
+  let notified = 0;
+  let skipped = 0;
+  for (const inc of incidents) {
+    if (alreadyNotified.has(inc.id)) {
       skipped += 1;
       continue;
     }
