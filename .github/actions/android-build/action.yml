@@ -45,7 +45,8 @@ runs:
     - name: Accept SDK licenses
       shell: bash
       run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
+        # sdkmanager closes stdin after accepting licenses; yes then exits on SIGPIPE.
+        { yes 2>/dev/null || :; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>&1 | tail -5
 
     - name: Install SDK packages
       shell: bash
