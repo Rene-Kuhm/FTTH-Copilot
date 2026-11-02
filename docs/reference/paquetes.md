@@ -200,7 +200,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 | `src/tools/provenance.ts` | `PROVENANCE_TOOL_META`: metadatos de procedencia por tool |
 | `src/investigation-engine.ts` | Motor de investigación: hechos deterministas, hipótesis, validación |
 | `src/investigation-facts.ts` | `computeInvestigationFacts`: hechos puros (umbrales Rx −27 dBm crítico / −25 dBm warning) |
-| `src/investigation-prompt.ts` | Versionado: `prompt-investigation@1.0.0`, `ruleset-investigation@1.0.0` |
+| `src/investigation-prompt.ts` | Versionado: `prompt-investigation@1.0.1`, `ruleset-investigation@1.0.0` |
 | `src/investigation-validator.ts` | Re-validación del resultado contra el schema |
 | `src/llm.ts` | Clientes estilo Anthropic y estilo OpenAI, con cadena de fallback |
 | `src/prompts/system.ts` | Prompt de sistema (umbrales alineados con el motor de detección) |

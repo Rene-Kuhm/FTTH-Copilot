@@ -219,6 +219,14 @@ describe('buildInvestigationSystemPrompt', () => {
     );
   });
 
+  it('no cita reglas de roadmap que el modelo no puede leer', () => {
+    const prompt = buildInvestigationSystemPrompt(buildFacts(), [buildEvidenceRef()]);
+
+    // "Roadmap Regla 8" no le dice nada al modelo: no tiene acceso al roadmap.
+    expect(prompt).not.toContain('Roadmap Regla 8');
+    expect(prompt).toContain('never suggest them');
+  });
+
   it('is stable regardless of the current wall-clock time', () => {
     const facts = buildFacts();
     const evidenceRefs = [buildEvidenceRef()];
