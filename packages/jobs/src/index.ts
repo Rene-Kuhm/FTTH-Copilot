@@ -12,6 +12,7 @@ export {
   windowJobId,
   ingestDrainJobId,
   investigationJobId,
+  learningSnapshotJobId,
   recurringSchedulerId,
   type QueueKey,
   type JobName,
@@ -26,6 +27,7 @@ export {
   type IngestDrainPayload,
   type InvestigationRunPayload,
   type InvestigationSweepPayload,
+  type LearningSnapshotPayload,
 } from './definitions';
 
 export {
