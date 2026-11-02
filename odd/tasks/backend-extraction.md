@@ -241,12 +241,12 @@ tarea.
 | T9  | S3, S8             | inline  | `0a65327`, `24672cf` | Mover el bind del receptor syslog al worker; recepción → spool durable (reusa `event-ingest-durability`) → encola job de drenado. La web ya no bindea UDP en modo worker. |
 | T10 | S3, S8             | inline  | `e2c6cb7`, `chore(infra)` | Igual para el receptor SNMP + el event drainer como worker BullMQ (reemplaza `startEventDrainer` en proceso). |
 | T11 | S3, S16            | inline  | `b1313ee`, `0b8d5a4`-equivalente | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
-| T12 | S5, S20            | pending | pending | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. |
-| T13 | S5                | pending | pending | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. |
+| T12 | S5, S20            | inline  | `d376289` (unidades 8-11) | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. **Hecha**: el inventario (L26/L27) dejó un solo candidato real, `incidents/[id]/investigate`, y la unidad 8 lo movió a la cola `ftth-investigation` con claim por advisory lock. |
+| T13 | S5                | inline  | unidad 11 | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. **Hecha**: la unidad 11 los cubre (presupuesto, error, pending viejo, pedidos simultáneos, tenant ajeno, espera acotada). |
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
 | T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. |
 | T16 | S18               | pending | pending | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
-| T18 | S19                | pending | pending | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
+| T18 | S19                | inline  | `replay:dead-letter` | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
 | T17 | S1, S17            | pending | pending | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
 
 ## Plan de rollback
@@ -681,3 +681,32 @@ debe romperse) y los tests de durabilidad de las fases 4.
   Evidencia: `turbo --force` 67/67, 0 en caché (web 565, worker 65, jobs 36);
   integración real: investigations 30, db 15, jobs 6, worker 15 (Postgres +
   Redis levantados).
+- **L32** (2026-11-02) — T18 hecha: comando `replay:dead-letter`
+  (`scripts/replay-dead-letter.ts`, sobre
+  `packages/ingest/src/dead-letter-replay.ts`).
+  - Devuelve al spool los eventos del `events.dlq.jsonl` **conservando su
+    `ingestId`**. Eso es lo que hace el replay idempotente: el `ingestId` es
+    la clave de idempotencia del insert (`DeviceEvent.ingestId` es único y
+    `ingestEvents` usa `createMany` con `skipDuplicates`), así que un evento
+    que ya se guardó vuelve con el mismo id y la base lo absorbe en vez de
+    duplicarlo. Con un id nuevo, el replay crearía una fila por evento.
+    Por eso el spool tiene un método nuevo (`requeue`) que escribe una
+    entrada conservando su id: `append` genera uno nuevo.
+  - Lo que reprocesó **sale** del archivo del dead-letter: el spool es
+    durable, así que una vez que el evento está ahí, consumir la línea no lo
+    pierde. Con `--keep` queda.
+  - `--dry-run` no abre el spool: funciona con el worker corriendo, que es
+    el dueño del directorio. Para reprocesar de verdad hay que parar el
+    worker (dos procesos sobre el mismo offset perderían o duplicarían
+    eventos); el error lo dice.
+  - `--tenant` filtra por el `tenantId` del payload; las líneas ilegibles se
+    cuentan y se dejan en el archivo (nadie las va a recuperar, pero borrar
+    evidencia sin que nadie lo decida tampoco).
+  - El conteo de duplicados (los que la base ya tenía) es **opt-in**
+    (`--count-duplicates`): necesita `DATABASE_URL` y, con la base caída,
+    su ruido no debe tapar el replay, que es justamente lo que hace falta
+    cuando la base está caída.
+  - Evidencia: `packages/ingest` 29/29 (8 del replay); end-to-end con un
+    dead-letter de prueba (3 entradas: 2 recuperables y 1 ilegible) — el
+    filtro por tenant recuperó 1 y dejó 2, el spool quedó con los
+    `ingestId` originales y el archivo conservó la línea ilegible.
