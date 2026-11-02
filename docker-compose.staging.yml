@@ -1,0 +1,82 @@
+# FTTH-Copilot — staging
+#
+# Override de `docker-compose.prod.yml`. Se usa en conjunto:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml up -d
+#
+# Qué cambia respecto de producción:
+#
+#   - la web no publica puerto: Caddy queda delante, así la web puede
+#     escalar a varias réplicas sin chocar por el puerto 3001;
+#   - `BACKEND_MODE=worker`: el worker es el dueño del trabajo de fondo, que
+#     es justo lo que T14 tiene que validar;
+#   - el worker deja de estar detrás de un profile: en staging es el que
+#     corre, y no una opción;
+#   - VictoriaMetrics queda en el loopback: en una máquina pública el TSDS
+#     no debería quedar al alcance de internet.
+#
+# Lo que NO cambia, a propósito: Redis, Postgres, el worker en la red del
+# host, el spool durable y el stack de observabilidad. El staging tiene que
+# ejercitar el mismo camino que producción, con los mismos límites.
+#
+# La decisión de dónde montarlo y con qué Redis y Postgres está en
+# `docs/how-to/desplegar-en-staging.md`.
+
+services:
+  postgres:
+    # El compose de producción lee `.env.prod`; en staging es `.env.staging`.
+    env_file: !override [.env.staging]
+
+  redis:
+    env_file: !override [.env.staging]
+
+  db-migrate:
+    env_file: !override [.env.staging]
+
+  app:
+    env_file: !override [.env.staging]
+    # La web no se publica: Caddy hace de reverse proxy. Con el puerto
+    # publicado, `--scale app=2` no puede arrancar (la segunda réplica no
+    # puede tomar el puerto).
+    ports: !reset []
+    expose:
+      - "3001"
+    environment:
+      # El dueño del trabajo de fondo es el worker, no el proceso web. En
+      # `embedded` la web arranca los loops, el receptor syslog, el SNMP y
+      # el drainer; en `worker` no toca ninguno de ellos.
+      BACKEND_MODE: worker
+      # La URL se arma sola, para que no pueda quedar con una password
+      # distinta de la de `POSTGRES_PASSWORD`.
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ftth_copilot}"
+
+  worker:
+    env_file: !override [.env.staging]
+    # Sin profile: en staging el worker es parte del stack, no una opción.
+    profiles: !override []
+
+  victoriametrics:
+    # Sólo el loopback. La UI y la API Prometheus quedan accesibles por
+    # túnel SSH, no desde internet.
+    ports: !reset []
+    expose:
+      - "8428"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${STAGING_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - ftth-network
+
+volumes:
+  caddy_data:
+  caddy_config:

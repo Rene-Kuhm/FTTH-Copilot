@@ -1,0 +1,15 @@
+-- Index for the maintenance re-evaluation dedupe lookup.
+--
+-- The route reads the audit log by (tenantId, toolName) to find which
+-- incidents of a window were already notified. The only usable index was
+-- (tenantId, createdAt), which cannot serve the toolName filter: Postgres
+-- had to read every audit row of the tenant to find the rows of that tool.
+--
+-- The audit log has no retention, so that scan grew with the tenant's whole
+-- history, once per incident of the window.
+--
+-- The JSON filters on the same row (parameters->>'windowId' and
+-- result->>'incidentId') are still not indexable by a btree; they are now
+-- applied over the rows of this tool only, which is bounded by the number of
+-- windows.
+CREATE INDEX "agent_action_log_tenantId_toolName_createdAt_idx" ON "agent_action_log"("tenantId", "toolName", "createdAt");

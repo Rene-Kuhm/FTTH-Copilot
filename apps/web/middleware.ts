@@ -157,7 +157,7 @@ export async function middleware(request: NextRequest): Promise<Response> {
     }
 
     const key = getRateLimitKey(request, limitConfig.keyPrefix, tenantId);
-    const result = checkRateLimit(key, limitConfig);
+    const result = await checkRateLimit(key, limitConfig);
 
     if (!result.allowed) {
       return rateLimitResponse(result.resetAt);

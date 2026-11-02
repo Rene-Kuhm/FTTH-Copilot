@@ -1,0 +1,42 @@
+# Caddyfile — FTTH-Copilot staging
+#
+# Reverse proxy delante de la web. Con varias réplicas de `app`, Caddy
+# balancea por round-robin: el DNS de Docker devuelve las IPs de todos los
+# contenedores del servicio y Caddy las rota.
+#
+# No hace falta sticky session, y es importante que siga así:
+#
+#   - la sesión es un JWT en la cookie `ftth_session`, que se valida contra
+#     la fila `Session` de Postgres: el estado no está en el proceso;
+#   - el CSRF es double-submit (cookie `ftth_csrf` + header `X-CSRF-Token`):
+#     tampoco hay estado en el servidor.
+#
+# Las dos réplicas pueden atender cualquier request indistintamente. Si
+# alguna vez se agrega estado en memoria (por ejemplo, un cache local), esto
+# deja de ser cierto y hace falta sticky sessions.
+#
+# Por defecto sirve HTTP plano en el 8080, porque el staging no tiene un
+# dominio propio. Para servirlo por HTTPS con un dominio real, reemplazá el
+# bloque de abajo por:
+#
+#     ${CADDY_DOMAIN} {
+#         tls ${CADDY_EMAIL}
+#         ...lo mismo...
+#     }
+#
+# y poné `SESSION_COOKIE_SECURE=true` en el `.env.staging`.
+
+:8080 {
+    reverse_proxy app:3001 {
+        # La IP real del cliente: el rate limiter la usa como clave cuando
+        # la petición no está autenticada, y la auditoría la usa como
+        # actor de la request.
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {header.X-Forwarded-For}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+    }
+}

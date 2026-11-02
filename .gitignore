@@ -21,6 +21,8 @@ out/
 .env.prod
 # Same for the demo stack.
 .env.demo
+# Same for the staging stack.
+.env.staging
 
 # Logs
 *.log
