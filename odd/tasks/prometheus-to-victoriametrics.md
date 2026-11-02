@@ -2,8 +2,8 @@
 
 ## Meta
 
-- Status: merged (PR #266, `feat/victoriametrics-observability`) — queda sólo la
-  verificación funcional (VM-6), que necesita el compose levantado
+- Status: **closed** (2026-11-02) — PR #266 y #267 mergeados, VM-6 verificado con el
+  compose de demo levantado y VM-7 cerrado con los checks finales de hoy.
 - Started: 2026-10-04
 - Project: FTTH-Copilot
 - Location: /home/tecnodespegue/proyectos/FTTH-Copilot
@@ -92,11 +92,15 @@ After (target):
 
 ## Acceptance Criteria
 
-- [ ] `docker-compose.yml` includes `victoriametrics` service with correct scrape config.
-  → **Descartado por decisión (2026-11-01):** `docker-compose.yml` es el compose de
-  desarrollo mínimo (`postgres` + `redis` + `laya` opcional). Su propio header dice
-  que la observabilidad va en `docker-compose.demo.yml` o `docker-compose.prod.yml`.
-  Agregar VM ahí duplicaría el servicio sin necesidad. Ver VM-1.
+- [x] `docker-compose.yml` includes `victoriametrics` service with correct scrape config.
+  → **Descartado por decisión (2026-11-01), re-verificado (2026-11-02):**
+  `docker-compose.yml` es el compose de desarrollo mínimo (`postgres` + `redis` +
+  `laya` opcional). Su propio header dice que la observabilidad va en
+  `docker-compose.demo.yml` o `docker-compose.prod.yml`. Agregar VM ahí
+  duplicaría el servicio sin necesidad. Verificado: **0 referencias** a
+  `victoriametrics` en `docker-compose.yml`, y el servicio está en
+  `docker-compose.demo.yml:199` y `docker-compose.prod.yml:222`, con su
+  scrape config (`docker/victoriametrics-scrape.yml`) y su entrypoint. Ver VM-1.
 - [x] `docker-compose.prod.yml` includes `victoriametrics` service.
   → 19 referencias a `victoriametrics` (servicio + `vmalert` + volumen).
 - [x] VM UI accessible at port 8428 with auth (if bearer configured).
@@ -162,9 +166,22 @@ After (target):
   `pgbouncer` (imagen `edoburu/pgbouncer:1.24` borrada de Docker Hub, y su
   `depends_on` impedía arrancar la app) y la imagen `binwiederhier/ntfy:v3.3.0`
   (que nunca existió). Ver el PR de la corrección.
-- [ ] VM-7: Final checks, commit, PR.
-  → El código ya está mergeado (PR #266, `feat/victoriametrics-observability`, y
-  #267). Lo que queda es VM-6 y decidir si el checklist se cierra como está.
+- [x] VM-7: Final checks, commit, PR.
+  → **Cerrado (2026-11-02).** El código ya estaba mergeado (#266, #267) y VM-6
+  quedó verificado con el compose de demo levantado. Los checks finales de hoy:
+  - `docker compose config` OK para `docker-compose.demo.yml`, con y sin
+    `--profile alerts`; `docker-compose.prod.yml` parsea.
+  - VM viva con la app scrapeada: `up{job="ftth-copilot-app",
+    instance="app:3001"} = 1` y **32 series** de la app en la TSDB.
+  - `vmalert` vivo: **15 reglas en 2 grupos, 0 unhealthy** (8 de recording +
+    7 de alerting). El grupo `ftth-copilot-worker` (8 reglas más) llega con el
+    PR de T16, todavía sin mergear.
+  - `turbo run typecheck lint test --force`: **70/70**.
+  - `pnpm check:observability`: OK (23 reglas, 40 métricas, ninguna alerta
+    huérfana) — el check nuevo que ata las alertas con las métricas que
+    alguien exporta.
+  - `docs-test`: 0 errores.
+  - `shellcheck docker/victoriametrics-entrypoint.sh`: limpio.
 
 ## Progress Log
 
@@ -200,6 +217,10 @@ that the app never exports. The table is now generated from live
 `/api/metrics` output.
 
 ### Verification (runtime, not static)
+
+_Del PR original (#266/#267). Re-verificado el 2026-11-02: los numeros de
+entonces eran 17 series de la app; hoy son 32, y las reglas de `vmalert` son
+las mismas 15 hasta que llegue el grupo del worker (ver VM-6 y VM-7)._
 
 - `docker compose config` passes for `docker-compose.demo.yml` (with and
   without `--profile alerts`) and `docker-compose.prod.yml`.
