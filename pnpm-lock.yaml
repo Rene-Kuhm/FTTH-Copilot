@@ -33,6 +33,9 @@ importers:
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:packages/db
+      '@ftth-copilot/ingest':
+        specifier: workspace:*
+        version: link:packages/ingest
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:packages/security

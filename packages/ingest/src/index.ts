@@ -17,6 +17,8 @@
  *     event row, and its hand-off to the durable spool.
  *   - `snmp-evidence.ts` — the store of the raw trap evidence, with its own
  *     retention policy. It is forensics, not a dashboard event.
+ *   - `dead-letter-replay.ts` — the operator command that hands the
+ *     dead-lettered events back to the spool, keeping their `ingestId`.
  *
  * The code moved here verbatim from `apps/web/lib/monitoring/*`: the web
  * still uses it (embedded mode) and re-exports it, while the worker binds the
@@ -79,3 +81,10 @@ export {
 } from './snmp-evidence';
 
 export { classifyWriteError, errorMessage, type WriteFailureClass } from './errors';
+
+export {
+  replayDeadLetter,
+  type DeadLetterRecord,
+  type ReplayDeadLetterOptions,
+  type ReplayDeadLetterResult,
+} from './dead-letter-replay';

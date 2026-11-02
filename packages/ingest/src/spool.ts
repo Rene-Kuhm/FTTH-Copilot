@@ -401,13 +401,37 @@ export class DurableSpool<T> {
       return null;
     }
 
+    const ingestId = `${BOOT_ID}-${(ingestSequence++).toString(36)}`;
+    this.writeEntry(ingestId, payload);
+    return ingestId;
+  }
+
+  /**
+   * Durable enqueue of an entry that keeps its id.
+   *
+   * The replay of the dead-letter file needs it: the `ingestId` is the
+   * idempotency key of the insert, so an event that was already stored has to
+   * come back with the same id. With a new one the insert would add a second
+   * row for the same event.
+   */
+  requeue(entry: SpoolEntry<T>): boolean {
+    if (this.size >= this.hardMaxBytes) {
+      this.dropped++;
+      return false;
+    }
+
+    this.writeEntry(entry.ingestId, entry.payload);
+    return true;
+  }
+
+  /** Writes one entry to the active file. */
+  private writeEntry(ingestId: string, payload: T): void {
     // Rotating only while fully drained keeps a single active file, so the
     // offset never has to span several files.
     if (this.size >= this.maxBytes && this.offset === this.size) {
       this.rotate();
     }
 
-    const ingestId = `${BOOT_ID}-${(ingestSequence++).toString(36)}`;
     const line = `${JSON.stringify({ ingestId, payload } satisfies SpoolEntry<T>)}\n`;
 
     const buffer = Buffer.from(line, 'utf8');
@@ -422,7 +446,6 @@ export class DurableSpool<T> {
 
     this.size += buffer.length;
     if (this.pending !== null) this.pending++;
-    return ingestId;
   }
 
   /**
