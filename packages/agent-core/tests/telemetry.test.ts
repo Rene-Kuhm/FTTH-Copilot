@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 import {
   OpenInferenceSpanKind,
   OpenInferenceTracer,
@@ -181,7 +182,8 @@ describe('OpenInference & Phoenix Observability', () => {
     });
 
     it('safely handles network errors without crashing', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const lines: string[] = [];
+      __setLogSinkForTests((line) => lines.push(line));
       const mockFetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
       const exporter = new PhoenixOtlpExporter({
         endpoint: 'http://localhost:6006/v1/traces',
@@ -194,8 +196,9 @@ describe('OpenInference & Phoenix Observability', () => {
 
       const ok = await exporter.export([span]);
       expect(ok).toBe(false);
-      expect(warnSpy).toHaveBeenCalled();
-      warnSpy.mockRestore();
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'warn', name: 'phoenix-exporter', error: { message: 'Connection refused' } });
+      __setLogSinkForTests(null);
     });
   });
 

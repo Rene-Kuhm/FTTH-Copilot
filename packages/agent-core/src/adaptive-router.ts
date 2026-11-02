@@ -17,9 +17,11 @@
  */
 
 import type { IntentionLabel } from './diagnostic-router';
-import { getExpertClassifier, setLayaLogHandler, type EventClass } from '@ftth-copilot/shared';
+import { createLogger, getExpertClassifier, setLayaLogHandler, type EventClass } from '@ftth-copilot/shared';
 import type { LayaSignal } from '@ftth-copilot/shared';
 import { prisma } from '@ftth-copilot/db';
+
+const log = createLogger({ name: 'adaptive-router' });
 
 // ── Module init: register Laya decision logging handler (ADR-042) ──────────
 // Persists shadow-mode decisions to the DecisionEvaluation table.
@@ -422,7 +424,7 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
     eventConfidence = result.confidence;
   } catch (err) {
     // Expert classifier failed — fail-open, continue without classification.
-    console.warn('[adaptive-router] Expert classifier error:', err instanceof Error ? err.message : err);
+    log.warn('Expert classifier error', { error: err });
   }
 
   const maxIterations =
