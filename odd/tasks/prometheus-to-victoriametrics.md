@@ -102,10 +102,12 @@ After (target):
 - [x] VM UI accessible at port 8428 with auth (if bearer configured).
   → `docs/production-deployment.md:319` documenta `open http://localhost:8428`
   (VMUI) y el `:curl` con `-G .../api/v1/query`.
-- [ ] VM scrapes `/api/metrics` successfully (visible in VM → Metrics explore).
-  → La config está (`docker/victoriametrics-scrape.yml`: `metrics_path: /api/metrics`,
-  `authorization` con `__METRICS_BEARER_TOKEN__`), pero **verificar que aparecen
-  series en VMUI requiere levantar el compose**: es la parte de VM-6.
+- [x] VM scrapes `/api/metrics` successfully (visible in VM → Metrics explore).
+  → **Verificado (2026-11-02)** con el compose de demo levantado:
+  `up{job="ftth-copilot-app", instance="app:3001", env="development",
+  service="ftth-copilot"} = 1` y 32 series de la app visibles en VM
+  (`ftth_copilot_*`, `ftth_ops_*`, `ftth_llm_*`, `ftth_router_*`,
+  `ftth_snmp_*`, `ftth_rag_*`). Ver VM-6.
 - [x] Grafana can add VM as datasource using Prometheus-compatible URL.
   → `docs/production-deployment.md:356` documenta URL, Access y header `Authorization`.
 - [x] `METRICS_BEARER_TOKEN` propagates to VM scrape config.
@@ -119,8 +121,8 @@ After (target):
   → **No aplica:** no existe ningún `prometheus.yml` en el repo. El scrape config
   es `docker/victoriametrics-scrape.yml` y usa `-promscrape.config` (flag del
   servidor single-node), no vmagent. Ver VM-5.
-- [ ] Functional verification: metrics visible in VM after demo startup.
-  → Ver VM-6.
+- [x] Functional verification: metrics visible in VM after demo startup.
+  → Verificado el 2026-11-02 con el compose de demo levantado. Ver VM-6.
 - [x] `pnpm lint && pnpm typecheck && pnpm test` pass (no breaking changes).
   → `turbo run typecheck lint --force` 47/47; `turbo run test --force` 24/24.
 
@@ -142,9 +144,24 @@ After (target):
   `docker/victoriametrics-scrape.yml` con `-promscrape.config` (servidor single-node).
   Crear un `vmagent.yml` sería superficie sin consumidor: la imagen single-node no
   corre vmagent, y el compose corre el servidor con su propio scrape config.
-- [ ] VM-6: Functional verification in demo environment.
-  → Requiere `docker compose -f docker-compose.demo.yml up` y comprobar series en
-  VMUI. Docker está disponible en esta máquina; la verificación no se ejecutó.
+- [x] VM-6: Functional verification in demo environment.
+  → **Verificado (2026-11-02).** Con el compose de demo levantado
+  (`docker compose -f docker-compose.demo.yml up -d`):
+
+  ```
+  $ curl -s 'http://localhost:8428/api/v1/query?query=up'
+  up{env="development", instance="app:3001", job="ftth-copilot-app", service="ftth-copilot"} = 1
+
+  $ curl -s 'http://localhost:8428/api/v1/label/__name__/values'
+  32 metricas: ftth_copilot_* (active_alerts, active_incidents, llm_*, rag_*,
+  router_dispatches_total, snmp_traps_total, tenants_total, process_uptime_seconds),
+  ftth_ops_active:*, ftth_llm_*:*, ftth_router_*:*, ftth_snmp_*:*
+  ```
+
+  Para levantarlo hubo que arreglar dos impedimentos del compose: el servicio
+  `pgbouncer` (imagen `edoburu/pgbouncer:1.24` borrada de Docker Hub, y su
+  `depends_on` impedía arrancar la app) y la imagen `binwiederhier/ntfy:v3.3.0`
+  (que nunca existió). Ver el PR de la corrección.
 - [ ] VM-7: Final checks, commit, PR.
   → El código ya está mergeado (PR #266, `feat/victoriametrics-observability`, y
   #267). Lo que queda es VM-6 y decidir si el checklist se cierra como está.
