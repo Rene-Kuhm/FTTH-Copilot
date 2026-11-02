@@ -37,6 +37,33 @@ name: Release
 # La regla vive como test: `scripts/lib/supply-chain.ts` verifica que el
 # workflow que publica la release despacha al que atesta, así que cortar el
 # cable rompe el CI.
+#
+# ──────────────────────────────────────────────────────────────────────
+# El token propio (PAT) y por qué el pipeline tiene dos caminos:
+#
+# `release-please` con el `GITHUB_TOKEN` abre el PR de release con un actor
+# (`github-actions[bot]`) cuyos runs de CI quedan en `action_required`: hay que
+# aprobarlos a mano en cada release, y `main` exige el check "CI Success".
+#
+# Con un PAT (`RELEASE_PLEASE_TOKEN`) los eventos que produce el pipeline sí
+# disparan workflows, así que el CI del PR de release corre solo. El secret es
+# opcional: sin él, todo funciona como hasta ahora (keyless) y el dispatch
+# explícito del paso 4 es el que construye la release.
+#
+# Lo que cambia con el PAT, y hay que tener en cuenta:
+#
+#   - El `push: tags` del builder **sí** dispara (la anti-recursión sólo
+#     exime al `GITHUB_TOKEN`), así que el dispatch explícito queda
+#     condicionado: sin la condición, la release se construye y se atesta
+#     dos veces.
+#   - El paso que sincroniza los version carriers empuja a la rama del PR
+#     **después** de release-please, y ese push es el que deja el PR en su
+#     commit final. Si empuja con el `GITHUB_TOKEN`, sus runs vuelven a
+#     quedar en `action_required`; por eso empuja con el PAT cuando hay.
+#
+# La regla que lo ata vive en `scripts/lib/supply-chain.ts`
+# (`release-token-dispatch`): un publicador con token propio tiene que
+# condicionar su dispatch.
 # ──────────────────────────────────────────────────────────────────────
 
 on:
@@ -72,6 +99,10 @@ jobs:
       contents: write
       pull-requests: write
       actions: write
+    # Token propio de release-please (PAT). Mientras el secret no exista, la
+    # variable queda vacía y el pipeline sigue siendo keyless.
+    env:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
     outputs:
       version: ${{ steps.release.outputs.version }}
       release-created: ${{ steps.release.outputs.release_created }}
@@ -89,7 +120,9 @@ jobs:
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Sin secret, `secrets.RELEASE_PLEASE_TOKEN` es vacío y gana el
+          # `GITHUB_TOKEN`: el pipeline queda keyless.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: main
@@ -98,10 +131,10 @@ jobs:
       # La release está publicada: hay que compilar y atestar sus
       # artefactos.
       #
-      # El tag lo acaba de crear release-please con el GITHUB_TOKEN del
-      # repo, y GitHub no dispara workflows por los eventos que produce
-      # su propio token. Por eso este paso abre el run del build con un
-      # `workflow_dispatch`: es la excepción documentada de esa regla y
+      # El tag lo acaba de crear release-please, y GitHub no dispara
+      # workflows por los eventos que produce su propio token. Por eso este
+      # paso abre el run del build con un `workflow_dispatch`: es la excepción
+      # documentada de esa regla y
       # no necesita ninguna clave extra (ni PAT ni GitHub App).
       #
       # El dispatch apunta al tag publicado, así que el builder compila
@@ -109,11 +142,15 @@ jobs:
       # sigue siendo disparable a mano desde la pestaña Actions si
       # hace falta reintentar.
       #
+      # Con un token propio (PAT) el `push: tags` del builder ya dispara
+      # solo, y este dispatch lo construiría por segunda vez: por eso queda
+      # condicionado a que no haya token propio.
+      #
       # Si el dispatch falla, el job falla: una release sin artefactos
       # firmados es una release que no cumple el contrato de SLSA L3.
       # ──────────────────────────────────────────────────────────
       - name: Dispatch the release build and attestation workflow
-        if: steps.release.outputs.release_created == 'true'
+        if: steps.release.outputs.release_created == 'true' && env.RELEASE_PLEASE_TOKEN == ''
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ steps.release.outputs.version }}
@@ -142,6 +179,9 @@ jobs:
         if: steps.release.outputs.prs_created == 'true'
         env:
           RELEASE_PULL_REQUESTS: ${{ steps.release.outputs.prs }}
+          # `RELEASE_PLEASE_TOKEN` no se redeclara acá: los steps heredan las
+          # variables de `env:` del job, y el push de abajo la usa para
+          # empujar con el token propio cuando existe.
         run: |
           set -euo pipefail
 
@@ -182,7 +222,27 @@ jobs:
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -am "chore(release): sync version carriers to v${version}"
-          git push origin "HEAD:${branch}"
+
+          # ──────────────────────────────────────────────────────────
+          # Este push deja el PR de release en su commit final, así que es
+          # el commit que tiene que tener los checks: la protección de la
+          # rama los exige en el HEAD del PR.
+          #
+          # Con el `GITHUB_TOKEN` el push no dispara ningún workflow (la
+          # anti-recursión), así que los runs quedan en `action_required` y
+          # hay que aprobarlos a mano. Con un token propio el push sí
+          # dispara el CI solo.
+          #
+          # El header viaja en la configuración de git y no en la línea de
+          # comandos: el token no aparece en el log del run.
+          # ──────────────────────────────────────────────────────────
+          if [ -n "${RELEASE_PLEASE_TOKEN}" ]; then
+            basic="$(printf 'x-access-token:%s' "${RELEASE_PLEASE_TOKEN}" | base64 -w0)"
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}" \
+                push origin "HEAD:${branch}"
+          else
+            git push origin "HEAD:${branch}"
+          fi
 
       # ──────────────────────────────────────────────────────────
       # The release is published: check that the tag carries one single
