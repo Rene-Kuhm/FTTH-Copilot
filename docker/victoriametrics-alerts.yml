@@ -8,13 +8,21 @@
 #   alert:   FTTHCopilot*                     operator-facing conditions
 #
 # Every expression below is written against the metric names actually exported
-# by `/api/metrics`. Verify before relying on it in production:
+# by `/api/metrics` (the web) and `/metrics` (the worker). The check
+# `pnpm check:observability` verifies that contract on every CI run:
 #
 #   curl -s http://localhost:8428/api/v1/label/__name__/values | jq '.data'
 #
 # Note on Laya: `ftth_laya_*` series are only emitted when the Laya Decision
 # Layer records a decision (LAYA_MODE != disabled). Alerts on those series stay
 # INACTIVE rather than firing when the layer is off, which is intentional.
+#
+# Note on the worker: the `ftth_copilot_worker_*` series only exist when the
+# worker is deployed AND VictoriaMetrics is scraping it (see
+# `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` in docker-compose.prod.yml). The
+# alerts below stay INACTIVE in a deployment without a worker, for the same
+# reason: an alert that fires because a component is not deployed is an
+# alert nobody reads.
 
 groups:
   # ── Recording rules ───────────────────────────────────────────────────────
@@ -158,3 +166,130 @@ groups:
           description: >-
             Sustained incident count above 10. Confirm whether this reflects a
             real network event or a detector/calibration problem.
+
+  # ── The background worker ─────────────────────────────────────────────────
+  # The worker owns the queues, the syslog and SNMP sockets and the durable
+  # spool. These rules cover the four things that S18 asks to be observable:
+  # the depth of the queues, the latency of the jobs, the retries and the
+  # dead-letters.
+  - name: ftth-copilot-worker
+    interval: 30s
+    rules:
+      # The worker is up but its Redis is not: it cannot consume anything, so
+      # the monitoring is blind even though the process is alive.
+      - alert: FTTHCopilotWorkerRedisUnreachable
+        expr: ftth_copilot_worker_redis_ready == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The worker cannot reach Redis"
+          description: >-
+            The worker process is alive but its Redis connection is not
+            established. No queue is being consumed: the monitoring is
+            stopped even though nothing failed loudly.
+
+      # The worker's metrics are not being scraped. Every other rule of this
+      # group is meaningless while the target is down.
+      - alert: FTTHCopilotWorkerMetricsTargetDown
+        expr: up{job="ftth-copilot-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The worker metrics are not being scraped"
+          description: >-
+            VictoriaMetrics has failed to scrape the worker for 2 minutes.
+            The state of the queues is unknown.
+
+      # Work is piling up in a queue. The worker is alive but it does not
+      # keep up: the backlog of a poll or of an ingest grows without bound.
+      - alert: FTTHCopilotWorkerQueueBacklog
+        expr: ftth_copilot_worker_queue_depth > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A queue of the worker is not being drained"
+          description: >-
+            More than 50 jobs pending in the same queue for 15 minutes. The
+            worker is not keeping up with that queue: check its latency and
+            whether its Redis connection is healthy.
+
+      # The jobs are failing. This is the first symptom of a handler that
+      # broke, or of a dependency that went away.
+      - alert: FTTHCopilotWorkerJobsFailing
+        expr: sum(increase(ftth_copilot_worker_jobs_failed_total[15m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The worker is failing jobs"
+          description: >-
+            More than 5 failed jobs in 15 minutes. Inspect
+            ftth_copilot_worker_jobs_failed_total by queue and the worker
+            logs.
+
+      # The jobs are being retried. Retries hide a failure: the work
+      # eventually succeeds, but it is paying the cost of the attempts.
+      - alert: FTTHCopilotWorkerRetriesSustained
+        expr: sum(increase(ftth_copilot_worker_jobs_retried_total[15m])) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The worker is retrying jobs over and over"
+          description: >-
+            More than 10 retried attempts in 15 minutes. The work is
+            eventually succeeding, but something is flaky: a dependency, the
+            database or the network.
+
+      # The jobs are slow. The p95 over the whole fleet, because the slow
+      # queue is the one that matters and the alert has to name it.
+      - alert: FTTHCopilotWorkerJobLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(ftth_copilot_worker_job_duration_seconds_bucket[15m]))
+          ) > 60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The jobs of the worker take more than a minute"
+          description: >-
+            The p95 of the job duration is above 60 seconds for 15 minutes.
+            The background work is falling behind its own schedule.
+
+      # Telemetry is being lost. The dead-letter of the ingest path holds
+      # the events that could not be stored; they are recoverable with
+      # `pnpm replay:dead-letter`, but only if somebody looks.
+      - alert: FTTHCopilotWorkerIngestDeadLettered
+        expr: increase(ftth_copilot_worker_ingest_dead_lettered_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Events are going to the dead-letter"
+          description: >-
+            Events that could not be stored went to the dead-letter file in
+            the last 15 minutes. Recover them with
+            `pnpm replay:dead-letter` and find out why the store refused
+            them.
+
+      # The spool refused events because it reached its size limit, or the
+      # receiver discarded them because of its rate limit. Unlike the
+      # dead-letter, these are gone.
+      - alert: FTTHCopilotWorkerIngestEventsLost
+        expr: |
+          sum(increase(ftth_copilot_worker_ingest_dropped_total[15m]))
+            + sum(increase(ftth_copilot_worker_ingest_rate_limited_total[15m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The ingest path is losing events"
+          description: >-
+            Events were dropped by the size limit of the spool or discarded
+            by the rate limit of the receiver. Unlike the dead-letter, these
+            are not recoverable.

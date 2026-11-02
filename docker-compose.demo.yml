@@ -100,12 +100,18 @@ services:
       - .env
     environment:
       NODE_ENV: development
-      # The web runs inside the compose network, so 127.0.0.1 would be the
-      # web container itself. It reaches Redis by service name.
-      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      # The worker runs on the host network, so it reaches Redis and Postgres
+      # through the ports the host publishes — not by service name, which
+      # only resolves inside the compose network.
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@127.0.0.1:${POSTGRES_PORT:-5432}/ftth_copilot"
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/worker
-      WORKER_HOST: 127.0.0.1
+      # The health server stays on the loopback by default. Set
+      # WORKER_HOST=0.0.0.0 (or a private interface) together with
+      # VICTORIAMETRICS_WORKER_SCRAPE_TARGET to let VictoriaMetrics scrape
+      # the worker: with the host network, the container reaches the host
+      # by address and not by 127.0.0.1. See docs/worker.md.
+      WORKER_HOST: ${WORKER_HOST:-127.0.0.1}
     volumes:
       - spool_demo_data:/var/lib/ftth-copilot/spool
     depends_on:
@@ -205,6 +211,12 @@ services:
       # Single-node VictoriaMetrics takes a Prometheus scrape config via
       # -promscrape.config. The wrapper renders the two variable fields.
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
+      # The worker scrape is a second job of the SAME scrape configuration
+      # (the single-node binary reads a single file), and it is only added
+      # when this is set. Empty by default: the worker runs behind a
+      # profile, so a target that is always there would be a target that is
+      # always down. See docs/worker.md for the recipe.
+      VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-development}
       VM_RETENTION_PERIOD: ${VICTORIAMETRICS_RETENTION:-1}
@@ -215,6 +227,7 @@ services:
       - victoriametrics_demo_data:/storage
       - ./docker/victoriametrics-entrypoint.sh:/opt/vm/entrypoint.sh:ro
       - ./docker/victoriametrics-scrape.yml:/etc/victoriametrics/scrape.yml.tmpl:ro
+      - ./docker/victoriametrics-scrape-worker.yml:/etc/victoriametrics/scrape-worker.yml.tmpl:ro
     healthcheck:
       # 127.0.0.1, not localhost: inside this image localhost resolves to ::1
       # first and VictoriaMetrics listens on IPv4 only, so localhost refuses.

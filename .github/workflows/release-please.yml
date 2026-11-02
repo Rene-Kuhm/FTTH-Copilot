@@ -233,12 +233,19 @@ jobs:
           # hay que aprobarlos a mano. Con un token propio el push sí
           # dispara el CI solo.
           #
+          # El reset (`-c "...extraheader="`) no es opcional: el checkout
+          # persistió el `GITHUB_TOKEN` en esa clave y git manda **un
+          # encabezado por cada valor**, sin pisar el local con el de la
+          # línea de comandos. Sin el reset, el push usaría la credencial
+          # del checkout en vez de la propia (y no dispararía el CI).
+          #
           # El header viaja en la configuración de git y no en la línea de
           # comandos: el token no aparece en el log del run.
           # ──────────────────────────────────────────────────────────
           if [ -n "${RELEASE_PLEASE_TOKEN}" ]; then
             basic="$(printf 'x-access-token:%s' "${RELEASE_PLEASE_TOKEN}" | base64 -w0)"
-            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}" \
+            git -c "http.https://github.com/.extraheader=" \
+                -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}" \
                 push origin "HEAD:${branch}"
           else
             git push origin "HEAD:${branch}"

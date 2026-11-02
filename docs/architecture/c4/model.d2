@@ -199,7 +199,7 @@ layers: {
   # relacionan. El marco es el sistema; adentro viven los containers.
   # ---------------------------------------------------------------------
   container: {
-    # El layout por defecto (dagre) pondría los once contenedores del
+    # El layout por defecto (dagre) pondría los trece contenedores del
     # sistema en una fila de más de 4000 px de ancho. `grid-columns` reparte
     # la escena en dos columnas: el marco del sistema a la izquierda y los
     # sistemas externos alrededor.
@@ -217,6 +217,11 @@ layers: {
         class: container
       }
       laya: "packages/shared + services/laya\nLaya Decision Layer: 9 clases en <5 ms" {
+        class: container
+      }
+
+      # Trabajo de fondo.
+      worker: "services/worker\nProceso de fondo: colas, receptores UDP y drainer" {
         class: container
       }
 
@@ -264,6 +269,9 @@ layers: {
     postgres: "PostgreSQL 16\nBase multi-tenant cifrada con KMS" {
       class: store
     }
+    redis: "Redis 8 + BullMQ\nCola durable de trabajos" {
+      class: store
+    }
     victoriametrics: "VictoriaMetrics\nScrape :8428 y reglas de alerta" {
       class: external-system
     }
@@ -283,12 +291,16 @@ layers: {
       class: external-system
     }
 
-    # Ingesta.
+    # Ingesta. Los receptores UDP tienen dos dueños y solo uno los binds:
+    # con BACKEND_MODE=worker los tiene el worker, con `embedded` los tiene
+    # el proceso web. Los dos sockets no pueden coexistir.
     smartolt -> ftth-copilot.connectors
     mikrowisp -> ftth-copilot.connectors
     mikrotik -> ftth-copilot.connectors: "REST + binario"
-    traps-snmp -> ftth-copilot.snmp-receiver: "UDP 162 / 1162"
-    syslog -> ftth-copilot.syslog-receiver: "UDP 5514"
+    traps-snmp -> ftth-copilot.snmp-receiver: "UDP 162 / 1162 (embedded)"
+    syslog -> ftth-copilot.syslog-receiver: "UDP 5514 (embedded)"
+    traps-snmp -> ftth-copilot.worker: "UDP 162 / 1162 (worker)"
+    syslog -> ftth-copilot.worker: "UDP 5514 (worker)"
     ftth-copilot.snmp-receiver -> ftth-copilot.monitoring: "Traps decodificados"
     ftth-copilot.syslog-receiver -> ftth-copilot.soc
 
@@ -312,9 +324,18 @@ layers: {
     ftth-copilot.agent-core -> ftth-copilot.db
     ftth-copilot.agent-core -> llm
 
+    # Trabajo de fondo: el web encola, el worker consume. La cola es durable
+    # y es lo que permite que el trabajo de fondo sobreviva a un deploy.
+    ftth-copilot.web -> redis: "Encola jobs"
+    redis -> ftth-copilot.worker: "Jobs"
+    ftth-copilot.worker -> ftth-copilot.monitoring: "Polling y firmware"
+    ftth-copilot.worker -> ftth-copilot.soc: "Drena el spool"
+    ftth-copilot.worker -> ftth-copilot.db: "Escribe el estado"
+
     # Salida y observabilidad.
     ftth-copilot.alerts -> notificaciones: "Multicanal"
     ftth-copilot.web -> victoriametrics: "/api/metrics"
+    ftth-copilot.worker -> victoriametrics: "/metrics"
     ftth-copilot.agent-core -> phoenix: "Trazas OTLP"
 
     # Persistencia.
@@ -352,7 +373,7 @@ layers: {
       data-access: "apps/web/lib/**\nAcceso a datos del tenant" {
         class: component
       }
-      scheduler: "apps/web/instrumentation.ts\nOrquestación: poller, syslog y firmware" {
+      scheduler: "apps/web/instrumentation.ts\nOrquestación en proceso (modo embedded)" {
         class: component
       }
     }

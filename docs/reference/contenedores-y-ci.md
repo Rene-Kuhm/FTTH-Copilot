@@ -370,3 +370,40 @@ env:
 # ...
 if: steps.release.outputs.release_created == 'true' && env.RELEASE_PLEASE_TOKEN == ''
 ```
+
+#### El reset de los encabezados: por qué el push lleva dos `-c`
+
+El push que sincroniza los version carriers tiene que empujar con el token
+propio (es el push que deja el PR en su commit final, el que la protección de
+la rama exige que tenga los checks). Y ahí hay un detalle de git que rompe
+todo si se ignora:
+
+`actions/checkout` persiste el `GITHUB_TOKEN` del job en
+`http.https://github.com/.extraheader`. Git manda **un encabezado por cada
+valor** de esa clave, y el valor de la línea de comandos no pisa al local: los
+dos conviven. El valor vacío resetea la lista, y solo entonces gana el del
+token propio:
+
+```bash
+git -c "http.https://github.com/.extraheader=" \
+    -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}" \
+    push origin "HEAD:${branch}"
+```
+
+Verificado contra un servidor HTTP local que registra los encabezeros que
+recibe:
+
+| Configuración | Encabezado que llega |
+|---|---|
+| `-c` con el token propio | el del token propio ✓ |
+| config del checkout **+** `-c` con el token propio | el del checkout ✗ (el token propio nunca se usa) |
+| config del checkout **+ reset** **+** `-c` | el del token propio ✓ (uno solo) |
+
+Sin el reset, el push empuja con la credencial del checkout —que es el
+`GITHUB_TOKEN` del bot— en vez de con la propia: el push funciona, pero **no
+dispara el CI** del PR de release, que es justo lo que el token propio tenía
+que resolver.
+
+La regla que lo ata es `release-token-headers`: el push que manda un
+encabezado de autorización propio tiene que resetear la lista. Si alguien
+saca el reset, `pnpm check:supply-chain` falla y el CI se pone rojo.

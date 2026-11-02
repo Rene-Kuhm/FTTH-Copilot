@@ -32,11 +32,50 @@ function healthyRuntime(): WorkerRuntime {
     redisReady: true,
     startedAtMs: Date.now() - 5_000,
     counters: new Map([
-      ['ftth-poll', { completed: 3, failed: 1 }],
-      ['ftth-firmware', { completed: 0, failed: 0 }],
-      ['ftth-fec', { completed: 7, failed: 0 }],
-      ['ftth-ingest', { completed: 0, failed: 0 }],
+      ['ftth-poll', { completed: 3, failed: 1, retried: 2 }],
+      ['ftth-firmware', { completed: 0, failed: 0, retried: 0 }],
+      ['ftth-fec', { completed: 7, failed: 0, retried: 0 }],
+      ['ftth-ingest', { completed: 0, failed: 0, retried: 0 }],
     ]),
+    latency: new Map([
+      [
+        'ftth-poll',
+        {
+          buckets: [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+          sum: 1.25,
+          count: 2,
+        },
+      ],
+    ]),
+    queueDepth: async () => ({
+      depths: new Map([
+        [
+          'ftth-poll',
+          {
+            waiting: 4,
+            active: 1,
+            delayed: 0,
+            prioritized: 0,
+            'waiting-children': 0,
+            completed: 12,
+            failed: 1,
+          },
+        ],
+        [
+          'ftth-firmware',
+          {
+            waiting: 0,
+            active: 0,
+            delayed: 2,
+            prioritized: 0,
+            'waiting-children': 0,
+            completed: 3,
+            failed: 0,
+          },
+        ],
+      ]),
+      unavailable: ['ftth-fec', 'ftth-ingest'],
+    }),
     ingest: {
       syslogBound: true,
       syslogExpected: true,
@@ -61,7 +100,7 @@ function degradedRuntime(): WorkerRuntime {
     queues: QUEUES,
     redisReady: false,
     startedAtMs: Date.now() - 5_000,
-    counters: new Map(QUEUES.map((queue) => [queue, { completed: 0, failed: 0 }])),
+    counters: new Map(QUEUES.map((queue) => [queue, { completed: 0, failed: 0, retried: 0 }])),
   };
 }
 
@@ -177,6 +216,119 @@ describe('GET /metrics', () => {
     // A growing backlog has to be visible before it becomes data loss.
     expect(body).toContain('# TYPE ftth_copilot_worker_ingest_spool_backlog gauge');
     expect(body).toContain('ftth_copilot_worker_ingest_spool_backlog 3');
+  });
+
+  it('exposes the depth of every queue', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    expect(body).toContain('# TYPE ftth_copilot_worker_queue_depth gauge');
+    // 4 waiting + 1 active.
+    expect(body).toContain('ftth_copilot_worker_queue_depth{queue="ftth-poll"} 5');
+    // 2 delayed.
+    expect(body).toContain('ftth_copilot_worker_queue_depth{queue="ftth-firmware"} 2');
+  });
+
+  it('exposes the jobs of a queue by state', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    expect(body).toContain('ftth_copilot_worker_queue_jobs{queue="ftth-poll",state="waiting"} 4');
+    expect(body).toContain('ftth_copilot_worker_queue_jobs{queue="ftth-poll",state="active"} 1');
+    expect(body).toContain('ftth_copilot_worker_queue_jobs{queue="ftth-poll",state="failed"} 1');
+    expect(body).toContain('ftth_copilot_worker_queue_jobs{queue="ftth-poll",state="completed"} 12');
+  });
+
+  it('says which queues could not be counted', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    // A queue nobody could count must not look like an empty queue: the
+    // depth reads zero and this gauge says the zero is not a measurement.
+    expect(body).toContain('ftth_copilot_worker_queue_depth_readable{queue="ftth-poll"} 1');
+    expect(body).toContain('ftth_copilot_worker_queue_depth_readable{queue="ftth-fec"} 0');
+    expect(body).toContain('ftth_copilot_worker_queue_depth{queue="ftth-fec"} 0');
+  });
+
+  it('exposes the latency of the jobs as a histogram', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    expect(body).toContain('# TYPE ftth_copilot_worker_job_duration_seconds histogram');
+    expect(body).toContain('ftth_copilot_worker_job_duration_seconds_count{queue="ftth-poll"} 2');
+    expect(body).toContain('ftth_copilot_worker_job_duration_seconds_sum{queue="ftth-poll"} 1.2500');
+    expect(body).toContain('ftth_copilot_worker_job_duration_seconds_bucket{queue="ftth-poll",le="+Inf"} 2');
+    expect(body).toMatch(
+      /ftth_copilot_worker_job_duration_seconds_bucket\{queue="ftth-poll",le="0\.05"\} 1/,
+    );
+  });
+
+  it('exposes the retries as a counter', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    expect(body).toContain('# TYPE ftth_copilot_worker_jobs_retried_total counter');
+    expect(body).toContain('ftth_copilot_worker_jobs_retried_total{queue="ftth-poll"} 2');
+  });
+
+  it('exposes the dead-letter of the ingest path', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+    const body = await response.text();
+
+    // The events that could not be stored are recoverable with
+    // `pnpm replay:dead-letter`, so their number has to be visible.
+    expect(body).toContain('# TYPE ftth_copilot_worker_ingest_dead_lettered_total counter');
+    expect(body).toContain('ftth_copilot_worker_ingest_dead_lettered_total 2');
+    expect(body).toContain('ftth_copilot_worker_ingest_dropped_total 1');
+    expect(body).toContain('ftth_copilot_worker_ingest_rate_limited_total 4');
+  });
+});
+
+describe('GET /metrics with a bearer token', () => {
+  let server: HealthServerHandle;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    server = await startHealthServer({
+      runtime: healthyRuntime(),
+      port: 0,
+      host: '127.0.0.1',
+      metricsToken: 'shared-secret',
+    });
+    baseUrl = `http://127.0.0.1:${server.port}`;
+  });
+
+  afterAll(async () => {
+    await server.close();
+  });
+
+  it('rejects a request without the token', async () => {
+    const response = await fetch(`${baseUrl}/metrics`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects a request with the wrong token', async () => {
+    const response = await fetch(`${baseUrl}/metrics`, {
+      headers: { authorization: 'Bearer wrong' },
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('accepts a request with the token', async () => {
+    const response = await fetch(`${baseUrl}/metrics`, {
+      headers: { authorization: 'Bearer shared-secret' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('ftth_copilot_worker_uptime_seconds');
+  });
+
+  it('leaves the health endpoint open for the probes', async () => {
+    const response = await fetch(`${baseUrl}/healthz`);
+
+    expect(response.status).toBe(200);
   });
 });
 

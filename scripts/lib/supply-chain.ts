@@ -38,6 +38,12 @@
  *      del builder ya dispara solo, así que el dispatch tiene que quedar
  *      condicionado: si no, la release se construye y se atesta dos veces.
  *
+ *   6. `release-token-headers` — el push que manda un token propio resetea
+ *      la lista de encabezados HTTP. `actions/checkout` persiste el
+ *      `GITHUB_TOKEN` del job en `http.<url>.extraheader`, y git manda **un
+ *      encabezado por cada valor** de esa clave: sin el reset, el push
+ *      empuja con la credencial del checkout en vez de con la propia.
+ *
  * Ver `docs/reference/contenedores-y-ci.md` para el detalle de cada regla.
  */
 import { LineCounter, isScalar, parseDocument, visit } from "yaml";
@@ -48,7 +54,8 @@ export type PolicyRule =
   | "job-permissions"
   | "release-wiring"
   | "caller-permissions"
-  | "release-token-dispatch";
+  | "release-token-dispatch"
+  | "release-token-headers";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -694,7 +701,68 @@ function dispatchesWorkflow(step: WorkflowStep): boolean {
 }
 
 /**
- * Corre las cinco reglas sobre un conjunto de workflows.
+ * Regla 6: el push con token propio resetea la lista de encabezados.
+ *
+ * `actions/checkout` persiste el `GITHUB_TOKEN` del job en
+ * `http.https://github.com/.extraheader`. Git manda **un encabezado por cada
+ * valor** de esa clave y el valor de la línea de comandos no pisa al local:
+ * los dos conviven. El valor de la línea de comandos solo gana si antes se
+ * resetea la lista con el valor vacío (es lo que documenta `git config` para
+ * este caso).
+ *
+ * Sin el reset, el push empuja con la credencial del checkout —que es el
+ * `GITHUB_TOKEN` del bot— en vez de con el token propio: el push funciona,
+ * pero no dispara el CI del PR de release, que es justo lo que el token
+ * propio tenía que resolver.
+ */
+export function findReleaseTokenHeaderViolations(
+  models: readonly WorkflowModel[],
+): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+
+  for (const publisher of models) {
+    if (findOwnTokenSecret(publisher) === null) continue;
+
+    for (const job of publisher.jobs) {
+      for (const step of job.steps) {
+        if (step.run === null) continue;
+        if (!sendsOwnAuthorizationHeader(step.run)) continue;
+        if (resetsExtraHeaders(step.run)) continue;
+        violations.push({
+          rule: "release-token-headers",
+          path: publisher.path,
+          line: null,
+          message:
+            "el push manda un encabezado de autorización propio sin resetear " +
+            "la lista de extraheader: el checkout persistió el GITHUB_TOKEN en " +
+            "esa clave y git manda un encabezado por cada valor, así que el push " +
+            'usaría la credencial del checkout en vez de la propia. Agregá ' +
+            '-c "http.https://github.com/.extraheader=" antes del que lleva el token',
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
+/** Si un run manda un encabezado de autorización propio. */
+function sendsOwnAuthorizationHeader(run: string): boolean {
+  return /\.extraheader\s*=\s*"?AUTHORIZATION/i.test(run);
+}
+
+/**
+ * Si un run resetea la lista de encabezados antes de mandarla.
+ *
+ * El reset es el valor vacío: `.extraheader="` sin nada después, al final de
+ * la línea.
+ */
+function resetsExtraHeaders(run: string): boolean {
+  return /\.extraheader\s*=\s*['"]\s*(\\)?\s*$/m.test(run);
+}
+
+/**
+ * Corre las seis reglas sobre un conjunto de workflows.
  *
  * Devuelve todas las violaciones; una lista vacía significa que el repo
  * cumple la política.
@@ -711,5 +779,6 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
   violations.push(...findReleaseWiringViolations(models));
   violations.push(...findCallerPermissionViolations(models));
   violations.push(...findReleaseTokenDispatchViolations(models));
+  violations.push(...findReleaseTokenHeaderViolations(models));
   return violations;
 }

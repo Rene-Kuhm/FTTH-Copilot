@@ -54,6 +54,19 @@ function readConcurrency(env: NodeJS.ProcessEnv): number {
   return parsed;
 }
 
+/**
+ * Reads the bearer token that `/metrics` requires.
+ *
+ * It is the same variable the web uses on `/api/metrics`
+ * (`METRICS_BEARER_TOKEN`), so the scrape configuration of the stack carries
+ * one credential. Without it the endpoint is open, which is only safe while
+ * the server stays on the loopback.
+ */
+function readMetricsToken(env: NodeJS.ProcessEnv): string | undefined {
+  const token = env['METRICS_BEARER_TOKEN']?.trim();
+  return token && token.length > 0 ? token : undefined;
+}
+
 async function main(): Promise<void> {
   const env = process.env;
   const port = readPort(env);
@@ -75,11 +88,23 @@ async function main(): Promise<void> {
     },
   });
 
-  const server = await startHealthServer({ runtime: fleet.runtime, port, host });
+  const server = await startHealthServer({
+    runtime: fleet.runtime,
+    port,
+    host,
+    metricsToken: readMetricsToken(env),
+  });
 
   const handlers = registeredJobNames();
   log.info('Health server ready', { host, port: server.port, path: '/healthz' });
-  log.info('Metrics server ready', { host, port: server.port, path: '/metrics' });
+  log.info('Metrics server ready', {
+    host,
+    port: server.port,
+    path: '/metrics',
+    // An open metrics endpoint is only safe on the loopback; the log makes
+    // the exposure explicit instead of leaving it to be discovered.
+    authenticated: readMetricsToken(env) !== undefined,
+  });
   log.info('Consuming queues', { queues: fleet.runtime.queues });
   log.info('Job handlers registered', { handlers });
 
