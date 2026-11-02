@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { createConnector } from '@/lib/connectors/server';
 import { auditConnector } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +20,8 @@ const schema = z.object({
 export async function POST(req: Request): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_connectors')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

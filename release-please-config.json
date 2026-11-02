@@ -47,7 +47,17 @@
         },
         {
           "type": "json",
+          "path": "packages/api-contract/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/connectors/core/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/connectors/factory/package.json",
           "jsonpath": "$.version"
         },
         {
@@ -87,12 +97,32 @@
         },
         {
           "type": "json",
+          "path": "packages/ingest/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/investigations/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/jobs/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/learning/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
           "path": "packages/monitoring/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/scheduler/package.json",
           "jsonpath": "$.version"
         },
         {
@@ -108,6 +138,11 @@
         {
           "type": "json",
           "path": "packages/soc/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "services/worker/package.json",
           "jsonpath": "$.version"
         },
         {

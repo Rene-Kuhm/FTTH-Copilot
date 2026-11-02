@@ -9,6 +9,7 @@ import {
 } from '@/lib/connectors/chat-client';
 import { auditConnector } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 const log = createLogger({ name: 'connector-test' });
 
@@ -22,6 +23,8 @@ export async function POST(
   const { id } = await ctx.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_connectors')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

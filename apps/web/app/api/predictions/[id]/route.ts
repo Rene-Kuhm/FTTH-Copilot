@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,11 +12,13 @@ export const dynamic = 'force-dynamic';
  * escalation stops. Idempotent: acking an already-acknowledged alert is a no-op.
  */
 export async function PATCH(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'ack_alerts')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

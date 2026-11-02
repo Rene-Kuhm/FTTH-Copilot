@@ -327,6 +327,11 @@ model AgentActionLog {
 
   @@index([tenantId, createdAt])
   @@index([conversationId])
+  // The maintenance re-evaluation reads the audit log by (tenant, tool) to
+  // find which incidents of a window were already notified. Without this
+  // index that lookup scans the tenant's whole audit log, and the audit log
+  // has no retention, so the scan grows with the tenant's history.
+  @@index([tenantId, toolName, createdAt])
   @@map("agent_action_log")
 }
 

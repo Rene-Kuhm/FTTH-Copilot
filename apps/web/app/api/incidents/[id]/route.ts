@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { auditIncident } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * GET /api/incidents/:id — fetch one incident, with the related
@@ -109,6 +110,8 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'view_network')) {
     return NextResponse.json({ error: 'forbidden', missing: 'view_network' }, { status: 403 });
   }

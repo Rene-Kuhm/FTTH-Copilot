@@ -10,6 +10,7 @@ import {
   generateFeedbackId,
   isFeedbackLabel,
 } from '@/lib/investigations/feedback';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/investigations/:runId/versions/:versionId/feedback — record
@@ -51,6 +52,8 @@ export async function POST(
 ): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'view_network')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

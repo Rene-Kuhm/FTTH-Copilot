@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission, type Permission } from '@/lib/auth/permissions';
 import { auditUser } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_users' as Permission)) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }

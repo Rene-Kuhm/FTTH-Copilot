@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
+import { enforceApiRateLimit } from '@/lib/rate-limit-store';
 
 /**
  * POST /api/maintenance-windows/:id/reevaluate — re-evaluate
@@ -47,6 +48,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
+  const limited = await enforceApiRateLimit(req, user.tenantId);
+  if (limited) return limited;
   if (!hasPermission(user.role, 'manage_maintenance')) {
     return NextResponse.json(
       { error: 'forbidden', missing: 'manage_maintenance' },
@@ -95,18 +98,33 @@ export async function POST(
   // unique constraint would be ideal; in this version the route
   // itself enforces the "notify once per (window, incident)" rule
   // by checking the log before writing.
-  let notified = 0;
-  let skipped = 0;
-  for (const inc of incidents) {
-    const existing = await prisma.agentActionLog.findFirst({
+  //
+  // The check is ONE query for the whole window, not one per incident.
+  // The old per-incident lookup filtered on JSON paths
+  // (`parameters->>'windowId'`, `result->>'incidentId'`), which no btree
+  // index can serve, so every one of those queries scanned the tenant's
+  // whole audit log — and the audit log has no retention, so the route was
+  // quadratic in the size of the tenant's history.
+  const alreadyNotified = new Set<string>();
+  if (incidents.length > 0) {
+    const notifiedLogs = await prisma.agentActionLog.findMany({
       where: {
         tenantId: user.tenantId,
         toolName: '__maintenance_reeval__',
         parameters: { path: ['windowId'], equals: id },
-        result: { path: ['incidentId'], equals: inc.id },
       },
+      select: { result: true },
     });
-    if (existing !== null) {
+    for (const log of notifiedLogs) {
+      const incidentId = (log.result as { incidentId?: unknown } | null)?.incidentId;
+      if (typeof incidentId === 'string') alreadyNotified.add(incidentId);
+    }
+  }
+
+  let notified = 0;
+  let skipped = 0;
+  for (const inc of incidents) {
+    if (alreadyNotified.has(inc.id)) {
       skipped += 1;
       continue;
     }
