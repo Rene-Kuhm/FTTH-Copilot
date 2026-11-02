@@ -1,6 +1,8 @@
 # Learning Loop — memoria que aprende sin derivar
 
-**Status**: Planned
+**Status**: In progress — Fase 0 completa (T0.1–T0.4) en `packages/learning`.
+T0.5 (job `learning.snapshot` del worker) va en PR aparte; la Fase 1
+(`TenantPolicy.learningMode` y retracciones) espera revisión.
 **Created**: 2026-10-31
 **Scope**: Cerrar el bucle de aprendizaje de FTTH-Copilot: que el sistema mejore
 con cada diagnóstico confirmado o refutado por un operador, en tres capas
@@ -442,20 +444,45 @@ pasa `pnpm typecheck && pnpm lint && pnpm test` + eval gate. Ninguna fase cambia
 lo que ve el usuario hasta la Fase 6.
 
 ### Fase 0 — Verdad de base (sin cambio de comportamiento)
-- [ ] **T0.1** Crear `packages/learning` (puro, strict, vitest, cobertura
+- [x] **T0.1** Crear `packages/learning` (puro, strict, vitest, cobertura
   80/80/70 como el núcleo). Test de grafo de imports para I1.
-- [ ] **T0.2** `resolveLabels(rows)` según D1: última por autor, consenso,
+  → `packages/learning` con `src/types.ts` + tests de forma del paquete y de
+  grafo de imports (I1). Sin Prisma, sin Redis, sin reloj implícito.
+- [x] **T0.2** `resolveLabels(rows)` según D1: última por autor, consenso,
   `conflicted`, tratamiento de `insufficient_data`. Casos: mismo autor con dos
   etiquetas, dos autores en desacuerdo, fila huérfana de versión.
-- [ ] **T0.3** `groupIntoEvents(incidents, topology, windowMs)` y
+  → `src/labels.ts` + `partitionForTraining`. Las filas inservibles se
+  descartan **contadas por motivo** (`invalidLabel`, `orphanVersion`,
+  `malformed`).
+- [x] **T0.3** `groupIntoEvents(incidents, topology, windowMs)` y
   `temporalSplit(events, T)` según D9. Test de fuga: dos ONUs del mismo splitter
   nunca quedan en lados distintos.
-- [ ] **T0.4** `sampleSufficiency(...)` reutilizando el umbral de
+  → `src/events.ts`. La topología es por tenant y temporal (la arista se
+  mira vigente en el `observedAt` del incidente). Ver las dos aclaraciones de
+  D9 abajo.
+- [x] **T0.4** `sampleSufficiency(...)` reutilizando el umbral de
   `computeFeedbackSummary`; toda métrica devuelve `insuficiente` bajo umbral
   (I10).
+  → `src/sufficiency.ts`. El umbral (`DEFAULT_MIN_SAMPLE_SIZE`) vive ahora en
+  `@ftth-copilot/shared` y `packages/eval` lo reexporta: los dos leen la
+  misma constante.
 - [ ] **T0.5** Job `learning.snapshot` en el worker: congela dataset por tenant con
   `snapshotHash` (contenido + ventana + versión de código). Reproducible: dos
   corridas sobre los mismos datos → mismo hash.
+
+#### Aclaraciones que fija la Fase 0 sobre D9
+
+D9 deja dos cosas abiertas; el núcleo las resuelve así, y quedan escritas acá
+para que la revisión no las tenga que adivinar:
+
+1. **El agrupamiento es global y el corte es posterior.** Se agrupan primero
+   todos los incidentes y después se parte por `T`. Si se agrupara por lado,
+   dos incidentes del mismo evento podrían caer en lados distintos sin que
+   nadie lo notara.
+2. **Un evento que cruza el corte va a `train`.** Así el conjunto de
+   evaluación es *estrictamente* posterior a `T`: ningún incidente anterior
+   al corte puede evaluar algo que el modelo ya vio. El subconjunto que
+   cruza queda listado en `crossing`.
 
 ### Fase 1 — Salvaguardas antes del aprendizaje
 - [ ] **T1.1** `TenantPolicy.learningMode` (`off` default) + `learningArtifactPins`;
@@ -546,6 +573,37 @@ lo que ve el usuario hasta la Fase 6.
    down-migration la devuelve a `Bytes?` sin pérdida porque no había datos.
 5. **KB intacta.** Las retracciones son append-only; nada se borra ni edita en
    `ConfirmedIncident`, así que revertir esta tarea deja la KB igual que antes.
+
+## Verificación de la Fase 0 (T0.1–T0.4)
+
+- `packages/learning` es puro y estricto: `tests/package-shape.test.ts` falla
+  si el paquete gana una dependencia de la base de datos, deja de ser
+  `strict` o afloja los umbrales de cobertura (80 líneas / 80 funciones / 70
+  ramas / 80 sentencias).
+- **I1 (pared del Truth Gate)**: `tests/import-graph.test.ts` lee el código
+  de `packages/evidence` y falla si algo de ahí alcanza a
+  `packages/learning`; y mira al revés, para que el learning no cierre un
+  ciclo en el grafo de paquetes.
+- **I3 (aislamiento por tenant)**: hay tests para el feedback y para los
+  eventos: dos tenants que compartan `versionId` o ids de nodo no mezclan
+  sus datos.
+- **I8 (determinismo)**: el resultado no depende del orden de las filas, el
+  desempate de dos opiniones del mismo autor con la misma fecha es estable, y
+  el `eventId` sale del contenido.
+- **I10 (insuficiencia honesta)**: bajo el umbral la métrica devuelve
+  `insufficient` con `value: null`, y la función de cómputo ni se invoca.
+- Cobertura del núcleo: 95,8% sentencias, 85,4% ramas, 100% funciones, 95,8%
+  líneas (mínimo exigido: 80/70/80/80).
+- `pnpm typecheck && pnpm lint && pnpm test` en verde sobre todo el
+  workspace (73/73 tareas de turbo), `node --test scripts/tests/*.test.ts`
+  76/76 y `pnpm exec tsx scripts/docs-test.ts` sin errores.
+
+### Lo que la Fase 0 **no** toca
+
+Ninguna fase de este bloque cambia lo que ve el usuario: no hay migración de
+schema, no hay job, no hay cambio en el request path. `packages/learning` es
+lógica pura, sin conexión al runtime. T0.5 es el primer punto donde el worker
+entra en escena, y por eso va en su propio PR.
 
 ## Quality gates (por tarea, antes de cada commit)
 
