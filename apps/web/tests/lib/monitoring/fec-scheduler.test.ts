@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 import type { INmsConnector, OnuDetail, OnuSummary } from '@ftth-copilot/connectors-core';
 
 /**
@@ -165,6 +166,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  __setLogSinkForTests(null);
   vi.restoreAllMocks();
   vi.useRealTimers();
   clearFecEnv();
@@ -209,7 +211,8 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const logSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); logSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('@/lib/monitoring/scheduler');
     await runScheduledFecCollection();
@@ -258,7 +261,8 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const logSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); logSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('@/lib/monitoring/scheduler');
     await expect(runScheduledFecCollection()).resolves.toBeUndefined();
@@ -297,7 +301,8 @@ describe('runScheduledFecCollection — rate-budget pre-flight (REQ-3)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warnSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); warnSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('@/lib/monitoring/scheduler');
     await runScheduledFecCollection();

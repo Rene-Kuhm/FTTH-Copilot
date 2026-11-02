@@ -3,6 +3,7 @@
 // GET /api/vm/query?query=<promql>&range=<seconds>
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 
 // Set VICTORIAMETRICS_URL in .env or docker-compose.yml:
 //   Dev (host):   http://localhost:8428
@@ -10,7 +11,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const VM_URL = process.env.VICTORIAMETRICS_URL ?? 'http://localhost:8428';
 const METRICS_BEARER_TOKEN = process.env.METRICS_BEARER_TOKEN ?? '';
 
+const log = createLogger({ name: 'vm-query' });
+
 export async function GET(req: NextRequest) {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const { searchParams } = req.nextUrl;
   const query = searchParams.get('query');
   const range = searchParams.get('range') ?? '3600'; // default 1h
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data);
   } catch (err) {
-    console.error('[vm/query]', err);
+    requestLog.error('VictoriaMetrics query failed', { error: err });
     return NextResponse.json(
       { error: 'Failed to query VictoriaMetrics', detail: String(err) },
       { status: 502 }

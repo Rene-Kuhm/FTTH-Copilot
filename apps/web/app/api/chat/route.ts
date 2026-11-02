@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { z } from 'zod';
 import { runAgent, type TruthGateMode } from '@ftth-copilot/agent-core';
 import {
@@ -66,11 +67,13 @@ function connectorErrorResponse(error: unknown): NextResponse | null {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const correlationId = correlationIdFrom(req.headers);
+  const requestLog = createLogger({ name: 'chat' }).child({ correlationId });
   const start = Date.now();
   const raw = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    logRequest('POST', '/api/chat', 400, Date.now() - start);
+    logRequest('POST', '/api/chat', 400, Date.now() - start, { correlationId });
     return NextResponse.json(
       { error: 'Invalid input', details: parsed.error.flatten() },
       { status: 400 },
@@ -79,11 +82,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const user = await getCurrentUser();
   if (!user) {
-    logRequest('POST', '/api/chat', 401, Date.now() - start);
+    logRequest('POST', '/api/chat', 401, Date.now() - start, { correlationId });
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
   if (!hasPermission(user.role, 'chat')) {
-    logRequest('POST', '/api/chat', 403, Date.now() - start);
+    logRequest('POST', '/api/chat', 403, Date.now() - start, { correlationId });
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
@@ -138,13 +141,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (error) {
     const response = connectorErrorResponse(error);
     if (response) return response;
-    console.error('[ftth-copilot/api/chat] connector error', error);
+    requestLog.error('Connector error', { tenantId: user.tenantId, error });
     return NextResponse.json({ error: 'No se pudo preparar el conector NMS.' }, { status: 500 });
   }
 
   const quota = await consumeChatQuota(user.id);
   if (!quota.allowed) {
-    logRequest('POST', '/api/chat', 429, Date.now() - start);
+    logRequest('POST', '/api/chat', 429, Date.now() - start, { correlationId });
     return NextResponse.json(
       { error: 'Límite de consultas alcanzado. Intentá nuevamente más tarde.' },
       { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
@@ -274,12 +277,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }),
     });
   } catch (error) {
-    console.error('[ftth-copilot/api/chat] agent error', error);
+    requestLog.error('Agent error', { tenantId: user.tenantId, error });
     // Block 1 (diagnostic-router) — record the failed LLM call.
     recordLlmMetrics('agent-core', 'error', Date.now() - llmStartMark);
     const { classifyChatError } = await import('@/lib/chat/error-classifier');
     const classification = classifyChatError(error);
-    logRequest('POST', '/api/chat', classification.status, Date.now() - start);
+    logRequest('POST', '/api/chat', classification.status, Date.now() - start, { correlationId });
     return NextResponse.json(
       {
         error: classification.userMessage,
@@ -432,7 +435,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (error) {
     // Fail-safe: log + skip, never throw. The chat response must
     // always return 200 once `prisma.message.create` has succeeded.
-    console.error('[ftth-copilot/api/chat] verdict_log write failed', error);
+    requestLog.error('Verdict log write failed', { tenantId: user.tenantId, error });
   }
 
   /**
@@ -472,7 +475,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  logRequest('POST', '/api/chat', 200, Date.now() - start);
+  logRequest('POST', '/api/chat', 200, Date.now() - start, { correlationId });
   return NextResponse.json({
     reply: result.text,
     toolsUsed: persistedToolCalls.map((call) => ({ name: call.name, args: call.arguments })),

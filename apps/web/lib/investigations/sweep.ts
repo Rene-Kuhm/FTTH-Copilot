@@ -1,4 +1,7 @@
+import { createLogger } from '@ftth-copilot/shared';
 import { expireStaleRuns } from '@/lib/investigations/pipeline';
+
+const log = createLogger({ name: 'investigation-sweep' });
 
 /**
  * Barrido de intentos de investigación abandonados, en modo `embedded`.
@@ -31,10 +34,10 @@ export function startInvestigationSweep(env: NodeJS.ProcessEnv = process.env): v
     try {
       const expired = await expireStaleRuns({ ttlMs });
       if (expired > 0) {
-        console.warn(`[investigate] sweep expired ${expired} abandoned attempt(s)`);
+        log.warn('Sweep expired abandoned attempts', { expired });
       }
     } catch (error) {
-      console.error('[investigate] sweep failed', error);
+      log.error('Sweep failed', { error });
     }
   };
 

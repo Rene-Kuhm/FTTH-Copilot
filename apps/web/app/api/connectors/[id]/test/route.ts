@@ -1,3 +1,4 @@
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ftth-copilot/db';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -9,12 +10,15 @@ import {
 import { auditConnector } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
 
+const log = createLogger({ name: 'connector-test' });
+
 export const runtime = 'nodejs';
 
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const { id } = await ctx.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -38,7 +42,7 @@ export async function POST(
         ? error.message
         : 'No se pudo conectar con el NMS.',
     };
-    console.error('[ftth-copilot/api/connectors/test] connector error', error);
+    requestLog.error('Connector error', { tenantId: user.tenantId, error });
   }
 
   await prisma.nmsConnection.update({

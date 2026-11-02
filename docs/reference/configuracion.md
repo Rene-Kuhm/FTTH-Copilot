@@ -130,7 +130,7 @@ y el fallo aparece en la primera query.
 | `VICTORIAMETRICS_TOKEN` | vacío | `apps/web/app/api/ops/{anomalies,stream,capacity}/route.ts` | Bearer para la API de VM. **No está en `.env.example`** |
 | `PHOENIX_COLLECTOR_ENDPOINT` | vacío | `packages/agent-core/src/telemetry/exporter.ts:83` | Endpoint OTLP de Arize Phoenix. Vacío ⇒ no exporta |
 | `PHOENIX_PROJECT_NAME` | `ftth-copilot` | `packages/agent-core/src/telemetry/exporter.ts:84` | Nombre de proyecto en los spans |
-| `LOG_LEVEL` | `info` | **No se lee en el código** | `apps/web/lib/logging.ts:8` deriva el nivel del status HTTP |
+| `LOG_LEVEL` | `info` | `packages/shared/src/logger.ts` | Umbral de logs JSON: `debug`, `info`, `warn`, `error` o `silent`. Los logs HTTP usan la severidad correspondiente al estado. |
 
 ## 11. Alertas y notificaciones
 

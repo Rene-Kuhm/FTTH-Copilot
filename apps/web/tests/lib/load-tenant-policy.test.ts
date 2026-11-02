@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 
 /**
  * RED tests for `loadTenantPolicy` at
@@ -108,14 +109,15 @@ describe('loadTenantPolicy — row mapping', () => {
   });
 
   it('returns null and logs when prisma.findUnique throws', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const lines: string[] = [];
+    __setLogSinkForTests((line) => lines.push(line));
     try {
       mocks.prismaTenantPolicyFindUnique.mockRejectedValue(new Error('DB down'));
       const { loadTenantPolicy } = await import('@/lib/policies/load-tenant-policy');
       expect(await loadTenantPolicy('tenant-1')).toBeNull();
-      expect(errorSpy).toHaveBeenCalled();
+      expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'error', name: 'tenant-policy', tenantId: 'tenant-1' });
     } finally {
-      errorSpy.mockRestore();
+      __setLogSinkForTests(null);
     }
   });
 });

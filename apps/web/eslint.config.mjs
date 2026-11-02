@@ -9,6 +9,10 @@ const config = [
     ignores: [".next/**", ".turbo/**", "node_modules/**", "out/**", "coverage/**"],
   },
   ...nextConfig,
+  {
+    files: ["app/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "instrumentation.ts"],
+    rules: { "no-console": "error" },
+  },
   // ─────────────────────────────────────────────────────────────────────────
   // No explicit `any`.
   //
