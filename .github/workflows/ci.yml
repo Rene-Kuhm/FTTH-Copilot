@@ -643,6 +643,9 @@ jobs:
   #    `last-release-sha` tiene que cubrir todo lo que ya se publicó, para
   #    que la release en curso no repita las entradas del release anterior.
   #
+  #    Y una quinta, sobre la observabilidad: cada alerta tiene que
+  #    consultar una métrica que algún exportador publica de verdad.
+  #
   #    El check es hermético: sólo lee archivos del repo. No instala
   #    dependencias ni habla con la red, así que no puede fallar por
   #    causas externas al contenido del pull request.
@@ -686,6 +689,15 @@ jobs:
 
       - name: Check the release range
         run: pnpm check:release-range
+
+      # Y una quinta, sobre la observabilidad: una alerta que consulta una
+      # métrica que nadie expone queda INACTIVE para siempre, y el
+      # operador cree que tiene cobertura. El check ata las reglas de
+      # `docker/victoriametrics-alerts.yml` con los nombres que de verdad
+      # exportan `/api/metrics` (web), `/metrics` (worker) y las métricas
+      # de Laya. También es hermético: sólo lee archivos del repo.
+      - name: Check the observability contract
+        run: pnpm check:observability
 
       - name: Run the supply chain tests
         run: mise run test-scripts

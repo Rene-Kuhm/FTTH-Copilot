@@ -63,3 +63,13 @@ export {
   type JobWorker,
   type WorkerOptions,
 } from './worker';
+
+export {
+  QUEUE_DEPTH_STATES,
+  emptyQueueDepth,
+  readQueueDepth,
+  type QueueDepth,
+  type QueueDepthReport,
+  type QueueDepthSource,
+  type QueueDepthState,
+} from './queue-depth';

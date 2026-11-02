@@ -245,9 +245,9 @@ tarea.
 | T13 | S5                | inline  | unidad 11 | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. **Hecha**: la unidad 11 los cubre (presupuesto, error, pending viejo, pedidos simultáneos, tenant ajeno, espera acotada). |
 | T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
 | T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. |
-| T16 | S18               | pending | pending | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
+| T16 | S18               | inline  | `0f63836`, `feafc26`, `8d5c4b5`, `fec08a2` | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
 | T18 | S19                | inline  | `replay:dead-letter` | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
-| T17 | S1, S17            | pending | pending | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
+| T17 | S1, S17            | inline  | `40909a7` | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
 
 ## Plan de rollback
 
@@ -710,3 +710,43 @@ debe romperse) y los tests de durabilidad de las fases 4.
     dead-letter de prueba (3 entradas: 2 recuperables y 1 ilegible) — el
     filtro por tenant recuperó 1 y dejó 2, el spool quedó con los
     `ingestId` originales y el archivo conservó la línea ilegible.
+- **L33** (2026-11-02) — Unidades **T16 y T17 hechas** (observabilidad de la cola
+  y topología documentada).
+  - **La profundidad de la cola se lee del lado productor.** Un `Worker` de BullMQ
+    no puede contar los jobs que siguen esperando: hace falta un `Queue`, que es
+    el mismo objeto que usa la web para encolar. `packages/jobs` expone
+    `readQueueDepth`, que recibe el contador como argumento (el test no
+    necesita Redis) y devuelve las colas que **no** se pudieron leer aparte: una
+    cola incountable queda ausente del reporte, en cero, y un
+    `ftth_copilot_worker_queue_depth_readable` dice que ese cero es "no sé" y no
+    "está vacía".
+  - **BullMQ 6 no expone la latencia de los jobs** (`getJobLatencies` era de v5):
+    el worker la mide con `processedOn` y `finishedOn` del job, y la expone como
+    histograma de Prometheus. Los buckets son acumulativos y un job más lento
+    que el último bucket pertenece al `+Inf`, no al último bucket finito.
+  - **El retry se decide con la misma regla de BullMQ**: `attemptsMade <
+    attempts` y el error no es `UnrecoverableError`. `attemptsMade` ya viene
+    incrementado en el evento `failed`, porque BullMQ lo suma antes de
+    emitirlo.
+  - **VictoriaMetrics single-node lee UN solo `-promscrape.config`**: la última
+    bandera gana (medido contra v1.153.0), así que el job del worker es un
+    FRAGMENTO que el entrypoint concatena al fichero de la web, no un segundo
+    fichero. Y solo se concatena cuando hay un target: un despliegue sin worker
+    no puede mostrar un target caído para siempre.
+  - **El worker corre en la red del host y el contenedor de VictoriaMetrics en
+    la del compose**: para que se alcancen hace falta una dirección del host
+    (no `127.0.0.1`), y el firewall del host puede cortar ese tráfico. Medido
+    en esta máquina: el contenedor no llega al puerto publicado del host, y sí
+    al servicio por nombre. Por eso el target es opt-in y hay que documentar la
+    receta.
+  - **El compose de demo apuntaba al worker a Redis por nombre de servicio**
+    (`redis:6379`) cuando el worker corre en la red del host, donde ese nombre
+    no resuelve: el worker no podía arrancar. Corregido a `127.0.0.1`.
+  Evidencia: `turbo --force` 70/70; scripts 87/87; docs-test 365 bloques, 0
+  errores; `check:observability` OK (23 reglas, 40 métricas). Verificado contra
+  Redis real y contra VictoriaMetrics real: 17 familias `ftth_copilot_worker_*`
+  en la TSDB, y las 8 alertas del grupo `ftth-copilot-worker` evaluando (las
+  de fallos y retries en `pending` porque el worker de verificación realmente
+  falló jobs). El check nuevo (`pnpm check:observability`) ata cada alerta con
+  las métricas que alguien exporta: una alerta sobre una métrica inexistente
+  queda INACTIVE para siempre y el operador cree que tiene cobertura.

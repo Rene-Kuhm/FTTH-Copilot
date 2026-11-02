@@ -12,7 +12,10 @@
 
 import {
   QUEUE_NAMES,
+  createJobQueue,
   defineWorker,
+  readQueueDepth,
+  redisConnectionOptions,
   workerRedisConnectionOptions,
   type JobWorker,
   type QueueKey,
@@ -20,6 +23,8 @@ import {
 } from '@ftth-copilot/jobs';
 import { JOB_HANDLERS } from './registry';
 import { readIngestState } from './ingest-state';
+import { createLatencyHistogram, type LatencyHistogram } from './job-latency';
+import { readJobOutcome } from './job-outcome';
 import type { QueueCounter, WorkerRuntime } from './health';
 
 /** Jobs of a queue that run at the same time. Defaults to 1. */
@@ -50,6 +55,14 @@ export interface BootWorkersOptions {
   env?: NodeJS.ProcessEnv;
   /** Connection options. Defaults to `workerRedisConnectionOptions(env)`. */
   connection?: RedisConnectionOptions;
+  /**
+   * Connection used to read the depth of the queues.
+   *
+   * Defaults to `redisConnectionOptions(env)`: the depth is a read that must
+   * fail fast when Redis is unreachable, not a consumer whose blocking reads
+   * may never time out.
+   */
+  depthConnection?: RedisConnectionOptions;
   /** Jobs of a queue running at the same time. Defaults to 1. */
   concurrency?: number;
   /** Called when a worker reports a connection or processing error. */
@@ -65,6 +78,7 @@ export interface BootWorkersOptions {
 export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
   const env = options.env ?? process.env;
   const connection = options.connection ?? workerRedisConnectionOptions(env);
+  const depthConnection = options.depthConnection ?? redisConnectionOptions(env);
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 
   const startedAtMs = Date.now();
@@ -72,10 +86,11 @@ export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
   const readyQueues = new Set<string>();
   const consumedQueues: string[] = [];
   const workers: JobWorker<QueueKey>[] = [];
+  const latency: LatencyHistogram = createLatencyHistogram();
 
   for (const key of Object.keys(QUEUE_NAMES) as QueueKey[]) {
     const queueName = QUEUE_NAMES[key];
-    const counter: QueueCounter = { completed: 0, failed: 0 };
+    const counter: QueueCounter = { completed: 0, failed: 0, retried: 0 };
     counters.set(queueName, counter);
     consumedQueues.push(queueName);
 
@@ -93,15 +108,38 @@ export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
     worker.on('closed', () => {
       readyQueues.delete(queueName);
     });
-    worker.on('completed', () => {
+    worker.on('completed', (job) => {
       counter.completed += 1;
+      const outcome = readJobOutcome(job);
+      if (outcome.durationSeconds !== null) latency.record(queueName, outcome.durationSeconds);
     });
-    worker.on('failed', () => {
+    worker.on('failed', (job, error: Error | undefined) => {
       counter.failed += 1;
+      // BullMQ emits `failed` without a job when the job vanished from
+      // Redis (it was removed while it was running). There is nothing to
+      // measure then, and nothing to say about a retry.
+      if (!job) return;
+      const outcome = readJobOutcome(job, {
+        attemptsMade: job.attemptsMade,
+        attempts: job.opts?.attempts,
+        errorName: error?.name,
+      });
+      if (outcome.willRetry) counter.retried += 1;
+      if (outcome.durationSeconds !== null) latency.record(queueName, outcome.durationSeconds);
     });
 
     workers.push(worker);
   }
+
+  // The depth of the queues is read through the producer side of BullMQ:
+  // a consumer cannot count the jobs that are still waiting. The queues are
+  // opened once and closed with the fleet.
+  const depthQueues = new Map(
+    (Object.keys(QUEUE_NAMES) as QueueKey[]).map((key) => [
+      QUEUE_NAMES[key],
+      createJobQueue(key, depthConnection),
+    ]),
+  );
 
   const runtime: WorkerRuntime = {
     get queues(): readonly string[] {
@@ -115,6 +153,10 @@ export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
     get ingest() {
       return readIngestState();
     },
+    get latency() {
+      return latency.snapshot();
+    },
+    queueDepth: () => readQueueDepth(depthQueues),
     startedAtMs,
     counters,
   };
@@ -124,6 +166,11 @@ export function bootWorkers(options: BootWorkersOptions = {}): WorkerFleet {
     workers,
     async close(): Promise<void> {
       await Promise.all(workers.map((worker) => closeWorker(worker)));
+      await Promise.all(
+        [...depthQueues.values()].map(async (queue) => {
+          await queue.close();
+        }),
+      );
     },
   };
 }
