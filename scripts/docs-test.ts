@@ -22,6 +22,11 @@ import { spawnSync } from "node:child_process";
 import { extractCodeBlocks, classifyBlock, parseShellCommands, type CodeBlock } from "./lib/docs-blocks.ts";
 import { checkBlock, type Finding, type RepoFacts } from "./lib/docs-checks.ts";
 import {
+  collectMarkdownFiles as collectMarkdownFilesImpl,
+  createIgnoreMatcher,
+  IGNORED_DIRECTORIES,
+} from "./lib/docs-files.ts";
+import {
   buildProgram,
   readPackageExports,
   readWorkspaces,
@@ -29,17 +34,6 @@ import {
 } from "./lib/workspace.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
-
-const IGNORED_DIRECTORIES = new Set([
-  ".git",
-  ".next",
-  ".turbo",
-  "coverage",
-  "dist",
-  "node_modules",
-  "out",
-  "generated",
-]);
 
 interface Options {
   readonly root: string;
@@ -63,42 +57,7 @@ function parseOptions(argv: readonly string[]): Options {
 
 /** Archivos Markdown que entran en la verificación. */
 function collectMarkdownFiles(root: string): string[] {
-  const files: string[] = [];
-  const readme = path.join(root, "README.md");
-  if (fs.existsSync(readme)) files.push(readme);
-
-  const docsDir = path.join(root, "docs");
-  if (fs.existsSync(docsDir)) {
-    const walk = (dir: string): void => {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-        a.name.localeCompare(b.name),
-      )) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          walk(full);
-          continue;
-        }
-        if (entry.name.endsWith(".md")) files.push(full);
-      }
-    };
-    walk(docsDir);
-  }
-
-  // Los `AGENTS.md` son documentación dirigida a agentes: sus comandos también
-  // tienen que existir.
-  const walkAgents = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (IGNORED_DIRECTORIES.has(entry.name)) continue;
-        walkAgents(path.join(dir, entry.name));
-        continue;
-      }
-      if (entry.name === "AGENTS.md") files.push(path.join(dir, entry.name));
-    }
-  };
-  walkAgents(root);
-
-  return [...new Set(files)];
+  return collectMarkdownFilesImpl(root, createIgnoreMatcher(root));
 }
 
 /** Todos los archivos y directorios del repo, relativos a la raíz. */
@@ -119,58 +78,6 @@ function collectRepoFiles(root: string): Set<string> {
   };
   walk(root);
   return files;
-}
-
-/** Convierte un patrón de `.gitignore` en una expresión regular. */
-function ignorePatternToRegExp(pattern: string): RegExp {
-  let value = pattern;
-  let anchored = false;
-  if (value.startsWith("/")) {
-    anchored = true;
-    value = value.slice(1);
-  }
-  if (value.endsWith("/")) value = `${value}**`;
-  const escaped = value
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, "\u0000")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\u0000/g, ".*")
-    .replace(/\?/g, "[^/]");
-  return anchored ? new RegExp(`^${escaped}$`) : new RegExp(`(^|/)${escaped}($|/)`);
-}
-
-/**
- * ¿La ruta está ignorada por algún `.gitignore` del repo?
- *
- * Cada `.gitignore` manda sobre su propio directorio: el patrón `*` de
- * `.atl/.gitignore` ignora lo que hay adentro de `.atl`, no el repo entero.
- */
-function createIgnoreMatcher(root: string): (repoRelativePath: string) => boolean {
-  const matchers: { base: string; pattern: RegExp }[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (IGNORED_DIRECTORIES.has(entry.name)) continue;
-        walk(full);
-        continue;
-      }
-      if (entry.name !== ".gitignore") continue;
-      const base = path.relative(root, dir).replaceAll(path.sep, "/");
-      for (const line of fs.readFileSync(full, "utf8").split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("!")) continue;
-        matchers.push({ base, pattern: ignorePatternToRegExp(trimmed) });
-      }
-    }
-  };
-  walk(root);
-  return (repoRelativePath: string) =>
-    matchers.some(({ base, pattern }) => {
-      if (base === "") return pattern.test(repoRelativePath);
-      if (!repoRelativePath.startsWith(`${base}/`)) return false;
-      return pattern.test(repoRelativePath.slice(base.length + 1));
-    });
 }
 
 function readJsonFile<T>(file: string): T | null {
