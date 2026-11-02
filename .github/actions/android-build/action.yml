@@ -1,0 +1,98 @@
+name: Build the Android APKs
+description: >
+  Compila los APK de debug y release de la app Android con el SDK del runner.
+
+  Vive en una acción compuesta, y no en el workflow reutilizable, por una
+  razón concreta: GitHub valida el grafo del run antes de crear ningún job, y
+  un workflow reutilizable que pide `id-token: write` (para atestar) obliga a
+  que TODO caller conceda ese permiso. Si el caller de validación lo
+  concediera, un pull request podría pedir un token OIDC.
+
+  Con la acción compuesta, el camino de validación (`android-apk.yml`) y el
+  de release (`build-android.yml`) compilan los mismos pasos sin que el
+  primero herede los permisos de atestación del segundo.
+
+  El caller tiene que hacer el checkout antes de usar esta acción: los
+  pasos corren en el workspace del caller.
+
+inputs:
+  mise-version:
+    description: Versión de mise a instalar (la misma que fija `mise.lock`).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup mise (Node + pnpm con versiones exactas)
+      uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+      with:
+        version: ${{ inputs.mise-version }}
+        install_args: --locked
+
+    - name: Setup Java
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Use preinstalled Android SDK
+      shell: bash
+      run: |
+        ls -la $ANDROID_HOME/cmdline-tools/
+        echo "Using cmdline-tools:"
+        cat $ANDROID_HOME/cmdline-tools/latest/source.properties
+
+    - name: Accept SDK licenses
+      shell: bash
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
+
+    - name: Install SDK packages
+      shell: bash
+      run: |
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-34" \
+          "build-tools;34.0.0"
+
+    - name: Install dependencies
+      shell: bash
+      run: mise run deps
+
+    # Capacitor requires a static webDir. We bundle the Next.js standalone
+    # server assets as a single-page shell that loads the deployed web app
+    # from NEXT_PUBLIC_API_URL. This means the APK needs a deployed backend
+    # to fully function; for a fully offline demo, see Phase 3 of the
+    # roadmap (SQLite caching + service worker offline mode).
+    - name: Bundle web assets for Capacitor
+      shell: bash
+      working-directory: apps/web
+      run: |
+        # Copy the static export marker so cap sync has a webDir.
+        # The actual web assets are served via the standalone server.
+        mkdir -p out
+        cp -f public/favicon.svg out/ 2>/dev/null || true
+        cp -f public/manifest.json out/ 2>/dev/null || true
+        cp -r public/icons out/ 2>/dev/null || true
+        cp -f public/sw.js out/ 2>/dev/null || true
+        ls -la out/
+
+    - name: Capacitor sync
+      shell: bash
+      working-directory: apps/web
+      run: pnpm cap:sync
+
+    - name: Make gradlew executable
+      shell: bash
+      working-directory: apps/web/android
+      run: chmod +x gradlew
+
+    - name: Build debug APK
+      shell: bash
+      working-directory: apps/web/android
+      run: ./gradlew assembleDebug --no-daemon
+
+    - name: Build release APK (unsigned)
+      shell: bash
+      working-directory: apps/web/android
+      run: ./gradlew assembleRelease --no-daemon
