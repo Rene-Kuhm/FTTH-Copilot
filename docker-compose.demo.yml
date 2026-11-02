@@ -118,30 +118,16 @@ services:
 
   # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
-  # Session mode: required for Prisma (prepared statements + LISTEN/NOTIFY).
-  # Reduces postgres connections from N×M to N+M under heavy load.
+  #
+  # The service is NOT part of this compose anymore. The app connects
+  # directly to postgres (see the DATABASE_URL below): the demo does not need
+  # pooling at its traffic levels, and keeping the service here stopped the
+  # whole demo from starting — its image was gone from Docker Hub, and the
+  # `depends_on` made the app wait for a pooler it never talked to.
+  #
+  # `docker/pgbouncer.ini` stays in the repo for whoever wants to run
+  # PgBouncer in front of postgres on their own.
   # ─────────────────────────────────────────────────────────────────────────
-  pgbouncer:
-    image: edoburu/pgbouncer:1.24
-    container_name: ftth_demo_pgbouncer
-    restart: unless-stopped
-    ports:
-      - "${PGBOUNCER_PORT:-6432}:6432"
-    volumes:
-      - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./docker/pgbouncer-users.txt:/etc/pgbouncer/userlist.txt:ro
-    environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pgbouncer -V && pgrep pgbouncer"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ftth-demo
 
   db-migrate:
     build:
@@ -186,10 +172,9 @@ services:
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
       # Connect directly to postgres.
       #
-      # This used to route through PgBouncer, but that service is not on the
-      # demo network and its image (edoburu/pgbouncer:1.24) is gone from Docker
-      # Hub, so it could not be started and the app could not reach the
-      # database at all. Pooling is not needed at demo traffic levels.
+      # This used to route through PgBouncer, but the pooler is not part of
+      # this compose anymore (see the note above the removed service) and
+      # pooling is not needed at demo traffic levels.
       DATABASE_URL: "postgresql://${POSTGRES_USER:-ftth}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/ftth_copilot"
       # Laya URL is required when LAYA_ENABLED=true and the HTTP service is
       # used. Module-import mode (the expert classifier) does not need it.
@@ -198,8 +183,6 @@ services:
     ports:
       - "${PORT:-3001}:3001"
     depends_on:
-      pgbouncer:
-        condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
     networks:
@@ -311,7 +294,7 @@ services:
       - ftth-demo
 
   ntfy:
-    image: binwiederhier/ntfy:v3.3.0
+    image: binwiederhier/ntfy:v2.36.0
     container_name: ftth_demo_ntfy
     restart: unless-stopped
     ports:

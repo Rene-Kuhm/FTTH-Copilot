@@ -34,7 +34,6 @@ Healthchecks: `pg_isready` en postgres (`:28`), `curl /health` en laya (`:50`).
 | Servicio | Imagen | Puertos | Volúmenes |
 |---|---|---|---|
 | `postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}:5432` | `postgres_demo_data` |
-| `pgbouncer` | `edoburu/pgbouncer:1.24` | `${PGBOUNCER_PORT:-6432}:6432` | `docker/pgbouncer.ini`, `docker/pgbouncer-users.txt` (ro) |
 | `db-migrate` | build `.` target `dependencies` | — | — |
 | `app` | build `.` target `runner` | `${PORT:-3001}:3001` | — |
 | `victoriametrics` | `victoria-metrics:v1.153.0` | `${VICTORIAMETRICS_PORT:-8428}:8428` | `victoriametrics_demo_data`, entrypoint + scrape (ro) |
@@ -48,8 +47,12 @@ Red `ftth-demo` (bridge).
 Notas verificadas:
 
 - El build de `app` requiere el build arg `JWT_SECRET` (`:86-132`).
-- `app` conecta **directamente a Postgres**, no a PgBouncer: la imagen de PgBouncer ya no
-  está en Docker Hub (`:110-118`).
+- `app` conecta **directamente a Postgres**, no a PgBouncer: el pooler no es
+  parte del compose de demo. Estaba ahí con una imagen que ya no existe en
+  Docker Hub y su `depends_on` impedía que la app arrancara. La config queda
+  en `docker/pgbouncer.ini` para quien quiera correrlo por su cuenta.
+- `redis` exige `REDIS_PASSWORD`: sin ella el compose no interpola y no
+  levanta (`:50`).
 - `db-seed` necesita `SEED_ADMIN_PASSWORD`, `ALLOW_PRODUCTION_SEED=true` y
   `DEMO_DATA_ENABLED=true` (`:257-259`).
 
