@@ -243,8 +243,8 @@ tarea.
 | T11 | S3, S16            | inline  | `b1313ee`, `0b8d5a4`-equivalente | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5, S20            | inline  | `d376289` (unidades 8-11) | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. **Hecha**: el inventario (L26/L27) dejó un solo candidato real, `incidents/[id]/investigate`, y la unidad 8 lo movió a la cola `ftth-investigation` con claim por advisory lock. |
 | T13 | S5                | inline  | unidad 11 | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. **Hecha**: la unidad 11 los cubre (presupuesto, error, pending viejo, pedidos simultáneos, tenant ajeno, espera acotada). |
-| T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. |
-| T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. |
+| T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. **Entorno decidido**: VPS Linux con Docker Compose, Redis y Postgres self-hosted en la misma máquina. Ver `docs/how-to/desplegar-en-staging.md`. |
+| T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. **Es irreversible en código**: por eso espera a que T14 haya corrido verde. |
 | T16 | S18               | inline  | `0f63836`, `feafc26`, `8d5c4b5`, `fec08a2` | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
 | T18 | S19                | inline  | `replay:dead-letter` | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
 | T17 | S1, S17            | inline  | `40909a7` | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
@@ -750,3 +750,36 @@ debe romperse) y los tests de durabilidad de las fases 4.
   falló jobs). El check nuevo (`pnpm check:observability`) ata cada alerta con
   las métricas que alguien exporta: una alerta sobre una métrica inexistente
   queda INACTIVE para siempre y el operador cree que tiene cobertura.
+- **L34** (2026-11-02) — **Entorno de staging decidido** (T14 sigue pendiente de
+  ejecutarse; lo decidido es *dónde* y *con qué*).
+  - **Dónde: un VPS Linux** (Ubuntu 24.04 LTS, Docker Engine + Compose v2, IPv4
+    público). Descartados: **Vercel** (no hay worker de larga vida, ni UDP, ni
+    `network_mode: host`), **los PaaS con containers** (el worker necesita la red
+    del host para conservar la IP de origen del datagrama syslog; el proxy de
+    usuario de Docker para UDP la reescribe a la gateway del bridge y todos los
+    OLTs parecerían el mismo origen) y **el servidor local** (el firewall del
+    host bloquea contenedor→host, que es el camino que usa el worker para
+    llegar a Redis y Postgres por `127.0.0.1`).
+  - **Redis: self-hosted en el mismo VPS** (`redis:8.10.2-alpine`, con
+    password, AOF y puerto sólo en loopback). Es lo que ya hace el compose de
+    producción. Una Redis gestionada obligaría a cambiar la URL, salir a
+    internet en cada comando y sumar TLS: para un entorno de pruebas sale más
+    caro que el VPS entero.
+  - **Postgres: self-hosted en el mismo VPS** (`postgres:16-alpine`, puerto sólo
+    en loopback, backup diario). El staging no es un sistema de registro: sus
+    datos son desechables. Una base gestionada agrega un salto de red por
+    consulta y una dependencia externa, y el worker necesitaría TLS.
+  - **Una sola Redis para las dos cosas** que la usan: la cola de BullMQ y el
+    rate limiter global de las rutas que mutan estado (SEC-008, PR #351). La
+    misma `REDIS_URL` las alcanza a las dos.
+  - **La web escala a 2 réplicas con Caddy delante**: `app` no publica puerto
+    (si lo publicara, `--scale app=2` no podría arrancar) y
+    `reverse_proxy app:3001` balancea por round-robin. **No hace falta sticky
+    session**: la sesión es un JWT validado contra la fila `Session` de
+    Postgres y el CSRF es double-submit, así que no hay estado en el proceso.
+  - **El spool no se pisa entre las dos réplicas**: en modo `worker` la web no
+    arranca los receptores ni el drainer, así que no escribe en el spool (que es
+    del worker, y el worker es uno solo).
+  - Archivos: `docker-compose.staging.yml` (override del de producción),
+    `Caddyfile.staging`, `.env.staging.example` y
+    `docs/how-to/desplegar-en-staging.md`.
