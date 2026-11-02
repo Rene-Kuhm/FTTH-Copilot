@@ -81,7 +81,10 @@ runs:
     - name: Capacitor sync
       shell: bash
       working-directory: apps/web
-      run: pnpm cap:sync
+      run: |
+        # Generated assets are gitignored, so a fresh checkout has no directory.
+        mkdir -p android/app/src/main/assets
+        pnpm cap:sync
 
     - name: Make gradlew executable
       shell: bash
