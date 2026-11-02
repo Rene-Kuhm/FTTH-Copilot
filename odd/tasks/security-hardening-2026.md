@@ -80,10 +80,11 @@ mismo núcleo, y cambiar solo el almacén.
    Prisma, sin Redis. Las dos capas usan el mismo núcleo, así que no pueden divergir en
    cómo cuentan.
 2. **Almacén con Redis** (`apps/web/lib/rate-limit-store.ts`): la cuenta vive en la
-   **misma Redis que usa la cola del worker** (la URL sale de
-   `redisConnectionOptions()` de `@ftth-copilot/jobs`). Claves con prefijo `ftth:rl:`
-   para no pisar la cola. `INCR` + `PEXPIRE` + `PTTL` en un único guion de Lua, que es
-   atómico: por separado dejarían una ventana sin caducidad.
+   **misma Redis que usa la cola del worker** —la URL sale de `REDIS_URL`, la misma
+   variable que usa la cola, y un test la compara contra `redisConnectionOptions()` de
+   `@ftth-copilot/jobs` para que las dos capas no divergan. Claves con prefijo
+   `ftth:rl:` para no pisar la cola. `INCR` + `PEXPIRE` + `PTTL` en un único guion de
+   Lua, que es atómico: por separado dejarían una ventana sin caducidad.
 3. **Aplicación en las rutas que mutan estado**: las 26 rutas con `POST`/`PUT`/
    `PATCH`/`DELETE` llaman a `enforceApiRateLimit(req, user.tenantId)` en el handler,
    después del chequeo de sesión. Límite: 60 req/min por tenant, global entre réplicas.
