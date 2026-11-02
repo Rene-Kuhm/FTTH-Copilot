@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 
 /**
  * FEC collection tick of the scheduler.
@@ -16,7 +17,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
  *      exactly 8 `getOnuDetail` calls fire and `persistSamples` receives the rows
  *      assembled by `assembleOnuDetailPoints` for that 8-ONU slice.
  *   3. `FEC_FAN_OUT_PER_CYCLE=32` (rate-budget fails) → zero `getOnuDetail` calls
- *      and one `console.warn` line with `{ reason: 'rate_limit', requested: 32 }`.
+ *      and one structured warning line with `{ reason: 'rate_limit', requested: 32 }`.
  *   4. Mikrowisp-shaped detail (no `fec*` / `biasCurrent*` / `ontTemperature*`) →
  *      `persistSamples` is called with an empty array, zero rows, no throw.
  *   5. One of 8 `getOnuDetail` rejects → the surviving 7 still produce rows
@@ -25,9 +26,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
  *      fires (loop survives — REQ-5).
  *   7. `startFecCollectionLoop()` when env is `false` → returns a no-op cleanup
  *      and does NOT register any `setInterval`.
- *   8. Normal tick → one `console.log` line with
+ *   8. Normal tick → one structured info line with
  *      `{ tenantId, connectionId, requested, persisted, skipped, durationMs }`.
- *   9. Skipped tick → one `console.warn` line with `{ connectionId, requested,
+ *   9. Skipped tick → one structured warning line with `{ connectionId, requested,
  *      reason: 'rate_limit', … }` (no token / cookie / Authorization fields).
  *
  * The scheduler module imports `@ftth-copilot/db` (Prisma singleton),
@@ -116,6 +117,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  __setLogSinkForTests(null);
   vi.restoreAllMocks();
   vi.useRealTimers();
   clearFecEnv();
@@ -160,7 +162,8 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const logSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); logSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('../src/index');
     await runScheduledFecCollection();
@@ -207,7 +210,8 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const logSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); logSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('../src/index');
     await expect(runScheduledFecCollection()).resolves.toBeUndefined();
@@ -246,7 +250,8 @@ describe('runScheduledFecCollection — rate-budget pre-flight (REQ-3)', () => {
     });
     mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
     mocks.buildConnectorFromConnection.mockReturnValue({ connector });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warnSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); warnSpy(`[${entry.name}] ${entry.msg}`, entry); });
 
     const { runScheduledFecCollection } = await import('../src/index');
     await runScheduledFecCollection();

@@ -796,6 +796,9 @@ importers:
       '@ftth-copilot/monitoring':
         specifier: workspace:*
         version: link:../monitoring
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../soc
