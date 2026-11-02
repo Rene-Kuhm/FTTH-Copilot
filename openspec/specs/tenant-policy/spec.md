@@ -105,10 +105,16 @@ When no row exists, every seam MUST fall back to the existing module constant. T
 
 ### Requirement: Precedence logging
 
-When a per-tenant override applies, emit exactly one `console.info` per resolved knob with `tenantId`, knob name, and value. Absent `tenantPolicy` → no line.
+When a per-tenant override applies, emit exactly one `console.info` per resolved knob, with the tenant id, the knob name, and the resolved value. The line format is locked:
+
+```
+[ftth-copilot/tenant-policy] tenant=<tenantId> knob=<name> resolved=<value>
+```
+
+`<value>` is the JSON encoding of the resolved value, so a string knob is quoted (`resolved="observe"`) and a numeric knob is bare (`resolved=7`). Absent `tenantPolicy` → no line.
 
 #### Scenario: Override emits info line
 
 - GIVEN `tenantPolicy.truthGateMode: 'observe'` AND env `TRUTH_GATE_MODE=strict`
 - WHEN the route resolves the mode
-- THEN one `console.info('[ftth-copilot/tenant-policy] tenantId=t1 knob=truthGateMode value=observe')` is emitted
+- THEN one `console.info('[ftth-copilot/tenant-policy] tenant=t1 knob=truthGateMode resolved="observe"')` is emitted

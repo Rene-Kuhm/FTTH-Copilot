@@ -1,6 +1,6 @@
 # Structured Logging
 
-**Status**: In progress
+**Status**: In progress (T1–T3 hechas; T4–T7 pendientes)
 **Created**: 2026-10-31
 **Branch**: `feat/structured-logging`
 **Scope**: un único logger JSON en `packages/shared`, con niveles, `tenantId` y
@@ -79,8 +79,15 @@ Hoy los logs son `console.*` con texto libre y prefijos a mano
   emite `[ftth-copilot/tenant-policy] tenant=<id> knob=<name> resolved=<value>`,
   y ese formato es contrato de `openspec/specs/tenant-policy/spec.md`, afirmado
   carácter por carácter en `runtime.test.ts`. Migrarlo es cambiar una spec.
-  Queda con `console.info` y una excepción de lint justificada; **necesita
-  decisión**.
+  Queda con `console.info` y una excepción de lint justificada.
+  **Decidido (2026-11-01):** la spec canónica se ajusta al formato real del
+  código, no al revés. El código y el test ya coincidían entre sí; lo que
+  divergía era la spec, que transcribió mal el formato al promover los
+  deltas de Fase E (E-8.2). La spec decía `tenantId=t1 knob=… value=observe`
+  y el código emite `tenant=t1 knob=… resolved="observe"`. El design archivado
+  de Fase E (`openspec/changes/archive/2026-09-04-fase-e-tenant-topology/design.md:214`)
+  ya usaba la forma del código, así que la spec era el outlier y se corrigió
+  (`docs(spec): align the tenant-policy log format with the code`).
 - **Redacción: nombres de clave y patrones de texto.** Claves: las que ya
   cubría `agent-core` + community/claves SNMPv3 + datos de cliente (`email`,
   `phone`, `telefono`, `movil`, `cedula`, `dni`, `address`, `direccion`,
@@ -89,16 +96,25 @@ Hoy los logs son `console.*` con texto libre y prefijos a mano
 
 ## Tareas
 
-- [ ] T1 Mover el redactor a `shared` y que `agent-core` lo re-exporte sin
-      cambiar su comportamiento.
-- [ ] T2 Logger en `shared`, con tests (formato, niveles, `child`,
-      serialización de errores).
-- [ ] T3 Tests de que el logger **no** emite secretos, communities SNMP ni
-      datos de clientes (por clave y por texto).
+- [x] T1 Mover el redactor a `shared` y que `agent-core` lo re-exporte sin
+      cambiar su comportamiento. → `packages/shared/src/redaction.ts` +
+      `packages/agent-core/src/telemetry/redaction.ts` re-exporta.
+- [x] T2 Logger en `shared`, con tests (formato, niveles, `child`,
+      serialización de errores). → `packages/shared/src/logger.ts` +
+      `packages/shared/tests/logger.test.ts`.
+- [x] T3 Tests de que el logger **no** emite secretos, communities SNMP ni
+      datos de clientes (por clave y por texto). →
+      `packages/shared/tests/logger-redaction.test.ts`.
 - [ ] T4 Migrar `packages/*` y adaptar los tests que espían `console`.
+      Quedan 29 llamadas: `shared` (13), `scheduler` (8), `agent-core` (5),
+      `ingest` (2), `jobs` (1). Fuera de alcance por diseño: `scripts/`,
+      `packages/eval/scripts/`, `packages/db/prisma/seed.ts`.
 - [ ] T5 Migrar `services/worker` y `apps/web` (rutas y lib), con
-      `correlationId` en las rutas.
-- [ ] T6 Regla `no-console`, con excepciones.
+      `correlationId` en las rutas. Worker: 21 (index 13, registry 3, syslog 2,
+      snmp 2, schedules 1). Web: 17.
+- [ ] T6 Regla `no-console`, con excepciones. Va **después** de T4 y T5:
+      activarlo antes rompe el build. Excepción justificada para la línea de
+      política de tenant (ver Decisiones).
 - [ ] T7 Gates + PR.
 
 ## Rollback
