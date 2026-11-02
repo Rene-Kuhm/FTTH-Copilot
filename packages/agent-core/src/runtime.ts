@@ -178,6 +178,8 @@ export function resolveTenantPolicy(
   // The `resolved` value is the value the runtime will use downstream —
   // for `abstainOnCodes` and arrays we JSON-stringify for stable log shape.
   const emit = (knob: string, value: unknown): void => {
+    // The tenant-policy specification requires this exact non-JSON line.
+    // eslint-disable-next-line no-console
     console.info(
       `[ftth-copilot/tenant-policy] tenant=${tp.tenantId} knob=${knob} resolved=${JSON.stringify(value)}`,
     );
