@@ -168,7 +168,10 @@ services:
       SYSLOG_RECV_BUFFER_BYTES: "${SYSLOG_RECV_BUFFER_BYTES:-4194304}"
       # The health server stays on the loopback: with the host network it
       # would otherwise listen on every public interface of the server.
-      WORKER_HOST: 127.0.0.1
+      # Point it at a private interface (and set
+      # VICTORIAMETRICS_WORKER_SCRAPE_TARGET) to let VictoriaMetrics scrape
+      # it. See docs/worker.md.
+      WORKER_HOST: ${WORKER_HOST:-127.0.0.1}
     volumes:
       - spool_data:/var/lib/ftth-copilot/spool
     depends_on:
@@ -226,12 +229,12 @@ services:
     entrypoint: ["/bin/sh", "/opt/vm/entrypoint.sh"]
     environment:
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
-      # The worker scrape is a SECOND -promscrape.config, and it is only
-      # passed to VictoriaMetrics when this is set. Empty by default: the
-      # worker runs on the host network and its health server stays on the
-      # loopback, so a deployment that does not point this at a reachable
-      # address would show a target that is permanently down.
-      # See docs/worker.md for the recipe.
+      # The worker scrape is a second job of the SAME scrape configuration
+      # (the single-node binary reads a single file), and it is only added
+      # when this is set. Empty by default: the worker runs on the host
+      # network and its health server stays on the loopback, so a
+      # deployment that does not point this at a reachable address would
+      # show a target that is permanently down. See docs/worker.md.
       VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-production}

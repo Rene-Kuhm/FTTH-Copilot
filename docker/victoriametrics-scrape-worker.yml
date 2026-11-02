@@ -1,14 +1,18 @@
-# VictoriaMetrics scrape configuration for the background worker.
+# Fragment of the scrape configuration for the background worker.
+#
+# This file is NOT a complete scrape configuration: it is APPENDED to the
+# app's one. The single-node binary of VictoriaMetrics reads a single
+# `-promscrape.config` — the last flag wins, verified against v1.153.0 — so
+# both jobs have to end up in the same file.
+#
+# The entrypoint appends it only when `VICTORIAMETRICS_WORKER_SCRAPE_TARGET`
+# is set: a deployment that does not run the worker must not show a target
+# that is permanently down.
 #
 # Rendered at container start by docker/victoriametrics-entrypoint.sh, which
 # substitutes __WORKER_SCRAPE_TARGET__, __METRICS_BEARER_TOKEN__ and
 # __DEPLOY_ENV__. Do not add other `${VAR}` placeholders here: the single-node
 # binary does not expand them.
-#
-# This file is a SECOND `-promscrape.config`. The entrypoint only passes it
-# to VictoriaMetrics when `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` is set: a
-# deployment that does not run the worker must not show a target that is
-# permanently down.
 #
 # The worker runs on the host network (see docs/worker.md), so the target is
 # not a compose service name: it is the address of the host as the
@@ -16,13 +20,6 @@
 #
 # Docs: https://docs.victoriametrics.com/victoriametrics/single-server-victoriametrics/
 
-global:
-  scrape_interval: 30s
-  scrape_timeout: 10s
-  external_labels:
-    service: ftth-copilot
-
-scrape_configs:
   - job_name: ftth-copilot-worker
     metrics_path: /metrics
     scheme: http
