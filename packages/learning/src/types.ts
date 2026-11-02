@@ -109,8 +109,13 @@ export interface LearningIncident {
 /**
  * Arista topológica temporal: `child` cuelga de `parent` en el intervalo
  * `[validFrom, validTo)`. Espejo del modelo `TopologyEdge`.
+ *
+ * `tenantId` no es opcional: la topología es **por tenant**. Sin él, dos
+ * tenants que compartan el mismo id de nodo correlacionarían sus
+ * incidentes (invariante I3).
  */
 export interface LearningTopologyEdge {
+  readonly tenantId: string;
   readonly parentKind: string;
   readonly parentId: string;
   readonly childKind: string;

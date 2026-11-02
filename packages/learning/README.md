@@ -52,6 +52,27 @@ partitionForTraining(resolution): TrainingPartition;
   muestra.
 - **Aislamiento por tenant**: dos tenants que compartan `versionId` nunca se mezclan (I3).
 
+## T0.3 — Agrupación en eventos y split temporal (D9)
+
+```ts
+groupIntoEvents(incidents, topology, windowMs?): LearningEvent[];
+temporalSplit(events, cutoff): TemporalSplit;
+```
+
+- **Ancestro topológico compartido**: dos incidentes se agrupan si comparten un ancestro en
+  `TopologyEdge` **vigente en su `observedAt`**. La topología es temporal: una arista vencida
+  o que todavía no empieza no correlelaciona.
+- **Ventana de 2 h** (`DEFAULT_EVENT_WINDOW_MS`): la agrupación es transitiva — si A une con B
+  y B une con C, los tres son un evento.
+- **La topología es por tenant**: dos tenants que usen el mismo id de nodo no se mezclan (I3).
+- **El `eventId` es determinista**: sale del contenido (sha256 de tenant + incidentes), nunca
+  del reloj (I8).
+
+`temporalSplit` parte en `train` (antes de `T`, **más** lo que cruza el corte) y `eval`
+(estrictamente después de `T`). Un evento que cruza el corte va a `train` a propósito: si fuera
+a `eval`, la evaluación mediría sobre incidentes que el modelo ya vio. El subconjunto que
+cruza queda listado en `crossing`.
+
 ## Tests
 
 ```bash
