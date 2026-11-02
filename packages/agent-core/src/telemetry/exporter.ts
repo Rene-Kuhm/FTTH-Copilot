@@ -67,7 +67,7 @@ export function buildOtlpTracePayload(
           {
             scope: {
               name: 'openinference.ftth-copilot',
-              version: '0.2.2',
+              version: '0.4.0',
             },
             spans: formattedSpans,
           },

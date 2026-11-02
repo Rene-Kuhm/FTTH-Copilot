@@ -12,6 +12,128 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.4.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.3.0...v0.4.0) (2026-11-02)
+
+
+### Added
+
+* **enterprise:** close 100% enterprise-readiness — Ntfy, dark mode, MFA UI, LDAP, DB backup, VM cluster ([#267](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/267)) ([4417b22](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4417b220472282bf1193d5bb1704a41545275751))
+* **ingest:** comando para reprocesar el dead-letter ([#343](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/343)) ([1ae6aff](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1ae6affa0b32cca4d93cc3ce5ae81f202b375352))
+* **ingest:** spool syslog events so a database outage cannot lose them ([#276](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/276)) ([dbde0b6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/dbde0b610d776d5412c3d9acb33d0293cd550422))
+* **laya:** make the assisted and automatic routing modes real ([d0ad43f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d0ad43ffb3fb492a97969e7be173e4590825413c))
+* **laya:** record the expert decision into the Laya metrics collector ([fc19c2e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fc19c2e51a7842898cfa7b5efd398684dee7fa9d))
+* **laya:** ship the laya service to demo and prod and make prod valid ([fd37ddd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fd37ddd6d7d784c46e13a85a1da2cf7a1a76a213))
+* **observability:** las colas del worker, sus latencias y sus dead-letters en VictoriaMetrics ([#345](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/345)) ([885e812](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/885e812f2e3c4ce9187c94dacedc74cc1d740c94))
+* **release:** que release-please pueda usar un token propio ([#340](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/340)) ([0854416](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0854416866bce95ddcbb5dec4f7675b9e71b453d))
+* **repo:** contrato y C4 como fuente única, con verificación final ([#321](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/321)) ([d2cc6c2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d2cc6c274e594e55e14e277091f02412370abebf)), closes [#310](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/310)
+* **repo:** entorno hermético con mise, docs vivas y contexto agent-first ([#316](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/316)) ([35eb9cc](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/35eb9cc0fc88ef502b1d344d538ad99a64c3e869)), closes [#308](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/308)
+* **repo:** supply chain endurecida y releases verificables SLSA L3 ([#318](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/318)) ([255bd10](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/255bd1035b30c040b994204986803427bb331365)), closes [#309](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/309)
+* **security:** implement RBAC middleware and CSRF protection ([#274](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/274)) ([9c3ad18](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9c3ad183c4dee800599373aa73929b26fdc68117))
+* **shared:** add the structured logger with redaction by default ([#330](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/330)) ([be58e22](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/be58e2210a7be13d2ed989967b5623856178d5b6))
+* **snmp:** store trap evidence under an agreed retention policy ([#293](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/293)) ([f7b7f83](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f7b7f83bb1473ed3693cef6646e919f3f860a4e2))
+* **worker:** move background work out of the web process ([#322](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/322)) ([3f49ff9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/3f49ff90b8192d0dd774a24cba35e1370653cd70))
+
+
+### Fixed
+
+* **agent-core:** alinear los prompts y las tools con el comportamiento real ([#339](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/339)) ([aaa59b8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/aaa59b866284ab8caf075697cd5c2a5ef7206430))
+* **auth:** close an unauthenticated bypass of admin auth ([#283](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/283)) ([fce82ab](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fce82abb073fc16689f2e1b07e3f3b689a46966f))
+* **auth:** correct base32 padding and cover the ingest circuit ([#280](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/280)) ([7116101](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/711610177d3daa1fd9772377745c5580bfc8da83))
+* **auth:** make the Edge middleware able to verify sessions ([#294](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/294)) ([eeb8cf5](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/eeb8cf579015551c2af5bc2f116f4403b3f076d4))
+* **ci:** que los builds de validación no hereden permisos de atestación ([#333](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/333)) ([afadd72](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/afadd72f2445507a644f9951110091e14fd10aa7))
+* **concurrency:** stop duplicate confirmed incidents under concurrent confirms ([#287](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/287)) ([d7230fe](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d7230fe4b1991cd1ae34ee9eabce4fb43b244981))
+* **csrf:** send the CSRF header from every client mutation ([#275](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/275)) ([9dd69ed](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9dd69ed775d4fb7d1288259c1e0622db1cebb9be))
+* **db:** make the alignment migration lossless ([#289](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/289)) ([250bfa9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/250bfa9e79c37887c7e2e42384fb6730d3b7d1ca))
+* **demo:** que el compose de demo levante ([#337](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/337)) ([86473ab](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/86473abba0d85e3f3a6bc7d869b8501bd75c2f24))
+* **ingest:** carry the SNMP catalog severity and stop masking seed failures ([#279](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/279)) ([906f839](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/906f83964340a2cc46369efb7b0db8cf56ed621e))
+* **ingest:** report the real backlog after a restart ([#285](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/285)) ([d582dfc](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d582dfcc46a949bdc0b39647d64054d10a34b915))
+* **laya:** close the remaining Laya follow-ups and align the docs ([08bd8c7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/08bd8c7c123eb50334d5ab1173d2538c15e3b6e9))
+* **laya:** close the three remaining Laya follow-ups ([43351bf](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/43351bf9d7bd6a97fc34f3705aa1f101b6fceacd))
+* **laya:** make the Laya decision layer actually work ([7e9e10e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/7e9e10e60731b34af398a316771fdd348c32780c))
+* **laya:** parse the response contract the service actually returns ([171e5ea](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/171e5eaa41dccd9c92a4a16c3d4a290d57564bfa))
+* **laya:** record the shadow outcome after the call, not before it ([72337b0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/72337b0705885ba25e1ebba4652920101fac64d5))
+* **release:** que el changelog de la release no repita un release ya publicado ([#336](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/336)) ([763fa8b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/763fa8b7c0a4593a36718758b9162b40e28bfdf5))
+* **release:** resetear la lista de encabezados antes del push con token propio ([#344](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/344)) ([e813c44](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e813c4463c827cbf99369fbb629e799960d14f26))
+* **repo:** ignore the env filenames the prod and demo stacks require ([1663ca9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1663ca91d9636748247280014ac77d938465b0d9))
+* run migrations in CI, widen the CSRF guard, extract the Ubiquiti serial ([#288](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/288)) ([58e9680](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/58e9680c50ef9dc2ba2658e7ad6045742a93a68f))
+* **scheduler:** guard the loops with a Postgres advisory lock ([#292](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/292)) ([7452997](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/745299764e940a6e0f70743e22e32e3d38d8dedc))
+* **scripts:** docs-test no escanea la documentación que .gitignore ignora ([#331](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/331)) ([585031c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/585031c5604bd8851c71629bfb3411af297cd387))
+* security hardening and review fixes (next, ldapjs, email uniqueness, notify) ([c1d7490](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c1d7490f5025848384c40e74559339bdb3a6722f))
+* **security:** centralized auth middleware for protected routes ([#272](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/272)) ([724bb70](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/724bb7092211c8432ec8c1211f08841d9ebe95bf))
+* **security:** patch critical vulnerabilities ([#270](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/270)) ([a0abc38](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a0abc38a68d0ec3cce1bac14ec487913b0e62a32))
+* **shared:** drop the .js extension from the Laya relative imports ([941baed](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/941baedf38580824073a25e4ec0b6137a2879afe))
+* **shared:** emit snake_case Laya metric labels so the dashboard parses them ([d59d794](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d59d7947d9e2697a7e92e78ec6cf5cf8e3a5e9e2))
+* **shared:** make the Laya client and integration modules reachable ([d79a670](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d79a670c4938e6fbb117fe4c727a267c8aecb259))
+* **shared:** resolve the Laya config from one source of truth ([d75c0f7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d75c0f749a6ae92ae5bb1bac48c6cce62c935dd9))
+* **snmp:** wire the trap receiver and persist traps through the spool ([#277](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/277)) ([358b386](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/358b3860a7a6e51423ff16a209dc758adf00a08c))
+* **test:** que los tests de SNMP de dos paquetes no compitan por el mismo puerto ([#346](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/346)) ([4206fda](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4206fdac77a135232612ec2fff7073771d1c0fe7))
+* **web:** type the Prisma filters of the runbooks and suppression routes ([bdb6141](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/bdb6141eb2dbafbd21eef8a8918c917e2b27f3cd))
+
+
+### Performance
+
+* **incidents:** page the incident list instead of returning everything ([#290](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/290)) ([001a52d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/001a52d06514a589ecbded3789f9f6a88f55524d))
+* **predictions:** page the prediction list and share the cursor helper ([#291](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/291)) ([2cb9e8d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2cb9e8d5d66ec6844d0816b6909031b1360b1128))
+
+
+### Documentation
+
+* **analytics:** document the analytics package ([#329](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/329)) ([15d5262](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/15d5262461691519b5cbae43ba99e836aa4b1d2f))
+* **compose:** warn about the prod volumes and why they stay unnamed ([56555af](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/56555af6178e20b612d2b584ac762b26d819612c))
+* **compose:** warn that the prod volumes are the data, and why they stay unnamed ([0db52e7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0db52e74bbd6ee9e61fb1568d3497fca9a8bc51e))
+* **laya:** align the Laya documentation with the verified state ([8eee124](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8eee12426047970dbe4899a16fff4915cfc7322b))
+* **laya:** plan the Laya runtime integration in ODD and OpenSpec ([20961de](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/20961de16547d8876c25bdd0727e545f327db1b6))
+* **laya:** record phases 3 and 4, including the collision audit result ([b460612](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b4606124943476f9affcaf4b83fb1feb3b73c850))
+* **odd:** plan the learning loop that improves without drifting ([#323](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/323)) ([8aeec9e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8aeec9e5fa30f7a549a98492e6bf4415d963c601))
+* **odd:** poner los checklists al día con el estado real del repo ([#332](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/332)) ([5121b71](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/5121b71f378f74a141d3979bebbe4300cf114ac3))
+* **repo:** documentación Diátaxis y ADRs de arquitectura ([#312](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/312)) ([6661e52](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6661e529997699219638f1cb3f8bde2ee2f11976)), closes [#306](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/306)
+* **repo:** fundamentos README, ARCHITECTURE, AGENTS/CLAUDE, CONTRIBUTING y SECURITY ([#311](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/311)) ([fb0fb45](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fb0fb452349acafe57383ae30ae83d32ef8f4dc2)), closes [#305](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/305)
+* **tasks:** add reminder for braces DoS monitoring ([#271](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/271)) ([4583f28](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4583f288abe2fefe295313193da6291f52cccf49))
+* update README with enterprise features and metrics dashboard screenshot ([#268](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/268)) ([738a893](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/738a893a036ff2642667c4709a6e845adc2ac58c))
+
+
+### Refactoring
+
+* **logging:** migrate production logs to structured logger ([#334](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/334)) ([0c4060a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0c4060a9f4322aeeb2517bb57f340813b9a7f3b5))
+
+
+### Tests
+
+* **connectors:** cover tenant connector resolution and credential parsing ([#286](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/286)) ([37dc7ba](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/37dc7ba0437fb23dad874c2fdeb64ae208d41cd7))
+* **e2e:** exercise the middleware without the test bypass ([#295](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/295)) ([8f840b5](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8f840b54fbed9c1794e61eec230d4014cec7371e))
+* **monitoring:** cover the conformance packet generator ([#328](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/328)) ([c50f46e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c50f46e3da1f9af582b60c53236d2b506bc63ef0))
+* **monitoring:** cover Ubiquiti device extraction and the adapter registry ([#284](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/284)) ([c9bbe18](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c9bbe1825aef140c7500a1c887a4650b4032b977))
+* **monitoring:** wait for the SNMP receiver to listen before sending ([#324](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/324)) ([897c59c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/897c59c2df6f1682c551ebe28e415e9f60a34ea8))
+* stop two suites from racing over the same UDP ports ([2879ae8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2879ae874411cf030d3356480b5cebe4f31a1090))
+* **web:** cubrir la matriz ruta x metodo x rol del middleware ([#338](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/338)) ([54fb207](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/54fb207729eae5716856285603d05eb4dd2d6827))
+
+
+### CI
+
+* **db:** run the database integration specs that were silently excluded ([#278](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/278)) ([f1460c3](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f1460c377ae2bb707edf739cafdfe1a40a8ab436))
+* **repo:** Issue Forms, PR template, CODEOWNERS, commitlint, lefthook, CI y release-please ([#314](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/314)) ([3cbbbe0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/3cbbbe0aa5a42c33490d7ee998ff78bf622bc1b8)), closes [#307](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/307)
+
+
+### Maintenance
+
+* **config:** declare LAYA_* in Turbo and de-duplicate the env example ([75e4fa7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/75e4fa70026532abf5b3f2710baba7e2b5fa7767))
+* **deps:** bump jdx/mise-action from 5.2.3 to 5.2.4 in the github-actions group across 1 directory ([#341](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/341)) ([ffcd422](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/ffcd422ce654a70ed5b64ea3b2c32b977e07374e))
+* **deps:** bump the github-actions group across 1 directory with 5 updates ([#319](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/319)) ([d769891](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d769891756795252d900083bdf05ffd5b110dfb4))
+* **deps:** bump the npm-lockfile group across 1 directory with 16 updates ([#320](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/320)) ([14911bd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/14911bd1d8c140229666f6a60b185dc635f0ea70))
+* **deps:** bump the npm-lockfile group across 1 directory with 7 updates ([#342](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/342)) ([b218ccd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b218ccd27b379edf0dfe52cf428f6702d4d79989))
+* **repo:** land the untracked agent guidance and auth ignore rule ([6b34a48](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6b34a48a98becd9b8ad54f1700c22d5dcbfb818b))
+* **repo:** land the untracked agent guidance and auth ignore rule ([f8d6c30](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f8d6c3059d9db66c260e5da91cd32b821d480905))
+* update LLM model defaults to current versions ([#302](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/302)) ([f336d32](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f336d3202d48ad0c2e0c139540f17b8b20160944))
+
+
+### Changes
+
+* Fix unused rendered email in soc notify.ts (doc/code mismatch) ([1c142b0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1c142b08cf359358f5950f40d8b13b497e513402))
+* Handle global email uniqueness on user creation (P2002 → 409) ([08b33bb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/08b33bb3a2f1d884ef760869d1e16cfa5a587f3c))
+* Replace deprecated ldapjs with ldapts in soc LDAP auth ([242e64b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/242e64bce315cfb5975fa300e9d64267fb91349c))
+* Tests para investigation-prompt de agent-core ([#327](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/327)) ([6cb2876](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6cb287692fb1567e8c2ff18af297b765b5cf88f3))
+* Upgrade Next.js 16.3.6 → 16.3.8 to fix security advisories ([a9767b8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a9767b8cb508659e0708f28d2cb3237754b14ff9))
+
 ## [0.2.2] — 2026-09-20 — Sesiones de escritorio sobre HTTP local
 
 ### Fixed
