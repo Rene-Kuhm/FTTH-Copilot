@@ -34,6 +34,7 @@ Todos los comandos se ejecutan desde la raíz del repo. Requisitos: Node ≥ 22,
 | `generate:matrix` | Imprime la matriz | `scripts/generate-compatibility-matrix.ts` |
 | `generate:matrix:write` | Escribe `docs/compatibility-matrix.md` | ídem con `--write` |
 | `sanitize:snmp` | Sanea capturas SNMP | `scripts/sanitize-snmp-capture.ts` |
+| `replay:dead-letter` | Devuelve al spool los eventos del dead-letter | `scripts/replay-dead-letter.ts` |
 
 ## 2. Scripts de `scripts/`
 
@@ -227,6 +228,38 @@ pnpm check:version 0.2.2
 Verifica que un único semver coincida con todos los `package.json` del workspace, la config
 de Tauri, `Cargo.toml`, el `versionName` de Android, el fallback de la ruta de health y la
 versión de scope de telemetría. El argumento también se puede pasar por `RELEASE_VERSION`.
+
+### `replay-dead-letter.ts` — reprocesa el dead-letter del spool
+
+```bash
+pnpm replay:dead-letter -- --dry-run
+pnpm replay:dead-letter -- --tenant tenant-acme
+pnpm replay:dead-letter -- --spool-dir /var/lib/ftth/spool
+```
+
+El drainer mueve al dead-letter (`events.dlq.jsonl`) los eventos que no se pueden guardar, por
+ejemplo con una clave foránea rota. Sin un replay esos datos no vuelven nunca: en la práctica es
+pérdida. Este comando los devuelve al spool.
+
+| Flag | Efecto |
+|---|---|
+| `--dry-run` | Cuenta y lista sin escribir nada. No abre el spool, así que funciona con el worker corriendo |
+| `--tenant <id>` | Sólo reprocesa los eventos de ese tenant |
+| `--spool-dir <ruta>` | Directorio del spool (por defecto `EVENT_SPOOL_DIR` o `.spool`) |
+| `--keep` | Deja en el dead-letter lo que reprocesó, en vez de consumirlo |
+| `--count-duplicates` | Consulta la base para decir cuántos de los eventos ya estaban guardados |
+
+Dos cosas que el comando no negocia:
+
+- **El spool pertenece a un solo proceso.** Para reprocesar hay que parar el worker (o el proceso
+  que tenga el directorio): dos procesos sobre el mismo offset perderían o duplicarían eventos. El
+  `--dry-run` no abre el spool y funciona con todo corriendo.
+- **Los ids se conservan.** El `ingestId` es la clave de idempotencia del insert
+  (`DeviceEvent.ingestId` es único), así que un evento que ya se guardó vuelve con el mismo id y la
+  base lo absorbe en vez de duplicarlo. Un replay repetido no agrega filas.
+
+Lo que reprocesó sale del archivo del dead-letter: el spool es durable, así que una vez que el
+evento está ahí, consumir la línea no lo pierde.
 
 ### `generate-golden-files.ts` — snapshots dorados
 

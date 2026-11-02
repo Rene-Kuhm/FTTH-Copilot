@@ -47,7 +47,8 @@
     "generate:matrix": "tsx scripts/generate-compatibility-matrix.ts",
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
     "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts",
-    "verify:syslog-source-ip": "tsx scripts/verify-syslog-source-ip.ts"
+    "verify:syslog-source-ip": "tsx scripts/verify-syslog-source-ip.ts",
+    "replay:dead-letter": "tsx scripts/replay-dead-letter.ts"
   },
   "overrides": {
     "brace-expansion": ">=1.1.20"
@@ -60,6 +61,7 @@
     "@ftth-copilot/connectors-mikrowisp": "workspace:*",
     "@ftth-copilot/connectors-smartolt": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/ingest": "workspace:*",
     "@ftth-copilot/security": "workspace:*",
     "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.70.1",
