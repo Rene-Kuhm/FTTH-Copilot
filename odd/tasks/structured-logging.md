@@ -1,6 +1,6 @@
 # Structured Logging
 
-**Status**: In progress (T1–T6 implementadas; T7 pendiente de CI y PR)
+**Status**: Completo (T1–T7 implementadas y mergeadas; PR #334)
 **Created**: 2026-10-31
 **Branch**: `feat/structured-logging`
 **Scope**: un único logger JSON en `packages/shared`, con niveles, `tenantId` y
@@ -115,7 +115,10 @@ Hoy los logs son `console.*` con texto libre y prefijos a mano
 - [x] T6 Regla `no-console`, con excepciones. Va **después** de T4 y T5:
       activarlo antes rompe el build. Excepción justificada para la línea de
       política de tenant (ver Decisiones).
-- [ ] T7 Gates + PR. `turbo run typecheck lint test --force` ejecutó 67/70 tareas; las suites de ingest, monitoring y worker que requieren sockets fallaron con `EPERM` en el sandbox. Repetir fuera del sandbox y completar docs-test y CI antes de mergear.
+- [x] T7 Gates + PR. Repetido fuera del sandbox: `turbo run typecheck lint test --force`
+      corre 70/70 tareas sin errores (las suites de ingest, monitoring y worker que
+      fallaban con `EPERM` en el sandbox ahora pasan), `docs-test` da 0 errores y el
+      PR #334 quedó mergeado con el CI en verde.
 
 ## Rollback
 
