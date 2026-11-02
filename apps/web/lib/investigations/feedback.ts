@@ -6,15 +6,18 @@
  * (POST/GET route handlers) consumes these functions and is responsible
  * for tenant scoping and audit.
  */
+import {
+  FEEDBACK_LABELS,
+  isFeedbackLabel,
+  type FeedbackLabel,
+} from '@ftth-copilot/shared';
 
-/** Closed enum for Fase 1. Phase 5 may extend with 'maintenance' under a
- *  separate spec change that includes a Prisma migration. */
-export const FEEDBACK_LABELS = ['confirmed', 'incorrect', 'insufficient_data'] as const;
-export type FeedbackLabel = (typeof FEEDBACK_LABELS)[number];
-
-export function isFeedbackLabel(value: unknown): value is FeedbackLabel {
-  return typeof value === 'string' && (FEEDBACK_LABELS as readonly string[]).includes(value);
-}
+// El juego cerrado de etiquetas y su type guard viven en
+// `@ftth-copilot/shared` (`shared/src/learning.ts`): son el contrato
+// canónico y `packages/eval` y `packages/learning` ya lo consumen.
+// Se reexportan acá para no cambiar la ruta de import de la web.
+export { FEEDBACK_LABELS, isFeedbackLabel };
+export type { FeedbackLabel };
 
 /** Cap applied to every free-text field so a malicious technician cannot
  *  inflate the row size and pressure the DB. */

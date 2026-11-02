@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_MIN_SAMPLE_SIZE as SHARED_MIN_SAMPLE_SIZE,
+  FEEDBACK_LABELS as SHARED_FEEDBACK_LABELS,
+} from '@ftth-copilot/shared';
+import {
   computeFeedbackSummary,
   DEFAULT_MIN_SAMPLE_SIZE,
   FEEDBACK_LABEL_CONFIRMED,
@@ -18,6 +22,14 @@ import {
 describe('feedback-export: enum', () => {
   it('exposes the three closed labels', () => {
     expect(FEEDBACK_LABELS).toEqual(['confirmed', 'incorrect', 'insufficient_data']);
+  });
+
+  it('reexports the canonical contract instead of duplicating it', () => {
+    // El contrato vive en `@ftth-copilot/shared` (Fase 0 del learning loop):
+    // `packages/learning` lo necesita y no puede depender de `@ftth-copilot/eval`.
+    // Una copia local volvería a duplicar el tipo (AGENTS.md §4).
+    expect(FEEDBACK_LABELS).toBe(SHARED_FEEDBACK_LABELS);
+    expect(DEFAULT_MIN_SAMPLE_SIZE).toBe(SHARED_MIN_SAMPLE_SIZE);
   });
 
   it('isFeedbackLabel accepts only the three labels', () => {

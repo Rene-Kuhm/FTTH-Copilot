@@ -35,24 +35,32 @@
 
 import { z } from 'zod';
 import { VerdictCodeSchema } from '@ftth-copilot/shared';
+import {
+  DEFAULT_MIN_SAMPLE_SIZE,
+  FEEDBACK_LABELS,
+  FEEDBACK_LABEL_CONFIRMED,
+  FEEDBACK_LABEL_INCORRECT,
+  FEEDBACK_LABEL_INSUFFICIENT,
+  isFeedbackLabel,
+  type FeedbackLabel,
+} from '@ftth-copilot/shared';
 
 export const INVESTIGATION_FEEDBACK_EXPORT_SCHEMA =
   'ftth.investigation-feedback-export.v1' as const;
 
-export const FEEDBACK_LABEL_CONFIRMED = 'confirmed' as const;
-export const FEEDBACK_LABEL_INCORRECT = 'incorrect' as const;
-export const FEEDBACK_LABEL_INSUFFICIENT = 'insufficient_data' as const;
-
-export const FEEDBACK_LABELS = [
+// El contrato canónico de etiquetas y el umbral de muestra viven en
+// `@ftth-copilot/shared` (`shared/src/learning.ts`): `packages/learning` los
+// necesita y no puede depender de `@ftth-copilot/eval`, que arrastra Prisma.
+// Se reexportan acá para no cambiar la API pública de `@ftth-copilot/eval`.
+export {
+  DEFAULT_MIN_SAMPLE_SIZE,
+  FEEDBACK_LABELS,
   FEEDBACK_LABEL_CONFIRMED,
   FEEDBACK_LABEL_INCORRECT,
   FEEDBACK_LABEL_INSUFFICIENT,
-] as const;
-export type FeedbackLabel = (typeof FEEDBACK_LABELS)[number];
-
-export function isFeedbackLabel(value: unknown): value is FeedbackLabel {
-  return typeof value === 'string' && (FEEDBACK_LABELS as readonly string[]).includes(value);
-}
+  isFeedbackLabel,
+};
+export type { FeedbackLabel };
 
 /**
  * Input shape: the minimum fields the mapping needs. The full DB row
@@ -173,9 +181,6 @@ export interface FeedbackSummary {
   /** True iff the threshold was met and `precision` is reported. */
   isCalibrated: boolean;
 }
-
-/** Default minimum sample size, taken from the Fase 1 spec rule 1.6. */
-export const DEFAULT_MIN_SAMPLE_SIZE = 30;
 
 /**
  * Aggregate feedback entries by label and compute precision. The
