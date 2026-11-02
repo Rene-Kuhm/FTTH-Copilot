@@ -9,4 +9,4 @@
  * la versión del release, igual que hace con el scope de telemetría de
  * `packages/agent-core`.
  */
-export const LEARNING_CODE_VERSION = '0.2.2';
+export const LEARNING_CODE_VERSION = '0.4.0';
