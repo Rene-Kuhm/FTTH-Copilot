@@ -72,17 +72,24 @@ apps/web/src-tauri/target/release/bundle/
 
 ### CI build
 
-The build lives in the reusable workflow `.github/workflows/build-desktop.yml`
-(it compiles **and** signs, so the provenance attributes the builder that
-actually produced the installer). Two workflows call it:
+The compile steps live in the composite action
+`.github/actions/desktop-build/action.yml`. Two workflows use it:
 
 - `.github/workflows/tauri-desktop.yml` — validation build: on every push to
   `main` or `tauri-desktop`, and on PRs touching `apps/web/**`. Nothing is
   signed here.
-- `.github/workflows/release.yml` — release build: it is dispatched by
-  `release-please.yml` when a release is published (and also fires on a tag
-  push matching `v*`). The installers are attested (SLSA Build Level 3,
-  keyless) and attached to the release.
+- `.github/workflows/build-desktop.yml` — the release builder: a reusable
+  workflow that compiles **and** signs, so the provenance attributes the
+  builder that actually produced the installer. It is called by `release.yml`,
+  which is dispatched by `release-please.yml` when a release is published
+  (and also fires on a tag push matching `v*`). The installers are attested
+  (SLSA Build Level 3, keyless) and attached to the release.
+
+The validation build does **not** call `build-desktop.yml`. GitHub validates
+the run graph before creating any job, and a reusable workflow that requests
+`id-token: write` forces every caller to grant it — a pull request could then
+mint an OIDC token. The composite action is what keeps the two paths
+compiling the same bytes with different permissions.
 
 | OS | Targets | Artifacts |
 |---|---|---|
