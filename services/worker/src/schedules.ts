@@ -167,6 +167,24 @@ export const INVESTIGATION_SWEEP_LOOP: LoopDefinition<'investigationSweep'> = {
   defaultIntervalMs: 60_000,
 };
 
+/**
+ * The learning snapshot loop: freezes the dataset of every tenant.
+ *
+ * It has an enable flag, unlike the safety nets: the snapshot writes rows and
+ * costs a query per tenant, and until the learning loop has a consumer (the
+ * evaluation job of Fase 5) there is no reason to freeze a dataset every day.
+ * The default therefore leaves the behaviour of the deployment unchanged.
+ */
+export const LEARNING_SNAPSHOT_LOOP: LoopDefinition<'learning'> = {
+  scope: 'learning-snapshot',
+  queue: 'learning',
+  jobName: JOB_NAMES.learningSnapshot,
+  data: {},
+  enabledFlag: 'LEARNING_SNAPSHOT_ENABLED',
+  intervalFlag: 'LEARNING_SNAPSHOT_INTERVAL_MS',
+  defaultIntervalMs: 86_400_000,
+};
+
 /** A loop that was registered. */
 export interface RegisteredLoop {
   /** Stable scope of the loop. */
@@ -299,6 +317,7 @@ export async function registerRecurringSchedules(
     FEC_LOOP,
     INGEST_DRAIN_LOOP,
     INVESTIGATION_SWEEP_LOOP,
+    LEARNING_SNAPSHOT_LOOP,
   ] as LoopDefinition<QueueKey>[]) {
     const outcome = await registerLoop(definition, env, connection);
     if ('schedulerId' in outcome) {

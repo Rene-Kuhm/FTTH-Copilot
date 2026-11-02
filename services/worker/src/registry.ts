@@ -21,6 +21,7 @@ import {
   runScheduledPoll,
   tryStart,
 } from '@ftth-copilot/scheduler';
+import { runLearningSnapshot } from './learning-snapshot';
 
 const log = createLogger({ name: 'worker-registry' });
 
@@ -103,6 +104,28 @@ export const JOB_HANDLERS: JobHandlers = {
       log.warn('Investigation sweep expired abandoned attempts', { correlationId: job.id, expired });
     }
     return { expired };
+  },
+  /**
+   * Freezes the learning dataset of one tenant (or of every tenant).
+   *
+   * The hash is computed by the pure core of `@ftth-copilot/learning`, so two
+   * runs over the same data produce the same hash and the artifact is stored
+   * once. The handler only reports what was frozen.
+   */
+  'learning-snapshot': async (data) => {
+    const outcomes = await runLearningSnapshot({
+      tenantId: data.tenantId,
+      windowDays: data.windowDays,
+    });
+    for (const outcome of outcomes) {
+      log.info('Learning snapshot frozen', {
+        tenantId: outcome.tenantId,
+        snapshotHash: outcome.snapshotHash,
+        created: outcome.created,
+        ...outcome.counts,
+      });
+    }
+    return outcomes;
   },
 };
 
