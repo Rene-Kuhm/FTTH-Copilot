@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import dgram from 'node:dgram';
 import {
   createManagedSnmpReceiver,
   sendSnmpTestTrap,
@@ -8,9 +9,30 @@ import {
   type ResolvedDeviceIdentity,
 } from '../../src';
 
+/**
+ * A free UDP port, asked from the kernel.
+ *
+ * A fixed port collides with whatever else listens on the machine: this file
+ * used 12196, the same port a test of `@ftth-copilot/ingest` used. The two
+ * packages run in parallel in CI, so one of them lost the bind with
+ * `EADDRINUSE` and the coverage gate went red for a reason that had nothing
+ * to do with the code.
+ */
+function freeUdpPort(): Promise<number> {
+  const probe = dgram.createSocket('udp4');
+  return new Promise((resolve, reject) => {
+    probe.once('error', reject);
+    probe.bind(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const found = typeof address === 'object' && address !== null ? address.port : 0;
+      probe.close(() => resolve(found));
+    });
+  });
+}
+
 describe('Conformance Lab: Benchmark & Performance SLA (Roadmap Fase 7)', () => {
   it('meets p95 latency (< 50ms) and bounded memory (< 50MB) over wire UDP loopback', async () => {
-    const testPort = 12196;
+    const testPort = await freeUdpPort();
     const numTraps = 100;
     const latenciesMs: number[] = [];
 
