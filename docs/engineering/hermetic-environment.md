@@ -25,8 +25,8 @@ Las tareas de mise son la **única** forma de correr el repo, en local y en CI:
 | Tarea | Qué corre |
 |---|---|
 | `mise run deps` | `pnpm install --frozen-lockfile` |
-| `mise run build` | `turbo run build` sobre los 23 workspaces |
-| `mise run lint` | ESLint sobre los 23 workspaces |
+| `mise run build` | `turbo run build` sobre los 24 workspaces |
+| `mise run lint` | ESLint sobre los 24 workspaces |
 | `mise run typecheck` | `tsc --noEmit` estricto por workspace |
 | `mise run test` | Suite unitaria (Vitest) + tests de `scripts/` |
 | `mise run docs-test` | Verificación zero-drift de `README.md` y `docs/` |

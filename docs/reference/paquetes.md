@@ -9,6 +9,8 @@ servicio Python con su propio `Dockerfile`.
 ```
 shared ──┬─► evidence ─┐
          │              │
+         ├──► learning ─┤
+         │              │
          ├──► db ───────┤
          │              │
          ├──► connectors-core ──┬─► connectors-mikrotik
@@ -27,6 +29,7 @@ Dependencias exactas (del `dependencies` de cada `package.json`):
 |---|---|
 | `@ftth-copilot/shared` | `evidence` (**peer opcional**, rompe el ciclo) |
 | `@ftth-copilot/evidence` | `shared` |
+| `@ftth-copilot/learning` | `shared` |
 | `@ftth-copilot/db` | `shared` |
 | `@ftth-copilot/detection` | — |
 | `@ftth-copilot/alerts` | `db`, `detection` |
@@ -80,7 +83,28 @@ Sin Prisma, sin DB. Deps: `shared`, `zod`.
 | `src/pending-incident.ts` | Candidato de incidente pendiente |
 | `src/investigation-enrichment.ts` | Enriquecimiento de una investigación |
 
-## 3. `@ftth-copilot/db` — Prisma, auth y cripto
+## 3. `@ftth-copilot/learning` — núcleo puro del learning loop
+
+Sin Prisma, sin Redis, sin reloj implícito: toda función es determinista y
+recibe el tiempo como parámetro. Deps: `shared`, `zod`.
+
+Es la Fase 0 del learning loop (`odd/tasks/learning-loop.md`). Todavía no
+cambia nada de lo que ve el usuario: es la verdad de base sobre la que se
+apoyarán las capas L1/L2/L3.
+
+| Módulo | Responsabilidad |
+|---|---|
+| `src/types.ts` | Contratos de datos del paquete: filas de feedback, incidentes, aristas topológicas, eventos, reportes de suficiencia |
+| `src/labels.ts` | `resolveLabels` (T0.2): última opinión por autor, consenso y `conflicted` según D1 |
+| `src/events.ts` | `groupIntoEvents` y `temporalSplit` (T0.3): agrupación por ancestro topológico y ventana, split temporal sin fuga (D9) |
+| `src/sufficiency.ts` | `sampleSufficiency` (T0.4): insuficiencia honesta bajo la muestra mínima (I10) |
+
+El contrato canónico de etiquetas (`FEEDBACK_LABELS`) y el umbral de
+muestra mínima (`DEFAULT_MIN_SAMPLE_SIZE`) viven en
+`packages/shared/src/learning.ts`: `packages/eval` y `apps/web` los
+reexportan para no duplicar el tipo (AGENTS.md §4).
+
+## 4. `@ftth-copilot/db` — Prisma, auth y cripto
 
 | Módulo | Responsabilidad |
 |---|---|
@@ -91,7 +115,7 @@ Sin Prisma, sin DB. Deps: `shared`, `zod`.
 | `src/auth-rate-limit.ts` | Cuota de fuerza bruta de ventana fija, con store inyectable para tests |
 | `src/investigation-store.ts` | Versiones de investigación inmutables |
 
-## 4. `@ftth-copilot/detection` — detectores puros
+## 5. `@ftth-copilot/detection` — detectores puros
 
 **Cero dependencias** (ni de workspace). Funciones puras sobre series temporales.
 
@@ -108,7 +132,7 @@ Sin Prisma, sin DB. Deps: `shared`, `zod`.
 | `src/los.ts` | Eventos de pérdida de señal |
 | `src/traffic.ts` | Anomalías de tráfico |
 
-## 5. `@ftth-copilot/alerts` — ciclo de vida de la alerta
+## 6. `@ftth-copilot/alerts` — ciclo de vida de la alerta
 
 Deps: `db`, `detection`.
 
@@ -122,7 +146,7 @@ Deps: `db`, `detection`.
 | `src/notify.ts` | Webhook, Telegram, Slack (Block Kit) y WhatsApp, con `fetchImpl` inyectable |
 | `src/types.ts` | Tipos del dominio |
 
-## 6. `@ftth-copilot/analytics` — muestreo, retención y anomalías
+## 7. `@ftth-copilot/analytics` — muestreo, retención y anomalías
 
 Deps: `connectors-core`, `db`.
 
@@ -136,7 +160,7 @@ Deps: `connectors-core`, `db`.
 | `src/correlation-score.ts` | `scoreSituation`, `extractFeatures`, `updateWeights` (logística con pesos aprendidos) |
 | `src/scenario.ts`, `src/scheduler-helpers.ts` | Escenarios y helpers del scheduler |
 
-## 7. `@ftth-copilot/monitoring` — SNMP y orquestación del poll
+## 8. `@ftth-copilot/monitoring` — SNMP y orquestación del poll
 
 Deps: `alerts`, `analytics`, `connectors-core`, `shared`, `net-snmp`, `yaml`, `zod`.
 
@@ -158,7 +182,7 @@ Deps: `alerts`, `analytics`, `connectors-core`, `shared`, `net-snmp`, `yaml`, `z
 | `src/snmp/research/*` | Schema, validador, conflictos de OID y errata de las fuentes |
 | `src/snmp/conformance/*` | Replay de conformidad y golden files |
 
-## 8. `@ftth-copilot/security` — analítica de syslog
+## 9. `@ftth-copilot/security` — analítica de syslog
 
 **Cero dependencias.**
 
@@ -173,7 +197,7 @@ Deps: `alerts`, `analytics`, `connectors-core`, `shared`, `net-snmp`, `yaml`, `z
 | `src/traffic.ts` | `detectTrafficAnomaly` |
 | `src/source-ip.ts` | Normalización de IP de origen |
 
-## 9. `@ftth-copilot/soc` — servicio de operaciones de seguridad
+## 10. `@ftth-copilot/soc` — servicio de operaciones de seguridad
 
 Deps: `alerts`, `connectors-core`, `db`, `security`, `ldapts`.
 
@@ -186,7 +210,7 @@ Deps: `alerts`, `connectors-core`, `db`, `security`, `ldapts`.
 | `src/run.ts` | `runSecurityDetection` + auditoría de firmware |
 | `src/notification-deduper.ts` | Deduplicación de notificaciones |
 
-## 10. `@ftth-copilot/agent-core` — runtime del agente
+## 11. `@ftth-copilot/agent-core` — runtime del agente
 
 Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 `@anthropic-ai/sdk`, `openai`.
@@ -207,7 +231,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 | `src/telemetry/*` | Tracer, exportador OTLP, OpenInference y redacción de spans |
 | `src/quality-bridge.ts`, `src/alerts.ts` | Puente de calidad y accesos a alertas |
 
-## 11. `@ftth-copilot/eval` — harness de QA adversarial
+## 12. `@ftth-copilot/eval` — harness de QA adversarial
 
 | Módulo | Responsabilidad |
 |---|---|
@@ -220,7 +244,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 | `src/intention-*.ts` | Clasificador, runner, schema y umbrales de intención |
 | `src/pilot-*.ts` | Tenant, dataset congelado, métricas y gate de aceptación del piloto |
 
-## 12. `@ftth-copilot/connectors-core` — contrato de NMS
+## 13. `@ftth-copilot/connectors-core` — contrato de NMS
 
 **Sin dependencias.** Es la raíz del grafo de conectores.
 
@@ -243,7 +267,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 - `src/security.ts`: `assertSafeNmsBaseUrl`, `assertSafeNmsRequestUrl`, detección de IPs
   privadas y resolución DNS.
 
-## 13. Conectores concretos
+## 14. Conectores concretos
 
 | Paquete | Módulo | Notas |
 |---|---|---|
@@ -253,7 +277,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 
 Cada uno trae `src/fixtures.ts` (datos de demo) y `src/mock-nms.ts`.
 
-## 14. `services/laya` — microservicio FastAPI
+## 15. `services/laya` — microservicio FastAPI
 
 No es un paquete pnpm. Tres archivos: `app.py`, `Dockerfile`, `requirements.txt`
 (fastapi, uvicorn, pydantic). Base `python:3.10-slim`, puerto 8080, healthcheck en `/health`.
@@ -269,7 +293,7 @@ El docstring de `app.py:8-9` dice explícitamente que **la implementación prima
 TypeScript** en `packages/shared/src/laya-expert-system.ts`: el servicio Python es un espejo
 REST, no la fuente de verdad.
 
-## 15. `apps/web` — la aplicación
+## 16. `apps/web` — la aplicación
 
 Next.js 16 (App Router) con React 19. Consume **todos** los paquetes internos. Sus rutas
 API están en `apps/web/app/api/**` (ver [Referencia de la API HTTP](api-http.md)).

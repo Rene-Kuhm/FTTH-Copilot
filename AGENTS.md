@@ -20,7 +20,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 Monorepo pnpm + Turborepo de una plataforma NOC/SOC para ISPs FTTH: ingestión de telemetría (SmartOLT, Mikrowisp, MikroTik, SNMP, syslog), detección, correlación de incidentes y un copiloto que responde en lenguaje natural **verificando cada afirmación contra la evidencia**.
 
 - **Stack:** Node.js 22+, pnpm 11+, TypeScript 5.7 estricto, Next.js 16 (App Router), Prisma + PostgreSQL 16, Zod, Tailwind, Vitest, Playwright.
-- **Workspaces:** 23 (`apps/web`, 21 paquetes bajo `packages/` y `packages/connectors/`, y `services/worker`).
+- **Workspaces:** 24 (`apps/web`, 22 paquetes bajo `packages/` y `packages/connectors/`, y `services/worker`).
 - **Licencia:** propietaria. Leer [`LICENSE`](LICENSE) antes de proponer cambios.
 
 ---

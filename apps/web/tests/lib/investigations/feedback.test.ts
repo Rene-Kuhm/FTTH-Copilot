@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FEEDBACK_LABELS as SHARED_FEEDBACK_LABELS } from '@ftth-copilot/shared';
 import {
   buildIdempotencyKey,
   clampFreeText,
@@ -13,6 +14,13 @@ describe('feedback helper: enum', () => {
     expect(isFeedbackLabel('confirmed')).toBe(true);
     expect(isFeedbackLabel('incorrect')).toBe(true);
     expect(isFeedbackLabel('insufficient_data')).toBe(true);
+  });
+
+  it('reexports the canonical contract instead of duplicating it', () => {
+    // The closed enum lives in `@ftth-copilot/shared` (Fase 0 of the learning
+    // loop): `packages/eval` and `packages/learning` consume it from there.
+    // A local copy would duplicate the type (AGENTS.md §4).
+    expect(FEEDBACK_LABELS).toBe(SHARED_FEEDBACK_LABELS);
   });
 
   it('rejects anything else, including future extensions', () => {
