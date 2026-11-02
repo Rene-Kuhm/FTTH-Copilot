@@ -202,11 +202,22 @@ describe('SNMP trap from socket into the spool', () => {
   let dir: string;
   let stop: (() => Promise<void>) & { ready: () => Promise<void> } | null = null;
 
+  /**
+   * The port this test binds.
+   *
+   * It has to be **unique in the whole repository**: turbo runs the packages
+   * in parallel, so two packages binding the same port collide with
+   * `EADDRINUSE` and the failure lands on whichever finishes second. The
+   * conformance test of `packages/monitoring` uses 12199 for the same reason
+   * (a real trap over the loopback), so this one takes 12200.
+   */
+  const TEST_PORT = 12200;
+
   beforeEach(() => {
     dir = useTempSpoolDir();
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
     // `address` only sets the bind host; the port comes from the env var.
-    process.env['SNMP_UDP_PORT'] = '12199';
+    process.env['SNMP_UDP_PORT'] = String(TEST_PORT);
     startEventDrainer();
   });
 
@@ -238,7 +249,7 @@ describe('SNMP trap from socket into the spool', () => {
     await stop.ready();
 
     await sendSnmpTestTrap({
-      port: 12199,
+      port: TEST_PORT,
       host: '127.0.0.1',
       version: 'v2c',
       trapOid: '1.3.6.1.6.3.1.1.5.3',

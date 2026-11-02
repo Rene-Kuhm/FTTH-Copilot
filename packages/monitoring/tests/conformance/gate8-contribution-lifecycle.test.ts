@@ -66,6 +66,9 @@ describe('Gate 8: External Contribution Lifecycle (Sanitized Capture to L2)', ()
     expect(sanitizedJsonStr).toContain('HWTC********');
 
     // 3. Register sender in managed receiver using simulated loopback
+    // The port has to be unique in the whole repository: turbo runs the
+    // packages in parallel and two packages binding the same port collide
+    // with EADDRINUSE. `packages/ingest` binds 12200 for the same reason.
     const TEST_PORT = 12199;
     const testRegistrations: SnmpSenderRegistration[] = [
       {
