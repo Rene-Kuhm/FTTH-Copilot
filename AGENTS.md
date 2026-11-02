@@ -20,7 +20,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 Monorepo pnpm + Turborepo de una plataforma NOC/SOC para ISPs FTTH: ingestión de telemetría (SmartOLT, Mikrowisp, MikroTik, SNMP, syslog), detección, correlación de incidentes y un copiloto que responde en lenguaje natural **verificando cada afirmación contra la evidencia**.
 
 - **Stack:** Node.js 22+, pnpm 11+, TypeScript 5.7 estricto, Next.js 16 (App Router), Prisma + PostgreSQL 16, Zod, Tailwind, Vitest, Playwright.
-- **Workspaces:** 16 (`apps/web`, 15 paquetes bajo `packages/`).
+- **Workspaces:** 23 (`apps/web`, 21 paquetes bajo `packages/` y `packages/connectors/`, y `services/worker`).
 - **Licencia:** propietaria. Leer [`LICENSE`](LICENSE) antes de proponer cambios.
 
 ---
@@ -48,7 +48,7 @@ Todos los comandos de la raíz son tareas de Turborepo. Para trabajar sobre un s
 | Comando | Qué hace |
 |---|---|
 | `pnpm build` | Compila los paquetes y el bundle standalone de Next.js. |
-| `pnpm lint` | ESLint sobre los 16 workspaces. |
+| `pnpm lint` | ESLint sobre todos los workspaces. |
 | `pnpm typecheck` | `tsc --noEmit` estricto por workspace. |
 | `pnpm test` | Suite unitaria completa (Vitest). |
 | `pnpm test:unit` | Solo unitarias, sin umbral de cobertura. |
@@ -125,7 +125,7 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 
 - **Las dependencias van hacia abajo.** Un paquete importa de su capa o de una inferior; nunca en círculo.
 - **`db` es el único que conoce Prisma y el KMS.** `connectors-core` es el único que aplica la política SSRF. `agent-core` es el único que llama al LLM.
-- **`agent-core` decide cuánto razona.** El Organic Diagnostic Router clasifica la consulta en `direct` (0 llamadas LLM), `assisted` (1) o `investigation` (hasta 6). Laya Decision Layer clasifica el evento FTTH antes, en menos de 5 ms y en shadow mode.
+- **`agent-core` decide cuánto razona.** El Organic Diagnostic Router clasifica la consulta en `direct` (0 llamadas LLM), `assisted` (1, más una síntesis sin herramientas si usó una) o `investigation` (hasta 6). Laya Decision Layer clasifica el evento FTTH antes, en menos de 5 ms y en shadow mode.
 - **TruthGate es el último filtro.** Abstenerse sin evidencia es un resultado correcto.
 
 Detalle completo: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Modelo mental y modelo de datos: [`docs/architecture.md`](docs/architecture.md).

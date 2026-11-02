@@ -11,7 +11,8 @@ registro de herramientas, prompts, cliente LLM con cadena de fallback y trazas O
 ## Qué invariantes cuida
 
 - **El router decide cuánto razona, no cuánto inventa.** `direct` no llama al LLM; `assisted` hace
-  una llamada; `investigation` hace hasta seis. El modo se decide antes de cualquier llamada.
+  una llamada, más una síntesis sin herramientas si usó una; `investigation` hace hasta seis. El
+  modo se decide antes de cualquier llamada.
 - **La abstención no se reescribe.** El texto del LLM llega byte a byte; la TruthGate y el canal de
   advertencia van aparte.
 - **El fallback de proveedor es determinista y observable.** Si el proveedor primario falla, se
@@ -33,7 +34,10 @@ Los tests usan MSW: **el CI no llama a ningún LLM**.
   decisión de producto; cambiarla cambia el costo y la latencia.
 - `src/llm.ts` sin revisar la cadena de fallback: una caída del proveedor tiene que seguir siendo
   un fallo controlado.
-- Los prompts (`src/prompts/`) sin su test: son contrato con el modelo, no texto libre.
+- Los prompts (`src/prompts/`, `src/investigation-prompt.ts`): son contrato con el modelo, no texto
+  libre. Cada uno tiene su test (`tests/system-prompt.test.ts`, `tests/investigation-prompt.test.ts`),
+  así que un cambio de prompt llega con el suyo; el de investigación además bumpea
+  `INVESTIGATION_PROMPT_VERSION`, que es lo que hace reproducible cada versión persistida.
 
 ## Superficie pública
 
