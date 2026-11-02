@@ -1,4 +1,5 @@
 import { prisma } from '@ftth-copilot/db';
+import { createLogger } from '@ftth-copilot/shared';
 import { pollConnections, type PollEntry } from '@ftth-copilot/monitoring';
 import {
   runFirmwareAudit,
@@ -20,6 +21,9 @@ import {
   markExpected as markSchedulerExpected,
   markNotExpected as markSchedulerNotExpected,
 } from './health';
+
+const log = createLogger({ name: 'scheduler' });
+const fecLog = createLogger({ name: 'fec-collection' });
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -114,8 +118,8 @@ export async function acquireSchedulerLock(name: string): Promise<boolean> {
     return rows[0]?.locked === true;
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    console.warn('[scheduler] advisory lock unavailable, running unguarded', {
-      name,
+    log.warn('advisory lock unavailable, running unguarded', {
+      loopName: name,
       reason: detail,
     });
     return true;
@@ -124,7 +128,7 @@ export async function acquireSchedulerLock(name: string): Promise<boolean> {
 
 async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<boolean> {
   if (IN_FLIGHT.get(name) === true) {
-    console.warn('[scheduler] skipped overlapping tick', { name, reason: 'in_flight' });
+    log.warn('skipped overlapping tick', { loopName: name, reason: 'in_flight' });
     return false;
   }
 
@@ -138,7 +142,7 @@ async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<bo
   // writes of the same sample.
   if (!(await acquireSchedulerLock(name))) {
     IN_FLIGHT.set(name, false);
-    console.warn('[scheduler] skipped tick held by another instance', { name });
+    log.warn('skipped tick held by another instance', { loopName: name });
     return false;
   }
   IN_FLIGHT.set(name, true);
@@ -157,7 +161,7 @@ async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<bo
     //    syslog. Por ejemplo, el puerto syslog puede estar ocupado y
     //    el error no queda informado."
     const message = err instanceof Error ? err.message : String(err);
-    console.warn('[scheduler] tick threw', { name, error: message });
+    log.warn('tick threw', { loopName: name, error: err });
     recordSchedulerError(name as 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection', message);
   } finally {
     IN_FLIGHT.set(name, false);
@@ -364,9 +368,9 @@ export function startFirmwareAuditLoop(): () => void {
  * detector"). Detection happens downstream on the freshly persisted rows via
  * the existing scheduled detection job.
  *
- * Telemetry (REQ-6): each tick emits one `console.log` line with
+ * Telemetry (REQ-6): each tick emits one structured info line with
  * `{ tenantId, connectionId, requested, persisted, skipped, durationMs }`;
- * each skipped tick emits one `console.warn` line with `{ reason, requested,
+ * each skipped tick emits one structured warning line with `{ reason, requested,
  * ... }`. Logs never carry tokens, cookies or `Authorization` headers.
  */
 export async function runScheduledFecCollection(): Promise<void> {
@@ -403,7 +407,7 @@ export async function runScheduledFecCollection(): Promise<void> {
     const slice = pickFecFanOutSlice(onus, tickIndex, sliceSize);
 
     if (!fitsRateBudget(slice.length, intervalMs, limitPerHour)) {
-      console.warn('[fec-collection] skipped', {
+      fecLog.warn('skipped', {
         tenantId: meta.tenantId,
         connectionId: meta.connectionId,
         reason: 'rate_limit',
@@ -438,7 +442,7 @@ export async function runScheduledFecCollection(): Promise<void> {
       void slice[i];
     }
     const { inserted } = await persistSamples(points);
-    console.log('[fec-collection] tick', {
+    fecLog.info('tick', {
       tenantId: meta.tenantId,
       connectionId: meta.connectionId,
       requested: slice.length,

@@ -1,4 +1,7 @@
+import { createLogger } from '@ftth-copilot/shared';
 import { prisma } from '@ftth-copilot/db';
+
+const log = createLogger({ name: 'database-health' });
 
 export interface DatabaseHealthResult {
   status: 'connected' | 'error';
@@ -36,7 +39,7 @@ export async function checkDatabaseHealth(timeoutMs = 2000): Promise<DatabaseHea
     const isTimeout =
       err instanceof Error && err.message.includes('timed out');
     if (!isTimeout) {
-      console.error('[DatabaseHealth] check failed:', err);
+      log.error('Database check failed', { error: err });
     }
 
     return {

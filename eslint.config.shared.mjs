@@ -41,6 +41,10 @@ export default [
     ],
   },
   {
+    files: ['src/**/*.ts'],
+    rules: { 'no-console': 'error' },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,

@@ -1,6 +1,6 @@
 # Structured Logging
 
-**Status**: In progress (T1–T3 hechas; T4–T7 pendientes)
+**Status**: In progress (T1–T6 implementadas; T7 pendiente de CI y PR)
 **Created**: 2026-10-31
 **Branch**: `feat/structured-logging`
 **Scope**: un único logger JSON en `packages/shared`, con niveles, `tenantId` y
@@ -105,17 +105,17 @@ Hoy los logs son `console.*` con texto libre y prefijos a mano
 - [x] T3 Tests de que el logger **no** emite secretos, communities SNMP ni
       datos de clientes (por clave y por texto). →
       `packages/shared/tests/logger-redaction.test.ts`.
-- [ ] T4 Migrar `packages/*` y adaptar los tests que espían `console`.
-      Quedan 29 llamadas: `shared` (13), `scheduler` (8), `agent-core` (5),
+- [x] T4 Migrar `packages/*` y adaptar los tests que espían `console`.
+      La migración abarcó: `shared` (13), `scheduler` (8), `agent-core` (5),
       `ingest` (2), `jobs` (1). Fuera de alcance por diseño: `scripts/`,
       `packages/eval/scripts/`, `packages/db/prisma/seed.ts`.
-- [ ] T5 Migrar `services/worker` y `apps/web` (rutas y lib), con
+- [x] T5 Migrar `services/worker` y `apps/web` (rutas y lib), con
       `correlationId` en las rutas. Worker: 21 (index 13, registry 3, syslog 2,
       snmp 2, schedules 1). Web: 17.
-- [ ] T6 Regla `no-console`, con excepciones. Va **después** de T4 y T5:
+- [x] T6 Regla `no-console`, con excepciones. Va **después** de T4 y T5:
       activarlo antes rompe el build. Excepción justificada para la línea de
       política de tenant (ver Decisiones).
-- [ ] T7 Gates + PR.
+- [ ] T7 Gates + PR. `turbo run typecheck lint test --force` ejecutó 67/70 tareas; las suites de ingest, monitoring y worker que requieren sockets fallaron con `EPERM` en el sandbox. Repetir fuera del sandbox y completar docs-test y CI antes de mergear.
 
 ## Rollback
 

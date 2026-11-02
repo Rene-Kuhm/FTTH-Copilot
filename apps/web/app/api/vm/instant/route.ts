@@ -2,11 +2,15 @@
 // GET /api/vm/instant?query=<promql>
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 
 const VM_URL = process.env.VICTORIAMETRICS_URL ?? 'http://localhost:8428';
 const METRICS_BEARER_TOKEN = process.env.METRICS_BEARER_TOKEN ?? '';
 
+const log = createLogger({ name: 'vm-instant' });
+
 export async function GET(req: NextRequest) {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const { searchParams } = req.nextUrl;
   const query = searchParams.get('query');
 
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data);
   } catch (err) {
-    console.error('[vm/instant]', err);
+    requestLog.error('VictoriaMetrics query failed', { error: err });
     return NextResponse.json(
       { error: 'Failed to query VictoriaMetrics', detail: String(err) },
       { status: 502 }

@@ -3,7 +3,10 @@
  * Converts telemetry spans into standard OTLP JSON and exports them to Arize Phoenix.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import type { TelemetrySpan } from './openinference';
+
+const log = createLogger({ name: 'phoenix-exporter' });
 
 export interface PhoenixExporterConfig {
   endpoint?: string;
@@ -106,14 +109,12 @@ export class PhoenixOtlpExporter {
       });
 
       if (!res.ok) {
-        console.warn(
-          `[phoenix-exporter] Failed to export ${spans.length} spans: HTTP ${res.status}`,
-        );
+        log.warn('Failed to export spans', { spanCount: spans.length, status: res.status });
         return false;
       }
       return true;
     } catch (err) {
-      console.warn('[phoenix-exporter] Error exporting spans:', err);
+      log.warn('Error exporting spans', { error: err });
       return false;
     }
   }

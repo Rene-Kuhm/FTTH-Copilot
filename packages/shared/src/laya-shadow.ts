@@ -10,7 +10,10 @@
  */
 
 import { z } from 'zod';
+import { createLogger } from './logger';
 import type { ClassificationResult, EventClass, Severity, ProbableScope } from './laya-expert-system';
+
+const log = createLogger({ name: 'laya-shadow' });
 
 export type LayaMode = 'disabled' | 'shadow' | 'assisted' | 'automatic';
 export type LayaResult = 'success' | 'fallback' | 'timeout' | 'error';
@@ -350,19 +353,16 @@ export function setLayaLogHandler(handler: LayaLogHandler): void {
 }
 
 /**
- * Log a Laya decision to console (for development) and to the registered handler.
- * If no handler is registered, only console output is produced.
+ * Log a Laya decision to the structured logger and to the registered handler.
+ * If no handler is registered, only structured log output is produced.
  */
 export async function logLayaDecision(
   input: DecisionInput,
   decision: LayaDecisionLog
 ): Promise<void> {
-  const timestamp = new Date().toISOString();
-  
-  // Console output for development/debugging
+  // Development/debug output is gated independently from persistence.
   if (process.env.NODE_ENV !== 'production' || process.env.LAYA_LOG_LEVEL === 'debug') {
-    console.log(JSON.stringify({
-      timestamp,
+    log.info('Laya decision', {
       type: 'laya_decision',
       tenantId: input.tenantId,
       eventId: input.eventId,
@@ -375,7 +375,7 @@ export async function logLayaDecision(
       shadow: decision.shadow,
       latencyMs: decision.latencyMs,
       matchedKeywords: decision.matchedKeywords,
-    }, null, 2));
+    });
   }
   
   // Call registered handler (e.g. Prisma write in agent-core)
@@ -383,7 +383,7 @@ export async function logLayaDecision(
     try {
       await _logHandler(input, decision);
     } catch (err) {
-      console.error('[laya] log handler error:', err instanceof Error ? err.message : err);
+      log.error('Log handler failed', { error: err });
     }
   }
 }

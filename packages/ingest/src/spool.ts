@@ -15,6 +15,9 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createLogger } from '@ftth-copilot/shared';
+
+const log = createLogger({ name: 'spool' });
 
 /**
  * Durable, append-only spool for inbound device events.
@@ -355,9 +358,7 @@ export class DurableSpool<T> {
       // Written by a version that could not record the identity of the
       // process. It cannot be checked, so it is taken over — with a warning,
       // because the operator should know the directory was reclaimed.
-      console.warn(
-        `[spool] taking over ${this.dir}: its lock was written by an older version and cannot be verified`,
-      );
+      log.warn('Taking over a lock written by an older version that cannot be verified', { dir: this.dir });
       return false;
     }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { JOB_NAMES } from '@ftth-copilot/jobs';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 
 /**
  * Job handler registry of the worker.
@@ -147,9 +148,14 @@ describe('investigation jobs', () => {
 
   it('does not throw on a failed attempt: the run is already failed', async () => {
     mocks.executeInvestigationAttempt.mockResolvedValue({ status: 'failed', reason: 'bad data' });
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    await expect(runHandler(payload, job(2))).resolves.toEqual({ status: 'failed', reason: 'bad data' });
+    const lines: string[] = [];
+    __setLogSinkForTests((line) => lines.push(line));
+    try {
+      await expect(runHandler(payload, job(2))).resolves.toEqual({ status: 'failed', reason: 'bad data' });
+      expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'warn', name: 'worker-registry', tenantId: payload.tenantId, runId: payload.runId });
+    } finally {
+      __setLogSinkForTests(null);
+    }
   });
 
   it('sweeps with the TTL of the environment', async () => {

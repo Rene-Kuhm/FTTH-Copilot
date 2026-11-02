@@ -11,9 +11,12 @@
  * The helper never throws. The chat route wraps the call site with
  * `Promise.all`; a throw here would break the chat.
  */
+import { createLogger } from '@ftth-copilot/shared';
 import type { TenantPolicy } from '@ftth-copilot/shared';
 import type { VerdictCode } from '@ftth-copilot/evidence';
 import { prisma } from '@ftth-copilot/db';
+
+const log = createLogger({ name: 'tenant-policy' });
 
 export type { TenantPolicy } from '@ftth-copilot/shared';
 
@@ -85,7 +88,7 @@ export async function loadTenantPolicy(tenantId: string): Promise<TenantPolicy |
   try {
     row = await prisma.tenantPolicy.findUnique({ where: { tenantId } });
   } catch (error) {
-    console.error('[ftth-copilot/policies] tenantPolicy.findUnique failed', error);
+    log.error('tenantPolicy.findUnique failed', { tenantId, error });
     return null;
   }
   if (!row) return null;

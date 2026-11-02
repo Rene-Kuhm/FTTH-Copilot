@@ -9,6 +9,11 @@ const config = [
     ignores: [".next/**", ".turbo/**", "node_modules/**", "out/**", "coverage/**"],
   },
   ...nextConfig,
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["tests/**", "e2e/**", "scripts/**", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    rules: { "no-console": "error" },
+  },
   // ─────────────────────────────────────────────────────────────────────────
   // No explicit `any`.
   //

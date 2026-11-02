@@ -23,6 +23,8 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { workerOwnsBackgroundWork } = await import('@ftth-copilot/jobs');
+    const { createLogger } = await import('@ftth-copilot/shared');
+    const log = createLogger({ name: 'instrumentation' });
 
     if (workerOwnsBackgroundWork()) {
       // The loops run in the worker. Marking them as "not expected" keeps
@@ -44,9 +46,7 @@ export async function register(): Promise<void> {
       // process. Same reason: one socket, one owner.
       markNotExpected('snmp');
 
-      console.log(
-        '[instrumentation] BACKEND_MODE=worker — the recurring loops, the syslog receiver and the SNMP receiver run in services/worker',
-      );
+      log.info('Background loops and receivers run in the worker', { backendMode: 'worker' });
     } else {
       const { startPollingLoop, startFirmwareAuditLoop, startFecCollectionLoop } =
         await import('@/lib/monitoring/scheduler');

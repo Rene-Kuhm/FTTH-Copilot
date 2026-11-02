@@ -22,6 +22,7 @@
     "@ftth-copilot/connectors-factory": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/monitoring": "workspace:*",
+    "@ftth-copilot/shared": "workspace:*",
     "@ftth-copilot/soc": "workspace:*"
   },
   "devDependencies": {

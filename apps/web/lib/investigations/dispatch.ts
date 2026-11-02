@@ -1,3 +1,4 @@
+import { createLogger } from '@ftth-copilot/shared';
 import {
   createJobQueue,
   enqueueJob,
@@ -6,6 +7,8 @@ import {
   type InvestigationRunPayload,
   type JobQueue,
 } from '@ftth-copilot/jobs';
+
+const log = createLogger({ name: 'investigation-dispatch' });
 
 /**
  * Productor de intentos de investigación desde la web (modo `worker`).
@@ -23,7 +26,7 @@ function investigationQueue(): JobQueue<'investigation'> {
   if (queue === null) {
     queue = createJobQueue('investigation', redisConnectionOptions(process.env));
     queue.on('error', (error: Error) => {
-      console.warn(`[investigate] queue error: ${error.message}`);
+      log.warn('Queue error', { error });
     });
   }
   return queue;

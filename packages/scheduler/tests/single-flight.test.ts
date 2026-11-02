@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setLogSinkForTests } from '@ftth-copilot/shared';
 
 /**
  * Single-flight guard of the scheduler loops.
@@ -55,6 +56,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  __setLogSinkForTests(null);
   vi.restoreAllMocks();
 });
 
@@ -71,7 +73,8 @@ describe('single-flight scheduler guard', () => {
   it('skips a tick that lands while the previous run is still in flight', async () => {
     __clearSchedulerState();
 
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); if (entry.level === 'warn') warn(entry.msg); });
     let resolveFirst: () => void = () => {};
     const firstRun = new Promise<void>((res) => {
       resolveFirst = res;

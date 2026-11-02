@@ -1,4 +1,5 @@
 import dgram from 'node:dgram';
+import { createLogger } from '@ftth-copilot/shared';
 import {
   parseSyslogMessage,
   classifyEvent,
@@ -15,6 +16,8 @@ import {
   markNotExpected as markSchedulerNotExpected,
   recordSyslogBound,
 } from '@ftth-copilot/scheduler';
+
+const log = createLogger({ name: 'syslog' });
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -143,7 +146,7 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
   // We still swallow the error to keep the listener alive, but we
   // surface it via the health registry and emit a warn to logs.
   socket.on('error', (err: Error) => {
-    console.warn('[syslog] socket error', { error: err.message });
+    log.warn('Socket error', { error: err });
     recordSchedulerError('syslog', `socket error: ${err.message}`);
     recordSyslogBound(false);
   });

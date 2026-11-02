@@ -2,6 +2,7 @@
  * GET  /api/fiber-plans       — list all plans for the current tenant
  * POST /api/fiber-plans       — upload a new fiber plan
  */
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { writeFile, mkdir } from 'fs/promises';
@@ -70,6 +71,7 @@ export async function GET(): Promise<NextResponse> {
 
 /** POST /api/fiber-plans — multipart form-data upload */
 export async function POST(req: Request): Promise<NextResponse> {
+  const requestLog = createLogger({ name: 'fiber-plans' }).child({ correlationId: correlationIdFrom(req.headers) });
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (!hasPermission(user.role, 'view_network')) {
@@ -136,7 +138,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(join(uploadDir, storedFilename), buffer);
   } catch (err) {
-    console.error('[fiber-plans] Failed to write file:', err);
+    requestLog.error('Failed to write file', { tenantId: user.tenantId, error: err });
     return NextResponse.json({ error: 'Failed to save file' }, { status: 500 });
   }
 

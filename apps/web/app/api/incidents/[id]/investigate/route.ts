@@ -1,3 +1,4 @@
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { NextResponse, after } from 'next/server';
 import { prisma, getLatestInvestigationVersion } from '@ftth-copilot/db';
 import { workerOwnsBackgroundWork } from '@ftth-copilot/jobs';
@@ -13,6 +14,8 @@ import {
   runInvestigationPipeline,
 } from '@/lib/investigations/pipeline';
 import { enqueueInvestigationAttempt } from '@/lib/investigations/dispatch';
+
+const log = createLogger({ name: 'investigate' });
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -101,6 +104,7 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (!hasPermission(user.role, 'view_network')) {
@@ -218,7 +222,7 @@ export async function POST(
       // the incident can be investigated again, and tell the caller.
       const reason = `could not enqueue the investigation: ${err instanceof Error ? err.message : String(err)}`;
       await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
-        console.error('[investigate] could not fail an unqueued attempt', closeErr);
+        requestLog.error('Could not fail an unqueued attempt', { tenantId: user.tenantId, error: closeErr });
       });
       return NextResponse.json(
         { runId, versionId, status: 'failed', error: 'Investigation queue unavailable' },
@@ -259,7 +263,7 @@ export async function POST(
     .catch(async (err: unknown): Promise<Closed> => {
       const reason = err instanceof Error ? err.message : String(err);
       await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
-        console.error('[investigate] could not record a failed attempt', closeErr);
+        requestLog.error('Could not record a failed attempt', { tenantId: user.tenantId, error: closeErr });
       });
       return { kind: 'failed' };
     });

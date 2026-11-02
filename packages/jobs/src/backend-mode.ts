@@ -10,6 +10,10 @@
  * is a configuration change rather than a code revert.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
+
+const log = createLogger({ name: 'backend-mode' });
+
 export const BACKEND_MODES = {
   embedded: 'embedded',
   worker: 'worker',
@@ -33,7 +37,7 @@ export function backendMode(env: NodeJS.ProcessEnv = process.env): BackendMode {
   if (raw === BACKEND_MODES.worker) return BACKEND_MODES.worker;
   if (raw === BACKEND_MODES.embedded) return BACKEND_MODES.embedded;
 
-  console.warn('[backend-mode] unknown BACKEND_MODE, falling back to embedded', { value: raw });
+  log.warn('Unknown BACKEND_MODE, falling back to embedded', { value: raw });
   return DEFAULT_BACKEND_MODE;
 }
 

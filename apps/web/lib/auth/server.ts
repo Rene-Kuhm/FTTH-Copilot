@@ -2,6 +2,7 @@
  * Server-side auth helpers for the demo.
  * In production this would live in packages/auth. For now colocated here.
  */
+import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
@@ -29,6 +30,8 @@ import {
 } from './csrf';
 import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
+
+const log = createLogger({ name: 'auth' });
 
 export const runtime = 'nodejs';
 
@@ -130,6 +133,7 @@ function describeError(err: unknown): { kind: string; message: string; stack?: s
 }
 
 export async function handleSignup(req: Request) {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   let body: unknown = null;
   try {
     body = await req.json();
@@ -208,7 +212,7 @@ export async function handleSignup(req: Request) {
     );
   } catch (err) {
     const info = describeError(err);
-    console.error('[auth.signup] failed', {
+    requestLog.error('Signup failed', {
       kind: info.kind,
       message: info.message,
       stack: info.stack,
@@ -221,6 +225,7 @@ export async function handleSignup(req: Request) {
 }
 
 export async function handleLogin(req: Request) {
+  const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   let body: unknown = null;
   try {
     body = await req.json();
@@ -326,7 +331,7 @@ export async function handleLogin(req: Request) {
     );
   } catch (err) {
     const info = describeError(err);
-    console.error('[auth.login] failed', {
+    requestLog.error('Login failed', {
       kind: info.kind,
       message: info.message,
       stack: info.stack,
