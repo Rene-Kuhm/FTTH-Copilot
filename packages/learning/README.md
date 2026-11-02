@@ -73,6 +73,22 @@ temporalSplit(events, cutoff): TemporalSplit;
 a `eval`, la evaluación mediría sobre incidentes que el modelo ya vio. El subconjunto que
 cruza queda listado en `crossing`.
 
+## T0.4 — Insuficiencia honesta (I10)
+
+```ts
+sampleSufficiency(sampleSize, compute, { minSampleSize? }): SufficiencyResult<T>;
+sufficiencyReport(metrics, { minSampleSize? }): SufficiencyReport;
+```
+
+- Bajo el umbral devuelve `insufficient` con `value: null`: **nunca** un número.
+- La función `compute` **no se invoca** bajo el umbral, así que no hay forma de que un
+  número se escape por un camino lateral.
+- El umbral por defecto es `DEFAULT_MIN_SAMPLE_SIZE` (30), el mismo que usa
+  `computeFeedbackSummary` en `packages/eval`: los dos leen la constante de
+  `@ftth-copilot/shared`, así que no pueden divergir.
+- `sufficiencyReport` marca cada métrica y `isCalibrated` solo es `true` si **todas** tienen
+  muestra suficiente: un artefacto con una sola métrica sin muestra no se puede promover.
+
 ## Tests
 
 ```bash

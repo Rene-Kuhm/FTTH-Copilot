@@ -19,3 +19,4 @@ export * from './types';
 export * from './errors';
 export * from './labels';
 export * from './events';
+export * from './sufficiency';
