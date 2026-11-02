@@ -303,3 +303,70 @@ publicado en la `v0.3.0`. A partir de la `v0.4.0` el problema no se repite:
 release-please publica cada release con el SHA del commit en
 `target_commitish`, así que resuelve por su cuenta el último release y la
 línea base queda como red de seguridad.
+
+### 9.6 Token propio de release: el CI del PR de release sin intervención manual
+
+Con el `GITHUB_TOKEN`, el PR de release es un caso raro: lo abre
+release-please, así que sus runs de CI quedan en `action_required` y hay que
+**aprobarlos a mano** en cada release. Como `main` exige el check
+`CI Success` y la protección de la rama lo mira en el HEAD del PR, el PR
+queda trabado hasta que alguien apruebe los runs.
+
+La causa es la regla de anti-recursión: GitHub no dispara workflows por los
+eventos que produce el `GITHUB_TOKEN` del propio repositorio. Un **token
+propio** (un PAT) no está exento de esa regla, así que con él los eventos del
+pipeline sí disparan workflows y el CI del PR de release corre solo.
+
+El secret es **opcional**: sin él, todo funciona exactamente como hasta ahora
+(keyless) y sólo hay que aprobar los runs a mano.
+
+#### Cómo crearlo
+
+1. Crear un **fine-grained PAT** (<https://github.com/settings/personal-access-tokens/new>):
+   - **Repository access**: sólo `FTTH-Copilot`.
+   - **Permissions → Repository permissions**: `Contents: Read and write`,
+     `Pull requests: Read and write`, `Actions: Read and write`. Nada más.
+   - **Expiration**: la más corta que sirva (90 días); se renueva a mano.
+2. Guardarlo como secret del repositorio: **Settings → Secrets and variables →
+   Actions → New repository secret**, nombre `RELEASE_PLEASE_TOKEN`.
+3. Relanzar el workflow de release: `gh workflow run release-please.yml`.
+
+Para volver atrás, borrar el secret: el pipeline vuelve a la ruta keyless.
+
+> La alternativa de una **GitHub App** no está soportada por
+> `release-please-action` v5: la acción no expone inputs de instalación de App
+> y su documentación oficial señala el PAT como la vía para que el CI corra
+> en los PRs de release.
+
+#### Qué cambia cuando el secret existe
+
+| Aspecto | Sin secret (keyless) | Con secret (PAT) |
+|---|---|---|
+| Token de release-please | `GITHUB_TOKEN` | el PAT |
+| CI del PR de release | runs en `action_required`, hay que aprobarlos | corre solo |
+| Build de la release | `workflow_dispatch` desde `release-please.yml` | el `push: tags` la dispara |
+| Push de los version carriers | `GITHUB_TOKEN` (sus runs también hay que aprobarlos) | el PAT (dispara el CI del commit final) |
+
+El segundo punto del push es el que suele pasarse por alto: el paso que
+sincroniza los version carriers empuja a la rama del PR **después** de
+release-please, y ese push es el que deja el PR en su commit final. Si empuja
+con el `GITHUB_TOKEN`, sus runs vuelven a quedar en `action_required` y el
+problema sigue ahí aunque release-please use el PAT.
+
+#### La regla que lo ata
+
+`scripts/lib/supply-chain.ts` tiene la regla `release-token-dispatch`: un
+publicador que usa un token propio **tiene que condicionar su dispatch** a
+que ese token no esté presente. Sin esa condición, el `push: tags` del builder
+y el dispatch construirían la release dos veces (dos compilaciones, dos
+atestaciones y el conflicto de los assets repetidos).
+
+La condición no puede mirar el secret directamente —los secrets no se pueden
+referenciar en un `if:`— así que pasa por una variable de `env:` de job:
+
+```yaml
+env:
+  RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+# ...
+if: steps.release.outputs.release_created == 'true' && env.RELEASE_PLEASE_TOKEN == ''
+```
