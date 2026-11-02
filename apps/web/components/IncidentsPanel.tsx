@@ -7,6 +7,7 @@ import { ServerStackIcon } from './icons';
 import { FeedbackControls } from './FeedbackControls';
 import { InvestigationCard } from './InvestigationCard';
 import { csrfFetch } from '@/lib/auth/csrf-client';
+import type { FiberPlan } from './FiberPlanViewer';
 
 // ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
 //
@@ -556,7 +557,7 @@ function PlanModal({
   deviceId: string;
   onClose: () => void;
 }) {
-  const [plan, setPlan] = useState<unknown>(null);
+  const [plan, setPlan] = useState<FiberPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -566,7 +567,10 @@ function PlanModal({
         const res = await fetch(`/api/fiber-plans/${planId}`, { credentials: 'include' });
         const body = (await res.json().catch(() => ({}))) as { plan?: unknown; error?: string };
         if (!res.ok) { setError(body.error ?? 'Error'); return; }
-        setPlan(body.plan);
+        // The plan arrives untyped from the network. It is narrowed here
+        // instead of being cast: the viewer needs the zones to draw, and a
+        // malformed body would crash it in the middle of the render.
+        setPlan(isFiberPlan(body.plan) ? body.plan : null);
       } catch {
         setError('Error de red');
       } finally {
@@ -614,9 +618,22 @@ function PlanModal({
   );
 }
 
+/**
+ * Whether a value is a fiber plan the viewer can draw.
+ *
+ * Minimal on purpose: the viewer needs the identity of the plan and its
+ * zones. Everything else it reads defensively.
+ */
+function isFiberPlan(value: unknown): value is FiberPlan {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<FiberPlan>;
+  return typeof candidate.id === 'string' && typeof candidate.name === 'string'
+    && Array.isArray(candidate.zones);
+}
+
 /** Wrapper that dynamically imports FiberPlanViewer only on the client */
-function DynamicFiberPlanViewer({ plan }: { plan: any }) {
-  const [Viewer, setViewer] = useState<React.ComponentType<{ plan: any }> | null>(null);
+function DynamicFiberPlanViewer({ plan }: { plan: FiberPlan }) {
+  const [Viewer, setViewer] = useState<React.ComponentType<{ plan: FiberPlan }> | null>(null);
   useEffect(() => {
     import('./FiberPlanViewer').then((mod) => setViewer(() => mod.default));
   }, []);

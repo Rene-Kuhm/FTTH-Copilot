@@ -1,7 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import dgram from 'node:dgram';
 import { startSnmpReceiver } from '../src/snmp-receiver';
 import { snapshotHealth, __resetSchedulerHealth } from '@ftth-copilot/scheduler';
 import { sendSnmpTestTrap, type RawSnmpEvidenceEnvelope } from '@ftth-copilot/monitoring';
+
+/**
+ * A free UDP port, asked from the kernel.
+ *
+ * A fixed port collides with whatever else listens on the machine — and this
+ * repo had exactly that: `packages/monitoring`'s conformance benchmark used
+ * 12196, the same port as one of the tests below. The two packages run in
+ * parallel in CI, so one of them lost the bind with `EADDRINUSE` and the
+ * whole coverage gate went red for a reason that had nothing to do with the
+ * code.
+ */
+function freeUdpPort(): Promise<number> {
+  const probe = dgram.createSocket('udp4');
+  return new Promise((resolve, reject) => {
+    probe.once('error', reject);
+    probe.bind(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const found = typeof address === 'object' && address !== null ? address.port : 0;
+      probe.close(() => resolve(found));
+    });
+  });
+}
 
 describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
   const originalEnv = { ...process.env };
@@ -26,7 +49,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
   it('marks service as expected when SNMP_RECEIVER_ENABLED is true and receives real binary traps', async () => {
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
-    process.env['SNMP_UDP_PORT'] = '12198';
+    process.env['SNMP_UDP_PORT'] = String(await freeUdpPort());
 
     const receivedEvents: any[] = [];
     const receivedEvidences: RawSnmpEvidenceEnvelope[] = [];
@@ -62,7 +85,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
     try {
       await sendSnmpTestTrap({
-        port: 12198,
+        port: Number(process.env['SNMP_UDP_PORT']),
         host: '127.0.0.1',
         version: 'v2c',
         trapOid: '1.3.6.1.6.3.1.1.5.3', // linkDown
@@ -93,7 +116,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
   it('handles bind collision gracefully, marks bound as false, and rejects ready() without hanging', async () => {
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
-    process.env['SNMP_UDP_PORT'] = '12197';
+    process.env['SNMP_UDP_PORT'] = String(await freeUdpPort());
 
     const stop1 = startSnmpReceiver({
       address: '127.0.0.1',
@@ -121,7 +144,7 @@ describe('SNMP Receiver Service (Roadmap Fase 6 & Roadmap Fase 0)', () => {
 
   it('handles immediate stop() before listening without reviving bound or leaving port in use', async () => {
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
-    process.env['SNMP_UDP_PORT'] = '12196';
+    process.env['SNMP_UDP_PORT'] = String(await freeUdpPort());
 
     const stop1 = startSnmpReceiver({
       address: '127.0.0.1',
