@@ -67,6 +67,8 @@ lose them.
 | `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` | — | `host:port` of the worker as the VictoriaMetrics container sees it. Empty by default: the scrape job is only added when it is set. See [Que VictoriaMetrics raspe al worker](#que-victoriametrics-raspe-al-worker). |
 | `INVESTIGATION_PENDING_TTL_MS` | `900000` | Age after which a `pending` investigation attempt is abandoned and expires, so the incident can be investigated again. Must exceed the longest real investigation, retries included. |
 | `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often that sweep runs: in the worker under `worker`, in the web process under `embedded`. |
+| `LEARNING_SNAPSHOT_ENABLED` | `false` | Enables the `learning.snapshot` job, which freezes the learning dataset of every tenant. Off by default: it writes rows and nobody consumes them until a later phase of the learning loop. |
+| `LEARNING_SNAPSHOT_INTERVAL_MS` | `86400000` | How often the learning snapshot runs (once a day by default). |
 
 ### Redis is published on the loopback, with a password
 
@@ -156,6 +158,29 @@ The script sends a syslog datagram whose body carries **no IP literal** — the
 path that depends on the UDP source address — and then reads the stored event
 back. It exits non-zero when the recorded source is not the address the
 datagram was sent from.
+
+## The learning snapshot freezes the dataset
+
+The `learning.snapshot` job is the first job of the learning loop
+(`odd/tasks/learning-loop.md`, task T0.5). It freezes the dataset of every
+tenant: the feedback resolved into labels, the incidents grouped into events
+by shared topology, and the temporal split between train and eval — all under
+a **hash of the content**.
+
+Freezing is what makes an evaluation reproducible: same content, same window
+and same version of the code ⇒ same hash. If the dataset changed, the hash
+changed, and it shows.
+
+The worker is the shell of persistence here, as the design says: it reads the
+rows of a tenant, hands them to the pure core of `@ftth-copilot/learning` and
+stores the artifact in `learning_artifacts`. The artifact is append-only:
+freezing the same dataset twice does not create a second row, and a different
+dataset coexists with the previous one.
+
+The job is **off by default** (`LEARNING_SNAPSHOT_ENABLED=false`). It writes
+rows, costs a query per tenant, and nothing consumes those rows until the
+evaluation job of a later phase. Enabling it does not change what an operator
+sees.
 
 ## The spool lives on a volume
 

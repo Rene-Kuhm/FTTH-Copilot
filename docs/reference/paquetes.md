@@ -98,6 +98,7 @@ apoyarán las capas L1/L2/L3.
 | `src/labels.ts` | `resolveLabels` (T0.2): última opinión por autor, consenso y `conflicted` según D1 |
 | `src/events.ts` | `groupIntoEvents` y `temporalSplit` (T0.3): agrupación por ancestro topológico y ventana, split temporal sin fuga (D9) |
 | `src/sufficiency.ts` | `sampleSufficiency` (T0.4): insuficiencia honesta bajo la muestra mínima (I10) |
+| `src/snapshot.ts` | `buildLearningSnapshot` (T0.5): congelado del dataset con hash de contenido |
 
 El contrato canónico de etiquetas (`FEEDBACK_LABELS`) y el umbral de
 muestra mínima (`DEFAULT_MIN_SAMPLE_SIZE`) viven en
