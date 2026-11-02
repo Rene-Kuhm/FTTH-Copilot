@@ -16,3 +16,4 @@
  *   mínima la métrica no se publica (I10).
  */
 export * from './types';
+export * from './labels';

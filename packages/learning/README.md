@@ -33,6 +33,25 @@ El juego cerrado de etiquetas (`FEEDBACK_LABELS`) y el umbral de muestra mínima
 `apps/web` los reexportan para no cambiar su API pública: un tipo duplicado en dos paquetes
 es un bug (AGENTS.md §4).
 
+## T0.2 — Resolución de etiquetas (D1)
+
+```ts
+resolveLabels(rows, { knownVersionIds? }): LabelResolution;
+partitionForTraining(resolution): TrainingPartition;
+```
+
+- **Una sola opinión por autor**: la de `submittedAt` más reciente. Si dos filas del mismo
+  autor empatan en el tiempo, gana la de `feedbackId` mayor, para que dos corridas sobre las
+  mismas filas den el mismo resultado (I8).
+- **Consenso**: si todos los autores coinciden, esa etiqueta; si discrepan, `conflicted` —
+  fuera del entrenamiento y contado aparte, porque una tasa alta de conflicto señala
+  diagnósticos ambiguos.
+- **`insufficient_data` nunca es positiva ni negativa**: alimenta el corpus de abstención (I7).
+- **Las filas que no se pueden usar se descartan contadas por motivo** (`invalidLabel`,
+  `orphanVersion`, `malformed`). Descartarlas en silencio mentiría sobre el tamaño real de la
+  muestra.
+- **Aislamiento por tenant**: dos tenants que compartan `versionId` nunca se mezclan (I3).
+
 ## Tests
 
 ```bash

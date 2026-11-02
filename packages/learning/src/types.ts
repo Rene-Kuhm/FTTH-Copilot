@@ -63,6 +63,8 @@ export interface DiscardedRows {
   readonly invalidLabel: number;
   /** La fila apunta a una versión que el llamador no conoce. */
   readonly orphanVersion: number;
+  /** La fila está rota: falta un id o la fecha no se puede leer. */
+  readonly malformed: number;
 }
 
 /** Resultado de resolver las etiquetas de un conjunto de filas. */
