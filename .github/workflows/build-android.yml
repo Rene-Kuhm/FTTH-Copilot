@@ -4,18 +4,25 @@ name: Android APK Build
 # Workflow REUTILIZABLE: es el builder de los APK de Android.
 #
 # Misma receta de SLSA v1.0 Build Level 3 que en `build-desktop.yml`: los
-# pasos de compilación viven en un workflow reutilizable y la atestación la
-# emite ese mismo workflow, sobre los bytes recién compilados.
-#
-#   "Artifact attestations by itself provides SLSA v1.0 Build Level 2.
-#    […] Reusable workflows can provide isolation between the build process
-#    and the calling workflow, to meet SLSA v1.0 Build Level 3."
-#    — docs.github.com/actions/concepts/security/artifact-attestations
+# pasos de compilación y de atestación están en el workflow reutilizable, y
+# el caller (`release.yml`) sólo puede pasarle el tag, no inyectar pasos en
+# el build. Eso es lo que da el aislamiento del nivel 3.
 #
 # Lo invocan:
 #   - android-apk.yml → build de validación (PR / push). Sin atestación.
 #   - release.yml     → build de release (tag v*): compila, atesta la
 #     procedencia (SLSA L3) y atesta el SBOM contra los mismos bytes.
+#
+# PERMISOS: este workflow pide `id-token: write` y `attestations: write`
+# porque atesta. Eso obliga a que TODO caller conceda esos scopes: GitHub
+# valida el grafo del run antes de crear ningún job y rechaza el run entero
+# con `startup_failure` si el caller no los concede. El `if:` del job no
+# protege, porque la validación mira lo declarado y no si el job corre.
+#
+# Por eso la validación NO llama a este workflow: usa la acción compuesta
+# `.github/actions/android-build`, que tiene los mismos pasos de compilación
+# sin pedir permisos elevados. La regla `caller-permissions` de
+# `scripts/lib/supply-chain.ts` es la que verifica esta relación.
 # ──────────────────────────────────────────────────────────────────────
 
 on:
@@ -37,8 +44,6 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # El caller concede `id-token: write` y `attestations: write` sólo en
-    # el modo release; en validación quedan recortados.
     permissions:
       contents: read
       id-token: write
@@ -58,8 +63,8 @@ jobs:
 
       # ────────────────────────────────────────────────────────────
       # SBOM SPDX del árbol que se va a compilar. Va antes de instalar y
-      # compilar a propósito: con `node_modules` o artefactos de build en
-      # el workspace, Syft los catalogaría y el SBOM dejaría de ser
+      # compilar a propósito: con `node_modules` o artefactos de build en el
+      # workspace, Syft los catalogaría y el SBOM dejaría de ser
       # reproducible.
       # ────────────────────────────────────────────────────────────
       - name: Generate the SPDX SBOM
@@ -103,70 +108,15 @@ jobs:
             sbom.spdx.json > sbom.normalized.json
           mv sbom.normalized.json sbom.spdx.json
 
-      - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+      # ────────────────────────────────────────────────────────────
+      # Los pasos de compilación viven en una acción compuesta para que
+      # el camino de validación compile exactamente lo mismo sin heredar
+      # los permisos de atestación. Ver `.github/actions/android-build`.
+      # ────────────────────────────────────────────────────────────
+      - name: Build the APKs
+        uses: ./.github/actions/android-build
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: --locked
-
-      - name: Setup Java
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Use preinstalled Android SDK
-        run: |
-          ls -la $ANDROID_HOME/cmdline-tools/
-          echo "Using cmdline-tools:"
-          cat $ANDROID_HOME/cmdline-tools/latest/source.properties
-
-      - name: Accept SDK licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
-
-      - name: Install SDK packages
-        run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
-
-      - name: Install dependencies
-        run: mise run deps
-
-      # Capacitor requires a static webDir. We bundle the Next.js standalone
-      # server assets as a single-page shell that loads the deployed web app
-      # from NEXT_PUBLIC_API_URL. This means the APK needs a deployed backend
-      # to fully function; for a fully offline demo, see Phase 3 of the
-      # roadmap (SQLite caching + service worker offline mode).
-      - name: Bundle web assets for Capacitor
-        working-directory: apps/web
-        run: |
-          # Copy the static export marker so cap sync has a webDir.
-          # The actual web assets are served via the standalone server.
-          mkdir -p out
-          cp -f public/favicon.svg out/ 2>/dev/null || true
-          cp -f public/manifest.json out/ 2>/dev/null || true
-          cp -r public/icons out/ 2>/dev/null || true
-          cp -f public/sw.js out/ 2>/dev/null || true
-          ls -la out/
-
-      - name: Capacitor sync
-        working-directory: apps/web
-        run: pnpm cap:sync
-
-      - name: Make gradlew executable
-        working-directory: apps/web/android
-        run: chmod +x gradlew
-
-      - name: Build debug APK
-        working-directory: apps/web/android
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Build release APK (unsigned)
-        working-directory: apps/web/android
-        run: ./gradlew assembleRelease --no-daemon
+          mise-version: ${{ env.MISE_VERSION }}
 
       - name: Locate APK files
         run: |
@@ -269,5 +219,5 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: artifacts/**/*
-          fail_on_unmatched-files: false
+          fail_on_unmatched_files: false
           generate_release_notes: true

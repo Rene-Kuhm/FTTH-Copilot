@@ -133,50 +133,11 @@ jobs:
             sbom.spdx.json > sbom.normalized.json
           mv sbom.normalized.json sbom.spdx.json
 
-      - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+      - name: Build the installers
+        uses: ./.github/actions/desktop-build
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: --locked
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: 'apps/web/src-tauri -> target'
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev \
-            patchelf \
-            build-essential \
-            curl \
-            wget \
-            file
-
-      - name: Install dependencies
-        run: mise run deps
-
-      - name: Build Next.js
-        working-directory: apps/web
-        run: pnpm build
-
-      - name: Prepare Tauri webview entrypoint
-        working-directory: apps/web
-        run: pnpm tauri:prepare
-
-      - name: Build Tauri (Linux)
-        working-directory: apps/web
-        run: pnpm exec tauri build --bundles deb,appimage
+          mise-version: ${{ env.MISE_VERSION }}
+          bundles: deb,appimage
 
       - name: Locate artifacts (Linux)
         working-directory: apps/web
@@ -317,34 +278,11 @@ jobs:
             sbom.spdx.json > sbom.normalized.json
           mv sbom.normalized.json sbom.spdx.json
 
-      - name: Setup mise (Node + pnpm con versiones exactas)
-        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+      - name: Build the installers
+        uses: ./.github/actions/desktop-build
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: --locked
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: 'apps/web/src-tauri -> target'
-
-      - name: Install dependencies
-        run: mise run deps
-
-      - name: Build Next.js
-        working-directory: apps/web
-        run: pnpm build
-
-      - name: Prepare Tauri webview entrypoint
-        working-directory: apps/web
-        run: pnpm tauri:prepare
-
-      - name: Build Tauri (Windows)
-        working-directory: apps/web
-        run: pnpm exec tauri build --bundles nsis,msi
+          mise-version: ${{ env.MISE_VERSION }}
+          bundles: nsis,msi
 
       - name: Locate artifacts (Windows)
         working-directory: apps/web

@@ -4,20 +4,19 @@ name: Build Android APK
 # Build de VALIDACIÓN: compila los APK para comprobar que el código
 # compila con el SDK de Android.
 #
-# Los pasos de compilación no viven acá: viven en el workflow reutilizable
-# `build-android.yml`, que es el "builder" que emite la procedencia
-# SLSA v1.0 Build Level 3 cuando el build es de release. Este workflow es
-# el caller: decide qué se construye y qué permisos se conceden.
+# No llama a `build-android.yml`: ese workflow reutilizable pide
+# `id-token: write` y `attestations: write` para atestar la procedencia
+# (SLSA L3), y GitHub valida el grafo del run antes de crear ningún job:
+# si el caller no concede esos scopes, el run entero muere con
+# `startup_failure` y cero jobs.
 #
-# En validación no se atesta nada: este caller concede `contents: read`
-# (sin `id-token: write` ni `attestations: write`) y los pasos de
-# atestación del builder están condicionados al modo release. Un pull
-# request de un fork no llega ni a pedir un token OIDC.
+# Los pasos de compilación viven en la acción compuesta
+# `.github/actions/android-build`, que es la misma que usa el builder de
+# release: las dos rutas compilan exactamente lo mismo, y sólo la de
+# release atesta.
 #
-# El build de release lo dispara `release.yml`, que `release-please.yml`
-# despacha cuando publica la release (ver §9.4 de
-# `docs/reference/contenedores-y-ci.md`): llama al mismo workflow
-# reutilizable pasando el tag.
+# Permisos: `contents: read` y nada más. Un pull request no puede pedir
+# un token OIDC ni atestar nada.
 # ──────────────────────────────────────────────────────────────────────
 
 on:
@@ -31,7 +30,7 @@ on:
       - 'apps/web/**'
       - 'apps/web/android/**'
       - '.github/workflows/android-apk.yml'
-      - '.github/workflows/build-android.yml'
+      - '.github/actions/android-build/**'
   workflow_dispatch:
 
 permissions:
@@ -40,6 +39,44 @@ permissions:
 jobs:
   build:
     name: Build Android APK
-    uses: ./.github/workflows/build-android.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     permissions:
       contents: read
+
+    env:
+      # La versión de mise está fijada: usa el mismo toolchain exacto que
+      # el CI y que el entorno local (mise.lock).
+      MISE_VERSION: "2026.10.12"
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the APKs
+        uses: ./.github/actions/android-build
+        with:
+          mise-version: ${{ env.MISE_VERSION }}
+
+      - name: Locate APK files
+        run: |
+          echo "=== APKs ==="
+          find . -name "*.apk" -type f
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-android-debug
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ftth-copilot-android-release
+          path: apps/web/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: warn
+          retention-days: 30

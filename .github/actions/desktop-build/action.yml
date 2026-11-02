@@ -1,0 +1,82 @@
+name: Build the Tauri desktop installers
+description: >
+  Compila los instaladores de escritorio (Linux o Windows) con Tauri.
+
+  Vive en una acción compuesta, y no en el workflow reutilizable, por una
+  razón concreta: GitHub valida el grafo del run antes de crear ningún job, y
+  un workflow reutilizable que pide `id-token: write` (para atestar) obliga a
+  que TODO caller conceda ese permiso. Si el caller de validación lo
+  concediera, un pull request podría pedir un token OIDC.
+
+  Con la acción compuesta, el camino de validación (`tauri-desktop.yml`) y el
+  de release (`build-desktop.yml`) compilan los mismos pasos sin que el
+  primero herede los permisos de atestación del segundo.
+
+  El caller tiene que hacer el checkout antes de usar esta acción: los
+  pasos corren en el workspace del caller.
+
+inputs:
+  mise-version:
+    description: Versión de mise a instalar (la misma que fija `mise.lock`).
+    required: true
+  bundles:
+    description: >
+      Bundles de Tauri a compilar, separados por coma (`deb,appimage` en
+      Linux; `nsis,msi` en Windows).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup mise (Node + pnpm con versiones exactas)
+      uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7585c3dc6e # v5.2.3
+      with:
+        version: ${{ inputs.mise-version }}
+        install_args: --locked
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        workspaces: 'apps/web/src-tauri -> target'
+
+    # Las dependencias de sistema sólo existen en Linux: en Windows el
+    # toolchain de Rust y el WebView2 ya vienen en la imagen del runner.
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwebkit2gtk-4.1-dev \
+          libgtk-3-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          libsoup-3.0-dev \
+          libjavascriptcoregtk-4.1-dev \
+          patchelf \
+          build-essential \
+          curl \
+          wget \
+          file
+
+    - name: Install dependencies
+      shell: bash
+      run: mise run deps
+
+    - name: Build Next.js
+      shell: bash
+      working-directory: apps/web
+      run: pnpm build
+
+    - name: Prepare Tauri webview entrypoint
+      shell: bash
+      working-directory: apps/web
+      run: pnpm tauri:prepare
+
+    - name: Build Tauri
+      shell: bash
+      working-directory: apps/web
+      run: pnpm exec tauri build --bundles ${{ inputs.bundles }}
