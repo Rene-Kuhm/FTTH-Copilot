@@ -14,6 +14,10 @@
  *   const decision = await client.decide(event);
  */
 
+import { createLogger } from './logger';
+
+const log = createLogger({ name: 'laya-client' });
+
 import type {
   LayaDecisionEvent,
   LayaDecision,
@@ -62,7 +66,7 @@ export function loadLayaConfigFromEnv(): LayaHttpConfig {
   // Validate with zod, filling defaults for missing optional fields
   const result = layaHttpConfigSchema.safeParse(raw);
   if (!result.success) {
-    console.warn('[Laya] Invalid config, using defaults:', result.error.message);
+    log.warn('Invalid config, using defaults', { error: result.error });
     return DEFAULT_LAYA_CONFIG;
   }
   return result.data;
@@ -501,7 +505,7 @@ export function createLayaClient(config: LayaClientConfig): {
       legacySeverity?.choice !== undefined ||
       legacyRequiresInvestigation?.choice !== undefined
     ) {
-      console.warn(
+      log.warn(
         '[Laya] Deprecated nested response shape detected. '
         + 'This format is no longer produced by the service; consider removing legacy mapper paths.'
       );
@@ -525,7 +529,7 @@ export function createLayaClient(config: LayaClientConfig): {
 
     // ── Validation failed and no legacy fallback ─────────────────────────────
     // Neither flat nor legacy shape detected. Return null so caller applies failOpen.
-    console.warn(
+    log.warn(
       '[Laya] Response did not match expected shape (flat or legacy). '
       + 'Returning null for fail-open.'
     );
@@ -570,7 +574,7 @@ export function createLayaClient(config: LayaClientConfig): {
       // Validate input
       const parseResult = layaDecisionEventSchema.safeParse(event);
       if (!parseResult.success) {
-        console.warn('[Laya] Invalid event:', parseResult.error.message);
+        log.warn('Invalid event', { error: parseResult.error });
         return null;
       }
 
@@ -610,9 +614,9 @@ export function createLayaClient(config: LayaClientConfig): {
           const latencyMs = Date.now() - startTime;
           const opened = circuitBreaker.recordFailure();
           if (opened) {
-            console.warn('[Laya] Circuit breaker opened in shadow mode');
+            log.warn('[Laya] Circuit breaker opened in shadow mode');
           }
-          console.warn('[Laya] Shadow call failed:', error);
+          log.warn('Shadow call failed', { error });
 
           // Record failure after the call has rejected — not before
           recordLayaCallOutcome(metrics, {
@@ -663,10 +667,10 @@ export function createLayaClient(config: LayaClientConfig): {
           error instanceof Error && error.message === 'Laya request timeout';
         const opened = circuitBreaker.recordFailure();
         if (opened) {
-          console.warn('[Laya] Circuit breaker opened in active mode');
+          log.warn('[Laya] Circuit breaker opened in active mode');
         }
 
-        console.warn('[Laya] Decision failed:', error);
+        log.warn('Decision failed', { error });
 
         recordLayaCallOutcome(metrics, {
           latencyMs,
@@ -715,9 +719,9 @@ export function createLayaClient(config: LayaClientConfig): {
       } catch (error) {
         const opened = circuitBreaker.recordFailure();
         if (opened) {
-          console.warn('[Laya] Circuit breaker opened in active mode');
+          log.warn('[Laya] Circuit breaker opened in active mode');
         }
-        console.warn('[Laya] Batch failed:', error);
+        log.warn('Batch failed', { error });
 
         if (layaConfig.failOpen) {
           return events.map(() => null);

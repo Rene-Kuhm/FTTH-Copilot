@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { __setLogSinkForTests } from '../src/logger';
 import type { EventClass } from '../src/laya-expert-system';
 import type { LayaMode } from '../src/laya-shadow';
 import {
@@ -161,17 +162,18 @@ describe('LayaShadow', () => {
   });
 
   describe('logLayaDecision', () => {
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    let lines: string[];
 
     beforeEach(() => {
-      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      lines = [];
+      __setLogSinkForTests((line) => lines.push(line));
     });
 
     afterEach(() => {
-      consoleLogSpy.mockRestore();
+      __setLogSinkForTests(null);
     });
 
-    it('logs decision to console in non-production environment', async () => {
+    it('logs structured decision in non-production environment', async () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
@@ -201,8 +203,8 @@ describe('LayaShadow', () => {
 
       await logLayaDecision(input, decision);
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const logCall = consoleLogSpy.mock.calls[0][0] as string;
+      expect(lines).toHaveLength(1);
+      const logCall = lines[0]!;
       const parsed = JSON.parse(logCall) as Record<string, unknown>;
       const p = parsed as { type: string; tenantId: string; eventId?: string; engine: string; eventClass: string; severity: string; probableScope: string; confidence: number; suggestedRoute?: string; shadow: boolean; latencyMs: number; matchedKeywords?: string[] };
 
@@ -249,7 +251,7 @@ describe('LayaShadow', () => {
 
       await logLayaDecision(input, decision);
 
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(lines).toHaveLength(1);
 
       process.env.NODE_ENV = originalEnv;
       process.env.LAYA_LOG_LEVEL = originalLogLevel;
@@ -288,7 +290,7 @@ describe('LayaShadow', () => {
 
       await logLayaDecision(input, decision);
 
-      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(lines).toHaveLength(0);
 
       process.env.NODE_ENV = originalEnv;
       process.env.LAYA_LOG_LEVEL = originalLogLevel;
