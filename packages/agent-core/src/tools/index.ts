@@ -124,7 +124,7 @@ export function buildTools(_connector: INmsConnector): Anthropic.Tool[] {
     {
       name: 'list_onus',
       description:
-        'Lista ONUs, opcionalmente filtradas por OLT o estado (online/offline/degraded).',
+        'Lista ONUs, opcionalmente filtradas por OLT o estado (online/offline/degraded). Para encontrar la ONU de un cliente por su nombre usá search_by_customer_name, no esta lista.',
       input_schema: asJsonSchema(
         'Filtros opcionales para listar ONUs.',
         {
@@ -165,7 +165,7 @@ export function buildTools(_connector: INmsConnector): Anthropic.Tool[] {
           thresholdDbm: {
             type: 'number',
             description:
-              'Umbral de RX power. Sugeridos: -25 (preventivo), -27 (sospechoso), -28 (problema).',
+              'Umbral de RX power. Sugeridos: -25 (atención), -27 (problema). Son los mismos umbrales que usa el motor de detección.',
           },
         },
         ['thresholdDbm'],
@@ -173,7 +173,8 @@ export function buildTools(_connector: INmsConnector): Anthropic.Tool[] {
     },
     {
       name: 'search_by_customer_name',
-      description: 'Busca ONUs por nombre del cliente. Útil cuando el usuario pregunta por un nombre de persona o empresa.',
+      description:
+        'Busca ONUs por nombre del cliente, con coincidencia parcial y sin distinguir mayúsculas. Usala cuando el usuario nombra a una persona o empresa en vez de dar un ID o número de serie. Devuelve las ONUs que coinciden; para el detalle de una, seguí con get_onu_detail usando su ID. Si no hay coincidencias, devuelve "No encontrado en el NMS".',
       input_schema: asJsonSchema(
         'Nombre del cliente a buscar.',
         {

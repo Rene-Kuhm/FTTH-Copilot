@@ -43,11 +43,11 @@ y solo con la suite de integracion de `packages/db`.
       sesión y admiten cualquier rol; las de admin exigen ADMIN u OWNER.
 - [x] T5 Rafagas: 300 datagramas por UDP, backlog de 600 eventos con la base
       caida, techo de disco, escritura partida a mitad de rafaga
-- [ ] T6 Adaptadores de vendor con payloads sinteticos por fabricante
+- [x] T6 Adaptadores de vendor con payloads sinteticos por fabricante
 
 ### Tier 3 — posterior
 
-- [ ] T7 Capa de AI/agente
+- [x] T7 Capa de AI/agente
 - [ ] T8 Performance y concurrencia
 
 ## Bugs encontrados por los tests

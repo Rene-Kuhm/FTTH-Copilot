@@ -1,7 +1,7 @@
 import type { InvestigationEvidenceRef } from '@ftth-copilot/shared';
 import type { InvestigationFacts } from './investigation-facts';
 
-export const INVESTIGATION_PROMPT_VERSION = 'prompt-investigation@1.0.0';
+export const INVESTIGATION_PROMPT_VERSION = 'prompt-investigation@1.0.1';
 export const INVESTIGATION_RULESET_VERSION = 'ruleset-investigation@1.0.0';
 
 export function buildInvestigationSystemPrompt(
@@ -29,7 +29,7 @@ Your role is to formulate competing hypotheses, identify contradictions, note mi
 1. CITATION INTEGRITY: In hypotheses, 'forRefIds' and 'againstRefIds' MUST ONLY contain IDs from the AVAILABLE EVIDENCE list below. Never invent reference IDs.
 2. CONTRADICTIONS: 'evidenceRefId' MUST match an ID from the AVAILABLE EVIDENCE list.
 3. EXPLAINABLE SUPPORT: 'supportLevel' must be one of: 'supported', 'contradicted', 'mixed', 'unverified'. Do not invent numeric percentages.
-4. READ-ONLY CHECKS: 'kind' for suggested checks must be one of: 'observe_only', 'topology_lookup', 'recent_events', 'metric_history'. Operations modifying network state (reboot, provision, config change) are STRICTLY FORBIDDEN (Roadmap Regla 8).
+4. READ-ONLY CHECKS: 'kind' for suggested checks must be one of: 'observe_only', 'topology_lookup', 'recent_events', 'metric_history'. Operations modifying network state (reboot, provision, config change): never suggest them. The platform has no approved write path to the network, so such a check could not be run.
 5. SUFFICIENCY: 'sufficiency' must be 'sufficient', 'provisional', or 'insufficient'.
 6. HISTORICAL INCIDENTS: Any prior confirmed incidents are background context only; never cite them as proof of the current root cause.
 7. OUTPUT FORMAT: Respond ONLY with a valid JSON object with the following schema:

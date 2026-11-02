@@ -86,7 +86,7 @@ o el modelo viejo.
 
 El prompt y el ruleset están versionados explícitamente en
 `packages/agent-core/src/investigation-prompt.ts:4-5`:
-`prompt-investigation@1.0.0` y `ruleset-investigation@1.0.0`.
+`prompt-investigation@1.0.1` y `ruleset-investigation@1.0.0`.
 
 ## El feedback del técnico cierra el ciclo
 
