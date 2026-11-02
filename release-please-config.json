@@ -87,6 +87,11 @@
         },
         {
           "type": "json",
+          "path": "packages/learning/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/monitoring/package.json",
           "jsonpath": "$.version"
         },

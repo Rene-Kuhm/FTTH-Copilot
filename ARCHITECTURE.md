@@ -21,7 +21,7 @@ Cuatro invariantes atraviesan todo el sistema. Un cambio que las rompa no es un 
 
 ## 2. Mapa de módulos
 
-El monorepo es un pnpm workspace con Turborepo: `apps/*`, `packages/*`, `packages/connectors/*` y `services/*` (**23 workspaces**). Los paquetes se organizan en capas y solo se importan **hacia abajo**.
+El monorepo es un pnpm workspace con Turborepo: `apps/*`, `packages/*`, `packages/connectors/*` y `services/*` (**24 workspaces**). Los paquetes se organizan en capas y solo se importan **hacia abajo**.
 
 ![Vista C4 de contenedores: dónde vive cada capa del monorepo](docs/architecture/c4/views/container.svg)
 
@@ -40,6 +40,7 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/alerts`](packages/alerts) | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. | `db`, `detection` |
 | [`packages/db`](packages/db) | L1 | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) derivado de `KMS_MASTER_KEY`. | `shared` |
 | [`packages/evidence`](packages/evidence) | L1 | Normalización de evidencia cruda, sobres de investigación, procedencia y frescura. | `shared` |
+| [`packages/learning`](packages/learning) | L1 | Núcleo puro del learning loop: resolución de etiquetas, agrupación en eventos, split temporal y suficiencia de muestra. | `shared` |
 | [`packages/connectors/smartolt`](packages/connectors/smartolt) | L1 | Adaptador SmartOLT: cliente HTTP de producción y fixtures de laboratorio. | `connectors-core` |
 | [`packages/connectors/mikrowisp`](packages/connectors/mikrowisp) | L1 | Adaptador Mikrowisp: cliente HTTP de producción y fixtures de laboratorio. | `connectors-core` |
 | [`packages/connectors/mikrotik`](packages/connectors/mikrotik) | L1 | Adaptador MikroTik RouterOS v7 (REST con fallback a API binaria 8728), credenciales cifradas en PostgreSQL. | `connectors-core`, `security` |
