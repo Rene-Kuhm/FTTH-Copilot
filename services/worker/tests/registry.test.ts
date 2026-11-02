@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   tryStart: vi.fn(),
   executeInvestigationAttempt: vi.fn(),
   expireStaleRuns: vi.fn(),
+  runLearningSnapshot: vi.fn(),
 }));
 
 vi.mock('@ftth-copilot/investigations', () => ({
@@ -36,6 +37,10 @@ vi.mock('@ftth-copilot/scheduler', () => ({
   tryStart: mocks.tryStart,
 }));
 
+vi.mock('../src/learning-snapshot', () => ({
+  runLearningSnapshot: mocks.runLearningSnapshot,
+}));
+
 import { JOB_HANDLERS, registeredJobNames } from '../src/registry';
 
 beforeEach(() => {
@@ -46,6 +51,7 @@ beforeEach(() => {
   mocks.tryStart.mockImplementation(async (_name: string, run: () => Promise<unknown>) => {
     await run();
   });
+  mocks.runLearningSnapshot.mockResolvedValue([]);
 });
 
 describe('job handler registry', () => {
@@ -58,6 +64,7 @@ describe('job handler registry', () => {
         JOB_NAMES.pollConnections,
         JOB_NAMES.investigationRun,
         JOB_NAMES.investigationSweep,
+        JOB_NAMES.learningSnapshot,
       ].sort(),
     );
   });
@@ -170,5 +177,38 @@ describe('investigation jobs', () => {
     }
 
     expect(mocks.expireStaleRuns).toHaveBeenCalledWith({ ttlMs: 120000 });
+  });
+});
+
+describe('the learning snapshot job', () => {
+  it('freezes the dataset through the shell of persistence', async () => {
+    mocks.runLearningSnapshot.mockResolvedValue([
+      {
+        tenantId: 't1',
+        snapshotHash: 's_0123456789abcdef',
+        created: true,
+        counts: { events: 2, labelled: 1 },
+      },
+    ]);
+
+    await JOB_HANDLERS[JOB_NAMES.learningSnapshot]?.(
+      { tenantId: 't1', windowDays: 14 },
+      {} as never,
+    );
+
+    expect(mocks.runLearningSnapshot).toHaveBeenCalledTimes(1);
+    expect(mocks.runLearningSnapshot).toHaveBeenCalledWith({
+      tenantId: 't1',
+      windowDays: 14,
+    });
+  });
+
+  it('freezes every tenant when the payload does not narrow it', async () => {
+    await JOB_HANDLERS[JOB_NAMES.learningSnapshot]?.({}, {} as never);
+
+    expect(mocks.runLearningSnapshot).toHaveBeenCalledWith({
+      tenantId: undefined,
+      windowDays: undefined,
+    });
   });
 });

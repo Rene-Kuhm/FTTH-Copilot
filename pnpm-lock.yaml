@@ -944,6 +944,9 @@ importers:
 
   services/worker:
     dependencies:
+      '@ftth-copilot/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@ftth-copilot/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
@@ -953,6 +956,9 @@ importers:
       '@ftth-copilot/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@ftth-copilot/learning':
+        specifier: workspace:*
+        version: link:../../packages/learning
       '@ftth-copilot/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
@@ -963,9 +969,6 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
     devDependencies:
-      '@ftth-copilot/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../../packages/soc

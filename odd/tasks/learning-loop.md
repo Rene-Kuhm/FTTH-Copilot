@@ -1,8 +1,8 @@
 # Learning Loop — memoria que aprende sin derivar
 
-**Status**: In progress — Fase 0 completa (T0.1–T0.4) en `packages/learning`.
-T0.5 (job `learning.snapshot` del worker) va en PR aparte; la Fase 1
-(`TenantPolicy.learningMode` y retracciones) espera revisión.
+**Status**: Fase 0 completa (T0.1–T0.5): `packages/learning` es el núcleo
+puro y el worker congela el dataset por tenant con su hash de contenido. La
+Fase 1 (`TenantPolicy.learningMode` y retracciones) espera revisión.
 **Created**: 2026-10-31
 **Scope**: Cerrar el bucle de aprendizaje de FTTH-Copilot: que el sistema mejore
 con cada diagnóstico confirmado o refutado por un operador, en tres capas
@@ -466,9 +466,14 @@ lo que ve el usuario hasta la Fase 6.
   → `src/sufficiency.ts`. El umbral (`DEFAULT_MIN_SAMPLE_SIZE`) vive ahora en
   `@ftth-copilot/shared` y `packages/eval` lo reexporta: los dos leen la
   misma constante.
-- [ ] **T0.5** Job `learning.snapshot` en el worker: congela dataset por tenant con
+- [x] **T0.5** Job `learning.snapshot` en el worker: congela dataset por tenant con
   `snapshotHash` (contenido + ventana + versión de código). Reproducible: dos
   corridas sobre los mismos datos → mismo hash.
+  → Job `learning-snapshot` en la cola `ftth-learning`, con su loop recurrente
+  apagado por defecto (`LEARNING_SNAPSHOT_ENABLED`). El núcleo puro
+  (`packages/learning/src/snapshot.ts`) calcula el hash; el worker es el shell
+  de persistencia y guarda el artefacto en `learning_artifacts` (append-only,
+  único por `(tenantId, kind, snapshotHash)`).
 
 #### Aclaraciones que fija la Fase 0 sobre D9
 

@@ -14,6 +14,8 @@ lo que ve el usuario hasta la Fase 6.
 | `src/labels.ts` | Resolución de etiquetas según D1 (T0.2). |
 | `src/events.ts` | Agrupación en eventos y split temporal según D9 (T0.3). |
 | `src/sufficiency.ts` | Insuficiencia honesta según I10 (T0.4). |
+| `src/snapshot.ts` | Congelado del dataset y hash de contenido (T0.5). |
+| `src/version.ts` | Versión del código que entra en el hash del snapshot. |
 
 ## Por qué un paquete aparte
 
@@ -88,6 +90,26 @@ sufficiencyReport(metrics, { minSampleSize? }): SufficiencyReport;
   `@ftth-copilot/shared`, así que no pueden divergir.
 - `sufficiencyReport` marca cada métrica y `isCalibrated` solo es `true` si **todas** tienen
   muestra suficiente: un artefacto con una sola métrica sin muestra no se puede promover.
+
+## T0.5 — El snapshot (congelado del dataset)
+
+```ts
+buildLearningSnapshot(input): LearningSnapshot;
+```
+
+Congelar el dataset es lo que hace reproducible una evaluación: **mismo
+contenido, misma ventana y misma versión de código ⇒ mismo hash**. Si el
+dataset cambió, el hash cambió y se sabe.
+
+- El hash (`s_` + 16 hexadecimales) sale de una serialización canónica:
+  ventana, versión de código, corte `T`, etiquetas resueltas, eventos y
+  reparto. Cambia una línea de esa serialización y cambia el hash de todos
+  los snapshots, por eso la versión del código entra también.
+- El snapshot es **de un solo tenant**: las filas de otro tenant se filtran
+  antes de calcular nada (I3).
+- La persistencia no es de este paquete: el worker es el shell de
+  persistencia (`services/worker/src/learning-snapshot.ts`) y guarda el
+  artefacto en `learning_artifacts`.
 
 ## Tests
 

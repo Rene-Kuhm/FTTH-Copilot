@@ -26,7 +26,7 @@ vi.mock('@ftth-copilot/jobs', async (importOriginal) => {
   };
 });
 
-import { INGEST_DRAIN_LOOP, registerRecurringSchedules } from '../src/schedules';
+import { INGEST_DRAIN_LOOP, LEARNING_SNAPSHOT_LOOP, registerRecurringSchedules } from '../src/schedules';
 
 /** The registration of one loop, as it reached the queue. */
 interface RegisteredSchedule {
@@ -113,5 +113,37 @@ describe('the periodic drain of the durable spool', () => {
     expect(INGEST_DRAIN_LOOP.queue).toBe('ingest');
     expect(INGEST_DRAIN_LOOP.jobName).toBe(JOB_NAMES.ingestDrain);
     expect(INGEST_DRAIN_LOOP.scope).toBe('ingest-drain');
+  });
+});
+
+describe('the learning snapshot loop', () => {
+  it('is not registered unless it is enabled: it writes rows and nobody consumes them yet', async () => {
+    const result = await registerRecurringSchedules({ env: {} });
+
+    expect(result.registered.map((loop) => loop.scope)).not.toContain('learning-snapshot');
+    expect(result.skipped.map((loop) => loop.scope)).toContain('learning-snapshot');
+  });
+
+  it('lands on the learning queue with the snapshot job when it is enabled', async () => {
+    await registerRecurringSchedules({ env: { LEARNING_SNAPSHOT_ENABLED: 'true' } });
+
+    const schedule = schedules().find((s) => s.name === JOB_NAMES.learningSnapshot);
+    expect(schedule).toBeDefined();
+    expect(schedule?.everyMs).toBe(86_400_000);
+  });
+
+  it('reads the period from the environment', async () => {
+    await registerRecurringSchedules({
+      env: { LEARNING_SNAPSHOT_ENABLED: 'true', LEARNING_SNAPSHOT_INTERVAL_MS: '3600000' },
+    });
+
+    const schedule = schedules().find((s) => s.name === JOB_NAMES.learningSnapshot);
+    expect(schedule?.everyMs).toBe(3_600_000);
+  });
+
+  it('is the snapshot loop of the learning queue', () => {
+    expect(LEARNING_SNAPSHOT_LOOP.queue).toBe('learning');
+    expect(LEARNING_SNAPSHOT_LOOP.jobName).toBe(JOB_NAMES.learningSnapshot);
+    expect(LEARNING_SNAPSHOT_LOOP.scope).toBe('learning-snapshot');
   });
 });

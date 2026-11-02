@@ -177,6 +177,7 @@ model Tenant {
   InvestigationRun          InvestigationRun[]
   InvestigationVersion      InvestigationVersion[]
   InvestigationFeedback     InvestigationFeedback[]
+  learningArtifacts         LearningArtifact[]
   maintenanceWindows        MaintenanceWindow[]
   fiberPlans                FiberPlan[]
   planZones                 PlanZone[]
@@ -799,6 +800,46 @@ model InvestigationFeedback {
   @@index([tenantId, versionId])
   @@index([tenantId, authorUserId, submittedAt])
   @@map("investigation_feedback")
+}
+
+// Fase 0 del learning loop — dataset congelado por tenant (task T0.5).
+//
+// Congelar el dataset es lo que hace reproducible una evaluación: el
+// `snapshotHash` es el hash del contenido (contenido + ventana + versión
+// de código), así que dos corridas sobre los mismos datos dan el mismo
+// hash y un dataset distinto da un hash distinto.
+//
+// La fila es append-only: congelar es guardar, no reescribir. La
+// unicidad es (tenantId, kind, snapshotHash): volver a congelar el mismo
+// dataset no crea una fila nueva, y un dataset distinto convive con el
+// anterior.
+//
+// Aditivo: no toca ninguna tabla existente.
+model LearningArtifact {
+  id           String                @id @default(cuid())
+  tenantId     String
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kind         LearningArtifactKind
+  // Hash del contenido congelado (contenido + ventana + versión de código).
+  snapshotHash String
+  // Ventana temporal que cubre el artefacto.
+  windowStart  DateTime
+  windowEnd    DateTime
+  // Versión del código que produjo el artefacto.
+  codeVersion  String
+  // Contenido congelado: dataset, etiquetas resueltas y split temporal.
+  payload      Json
+  createdAt    DateTime              @default(now())
+
+  @@unique([tenantId, kind, snapshotHash])
+  @@index([tenantId, kind, createdAt])
+  @@map("learning_artifacts")
+}
+
+// Los tipos de artefacto del learning loop. Hoy solo hay snapshots; los
+// embeddings, baselines y modelos (Fases 2 a 4) se registran aquí.
+enum LearningArtifactKind {
+  snapshot
 }
 
 // Fase 5 — Maintenance windows (roadmap 5.1 + 5.2).

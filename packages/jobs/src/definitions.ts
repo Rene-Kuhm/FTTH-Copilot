@@ -24,6 +24,7 @@ export const QUEUE_NAMES = {
   ingest: 'ftth-ingest',
   investigation: 'ftth-investigation',
   investigationSweep: 'ftth-investigation-sweep',
+  learning: 'ftth-learning',
 } as const;
 
 /** Logical key of a queue. */
@@ -37,6 +38,7 @@ export const JOB_NAMES = {
   ingestDrain: 'ingest-drain',
   investigationRun: 'investigation-run',
   investigationSweep: 'investigation-sweep',
+  learningSnapshot: 'learning-snapshot',
 } as const;
 
 /**
@@ -104,6 +106,18 @@ export interface InvestigationSweepPayload {
   ttlMs?: number;
 }
 
+/**
+ * Freeze the learning dataset of one tenant.
+ *
+ * `tenantId` narrows the job to a single tenant; without it the worker
+ * snapshots every tenant it can see. `windowDays` is how far back the
+ * dataset reaches (default: the worker's own default).
+ */
+export interface LearningSnapshotPayload {
+  tenantId?: string;
+  windowDays?: number;
+}
+
 /** Payload type of every known job name. */
 export interface JobPayloadMap {
   [JOB_NAMES.pollConnections]: PollConnectionsPayload;
@@ -112,6 +126,7 @@ export interface JobPayloadMap {
   [JOB_NAMES.ingestDrain]: IngestDrainPayload;
   [JOB_NAMES.investigationRun]: InvestigationRunPayload;
   [JOB_NAMES.investigationSweep]: InvestigationSweepPayload;
+  [JOB_NAMES.learningSnapshot]: LearningSnapshotPayload;
 }
 
 /** Every known job name. */
@@ -136,6 +151,7 @@ export interface QueueJobMap {
   ingest: typeof JOB_NAMES.ingestDrain;
   investigation: typeof JOB_NAMES.investigationRun;
   investigationSweep: typeof JOB_NAMES.investigationSweep;
+  learning: typeof JOB_NAMES.learningSnapshot;
 }
 
 /** Payload carried by the jobs of a given queue. */
@@ -206,4 +222,23 @@ export function investigationJobId(runId: string, versionId: string): string {
  */
 export function recurringSchedulerId(scope: string): string {
   return `scheduler-${sanitizeJobScope(scope)}`;
+}
+
+/**
+ * Job id of a learning snapshot.
+ *
+ * One id per tenant and window: dos workers que encolen el snapshot del
+ * mismo tenant en la misma ventana producen el mismo id, y BullMQ se niega
+ * a encolar dos veces el mismo job. El snapshot se congela una vez por
+ * ventana, no una vez por intento.
+ */
+export function learningSnapshotJobId(
+  tenantId: string,
+  windowMs: number,
+  at: number = Date.now(),
+): string {
+  if (tenantId.trim().length === 0) {
+    throw new Error('learningSnapshotJobId requires a non-empty tenant id');
+  }
+  return `learning-snapshot-${sanitizeJobScope(tenantId)}-${Math.floor(at / windowMs)}`;
 }

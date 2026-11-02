@@ -53,6 +53,11 @@ expectMatch('apps/web/src-tauri/Cargo.toml', /^version\s*=\s*"([^"]+)"/m, 'Cargo
 expectMatch('apps/web/android/app/build.gradle', /versionName\s+"([^"]+)"/, 'Android versionName');
 expectMatch('apps/web/app/api/health/route.ts', /npm_package_version[^\n]+\?\?\s*'([^']+)'/, 'health fallback');
 expectMatch('packages/agent-core/src/telemetry/exporter.ts', /version:\s*'([^']+)'/, 'telemetry scope version');
+expectMatch(
+  'packages/learning/src/version.ts',
+  /LEARNING_CODE_VERSION\s*=\s*'([^']+)'/,
+  'learning code version',
+);
 
 if (mismatches.length > 0) {
   console.error(`Release version check failed for ${expected}:`);

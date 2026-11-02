@@ -4,6 +4,7 @@ import {
   QUEUE_NAMES,
   ingestDrainJobId,
   investigationJobId,
+  learningSnapshotJobId,
   recurringSchedulerId,
   sanitizeJobScope,
   windowJobId,
@@ -17,9 +18,10 @@ describe('queue and job vocabulary', () => {
       'ingest',
       'investigation',
       'investigationSweep',
+      'learning',
       'poll',
     ]);
-    expect(new Set(Object.values(QUEUE_NAMES)).size).toBe(6);
+    expect(new Set(Object.values(QUEUE_NAMES)).size).toBe(7);
   });
 
   it('names every queue after the work it carries', () => {
@@ -27,6 +29,7 @@ describe('queue and job vocabulary', () => {
     expect(QUEUE_NAMES.firmware).toBe('ftth-firmware');
     expect(QUEUE_NAMES.fec).toBe('ftth-fec');
     expect(QUEUE_NAMES.ingest).toBe('ftth-ingest');
+    expect(QUEUE_NAMES.learning).toBe('ftth-learning');
   });
 
   it('uses queue names BullMQ accepts', () => {
@@ -123,5 +126,38 @@ describe('investigationJobId', () => {
   it('refuses an empty run or version id', () => {
     expect(() => investigationJobId('', 'v_1')).toThrow();
     expect(() => investigationJobId('r_abc', ' ')).toThrow();
+  });
+});
+
+describe('learningSnapshotJobId', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it('is stable for the same tenant and window', () => {
+    expect(learningSnapshotJobId('tenant-1', DAY_MS, 1_760_000_000_000)).toBe(
+      learningSnapshotJobId('tenant-1', DAY_MS, 1_760_000_000_000),
+    );
+  });
+
+  it('is different for different tenants', () => {
+    expect(learningSnapshotJobId('tenant-1', DAY_MS, 1_760_000_000_000)).not.toBe(
+      learningSnapshotJobId('tenant-2', DAY_MS, 1_760_000_000_000),
+    );
+  });
+
+  it('is different for different windows', () => {
+    expect(learningSnapshotJobId('tenant-1', DAY_MS, 1_760_000_000_000)).not.toBe(
+      learningSnapshotJobId('tenant-1', DAY_MS, 1_760_000_000_000 + DAY_MS),
+    );
+  });
+
+  it('never produces an id BullMQ rejects', () => {
+    const id = learningSnapshotJobId('tenant:1', DAY_MS, 1_760_000_000_000);
+    expect(id).not.toContain(':');
+  });
+
+  it('refuses an empty tenant id', () => {
+    expect(() => learningSnapshotJobId('  ', DAY_MS, 1_760_000_000_000)).toThrow(
+      /non-empty tenant id/,
+    );
   });
 });
