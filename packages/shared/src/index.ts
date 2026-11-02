@@ -137,3 +137,5 @@ export * from './laya-metrics';
 export * from './laya-shadow';
 export * from './laya-client';
 export * from './laya-integration';
+export * from './redaction';
+export * from './logger';

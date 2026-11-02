@@ -362,8 +362,8 @@ describe('POST /api/fiber-plans/[id]/zones', () => {
     mocks.fiberPlan.findFirst.mockResolvedValueOnce({ id: 'plan-1' });
     mocks.planZone.create.mockImplementationOnce(
       // Prisma calls: prisma.planZone.create({ data: { tenantId, planId, name, description, color } })
-      async (args: any) => {
-        const d = args?.data ?? args;
+      async (args: { data?: Record<string, unknown> }) => {
+        const d = args?.data ?? (args as unknown as Record<string, unknown>);
         return {
           id: 'zone-new',
           tenantId: String(d?.tenantId ?? 'tenant-1'),
