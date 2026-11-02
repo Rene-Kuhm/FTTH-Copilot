@@ -17,5 +17,6 @@ Para consultar *qué existe* (variables, endpoints, modelos) está
 | [Agregar soporte de un OLT nuevo](agregar-soporte-de-un-olt-nuevo.md) | Implementar un adapter SNMP para un fabricante: contrato, fuentes, fixtures, golden files y gates de CI |
 | [Agregar un endpoint de la API](agregar-un-endpoint-de-la-api.md) | Escribir una ruta en `apps/web/app/api/**` con sesión, permiso, aislamiento por tenant, CSRF, cuota y auditoría |
 | [Desplegar en producción](desplegar-en-produccion.md) | Levantar el stack con Docker Compose (con o sin Caddy), aplicar migraciones y crear el primer usuario admin |
+| [Desplegar en staging](desplegar-en-staging.md) | Montar el entorno donde se valida `BACKEND_MODE=worker`: dónde vivir, con qué Redis y Postgres, y cómo levantar la web en dos réplicas |
 | [Backup y restauración](backup-y-restauracion.md) | Respaldar y restaurar PostgreSQL, respaldar VictoriaMetrics y recuperar las claves que no se pueden regenerar |
 | [Correr el harness de evaluación](correr-el-harness-de-evaluacion.md) | Ejecutar el harness adversarial de `packages/eval`, producir el reporte de métricas y cerrar el loop de feedback |
