@@ -11,6 +11,7 @@
  * instead of silently dropping the work.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import { type JobHandlers, type JobName } from '@ftth-copilot/jobs';
 import { drainSpool } from '@ftth-copilot/ingest';
 import { executeInvestigationAttempt, expireStaleRuns } from '@ftth-copilot/investigations';
@@ -20,6 +21,8 @@ import {
   runScheduledPoll,
   tryStart,
 } from '@ftth-copilot/scheduler';
+
+const log = createLogger({ name: 'worker-registry' });
 
 /**
  * Job name → handler.
@@ -60,10 +63,7 @@ export const JOB_HANDLERS: JobHandlers = {
         // Every event failed the same way: the database is not ready (a
         // migration that did not run, a missing permission). This is an
         // operator alert, not data loss: nothing was dead-lettered.
-        console.error(
-          `[worker] ALERT ingest drain: all ${count} events failed with ${code}. ` +
-            'The events stay in the spool; check the schema and permissions.',
-        );
+        log.error('All ingest events failed; events remain in the spool', { count, code });
       },
     });
     if (result.failed > 0) {
@@ -91,7 +91,7 @@ export const JOB_HANDLERS: JobHandlers = {
       throw outcome.error instanceof Error ? outcome.error : new Error(String(outcome.error));
     }
     if (outcome.status === 'failed') {
-      console.warn(`[worker] investigation ${data.runId}/${data.versionId} failed: ${outcome.reason}`);
+      log.warn('Investigation failed', { correlationId: job.id, tenantId: data.tenantId, runId: data.runId, versionId: data.versionId, reason: outcome.reason });
     }
     return outcome;
   },
@@ -100,7 +100,7 @@ export const JOB_HANDLERS: JobHandlers = {
     const ttlMs = data.ttlMs ?? investigationPendingTtlMs();
     const expired = await expireStaleRuns({ ttlMs });
     if (expired > 0) {
-      console.warn(`[worker] investigation sweep expired ${expired} abandoned attempt(s)`);
+      log.warn('Investigation sweep expired abandoned attempts', { expired });
     }
     return { expired };
   },

@@ -922,6 +922,9 @@ importers:
       '@ftth-copilot/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
@@ -929,9 +932,6 @@ importers:
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@ftth-copilot/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../../packages/soc

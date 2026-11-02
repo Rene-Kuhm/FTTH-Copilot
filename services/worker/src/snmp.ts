@@ -20,6 +20,7 @@
  * to `storeEvidence`.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import {
   JOB_NAMES,
   createJobQueue,
@@ -35,6 +36,8 @@ import {
   storeEvidence,
 } from '@ftth-copilot/ingest';
 import { recordError as recordSchedulerError } from '@ftth-copilot/scheduler';
+
+const log = createLogger({ name: 'worker-snmp' });
 
 /**
  * Retry policy of the drain job.
@@ -94,7 +97,7 @@ export function startWorkerSnmpReceiver(options: WorkerSnmpOptions = {}): Worker
       // listener it would surface as an unhandled error event, and the
       // receiver has to survive a queue outage.
       queue.on('error', (error: Error) => {
-        console.error(`[worker] ingest queue error: ${error.message}`);
+        log.error('Ingest queue error', { error });
         // The enqueue is still waiting for the connection, so this is the
         // first sign of the outage an operator has to see.
         recordSchedulerError('snmp', `ingest drain enqueue failed: ${error.message}`);
@@ -125,9 +128,7 @@ export function startWorkerSnmpReceiver(options: WorkerSnmpOptions = {}): Worker
       );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[worker] could not enqueue the ingest drain job for ${ingestId}: ${detail}`,
-      );
+      log.error('Could not enqueue ingest drain job', { correlationId: ingestId, tenantId, error });
       // The operator has to see it: a socket that received traps nobody
       // drains is a silent loss of telemetry.
       recordSchedulerError('snmp', `ingest drain enqueue failed: ${detail}`);

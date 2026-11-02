@@ -12,12 +12,15 @@
  * `@ftth-copilot/jobs` and calls the handlers registered in `src/registry.ts`.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
 import { registeredJobNames } from './registry';
 import { registerRecurringSchedules } from './schedules';
 import { startWorkerSnmpReceiver } from './snmp';
 import { startWorkerSyslogReceiver } from './syslog';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
+
+const log = createLogger({ name: 'worker-index' });
 
 /** How often the same queue error is logged, in milliseconds. */
 const ERROR_LOG_THROTTLE_MS = 30_000;
@@ -68,21 +71,17 @@ async function main(): Promise<void> {
       const last = lastErrorAt.get(queue);
       if (last !== undefined && now - last < ERROR_LOG_THROTTLE_MS) return;
       lastErrorAt.set(queue, now);
-      console.error(`[worker] queue "${queue}" error: ${error.message}`);
+      log.error('Queue error', { queue, error });
     },
   });
 
   const server = await startHealthServer({ runtime: fleet.runtime, port, host });
 
   const handlers = registeredJobNames();
-  console.log(`[worker] health  → http://${host}:${server.port}/healthz`);
-  console.log(`[worker] metrics → http://${host}:${server.port}/metrics`);
-  console.log(`[worker] consuming queues: ${fleet.runtime.queues.join(', ')}`);
-  console.log(
-    `[worker] job handlers registered: ${
-      handlers.length === 0 ? 'none' : handlers.join(', ')
-    }`,
-  );
+  log.info('Health server ready', { host, port: server.port, path: '/healthz' });
+  log.info('Metrics server ready', { host, port: server.port, path: '/metrics' });
+  log.info('Consuming queues', { queues: fleet.runtime.queues });
+  log.info('Job handlers registered', { handlers });
 
   // The worker owns the syslog socket: it binds it, spools every datagram
   // into the durable spool and enqueues the drain job. The gate is the one
@@ -94,16 +93,14 @@ async function main(): Promise<void> {
   // waited for the schedule registration would leave the ports unbound
   // while Redis is down, and the traps would be dropped by the kernel.
   const syslog = startWorkerSyslogReceiver({ env });
-  console.log(
-    '[worker] syslog receiver started (gate: SYSLOG_RECEIVER_ENABLED=true and SYSLOG_TENANT_ID set)',
-  );
+  log.info('Syslog receiver started');
 
   // The worker owns the SNMP socket too: it binds it, spools every trap
   // into the durable spool and enqueues the drain job. The gate is the one
   // of the package (`SNMP_RECEIVER_ENABLED=true`), so a worker without it
   // never binds a port.
   const snmp = startWorkerSnmpReceiver({ env });
-  console.log('[worker] SNMP receiver started (gate: SNMP_RECEIVER_ENABLED=true)');
+  log.info('SNMP receiver started');
 
   // The worker owns the schedule of the recurring loops: it registers one
   // recurring schedule per enabled loop and enqueues the first tick
@@ -120,23 +117,21 @@ async function main(): Promise<void> {
   void registerRecurringSchedules({ env })
     .then((schedules) => {
       for (const loop of schedules.registered) {
-        console.log(
-          `[worker] schedule "${loop.scope}" → ${loop.jobName} every ${loop.everyMs}ms (first tick at ${new Date(loop.firstTickAtMs).toISOString()})`,
-        );
+        log.info('Schedule registered', { scope: loop.scope, jobName: loop.jobName, everyMs: loop.everyMs, firstTickAt: new Date(loop.firstTickAtMs).toISOString() });
       }
       for (const loop of schedules.skipped) {
-        console.log(`[worker] schedule "${loop.scope}" not registered: ${loop.reason}`);
+        log.info('Schedule not registered', { scope: loop.scope, reason: loop.reason });
       }
     })
     .catch((error: unknown) => {
-      console.error('[worker] could not register the recurring schedules:', error);
+      log.error('Could not register recurring schedules', { error });
     });
 
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (closing) return;
     closing = true;
-    console.log(`[worker] ${signal} received — shutting down`);
+    log.info('Shutting down', { signal });
 
     try {
       await server.close();
@@ -144,7 +139,7 @@ async function main(): Promise<void> {
       await snmp.stop();
       await fleet.close();
     } catch (error) {
-      console.error('[worker] error while shutting down:', error);
+      log.error('Error while shutting down', { error });
     }
 
     process.exit(0);
@@ -159,6 +154,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[worker] fatal error during startup:', error);
+  log.error('Fatal error during startup', { error });
   process.exit(1);
 });

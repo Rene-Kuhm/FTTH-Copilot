@@ -36,6 +36,7 @@
  * reproduces the five-second warm-up the in-process loop had.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import {
   JOB_NAMES,
   createJobQueue,
@@ -48,6 +49,8 @@ import {
   type QueueKey,
   type RedisConnectionOptions,
 } from '@ftth-copilot/jobs';
+
+const log = createLogger({ name: 'worker-schedules' });
 
 /**
  * Grace period before the first tick of a loop, in milliseconds.
@@ -242,7 +245,7 @@ async function registerLoop<Q extends QueueKey>(
   // (a Redis outage must not take the worker down), so the failure has to be
   // reported in one readable line instead.
   queue.on('error', (error: Error) => {
-    console.warn(`[worker] queue "${definition.scope}" error: ${error.message}`);
+    log.warn('Queue error', { scope: definition.scope, error });
   });
 
   try {

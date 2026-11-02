@@ -15,6 +15,7 @@
  *     ingested twice, even if the job is retried.
  */
 
+import { createLogger } from '@ftth-copilot/shared';
 import {
   JOB_NAMES,
   createJobQueue,
@@ -26,6 +27,8 @@ import {
 } from '@ftth-copilot/jobs';
 import { startSyslogReceiver } from '@ftth-copilot/ingest';
 import { recordError as recordSchedulerError } from '@ftth-copilot/scheduler';
+
+const log = createLogger({ name: 'worker-syslog' });
 
 /**
  * Retry policy of the drain job.
@@ -75,7 +78,7 @@ export function startWorkerSyslogReceiver(options: WorkerSyslogOptions = {}): Wo
       // listener it would surface as an unhandled error event, and the
       // receiver has to survive a queue outage.
       queue.on('error', (error: Error) => {
-        console.error(`[worker] ingest queue error: ${error.message}`);
+        log.error('Ingest queue error', { error });
         // The enqueue is still waiting for the connection, so this is the
         // first sign of the outage an operator has to see.
         recordSchedulerError('syslog', `ingest drain enqueue failed: ${error.message}`);
@@ -106,9 +109,7 @@ export function startWorkerSyslogReceiver(options: WorkerSyslogOptions = {}): Wo
       );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[worker] could not enqueue the ingest drain job for ${ingestId}: ${detail}`,
-      );
+      log.error('Could not enqueue ingest drain job', { correlationId: ingestId, tenantId, error });
       // The operator has to see it: a socket that received events nobody
       // drains is a silent loss of telemetry.
       recordSchedulerError('syslog', `ingest drain enqueue failed: ${detail}`);
