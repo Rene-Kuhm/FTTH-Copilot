@@ -203,7 +203,7 @@ Deps: `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared`,
 | `src/investigation-prompt.ts` | Versionado: `prompt-investigation@1.0.0`, `ruleset-investigation@1.0.0` |
 | `src/investigation-validator.ts` | Re-validación del resultado contra el schema |
 | `src/llm.ts` | Clientes estilo Anthropic y estilo OpenAI, con cadena de fallback |
-| `src/prompts/system.ts` | Prompt de sistema |
+| `src/prompts/system.ts` | Prompt de sistema (umbrales alineados con el motor de detección) |
 | `src/telemetry/*` | Tracer, exportador OTLP, OpenInference y redacción de spans |
 | `src/quality-bridge.ts`, `src/alerts.ts` | Puente de calidad y accesos a alertas |
 
