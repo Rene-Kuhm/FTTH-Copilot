@@ -115,8 +115,10 @@ timer systemd comentada (`:47-50`). Es el único `*.service` del repo.
 | `release.yml` | tags `v*`, `workflow_dispatch` | `desktop` (`:58`) → `build-desktop.yml`; `android` (`:68`) → `build-android.yml`. Es el caller de release: concede los permisos de atestación y pasa el tag |
 | `build-desktop.yml` | invocable (`workflow_call`) | `build-linux` (`:50`) — ubuntu-22.04, Rust estable, webkit2gtk, `pnpm build` + `pnpm tauri:prepare`, `tauri build --bundles deb,appimage`; `build-windows` (`:264`) — `--bundles nsis,msi`; `attach-to-release` (`:419`) — en modo release |
 | `build-android.yml` | invocable (`workflow_call`) | `build` (`:36`) — Node 22, pnpm 11.22.0, JDK 21, Android SDK (platform-tools, android-34, build-tools 34.0.0), `cap sync`, `gradlew assembleDebug` + `assembleRelease`; `attach-to-release` (`:244`) — en modo release |
-| `tauri-desktop.yml` | push a `main`/`tauri-desktop`, PR sobre `apps/web/**`, `apps/web/src-tauri/**` | `build` (`:40`) → llama a `build-desktop.yml` en modo validación (sin atestación) |
-| `android-apk.yml` | push a `main`/`design-system-v1`/`capacitor-android`, PR sobre `apps/web/**`, `apps/web/android/**` | `build` (`:41`) → llama a `build-android.yml` en modo validación (sin atestación) |
+| `tauri-desktop.yml` | push a `main`/`tauri-desktop`, PR sobre `apps/web/**`, `apps/web/src-tauri/**` | `build-linux` (`:46`) y `build-windows` (`:88`) — usan la acción compuesta `desktop-build` en modo validación (sin atestación) |
+| `android-apk.yml` | push a `main`/`design-system-v1`/`capacitor-android`, PR sobre `apps/web/**`, `apps/web/android/**` | `build` (`:45`) — usa la acción compuesta `android-build` en modo validación (sin atestación) |
+| `.github/actions/android-build` | acción compuesta | `mise` + JDK 21 + Android SDK + `cap sync` + `gradlew assembleDebug`/`assembleRelease` |
+| `.github/actions/desktop-build` | acción compuesta | `mise` + Rust estable + webkit2gtk (Linux) + `pnpm build` + `pnpm tauri:prepare` + `tauri build --bundles <bundles>` |
 
 Entorno de CI: `mise` con versiones exactas (`MISE_VERSION=2026.10.12`, `mise.toml` + `mise.lock`). Ver
 [§ entorno hermético](../engineering/hermetic-environment.md).
@@ -137,9 +139,21 @@ En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.
   (`contents: write` para publicar releases, `security-events: write` para
   CodeQL, `id-token: write` + `attestations: write` para firmar) se pide de
   forma explícita y local.
+- **El caller concede todo lo que pide el workflow reutilizable que llama.**
+  GitHub valida el grafo del run antes de crear ningún job: si un workflow
+  reutilizable declara un permiso que su caller no concede, el run entero
+  muere con `startup_failure` y cero jobs — sin logs, y con la única evidencia
+  en la anotación "Invalid workflow file" de la UI. El `if:` del job no
+  protege, porque la validación mira lo declarado y no si el job llega a correr.
+  Por eso el camino de validación **no llama** a los builders reutilizables:
+  usa las acciones compuestas `.github/actions/android-build` y
+  `.github/actions/desktop-build`, que compilan los mismos bytes sin pedir
+  `id-token: write`. La regla `caller-permissions` de
+  `scripts/lib/supply-chain.ts` verifica esta relación.
 - El job `supply-chain` de `ci.yml` falla si alguien agrega una acción sin
-  fijar, si un job no declara `permissions:` o si el pipeline de release queda
-  desconectado (ver §9.4). Es hermético: sólo lee los YAML del repo. La
+  fijar, si un job no declara `permissions:`, si el pipeline de release queda
+  desconectado o si un caller no concede lo que pide el workflow que llama
+  (ver §9.4). Es hermético: sólo lee los YAML del repo. La
   política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
   `pnpm check:supply-chain`.
 - `.github/dependabot.yml` actualiza las acciones fijadas por SHA (cambia el
@@ -174,7 +188,8 @@ Por eso la estructura de release es:
 | Rol | Workflow | Qué hace |
 |---|---|---|
 | Builder (workflow reutilizable) | `build-desktop.yml`, `build-android.yml` | Compila **y** atesta: emite la procedencia y el SBOM atestado sobre los bytes recién compilados |
-| Caller | `release.yml` (tags `v*`), `tauri-desktop.yml` y `android-apk.yml` (validación) | Llama al builder y decide qué permisos concede |
+| Caller | `release.yml` (tags `v*`) | Llama al builder y decide qué permisos concede |
+| Validación | `tauri-desktop.yml`, `android-apk.yml` | Compilan con las acciones compuestas `desktop-build` / `android-build`, sin atestar y sin pedir token OIDC |
 
 El caller sólo puede pasarle el tag al builder: no puede inyectar pasos en el
 build. Ese es el aislamiento que da el nivel 3.
@@ -189,9 +204,14 @@ permissions:
   id-token: write
 ```
 
-En el camino de validación (`tauri-desktop.yml`, `android-apk.yml`) el caller
-concede sólo `contents: read` y los pasos de atestación están condicionados al
-modo release: un pull request de un fork no llega ni a pedir un token OIDC.
+En el camino de validación (`tauri-desktop.yml`, `android-apk.yml`) **no**
+aparece el builder reutilizable: se usa la acción compuesta equivalente
+(`.github/actions/android-build`, `.github/actions/desktop-build`), que compila
+los mismos bytes con `contents: read` y nada más. La razón es la validación
+del grafo: un workflow reutilizable que pide `id-token: write` obliga a que
+todo caller lo conceda, y entonces un pull request podría pedir un token
+OIDC. Los pasos de atestación condicionados al modo release no sirven de
+protección: GitHub rechaza el run **antes** de evaluarlos.
 
 **Qué se atesta y qué no.** Se atesta lo que este repo compila: los
 instaladores de escritorio (`.deb`, `.AppImage`, `.msi`, `.exe`) y los APK.

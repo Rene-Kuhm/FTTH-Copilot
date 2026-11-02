@@ -4,9 +4,11 @@ import path from "node:path";
 import { test } from "node:test";
 import {
   checkSupplyChain,
+  findCallerPermissionViolations,
   findJobsWithoutPermissions,
   findReleaseWiringViolations,
   findUnpinnedActions,
+  findUnpinnedCompositeActions,
   isPinnedToSha,
   parseWorkflow,
   remoteActionRef,
@@ -141,6 +143,93 @@ test("findJobsWithoutPermissions rechaza write-all y un bloque vacío", () => {
   assert.equal(violations.length, 2);
 });
 
+// ──────────────────────────────────────────────────────────────────────
+// Regla 4: el techo de permisos del caller.
+//
+// GitHub valida el grafo del run ANTES de crear ningún job: si un workflow
+// reutilizable declara un permiso que su caller no concede, el run entero
+// muere con `startup_failure` y cero jobs (sin logs: la única evidencia es
+// la anotación "Invalid workflow file" en la UI).
+//
+// El `if:` del job no protege: la validación mira el bloque `permissions:`
+// declarado, no si el job llega a correr.
+//
+// Contexto: `build-android.yml` y `build-desktop.yml` piden `id-token: write`
+// y `attestations: write` para atestar, y `contents: write` para adjuntar
+// los artefactos a la release. Los callers de validación concedían sólo
+// `contents: read` → `startup_failure` en todos los PRs desde el 27-oct.
+// ──────────────────────────────────────────────────────────────────────
+
+const CALLER = [
+  "name: Caller",
+  "on:",
+  "  pull_request:",
+  "jobs:",
+  "  build:",
+  "    uses: ./.github/workflows/builder.yml",
+  "    permissions:",
+  "      contents: read",
+];
+
+const BUILDER_WITH_ELEVATED_PERMISSIONS = [
+  "name: Builder",
+  "on:",
+  "  workflow_call:",
+  "jobs:",
+  "  build:",
+  "    permissions:",
+  "      contents: read",
+  "      id-token: write",
+  "    steps:",
+  "      - run: echo hola",
+];
+
+test("findCallerPermissionViolations exige que el caller conceda lo que pide el builder", () => {
+  const models = [
+    model(CALLER.join("\n"), ".github/workflows/caller.yml"),
+    model(BUILDER_WITH_ELEVATED_PERMISSIONS.join("\n"), ".github/workflows/builder.yml"),
+  ];
+
+  const violations = findCallerPermissionViolations(models);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "caller-permissions");
+  assert.match(violations[0]?.message ?? "", /id-token/);
+  assert.match(violations[0]?.message ?? "", /builder\.yml/);
+});
+
+test("findCallerPermissionViolations acepta un caller que concede todo lo que pide el builder", () => {
+  const caller = CALLER.map((line) =>
+    line === "      contents: read"
+      ? "      contents: read\n      id-token: write"
+      : line,
+  );
+  const models = [
+    model(caller.join("\n"), ".github/workflows/caller.yml"),
+    model(BUILDER_WITH_ELEVATED_PERMISSIONS.join("\n"), ".github/workflows/builder.yml"),
+  ];
+
+  assert.deepEqual(findCallerPermissionViolations(models), []);
+});
+
+test("findCallerPermissionViolations no se queja de los callers sin workflow reutilizable", () => {
+  const standalone = [
+    "name: Solo",
+    "on:",
+    "  pull_request:",
+    "jobs:",
+    "  build:",
+    "    permissions:",
+    "      contents: read",
+    "    steps:",
+    "      - run: echo hola",
+  ];
+
+  assert.deepEqual(
+    findCallerPermissionViolations([model(standalone.join("\n"), ".github/workflows/solo.yml")]),
+    [],
+  );
+});
+
 const PUBLISHER = [
   "name: Release",
   "on:",
@@ -231,6 +320,71 @@ test("los workflows del repo cumplen la política de supply chain", () => {
   const violations = checkSupplyChain(files);
   assert.deepEqual(
     violations.map((violation) => `${violation.path}: ${violation.message}`),
+    [],
+  );
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Las acciones compuestas (`.github/actions/<nombre>/action.yml`)
+// referencian acciones de terceros igual que un workflow: la regla de SHA
+// pinning les aplica igual. Sin esto, una acción compuesta sería un hueco.
+// ──────────────────────────────────────────────────────────────────────
+
+test("findUnpinnedCompositeActions exige SHA en las acciones de una acción compuesta", () => {
+  const composite = {
+    path: ".github/actions/ejemplo/action.yml",
+    content: [
+      "name: Ejemplo",
+      "runs:",
+      "  using: composite",
+      "  steps:",
+      "    - uses: actions/checkout@v7",
+    ].join("\n"),
+  };
+
+  const violations = findUnpinnedCompositeActions([composite]);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "sha-pinning");
+  assert.match(violations[0]?.message ?? "", /actions\/checkout@v7/);
+});
+
+test("findUnpinnedCompositeActions acepta una acción compuesta con todo fijado por SHA", () => {
+  const composite = {
+    path: ".github/actions/ejemplo/action.yml",
+    content: [
+      "name: Ejemplo",
+      "runs:",
+      "  using: composite",
+      "  steps:",
+      "    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    ].join("\n"),
+  };
+
+  assert.deepEqual(findUnpinnedCompositeActions([composite]), []);
+});
+
+test("las acciones compuestas del repo cumplen la política de supply chain", () => {
+  const directory = path.join(REPO_ROOT, ".github", "actions");
+  const files: WorkflowFile[] = fs.existsSync(directory)
+    ? fs
+        .readdirSync(directory, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .flatMap((entry) => {
+          const actionDir = path.join(directory, entry.name);
+          return ["action.yml", "action.yaml"]
+            .map((name) => path.join(actionDir, name))
+            .filter((file) => fs.existsSync(file))
+            .map((file) => ({
+              path: `.github/actions/${entry.name}/${path.basename(file)}`,
+              content: fs.readFileSync(file, "utf8"),
+            }));
+        })
+    : [];
+
+  assert.deepEqual(
+    findUnpinnedCompositeActions(files).map(
+      (violation) => `${violation.path}: ${violation.message}`,
+    ),
     [],
   );
 });
