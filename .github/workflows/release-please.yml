@@ -163,20 +163,37 @@ jobs:
                 --input -
 
       # ──────────────────────────────────────────────────────────
-      # release-please updates JSON, YAML and TOML manifests. Three
-      # version carriers are none of those, and they do not carry the
+      # Las dependencias del workspace. Las necesitan los dos pasos que
+      # corren con el `tsx` del lockfile: la sincronización de los version
+      # carriers y la verificación del tag.
+      # ──────────────────────────────────────────────────────────
+      - name: Install dependencies
+        if: steps.release.outputs.prs != '' || steps.release.outputs.release_created == 'true'
+        run: mise run deps
+
+      # ──────────────────────────────────────────────────────────
+      # release-please updates JSON, YAML and TOML manifests. A few version
+      # carriers are none of those, and they do not carry the
       # `x-release-please-version` annotation that the generic updater
       # needs, so they are synchronized here:
       #
       #   apps/web/android/app/build.gradle     versionName
       #   apps/web/app/api/health/route.ts       health endpoint fallback
       #   packages/agent-core/src/telemetry/exporter.ts   telemetry scope
+      #   packages/learning/src/version.ts        learning code version
       #
-      # Adding the annotation to those three files is the alternative, and
-      # it is the better long term fix.
+      # The list lives in `scripts/lib/version-carriers.ts` and the same
+      # table is the one `pnpm check:version` validates against the
+      # published tag: a carrier added there is covered by both paths.
+      #
+      # This step runs on EVERY cycle, not only when release-please creates
+      # the pull request: a carrier that enters `main` after the release
+      # pull request was opened (that is what happened with
+      # `packages/learning/src/version.ts` and the 0.5.0) would otherwise
+      # stay stale and the verification of the tag would fail.
       # ──────────────────────────────────────────────────────────
       - name: Sync the version carriers release-please cannot update
-        if: steps.release.outputs.prs_created == 'true'
+        if: steps.release.outputs.prs != ''
         env:
           RELEASE_PULL_REQUESTS: ${{ steps.release.outputs.prs }}
           # `RELEASE_PLEASE_TOKEN` no se redeclara acá: los steps heredan las
@@ -201,18 +218,9 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           echo "Synchronizing the version carriers to ${version}."
 
-          sed -i -E "s/(versionName \")[0-9]+\.[0-9]+\.[0-9]+(\")/\1${version}\2/" \
-            apps/web/android/app/build.gradle
-          sed -i -E "s/(\?\? ')[0-9]+\.[0-9]+\.[0-9]+(')/\1${version}\2/" \
-            apps/web/app/api/health/route.ts
-          sed -i -E "s/(version: ')[0-9]+\.[0-9]+\.[0-9]+(')/\1${version}\2/" \
-            packages/agent-core/src/telemetry/exporter.ts
-
-          # Fail loudly when a carrier could not be updated: a silent miss
-          # leaves the released tag with a stale version.
-          grep -q "versionName \"${version}\"" apps/web/android/app/build.gradle
-          grep -q "?? '${version}'" apps/web/app/api/health/route.ts
-          grep -q "version: '${version}'" packages/agent-core/src/telemetry/exporter.ts
+          # El script sale con código 1 si algún carrier no se pudo
+          # actualizar: un tag con la versión a medias no se publica.
+          pnpm exec tsx scripts/sync-version-carriers.ts "${version}"
 
           if git diff --quiet; then
             echo "Version carriers already synchronized."
@@ -261,10 +269,6 @@ jobs:
       # momento: la versión y el checksum de la herramienta salen del
       # lockfile del repo, como todo lo demás.
       # ──────────────────────────────────────────────────────────
-      - name: Install dependencies
-        if: steps.release.outputs.release_created == 'true'
-        run: mise run deps
-
       - name: Verify the released version
         if: steps.release.outputs.release_created == 'true'
         env:

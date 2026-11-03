@@ -71,7 +71,8 @@ export type PolicyRule =
   | "release-token-headers"
   | "windows-shell"
   | "attach-tag"
-  | "release-notes";
+  | "release-notes"
+  | "release-carriers";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -966,6 +967,68 @@ export function findReleaseNotesViolations(model: WorkflowModel): PolicyViolatio
   return violations;
 }
 
+/**
+ * Regla 10: los version carriers se sincronizan con el script único.
+ *
+ * El check del tag (`pnpm check:version`) y la sincronización de la rama de
+ * release tienen que leer la misma tabla de carriers, que vive en
+ * `scripts/lib/version-carriers.ts`. Cuando los dos tenían su propia lista, el
+ * carrier `packages/learning/src/version.ts` entró al check pero no a la
+ * sincronización, y el release 0.5.0 salió con ese carrier en 0.4.0: la
+ * verificación del tag falló y la release quedó sin SBOM.
+ *
+ * La regla además exige que las dependencias estén instaladas antes de la
+ * sincronización: el script corre con el `tsx` del lockfile.
+ */
+export function findReleaseCarriersViolations(
+  models: readonly WorkflowModel[],
+): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const model of models) {
+    const publishes = model.jobs.some((job) =>
+      job.steps.some(
+        (step) =>
+          step.uses !== null &&
+          remoteActionRef(step.uses)?.startsWith(`${PUBLISHER_ACTION}@`) === true,
+      ),
+    );
+    if (!publishes) continue;
+
+    const steps = model.jobs.flatMap((job) => job.steps);
+    const syncIndex = steps.findIndex(
+      (step) => step.run !== null && /sync-version-carriers\.ts/.test(step.run),
+    );
+    if (syncIndex === -1) {
+      violations.push({
+        rule: "release-carriers",
+        path: model.path,
+        line: null,
+        message:
+          "el workflow que publica la release no sincroniza los version carriers: " +
+          "el tag se publica con la versión a medias y la verificación falla. " +
+          "Llamá a `scripts/sync-version-carriers.ts`.",
+      });
+      continue;
+    }
+
+    const installsDependencies = steps.slice(0, syncIndex).some(
+      (step) => step.run !== null && /(mise run deps|pnpm install)/.test(step.run),
+    );
+    if (!installsDependencies) {
+      violations.push({
+        rule: "release-carriers",
+        path: model.path,
+        line: steps[syncIndex]?.line ?? null,
+        message:
+          "el paso que sincroniza los version carriers corre antes de instalar las " +
+          "dependencias: el script necesita el `tsx` del lockfile. Mové el paso de " +
+          "instalación antes de la sincronización.",
+      });
+    }
+  }
+  return violations;
+}
+
 export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolation[] {
   const models = files
     .map((file) => parseWorkflow(file))
@@ -982,5 +1045,6 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
   violations.push(...findCallerPermissionViolations(models));
   violations.push(...findReleaseTokenDispatchViolations(models));
   violations.push(...findReleaseTokenHeaderViolations(models));
+  violations.push(...findReleaseCarriersViolations(models));
   return violations;
 }

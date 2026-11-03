@@ -477,3 +477,34 @@ que resolver.
 La regla que lo ata es `release-token-headers`: el push que manda un
 encabezado de autorización propio tiene que resetear la lista. Si alguien
 saca el reset, `pnpm check:supply-chain` falla y el CI se pone rojo.
+
+### 9.7 Los version carriers: una sola tabla
+
+Un *version carrier* es un fichero que lleva la versión del release y que
+`pnpm check:version` valida contra el tag publicado. Release-please actualiza
+los `package.json`, el `tauri.conf.json` y el `Cargo.toml`; los demás los
+actualiza el paso de sincronización de `release-please.yml`:
+
+| Carrier | Versión |
+|---|---|
+| `apps/web/android/app/build.gradle` | `versionName` |
+| `apps/web/app/api/health/route.ts` | el fallback del endpoint de health |
+| `packages/agent-core/src/telemetry/exporter.ts` | el scope de telemetría |
+| `packages/learning/src/version.ts` | la versión del núcleo de learning |
+
+La lista vive en `scripts/lib/version-carriers.ts` y **la usan los dos**: el
+check (`pnpm check:version`) y la sincronización (`pnpm sync:version-carriers`).
+Un carrier nuevo está cubierto por los dos caminos con agregarlo una vez.
+
+El paso de sincronización corre en **cada** ciclo del pipeline, no sólo cuando
+release-please abre el pull request: un carrier que entra a `main` después de
+que el PR de release se abrió queda desactualizado en el tag si el paso no
+vuelve a correr. Pasó con `packages/learning/src/version.ts` (el núcleo de
+learning entró en el 0.5.0): el tag salió con ese carrier en 0.4.0, la
+verificación falló y la release quedó sin SBOM.
+
+La regla `release-carriers` de `scripts/lib/supply-chain.ts` falla el check de
+supply chain si el workflow que publica la release no llama a
+`scripts/sync-version-carriers.ts`, o si lo llama antes de instalar las
+dependencias (el script corre con el `tsx` del lockfile).
+
