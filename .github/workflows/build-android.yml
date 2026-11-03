@@ -215,12 +215,28 @@ jobs:
           path: artifacts
           pattern: 'ftth-copilot-android-*'
 
+      - name: Check if the release already exists
+        id: release_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Attach APKs to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: artifacts/**/*
           fail_on_unmatched_files: false
-          generate_release_notes: true
+          # The notes are only generated when the release does not exist yet.
+          # `generate_release_notes: true` appends them to the body the release
+          # already has, which duplicates the notes release-please wrote.
+          generate_release_notes: ${{ steps.release_state.outputs.exists == 'false' }}
           # The tag has to be explicit: without it the action takes
           # `github.ref`, which in a workflow_dispatch is the branch and not
           # the tag, and it aborts with "GitHub Releases requires a tag".

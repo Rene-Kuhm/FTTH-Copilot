@@ -85,5 +85,6 @@ console.log(
     `${compositeActions.length} acciones compuestas, todas las acciones fijadas por SHA, ` +
     `todos los jobs con permissions:, el pipeline de release conectado, el ` +
     `token de release coherente con su dispatch y sus encabezados, cada ` +
-    `step de Windows con su shell declarado y cada attach con su tag.`,
+    `step de Windows con su shell declarado, cada attach con su tag y cada attach ` +
+    `que sólo genera las notas si la release todavía no existe.`,
 );
