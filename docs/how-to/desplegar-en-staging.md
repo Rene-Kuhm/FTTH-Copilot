@@ -187,6 +187,16 @@ docker compose --env-file .env.staging \
   db-migrate sh -c "pnpm --filter @ftth-copilot/db db:seed"
 ```
 
+El seed crea el tenant `demo-tenant` (`DEFAULT_TENANT_ID`, en
+`packages/db/prisma/seed.ts`). El receptor syslog sólo arranca si `SYSLOG_TENANT_ID`
+está seteado (`packages/ingest/src/syslog-receiver.ts`): con la variable vacía no
+bindea el socket y el health marca el loop como no esperado, así que el paso de
+syslog de T14 no se puede validar.
+
+```bash
+sed -i "s|^SYSLOG_TENANT_ID=.*|SYSLOG_TENANT_ID=demo-tenant|" .env.staging
+```
+
 ---
 
 ## 4. Qué valida T14
