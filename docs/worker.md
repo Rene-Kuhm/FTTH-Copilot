@@ -207,6 +207,37 @@ failure would be silent.
 same way the app does on `/api/metrics`. `/healthz` stays open: it is the
 container's own health check, and it only exposes coarse operational state.
 
+### The state of the loops travels in Redis
+
+The registry of the scheduled loops lives in the memory of the process that
+runs them — the worker. The web serves `/api/health`, and it cannot read
+that registry from its own memory: it does not even share the copy of the
+registry with the instrumentation that starts the loops, because Next.js
+bundles each entry point separately. Two processes, two memories: the web
+would report an empty list of services while the worker does the work.
+
+So the worker publishes what it knows and the web reads it from there:
+
+| Key                            | What                                                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ftth:worker:scheduler-health` | JSON: the state of every loop (`services`), the counters of the ingest path (`counters`) and the time of the publication (`publishedAt`).                            |
+
+The worker refreshes it every 20 seconds and the key expires after 60. A
+worker that dies leaves no trace behind: the web degrades instead of
+reporting a healthy worker that stopped working minutes ago.
+
+The contract lives in `@ftth-copilot/scheduler` (`WORKER_HEALTH_KEY`,
+`buildWorkerHealthSnapshot`, `parseWorkerHealthSnapshot`), so both ends
+agree on the shape without either of them knowing how the other is
+implemented. The parse is strict on purpose: a value that is not a snapshot
+is reported as "no snapshot", never as a truth.
+
+```bash
+# The state of the loops, as the web reads it.
+redis-cli -a "$REDIS_PASSWORD" --no-auth-warning \
+  get ftth:worker:scheduler-health | jq .
+```
+
 ### What the worker exports
 
 | Metric | Type | What it answers |

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { workerOwnsBackgroundWork } from '@ftth-copilot/jobs';
 import {
   overallHealthy,
   snapshotHealth,
   detectHangedLoops,
 } from '@/lib/monitoring/scheduler-health';
+import { readWorkerHealth } from '@/lib/monitoring/worker-health';
 import {
   snapshotEvaluatedConnectionHealth,
 } from '@/lib/monitoring/connection-health';
@@ -23,9 +25,25 @@ export const dynamic = 'force-dynamic';
  *
  * When either schedulers or database are unhealthy, the endpoint replies
  * with HTTP 503 so load balancers / orchestrators detect the degradation.
+ *
+ * **Who owns the loops.** In worker mode the loops run in the worker, and
+ * this process does not run them at all. The state of the loops is then
+ * read from the snapshot the worker publishes in Redis: the registry lives
+ * in the memory of the worker, and this process cannot see it — it does not
+ * even share the copy of the registry with the instrumentation that starts
+ * the loops, because Next.js bundles each entry point separately.
+ *
+ * The endpoint says who owns the loops (`owner`), so an operator can tell
+ * "there are no loops" from "the loops are in the worker and this is what
+ * they are doing". A worker that publishes nothing is a worker that is not
+ * working: the background work has no owner, and the endpoint says so.
  */
 export async function GET(): Promise<NextResponse> {
-  const services = snapshotHealth();
+  const workerOwns = workerOwnsBackgroundWork();
+  const localServices = snapshotHealth();
+  const workerSnapshot = workerOwns ? await readWorkerHealth() : null;
+  const services = workerOwns ? (workerSnapshot?.services ?? {}) : localServices;
+
   const schedulersHealthy = overallHealthy(services);
   const now = Date.now();
   const hungLoops = detectHangedLoops(services, now);
@@ -34,14 +52,21 @@ export async function GET(): Promise<NextResponse> {
 
   const isDatabaseHealthy = database.status === 'connected';
   const healthy = schedulersHealthy && isDatabaseHealthy;
-  const ingest = eventIngestStats();
+  const localIngest = eventIngestStats();
+  // In worker mode this process ingests nothing: its counters are always
+  // zero. The backlog and the losses that matter are the ones of the
+  // worker, which owns the durable spool.
+  const ingest = { ...localIngest, ...(workerSnapshot?.counters ?? {}) };
 
   // Telemetry loss has to be loud. A backlog means the database was
   // unreachable and events are waiting on disk; drops mean events are gone.
   // Neither should hide behind an otherwise green status.
   const ingestLossy = ingest.dropped > 0 || ingest.rateLimited > 0;
+  // A worker that publishes nothing is not publishing because it is not
+  // working. The background work would have no owner at all.
+  const workerMissing = workerOwns && workerSnapshot === null;
   // `overallHealthy` is the imported scheduler helper, so this stays distinct.
-  const statusHealthy = healthy && !ingestLossy;
+  const statusHealthy = healthy && !ingestLossy && !workerMissing;
 
   return NextResponse.json(
     {
@@ -54,6 +79,7 @@ export async function GET(): Promise<NextResponse> {
       },
       version: process.env['npm_package_version'] ?? '0.5.0',
       database,
+      owner: workerOwns ? 'worker' : 'embedded',
       services,
       hungLoops,
       connections,

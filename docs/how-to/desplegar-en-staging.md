@@ -229,9 +229,26 @@ docker compose --env-file .env.staging \
   redis-cli -a "$REDIS_PASSWORD" --no-auth-warning info keyspace
 ```
 
-En `/api/health`, `services` tiene que listar los loops **esperados en el worker**, no los
-de la web: si la web todavía arranca un loop, los dos owners trabajan en paralelo y
-nada lo avisa salvo el conteo duplicado.
+En `/api/health`, `services` lista los loops **del worker**, no los de la web. La web no
+puede leer el registro del worker desde su memoria: Next.js empaqueta la instrumentación y
+los route handlers por separado, así que cada proceso tiene su propia copia del registro y
+la de la web está vacía. El worker publica su estado en Redis
+(`ftth:worker:scheduler-health`, con TTL de 60 segundos) y la web lo lee de ahí.
+
+El campo `owner` dice de quién es el registro: `worker` o `embedded`. En modo worker, si el
+worker no publica nada —porque está caído o porque todavía no arrancó— el health responde
+`503 degraded`: el trabajo de fondo no tiene dueño y el health tiene que decirlo, en vez de
+mostrar una lista vacía que parece un sistema tranquilo.
+
+Los contadores del ingest (`backlog`, `dropped`) vienen del worker en ese modo. La web no
+ingiere nada cuando el worker es el dueño, así que los suyos serían siempre cero.
+
+```bash
+# El estado de los loops, tal como lo ve la web
+docker compose --env-file .env.staging \
+  -f docker-compose.prod.yml -f docker-compose.staging.yml exec redis \
+  redis-cli -a "$REDIS_PASSWORD" --no-auth-warning get ftth:worker:scheduler-health | jq .
+```
 
 ### El criterio de "sin duplicar trabajo"
 

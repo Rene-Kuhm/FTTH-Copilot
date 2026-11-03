@@ -16,6 +16,11 @@ vi.mock('@ftth-copilot/db', () => ({
   },
 }));
 
+const { mockReadWorkerHealth } = vi.hoisted(() => ({ mockReadWorkerHealth: vi.fn() }));
+vi.mock('@/lib/monitoring/worker-health', () => ({
+  readWorkerHealth: mockReadWorkerHealth,
+}));
+
 /**
  * Tests for `apps/web/app/api/health/route.ts`.
  *
@@ -38,6 +43,8 @@ beforeEach(() => {
   __resetSchedulerHealth();
   mockQueryRaw.mockReset();
   mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
+  mockReadWorkerHealth.mockReset();
+  mockReadWorkerHealth.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -177,8 +184,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
   });
 });
 
-describe('GET /api/health — database connectivity', () => {
-  it('returns 503 degraded when database connection fails', async () => {
+describe('GET /api/health — database connectivity', () => {  it('returns 503 degraded when database connection fails', async () => {
     mockQueryRaw.mockRejectedValue(new Error('Connection refused'));
     const res = await GET();
     expect(res.status).toBe(503);
@@ -213,3 +219,86 @@ describe('GET /api/health — database connectivity', () => {
   });
 });
 
+
+/**
+ * When the worker owns the background work, the health of the web has to
+ * report the state of the loops of the worker.
+ *
+ * The web cannot read the registry of the worker from its own memory — it
+ * does not even share the copy of the registry with the instrumentation that
+ * starts the loops, because Next.js bundles each entry point separately. The
+ * worker publishes the state in Redis and the web reads it from there.
+ */
+describe('GET /api/health — the worker owns the background work', () => {
+  const originalMode = process.env['BACKEND_MODE'];
+
+  beforeEach(() => {
+    __resetSchedulerHealth();
+    mockQueryRaw.mockReset();
+    mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
+    mockReadWorkerHealth.mockReset();
+    mockReadWorkerHealth.mockResolvedValue(null);
+    process.env['BACKEND_MODE'] = 'worker';
+  });
+
+  afterEach(() => {
+    __resetSchedulerHealth();
+    if (originalMode === undefined) delete process.env['BACKEND_MODE'];
+    else process.env['BACKEND_MODE'] = originalMode;
+  });
+
+  it('lists the loops of the worker', async () => {
+    mockReadWorkerHealth.mockResolvedValue({
+      services: {
+        polling: {
+          expected: true,
+          lastRunAt: Date.now(),
+          lastError: null,
+          lastErrorAt: null,
+        },
+      },
+      counters: {},
+      publishedAt: Date.now(),
+    });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.owner).toBe('worker');
+    expect(body.services['polling']?.expected).toBe(true);
+    expect(res.status).toBe(200);
+  });
+
+  it('is degraded when the worker published nothing', async () => {
+    mockReadWorkerHealth.mockResolvedValue(null);
+
+    const res = await GET();
+    const body = await res.json();
+    expect(res.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.owner).toBe('worker');
+  });
+
+  it('reports the backlog of the worker, not the empty one of the web', async () => {
+    mockReadWorkerHealth.mockResolvedValue({
+      services: {},
+      counters: { backlog: 5, dropped: 0 },
+      publishedAt: Date.now(),
+    });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.ingest.backlog).toBe(5);
+  });
+
+  it('keeps reporting the loops of this process when the worker does not own them', async () => {
+    delete process.env['BACKEND_MODE'];
+    markExpected('polling');
+    recordSuccess('polling', Date.now());
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.owner).toBe('embedded');
+    expect(body.services['polling']?.expected).toBe(true);
+    expect(res.status).toBe(200);
+  });
+});
