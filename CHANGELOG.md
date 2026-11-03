@@ -12,6 +12,35 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.5.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.4.0...v0.5.0) (2026-11-03)
+
+
+### Added
+
+* **learning:** el job que congela el dataset por tenant (T0.5) ([#349](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/349)) ([d980517](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d9805175ced8e4aede488a8e02c6aa346df41a3a))
+* **learning:** el núcleo puro del learning loop (Fase 0, T0.1–T0.4) ([#348](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/348)) ([36cf601](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/36cf601babdef239f9dff0d1f910c0d368be593a))
+* **staging:** el entorno donde se valida el modo worker ([#352](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/352)) ([4b109c0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4b109c0b46eebb9a152a0f735d4511fe87e53ccd))
+* **web:** el rate limiter global con Redis, con respaldo en memoria ([#351](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/351)) ([873db63](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/873db63720b8a49184432b4f57230be4496e5a50))
+* **web:** que los paneles pidan de a paginas los incidentes y las alertas ([#356](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/356)) ([e877c60](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e877c609e715a6bfcf3bcf05bc947c8943872b25))
+
+
+### Fixed
+
+* **ci:** correr en bash los steps del build de Windows ([#355](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/355)) ([9b09f96](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9b09f96e872c49ea560b37c72f368e5946a2620c))
+* **release:** adjuntar los binarios sin reescribir la release ([#358](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/358)) ([cbbb9d3](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/cbbb9d3be080213774e697312acf78d4dcb652be))
+* **release:** adjuntar los binarios sin romper la release publicada ([#357](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/357)) ([f6baf03](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f6baf030c0d75fe7e6dad9ccaf5515fa5c1a257e))
+* **release:** versionar los siete paquetes que faltaban ([#350](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/350)) ([00a8a1d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/00a8a1d92c58451d17132993a8aa2e44d1a0fe8f))
+
+
+### Performance
+
+* **web:** quitar el N+1 del on-call y el escaneo cuadratico de la reevaluacion ([#353](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/353)) ([0ea329b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0ea329b413601d3c871c64e1edaadda387b070ee))
+
+
+### Documentation
+
+* **odd:** cerrar el tablero de la migracion a VictoriaMetrics ([#347](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/347)) ([f29d330](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f29d330d99a3b728010444d6fb1ed9d9239677f0))
+
 ## [0.4.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.3.0...v0.4.0) (2026-11-02)
 
 
