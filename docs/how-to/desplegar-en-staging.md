@@ -87,9 +87,16 @@ receptores arrancan igual y no reciben nada.
 |---|---|---|---|
 | `caddy` | red de Compose | `app:3001` | `8080` en el host (HTTP) |
 | `app` ×2 | red de Compose | `postgres:5432`, `redis:6379` | **ninguno publicado** (Caddy entra) |
-| `worker` | **red del host** | `127.0.0.1:6379`, `127.0.0.1:5432` | UDP `5514` y `1162` en el host |
-| `postgres` | red de Compose + loopback | — | `127.0.0.1:5432` |
-| `redis` | red de Compose + loopback | — | `127.0.0.1:6379` |
+| `worker` | **red del host** | `127.0.0.1:6380`, `127.0.0.1:5434` | `8082` (health), UDP `5515` y `1163` |
+| `postgres` | red de Compose + loopback | — | `127.0.0.1:5434` |
+| `redis` | red de Compose + loopback | — | `127.0.0.1:6380` |
+
+Los puertos del staging son distintos de los de producción (5432, 6379, 8081,
+5514 y 1162) a propósito: los dos stacks pueden convivir en un mismo host.
+Los que se mueven salen de `.env.staging`: `POSTGRES_PORT`, `REDIS_PORT`,
+`WORKER_PORT`, `SYSLOG_UDP_PORT` y `SNMP_UDP_PORT`. El único que coincide es
+el HTTP del staging (8080), que producción sólo usa si levanta el profile
+`laya`.
 
 El `worker` corre en la red del host a propósito, por la IP de origen del datagrama
 syslog (ver arriba). Por eso Postgres y Redis se publican en el loopback: son las dos
@@ -134,7 +141,7 @@ Redis** de las rutas que mutan estado (SEC-008, PR #351).
 ### 3.1 De cero a arriba
 
 Todo lo que hace falta, en orden y sin pasos a mano, para un host que ya tiene
-Docker (§3.2). Cada bloque se puede copiar y pegar tal cual. El detalle de cada
+Docker (§3.3). Cada bloque se puede copiar y pegar tal cual. El detalle de cada
 paso y el porqué están en las secciones siguientes:
 
 ```bash
@@ -149,12 +156,7 @@ sed -i "s|^KMS_MASTER_KEY=.*|KMS_MASTER_KEY=$(openssl rand -hex 32)|" .env.stagi
 sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" .env.staging
 sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 32)|" .env.staging
 
-# 3. El puerto de Postgres, si el host ya tiene uno escuchando. El worker llega
-#    a Postgres y a Redis por el loopback del host, así que tienen que estar
-#    libres. En el VPS de T14 el 5432 ya estaba ocupado: quedó en el 5434.
-sed -i "s|^POSTGRES_PORT=.*|POSTGRES_PORT=5434|" .env.staging
-
-# 4. Los receptores syslog y SNMP, que son parte de lo que T14 valida. En la
+# 3. Los receptores syslog y SNMP, que son parte de lo que T14 valida. En la
 #    plantilla están apagados: bindear un socket UDP es exclusivo del host y
 #    dos procesos no pueden tomar el mismo puerto. El tenant es al que se
 #    atribuyen los eventos del syslog.
@@ -162,13 +164,13 @@ sed -i "s|^SYSLOG_RECEIVER_ENABLED=.*|SYSLOG_RECEIVER_ENABLED=true|" .env.stagin
 sed -i "s|^SNMP_RECEIVER_ENABLED=.*|SNMP_RECEIVER_ENABLED=true|" .env.staging
 sed -i "s|^SYSLOG_TENANT_ID=.*|SYSLOG_TENANT_ID=demo-tenant|" .env.staging
 
-# 5. Las imágenes. El JWT_SECRET va como build arg: el middleware de Next.js
+# 4. Las imágenes. El JWT_SECRET va como build arg: el middleware de Next.js
 #    corre en Edge, que no puede leer variables de entorno en runtime.
 docker compose --env-file .env.staging \
   -f docker-compose.prod.yml -f docker-compose.staging.yml \
   build --build-arg JWT_SECRET="$(grep '^JWT_SECRET=' .env.staging | cut -d= -f2-)"
 
-# 6. El stack: la web en dos réplicas y el worker como dueño del trabajo de
+# 5. El stack: la web en dos réplicas y el worker como dueño del trabajo de
 #    fondo. El proyecto se llama ftth-staging, así que este stack y el de
 #    producción pueden convivir en el mismo host: sus contenedores se llaman
 #    ftth-staging-* y no pisan los de producción.
@@ -176,13 +178,13 @@ docker compose --env-file .env.staging \
   -f docker-compose.prod.yml -f docker-compose.staging.yml \
   up -d --scale app=2
 
-# 7. El mock NMS. Va detrás de un profile: un staging con un NMS real no lo
+# 6. El mock NMS. Va detrás de un profile: un staging con un NMS real no lo
 #    levanta y no necesita este paso.
 docker compose --env-file .env.staging \
   -f docker-compose.prod.yml -f docker-compose.staging.yml \
   --profile mock-nms up -d mock-nms
 
-# 8. El seed: el tenant, el admin y la conexión que apunta al mock NMS. La
+# 7. El seed: el tenant, el admin y la conexión que apunta al mock NMS. La
 #    URL base de esa conexión sale de DEMO_NMS_BASE_URL, que ya viene en la
 #    plantilla.
 docker compose --env-file .env.staging \
@@ -190,16 +192,18 @@ docker compose --env-file .env.staging \
   run --rm -e ALLOW_PRODUCTION_SEED=true -e SEED_ADMIN_PASSWORD='<password>' \
   db-migrate pnpm --filter @ftth-copilot/db db:seed
 
-# 9. El mock NMS responde: el OLT del mock
+# 8. El mock NMS responde: el OLT del mock
 curl -sS http://127.0.0.1:18080/api/system/get_olts | jq .
 
-# 10. El stack está arriba y el worker es el dueño del trabajo de fondo
+# 9. El stack está arriba y el worker es el dueño del trabajo de fondo
 curl -sS http://127.0.0.1:8080/api/health | jq '.status, .owner, .services'
 ```
 
-El paso 3 es el único que depende de lo que ya esté instalado en el host: si
-el puerto está libre, el default de la plantilla (`5432`) sirve y el `sed` se
-puede saltear.
+Los puertos del staging ya vienen en la plantilla y **son distintos de los que
+usa producción** (5434, 6380, 8082, 5515 y 1163): los dos stacks pueden
+convivir en un mismo host. La única excepción es el puerto HTTP del staging
+(el 8080), que producción sólo usa si levanta el profile `laya`, que es
+opcional.
 
 > Las excepciones de la política SSRF (`NMS_ALLOW_HTTP`, `NMS_ALLOW_PRIVATE_NETWORKS`,
 > `NMS_ALLOWED_HOSTS`, `NMS_ALLOWED_PORTS`) vienen activadas en la plantilla: el mock NMS
@@ -207,7 +211,58 @@ puede saltear.
 > **Nunca van a producción**: el web y el worker se niegan a arrancar con ellas activadas
 > cuando `NODE_ENV=production` y no llevan la marca de staging (`DEPLOY_ENV=staging`).
 
-### 3.2 Preparar el host
+### 3.2 Un staging que ya existe
+
+La receta de arriba es para un host nuevo. Un staging que ya está montado tiene
+secretos que **no** se regeneran: la base ya está inicializada con su password
+y las sesiones emitidas siguen valiendo. Copiar la plantilla encima lo rompe,
+así que las variables nuevas se agregan:
+
+```bash
+# Las variables nuevas, agregadas: no pisan los secretos que ya están
+cat >> .env.staging <<'EOF'
+
+# El mock NMS y la conexión que apunta a él
+MOCK_NMS_PORT=18080
+MOCK_NMS_HOST=127.0.0.1
+DEMO_NMS_BASE_URL=http://127.0.0.1:18080
+
+# La marca de staging: es lo que permite las excepciones SSRF de abajo
+DEPLOY_ENV=staging
+
+# Las excepciones de la política SSRF, sólo para el staging
+NMS_ALLOW_HTTP=true
+NMS_ALLOW_PRIVATE_NETWORKS=true
+NMS_ALLOWED_HOSTS=127.0.0.1
+NMS_ALLOWED_PORTS=18080
+EOF
+
+# Y los puertos, que ahora son distintos de los de producción
+sed -i "s|^POSTGRES_PORT=.*|POSTGRES_PORT=5434|" .env.staging
+sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6380|" .env.staging
+grep -q '^WORKER_PORT=' .env.staging || echo 'WORKER_PORT=8082' >> .env.staging
+grep -q '^SYSLOG_UDP_PORT=' .env.staging || echo 'SYSLOG_UDP_PORT=5515' >> .env.staging
+grep -q '^SNMP_UDP_PORT=' .env.staging || echo 'SNMP_UDP_PORT=1163' >> .env.staging
+```
+
+**El nombre del proyecto del compose cambió**, así que el stack se levanta de
+nuevo:
+
+- Los contenedores del staging ahora se llaman `ftth-staging-*`. El stack
+  viejo hay que bajarlo **antes** de actualizar el repositorio en el host:
+  con el código viejo el compose se llama como el directorio del repo, y con
+  el nuevo se llama `ftth-staging`.
+- Los volúmenes también cambian de nombre, porque Compose los nombra con el
+  proyecto: el stack nuevo ve una base vacía. Es un staging, así que se
+  vuelve a sembrar (§3.1, pasos 6 a 8).
+
+```bash
+# Con el código viejo, antes de actualizar el repositorio
+docker compose --env-file .env.staging \
+  -f docker-compose.prod.yml -f docker-compose.staging.yml down
+```
+
+### 3.3 Preparar el host
 
 ```bash
 # Ubuntu 24.04 LTS
@@ -215,7 +270,7 @@ sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2
 sudo usermod -aG docker "$USER"   # cierra la sesión y volvé a entrar
 ```
 
-### 3.3 Preparar el entorno
+### 3.4 Preparar el entorno
 
 ```bash
 git clone https://github.com/Rene-Kuhm/FTTH-Copilot.git
@@ -240,7 +295,7 @@ sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 32)|" .env.stagi
 > escribirlas en `.env.staging`, y así no pueden quedar con una password distinta de la de
 > `POSTGRES_PASSWORD`. En producción la del `db-migrate` llega por `env_file: .env.prod`.
 
-### 3.4 Levantar
+### 3.5 Levantar
 
 ```bash
 docker compose --env-file .env.staging \
@@ -254,7 +309,7 @@ docker compose --env-file .env.staging \
 
 El `--scale app=2` es el punto del ejercicio: la web tiene que correr en dos réplicas.
 
-### 3.5 El NMS del staging
+### 3.6 El NMS del staging
 
 Los loops del worker consultan un NMS. Sin uno, la conexión que crea el seed no
 se puede consultar y los loops no tienen nada que hacer.
@@ -277,7 +332,7 @@ SSRF para ese puerto).
 Un staging con un NMS real no levanta el mock y deja `DEMO_NMS_BASE_URL` con la
 URL de ese NMS.
 
-### 3.6 El primer admin
+### 3.7 El primer admin
 
 ```bash
 docker compose --env-file .env.staging \
@@ -398,8 +453,8 @@ for i in 1 2 3 4; do
   curl -sS -o /dev/null -w '%{http_code} %{remote_ip}\n' http://127.0.0.1:8080/api/health
 done
 
-# El worker tiene su health en el loopback del host
-curl -sS http://127.0.0.1:3001/healthz
+# El worker tiene su health en el loopback del host, en su propio puerto
+curl -sS http://127.0.0.1:8082/healthz
 ```
 
 ## Troubleshooting
@@ -409,10 +464,12 @@ curl -sS http://127.0.0.1:3001/healthz
 - **`--scale app=2` falla con "port is already allocated"** → el compose de staging no
   está aplicado: la web tiene que quedar con `expose` y sin `ports`.
 - **El worker no levanta** → `network_mode: host` y un puerto ya tomado en el host
-  (`5514`, `1162`, `3001`). En el VPS esos puertos tienen que estar libres.
-- **El worker no llega a Redis** → la Redis está en `127.0.0.1:${REDIS_PORT}` y necesita
-  `REDIS_PASSWORD`; sin password, `redis-cli ping` responde `NOAUTH` y el worker falla
-  en silencio.
+  (`WORKER_PORT`, `SYSLOG_UDP_PORT` y `SNMP_UDP_PORT`: 8082, 5515 y 1163 en el
+  staging). También puede ser que los puertos de producción (8081, 5514 y
+  1162) estén tomados: por eso el staging usa otros.
+- **El worker no llega a Redis** → la Redis está en `127.0.0.1:${REDIS_PORT}` (6380 en
+  el staging) y necesita `REDIS_PASSWORD`; sin password, `redis-cli ping` responde
+  `NOAUTH` y el worker falla en silencio.
 - **La cookie de sesión no viaja** → el staging sirve HTTP plano: `SESSION_COOKIE_SECURE`
   tiene que estar en `false`. Con HTTPS real, en `true`.
 - **El syslog no llega** → el firewall del VPS no abre `5514/udp`, o falta
@@ -432,3 +489,11 @@ curl -sS http://127.0.0.1:3001/healthz
   el proyecto del staging se llama `ftth-staging` y sus contenedores llevan el
   prefijo `ftth-staging-`. Los de producción ya no tienen nombre fijo: los
   genera Compose a partir del nombre de su proyecto.
+- **El mock NMS se reinicia en bucle** → el puerto ya lo tiene otro proceso
+  (`EADDRINUSE` en el log del contenedor). El mock corre en la red del host,
+  así que toma el puerto que dice `MOCK_NMS_PORT`: si ese puerto ya está
+  ocupado, hay que mover las tres variables que lo mencionan (`MOCK_NMS_PORT`,
+  `DEMO_NMS_BASE_URL` y `NMS_ALLOWED_PORTS`).
+- **El puerto 8080 está tomado** → producción levantó el profile `laya`, que
+  también usa el 8080. El staging puede mover el suyo con `STAGING_HTTP_PORT`;
+  el 8080 sólo lo usa producción si ese profile está levantado.
