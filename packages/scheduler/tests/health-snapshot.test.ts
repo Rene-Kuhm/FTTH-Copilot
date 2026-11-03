@@ -75,6 +75,40 @@ describe('worker health snapshot contract', () => {
     expect(parseWorkerHealthSnapshot(published)?.services['syslog']?.bound).toBe(true);
   });
 
+  it('carries the deadline and the cadence of the loop', () => {
+    // El plazo del próximo tick es lo que le dice al web que un loop sin
+    // ningún tick todavía está calentando y no colgado.
+    const warming: ServiceHealth = {
+      ...polling,
+      lastRunAt: null,
+      intervalMs: 86_400_000,
+      nextRunAt: 1_700_000_060_000,
+    };
+    const published = JSON.stringify(
+      buildWorkerHealthSnapshot({ firmware: warming }, {}, 1_700_000_000_000),
+    );
+
+    const parsed = parseWorkerHealthSnapshot(published);
+    expect(parsed?.services['firmware']?.nextRunAt).toBe(1_700_000_060_000);
+    expect(parsed?.services['firmware']?.intervalMs).toBe(86_400_000);
+  });
+
+  it('rejects a deadline that is not a number', () => {
+    const broken = JSON.stringify({
+      services: {
+        polling: {
+          expected: true,
+          lastRunAt: null,
+          lastError: null,
+          lastErrorAt: null,
+          nextRunAt: 'mañana',
+        },
+      },
+      publishedAt: 1,
+    });
+    expect(parseWorkerHealthSnapshot(broken)).toBeNull();
+  });
+
   it('returns null when the worker published nothing', () => {
     expect(parseWorkerHealthSnapshot(null)).toBeNull();
   });
