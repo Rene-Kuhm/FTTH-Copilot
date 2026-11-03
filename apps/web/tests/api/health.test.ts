@@ -53,7 +53,7 @@ afterEach(() => {
 
 describe('GET /api/health', () => {
   it('returns 200 ok when nothing is expected', async () => {
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
@@ -65,7 +65,7 @@ describe('GET /api/health', () => {
   it('returns 200 ok when an expected service has run cleanly', async () => {
     markExpected('polling');
     recordSuccess('polling', Date.now());
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
@@ -77,7 +77,7 @@ describe('GET /api/health', () => {
     markExpected('polling');
     recordSuccess('polling', Date.now() - 60_000);
     recordError('polling', 'NMS down', Date.now() - 1_000);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.status).toBe('degraded');
@@ -86,7 +86,7 @@ describe('GET /api/health', () => {
 
   it('returns 503 when an expected service has never run', async () => {
     markExpected('polling');
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.status).toBe('degraded');
@@ -95,7 +95,7 @@ describe('GET /api/health', () => {
   it('returns 503 when syslog is expected but never bound', async () => {
     markExpected('syslog');
     recordSyslogBound(false);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.status).toBe('degraded');
@@ -104,7 +104,7 @@ describe('GET /api/health', () => {
   it('returns 200 once the error window has elapsed', async () => {
     markExpected('polling');
     recordError('polling', 'transient failure', Date.now() - 10 * 60 * 1000);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
@@ -113,14 +113,14 @@ describe('GET /api/health', () => {
   it('returns 200 when a non-expected service has errors (operator did not opt in)', async () => {
     markNotExpected('firmware');
     recordError('firmware', 'should be ignored', Date.now() - 1_000);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
   });
 
   it('returns the response shape expected by the dashboard', async () => {
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body).toMatchObject({
       status: expect.stringMatching(/^(ok|degraded)$/),
@@ -150,7 +150,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
 
   it('reports hungLoops for services that never ran (ausencia de primera ejecución)', async () => {
     markExpected('polling');
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.hungLoops).toContain('polling');
   });
@@ -158,7 +158,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
   it('reports hungLoops for services whose last tick is too old (ciclo colgado)', async () => {
     markExpected('polling');
     recordSuccess('polling', Date.now() - 20 * 60 * 1000);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.hungLoops).toContain('polling');
   });
@@ -167,7 +167,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
     const now = Date.now();
     recordConnectionSuccess('c-1', now - 1000);
     recordConnectionError('c-2', 'NMS timeout', now - 1000);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.connections).toBeInstanceOf(Array);
     const states = Object.fromEntries(body.connections.map((c: { connectionId: string; state: string }) => [c.connectionId, c.state]));
@@ -178,7 +178,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
   it('returns hungLoops: [] when every expected service is healthy', async () => {
     markExpected('polling');
     recordSuccess('polling', Date.now());
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.hungLoops).toEqual([]);
   });
@@ -186,7 +186,7 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
 
 describe('GET /api/health — database connectivity', () => {  it('returns 503 degraded when database connection fails', async () => {
     mockQueryRaw.mockRejectedValue(new Error('Connection refused'));
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.status).toBe('degraded');
@@ -198,7 +198,7 @@ describe('GET /api/health — database connectivity', () => {  it('returns 503 d
     mockQueryRaw.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 5000)),
     );
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.status).toBe('degraded');
@@ -208,7 +208,7 @@ describe('GET /api/health — database connectivity', () => {  it('returns 503 d
 
   it('includes database status and latency in response when healthy', async () => {
     mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
@@ -261,7 +261,7 @@ describe('GET /api/health — the worker owns the background work', () => {
       publishedAt: Date.now(),
     });
 
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.owner).toBe('worker');
     expect(body.services['polling']?.expected).toBe(true);
@@ -271,7 +271,7 @@ describe('GET /api/health — the worker owns the background work', () => {
   it('is degraded when the worker published nothing', async () => {
     mockReadWorkerHealth.mockResolvedValue(null);
 
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(res.status).toBe(503);
     expect(body.status).toBe('degraded');
@@ -285,7 +285,7 @@ describe('GET /api/health — the worker owns the background work', () => {
       publishedAt: Date.now(),
     });
 
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.ingest.backlog).toBe(5);
   });
@@ -295,10 +295,29 @@ describe('GET /api/health — the worker owns the background work', () => {
     markExpected('polling');
     recordSuccess('polling', Date.now());
 
-    const res = await GET();
+    const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
     expect(body.owner).toBe('embedded');
     expect(body.services['polling']?.expected).toBe(true);
+    expect(res.status).toBe(200);
+  });
+
+  it('does not read the worker in container scope', async () => {
+    mockReadWorkerHealth.mockResolvedValue(null);
+
+    const res = await GET(new Request('http://localhost/api/health?scope=container'));
+    const body = await res.json();
+    expect(mockReadWorkerHealth).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('ok');
+  });
+
+  it('answers 200 in container scope even when the worker is not working', async () => {
+    mockReadWorkerHealth.mockResolvedValue(null);
+
+    // The health check of the container measures the container: a worker
+    // that is down is a degraded system, not a broken web.
+    const res = await GET(new Request('http://localhost/api/health?scope=container'));
     expect(res.status).toBe(200);
   });
 });
