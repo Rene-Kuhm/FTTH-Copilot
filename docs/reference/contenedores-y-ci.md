@@ -164,7 +164,7 @@ En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.
   fijar, si un job no declara `permissions:`, si el pipeline de release queda
   desconectado, si un caller no concede lo que pide el workflow que llama
   (ver §9.4), si un step de Windows no declara su shell, si un attach no declara
-  su tag (ver §9.4 bis) o si un attach genera las notas sin preguntar por el tag
+  su tag (ver §9.4 bis) o si algún workflow reescribe el cuerpo de una release
   (ver §9.4 ter). Es hermético: sólo lee los YAML del repo. La
   política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
   `pnpm check:supply-chain`.
@@ -286,56 +286,64 @@ check falla y el CI se pone rojo.
 
 ### 9.4 bis El tag se declara siempre
 
-`softprops/action-gh-release` usa `github.ref` cuando no le dicen a qué tag
-adjuntar. En el flujo normal —release-please crea el tag y dispara el
-dispatch— `github.ref` es la rama desde la que se despachó, no el tag: por eso
-el tag se pasa explícito.
+Los binarios se adjuntan con `gh release upload`, que toma el tag como argumento:
+si el tag no se declara, el paso no sabe a qué release subirlos. En el flujo
+normal —release-please crea el tag y dispara el dispatch— el tag está a mano,
+pero en el relanzamiento manual de una release ya publicada (el
+`workflow_dispatch` de `release.yml` con `-f tag=v0.4.0`) `github.ref` es la
+rama desde la que se despachó, no el tag.
 
-Cuando el tag **no** se declara, el caso se ve en el relanzamiento manual de
-una release ya publicada (el `workflow_dispatch` de `release.yml` con
-`-f tag=v0.4.0`): ahí `github.ref` es la rama y la action aborta con
-`GitHub Releases requires a tag`, y la release se queda sin los instaladores.
 Pasó con la v0.4.0: los tres builds compilaron bien y los dos attaches
 fallaron.
 
-La regla `attach-tag` de `scripts/lib/supply-chain.ts` falla el check de supply
-chain si algún step que use `softprops/action-gh-release` no declara
-`tag_name`. Se puede correr local: `pnpm check:supply-chain`.
-
-### 9.4 ter Las notas de la release se generan una sola vez
-
-`softprops/action-gh-release` con `generate_release_notes: true` genera las notas
-del tag y las **agrega** al cuerpo que la release ya tiene. En una release que
-release-please ya publicó, ese cuerpo es el changelog con las entradas agrupadas
-por scope: las notas de GitHub se le suman encima y el resultado es un cuerpo con
-el mismo contenido repetido.
-
-Pasó con la v0.3.0, que hoy tiene las notas de GitHub repetidas cuatro veces,
-una por cada run que le adjuntó un artefacto.
-
-El attach, entonces, sólo genera las notas cuando la release todavía no existe
-—en ese caso softprops la crea y tiene que darle un cuerpo—. Para eso los jobs
-de attach consultan la API del tag antes de adjuntar:
+El tag se declara en el `env:` del step y sale de una expresión del workflow
+—el input del builder o el output de release-please—, nunca de un valor fijo:
 
 ```yaml
-- name: Check if the release already exists
-  id: release_state
+- name: Attach the binaries to the release
+  env:
+    GH_TOKEN: ${{ github.token }}
+    TAG: ${{ inputs.release-tag }}
+  run: |
+    set -euo pipefail
+    gh release upload "${TAG}" "${binaries[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
+```
+
+La regla `attach-tag` de `scripts/lib/supply-chain.ts` falla el check de supply
+chain si algún step que use `gh release upload` no declara el tag así. Se puede
+correr local: `pnpm check:supply-chain`.
+
+### 9.4 ter El attach no reescribe el cuerpo de la release
+
+Las notas de una release publicada son de release-please: el changelog con las
+entradas agrupadas por scope. Si el attach las vuelve a escribir, el cuerpo
+queda con el mismo contenido repetido.
+
+`softprops/action-gh-release` actualizaba la release antes de subir los
+binarios, y con `generate_release_notes` le sumaba encima las notas que genera
+GitHub. La v0.3.0 quedó con las notas de GitHub repetidas cuatro veces, una
+por cada run que le adjuntó un artefacto.
+
+Por eso el attach sube **assets y nada más**: `gh release upload` no toca el
+cuerpo. La release se crea sólo cuando todavía no existe, y en ese caso es
+`gh release create --generate-notes` la que le da cuerpo:
+
+```yaml
+- name: Create the release if it does not exist yet
   env:
     GH_TOKEN: ${{ github.token }}
     TAG: ${{ inputs.release-tag }}
   run: |
     set -euo pipefail
     if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/dev/null 2>&1; then
-      echo "exists=true" >> "$GITHUB_OUTPUT"
+      echo "The release ${TAG} already exists: its notes are left untouched."
     else
-      echo "exists=false" >> "$GITHUB_OUTPUT"
+      gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --title "${TAG}" --generate-notes
     fi
 ```
 
-y el attach usa `generate_release_notes: ${{ steps.release_state.outputs.exists == 'false' }}`.
-
 La regla `release-notes` de `scripts/lib/supply-chain.ts` falla el check de supply
-chain si algún attach genera las notas sin preguntar antes por el tag.
+chain si algún workflow vuelve a escribir el cuerpo de una release.
 
 ### 9.5 La línea base del changelog
 
