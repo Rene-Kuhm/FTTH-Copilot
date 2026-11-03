@@ -27,6 +27,7 @@ Todos los comandos se ejecutan desde la raíz del repo. Requisitos: Node ≥ 22,
 | `benchmark:snmp` | Benchmark de ingesta SNMP | `scripts/snmp-benchmark.ts` |
 | `check:sources` | Detecta drift de la matriz de compatibilidad | `scripts/generate-compatibility-matrix.ts --check` |
 | `check:version` | Paridad de semver entre todos los manifiestos | `scripts/check-release-version.ts` |
+| `sync:version-carriers` | Pone la versión del release en los carriers que release-please no actualiza | `scripts/sync-version-carriers.ts` |
 | `check:sources:health` | Reachability de las URLs de fuentes | `scripts/check-research-sources-health.ts` |
 | `check:contribution` | Gate de contribución de vendor | `scripts/validate-contribution.ts` |
 | `check:conflicts` | Colisiones de OID entre vendors | `scripts/check-oid-conflicts.ts` |
@@ -226,8 +227,26 @@ pnpm check:version 0.2.2
 ```
 
 Verifica que un único semver coincida con todos los `package.json` del workspace, la config
-de Tauri, `Cargo.toml`, el `versionName` de Android, el fallback de la ruta de health y la
-versión de scope de telemetría. El argumento también se puede pasar por `RELEASE_VERSION`.
+de Tauri, `Cargo.toml`, el `versionName` de Android, el fallback de la ruta de health, la
+versión de scope de telemetría y la versión del núcleo de learning. El argumento también se
+puede pasar por `RELEASE_VERSION`.
+
+### `sync-version-carriers.ts` — pone la versión en los carriers que release-please no toca
+
+```bash
+pnpm sync:version-carriers 0.5.0
+```
+
+Release-please actualiza los `package.json`, el `tauri.conf.json` y el `Cargo.toml`. Los
+demás carriers —el `versionName` de Android, el fallback de health, el scope de telemetría y
+la versión del núcleo de learning— los actualiza este script, que es el que corre el
+pipeline de release antes de publicar el tag.
+
+La lista de carriers vive en `scripts/lib/version-carriers.ts` y la usa **también** el
+check: los dos leen la misma tabla, así que un carrier nuevo queda cubierto por los dos
+caminos sin tocar dos listas. Cuando los dos tenían su propia lista, el carrier del núcleo
+de learning entró al check pero no a la sincronización: el release 0.5.0 salió con ese
+carrier en 0.4.0, la verificación del tag falló y la release quedó sin SBOM.
 
 ### `replay-dead-letter.ts` — reprocesa el dead-letter del spool
 

@@ -12,6 +12,7 @@ import {
   findUnpinnedActions,
   findUnpinnedCompositeActions,
   findAttachTagViolations,
+  findReleaseCarriersViolations,
   findReleaseNotesViolations,
   findWindowsShellViolations,
   isPinnedToSha,
@@ -764,4 +765,69 @@ test("findReleaseNotesViolations acepta el attach que sólo sube los binarios", 
     findReleaseNotesViolations(model(uploadWorkflow("${{ inputs.release-tag }}"))),
     [],
   );
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Regla 10: los version carriers se sincronizan con el script único.
+//
+// El check del tag (`pnpm check:version`) y la sincronización de la rama de
+// release tienen que leer la misma tabla de carriers: `scripts/lib/
+// version-carriers.ts`. Cuando los dos tenían su propia lista, el carrier
+// `packages/learning/src/version.ts` entró al check pero no a la
+// sincronización, y el release 0.5.0 salió con ese carrier en 0.4.0.
+//
+// La regla además exige que las dependencias estén instaladas antes de la
+// sincronización: el script corre con el `tsx` del lockfile.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const PUBLISHER_STEP = [
+  "      - name: Run release-please",
+  "        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0",
+];
+
+const DEPS_STEP = [
+  "      - name: Install dependencies",
+  "        run: mise run deps",
+];
+
+const SYNC_STEP = [
+  "      - name: Sync the version carriers release-please cannot update",
+  "        run: |",
+  '          pnpm exec tsx scripts/sync-version-carriers.ts "${version}"',
+];
+
+/**
+ * @param steps Steps del job de release.
+ */
+function releaseWorkflow(steps: readonly string[]): string {
+  return workflowOf([...PUBLISHER_STEP, ...steps]);
+}
+
+test("findReleaseCarriersViolations acepta el publisher que sincroniza con el script y tiene las dependencias", () => {
+  assert.deepEqual(
+    findReleaseCarriersViolations([model(releaseWorkflow([...DEPS_STEP, ...SYNC_STEP]))]),
+    [],
+  );
+});
+
+test("findReleaseCarriersViolations marca el publisher que sincroniza sin instalar las dependencias", () => {
+  const violations = findReleaseCarriersViolations([model(releaseWorkflow(SYNC_STEP))]);
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-carriers");
+  assert.match(violations[0]?.message ?? "", /dependencias/);
+});
+
+test("findReleaseCarriersViolations marca el publisher que no sincroniza los carriers", () => {
+  const violations = findReleaseCarriersViolations([model(releaseWorkflow(DEPS_STEP))]);
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-carriers");
+  assert.match(violations[0]?.message ?? "", /sync-version-carriers/);
+});
+
+test("findReleaseCarriersViolations no se queja de los workflows que no publican releases", () => {
+  const violations = findReleaseCarriersViolations([model(workflowOf(DEPS_STEP))]);
+
+  assert.deepEqual(violations, []);
 });
