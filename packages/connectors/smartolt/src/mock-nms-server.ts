@@ -85,25 +85,72 @@ export async function createMockNmsServer(
 }
 
 /**
+ * La dirección donde escucha el mock NMS.
+ */
+export interface MockNmsBinding {
+  /** La interfaz. */
+  host: string;
+  /** El puerto. */
+  port: number;
+}
+
+/**
+ * El mock NMS ya levantado, con la forma de apagarlo.
+ */
+export interface RunningMockNms {
+  /** El servidor. */
+  server: MockNmsServer;
+  /** Lo apaga y espera a que quede libre el puerto. */
+  stop: () => Promise<void>;
+}
+
+/**
+ * La dirección del mock NMS, según el entorno.
+ *
+ * El entorno lo puede garbar: si `MOCK_NMS_PORT` no es un número, el mock
+ * tiene que caer en el puerto por defecto. Levantarse en un puerto raro —o no
+ * levantarse— deja al worker poleando contra nada.
+ *
+ * El puerto cero es el "elegí uno libre" de Node: lo usan los tests, que no
+ * pueden fijar un puerto sin arriesgarse a pisar el de otro proceso.
+ */
+export function resolveMockNmsBinding(env: NodeJS.ProcessEnv = process.env): MockNmsBinding {
+  const parsed = Number.parseInt(env['MOCK_NMS_PORT'] ?? '', 10);
+  const host = env['MOCK_NMS_HOST']?.trim() || MOCK_NMS_DEFAULT_HOST;
+  const port = Number.isFinite(parsed) && parsed >= 0 ? parsed : MOCK_NMS_DEFAULT_PORT;
+
+  return { host, port };
+}
+
+/**
+ * Levanta el mock NMS en la dirección que dice el entorno.
+ *
+ * Es el camino que usa el servicio del compose del staging.
+ */
+export async function startMockNmsFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<RunningMockNms> {
+  const { host, port } = resolveMockNmsBinding(env);
+  const server = await createMockNmsServer({ host, port });
+
+  return { server, stop: () => server.close() };
+}
+
+/**
  * Levanta el servidor y lo deja en primer plano.
  *
  * Es el punto de entrada del servicio del compose del staging: el proceso
  * vive mientras el servidor escucha.
  */
 async function main(): Promise<void> {
-  const port = Number.parseInt(process.env['MOCK_NMS_PORT'] ?? '', 10);
-  const host = process.env['MOCK_NMS_HOST'] ?? MOCK_NMS_DEFAULT_HOST;
-  const server = await createMockNmsServer({
-    port: Number.isFinite(port) && port > 0 ? port : MOCK_NMS_DEFAULT_PORT,
-    host,
-  });
+  const running = await startMockNmsFromEnv();
   // El punto de entrada de un proceso dice qué está escuchando: es el log
   // que el operador ve cuando el contenedor del staging levanta el mock.
   // eslint-disable-next-line no-console
-  console.log(`Mock NMS escuchando en ${server.url}`);
+  console.log(`Mock NMS escuchando en ${running.server.url}`);
 
   const stop = (): void => {
-    void server.close().finally(() => process.exit(0));
+    void running.stop().finally(() => process.exit(0));
   };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
