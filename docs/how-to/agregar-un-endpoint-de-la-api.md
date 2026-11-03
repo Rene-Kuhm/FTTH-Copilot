@@ -235,6 +235,26 @@ Para un recurso nuevo con su propia cuota, el patrón es el mismo: un `upsert` s
 Para paginación, `apps/web/lib/api/pagination.ts` define `DEFAULT_LIMIT = 50` y
 `MAX_LIMIT = 200`.
 
+### Si la ruta puede crecer sin cota, paginá
+
+`GET /api/incidents` y `GET /api/predictions` contestan **una página**, no la lista
+entera. El cursor va sobre `(lastSeenAt desc, id desc)`: un `offset` se corre cuando
+alguien acusa un incidente entre dos pedidos y saltea una fila en silencio.
+
+| Parámetro | Valor | Para qué |
+|---|---|---|
+| `status` | `unresolved` (default), `resolved`, `all` | Alcance de la consulta |
+| `limit` | 50 (default), 200 (máximo) | Tamaño de la página |
+| `cursor` | el `nextCursor` de la página anterior | La página siguiente |
+
+La respuesta lleva `count` (el largo de **esta** página) y `page`, que dice `hasMore`,
+`nextCursor` y **`total`** (cuántos hay en el scope, sin contar la paginación).
+
+En el frontend, `apps/web/lib/api/paged-list.ts` es el cliente: `readPage` lee la
+respuesta, `nextPageUrl` arma la URL de la página siguiente y `fetchAllPages` recorre
+el recorrido con un tope explícito. Si el tope corta antes del final, `truncated` lo
+dice: un conteo truncado en silencio es peor que ningún conteo.
+
 ## 6. Agregá el endpoint a la referencia
 
 La [referencia de la API HTTP](../reference/api-http.md) es la fuente de verdad de las
