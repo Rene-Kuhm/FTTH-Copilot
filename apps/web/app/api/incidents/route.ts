@@ -130,6 +130,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
+  // Cuántos hay en el scope, sin contar la paginación. Una página no lo
+  // puede decir: el panel que cuenta los incidentes abiertos necesita el
+  // total, no el largo de lo que entró en esta respuesta.
+  const total = await prisma.incident.count({
+    where: { tenantId: user.tenantId, status: statusFilter },
+  });
+
   const result = page.map((incident) => ({
     id: incident.id,
     deviceKind: incident.deviceKind,
@@ -152,6 +159,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       scope,
       hasMore,
       nextCursor: hasMore && last ? encodeCursor(last) : null,
+      total,
     },
   });
 }

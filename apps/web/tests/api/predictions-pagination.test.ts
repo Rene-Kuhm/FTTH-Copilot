@@ -8,10 +8,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * view, where alerts accumulate forever.
  */
 
-const mocks = vi.hoisted(() => ({ findMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findMany: vi.fn(), count: vi.fn() }));
 
 vi.mock('@ftth-copilot/db', () => ({
-  prisma: { detectedAlert: { findMany: mocks.findMany } },
+  prisma: { detectedAlert: { findMany: mocks.findMany, count: mocks.count } },
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -50,6 +50,19 @@ function call(query = '') {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.findMany.mockResolvedValue([]);
+  mocks.count.mockResolvedValue(0);
+});
+
+describe('total', () => {
+  it('dice cuántas predicciones hay en el scope, no solo las de la página', async () => {
+    mocks.findMany.mockResolvedValue([alert()]);
+    mocks.count.mockResolvedValue(84);
+
+    const res = await call();
+    const body = await res.json();
+
+    expect(body.page.total).toBe(84);
+  });
 });
 
 describe('default scope', () => {

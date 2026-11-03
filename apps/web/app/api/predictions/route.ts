@@ -67,6 +67,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const page = hasMore ? rows.slice(0, limit) : rows;
   const last = page.at(-1);
 
+  // Cuántas hay en el scope, sin contar la paginación. Una página no lo
+  // puede decir: el panel que cuenta las alertas activas necesita el total,
+  // no el largo de lo que entró en esta respuesta.
+  const total = await prisma.detectedAlert.count({
+    where: { tenantId: user.tenantId, status: statusFilter },
+  });
+
   return NextResponse.json({
     predictions: page,
     count: page.length,
@@ -74,6 +81,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       scope,
       hasMore,
       nextCursor: hasMore && last ? encodeCursor(last) : null,
+      total,
     },
   });
 }
