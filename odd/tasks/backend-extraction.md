@@ -243,7 +243,7 @@ tarea.
 | T11 | S3, S16            | inline  | `b1313ee`, `0b8d5a4`-equivalente | Tests de durabilidad end-to-end: con Redis caído, el spool retiene y reproduce al volver; at-least-once verificado con `ingestId`. |
 | T12 | S5, S20            | inline  | `d376289` (unidades 8-11) | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. **Hecha**: el inventario (L26/L27) dejó un solo candidato real, `incidents/[id]/investigate`, y la unidad 8 lo movió a la cola `ftth-investigation` con claim por advisory lock. |
 | T13 | S5                | inline  | unidad 11 | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. **Hecha**: la unidad 11 los cubre (presupuesto, error, pending viejo, pedidos simultáneos, tenant ajeno, espera acotada). |
-| T14 | S15               | pending | pending | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. **Entorno decidido**: VPS Linux con Docker Compose, Redis y Postgres self-hosted en la misma máquina. Ver `docs/how-to/desplegar-en-staging.md`. |
+| T14 | S15               | inline  | `#361`, `#363`, `#364`, `#365` | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. **Hecha**: los seis planos quedaron validados contra un Postgres real en la VPS `vps-casa`, con la web en dos réplicas detrás de Caddy. La evidencia y lo que quedó abierto están en L35. |
 | T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. **Es irreversible en código**: por eso espera a que T14 haya corrido verde. |
 | T16 | S18               | inline  | `0f63836`, `feafc26`, `8d5c4b5`, `fec08a2` | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
 | T18 | S19                | inline  | `replay:dead-letter` | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
@@ -783,3 +783,51 @@ debe romperse) y los tests de durabilidad de las fases 4.
   - Archivos: `docker-compose.staging.yml` (override del de producción),
     `Caddyfile.staging`, `.env.staging.example` y
     `docs/how-to/desplegar-en-staging.md`.
+- **L35** (2026-11-03) — **T14 validada en `vps-casa`** (el despliegue en sí y
+  lo que encontró).
+  - **Los seis planos, con evidencia de la base y no sólo de los logs**:
+    - *Poll*: el tick del worker consultó el NMS y guardó 4 muestras
+      (`metric_samples`), 0 errores por conexión.
+    - *Firmware* y *FEC*: sus jobs se ejecutaron (2 y 3 ciclos completados en
+      la cola de BullMQ).
+    - *Syslog*: un datagrama UDP al `5514` terminó en `device_events` con su
+      `sourceIp` y su mensaje.
+    - *SNMP*: un trap v2c al `1162` terminó en `device_events` normalizado
+      (`link_down`, `OLT-MOCK-1`).
+    - *Drenado*: el spool del worker quedó sin pendientes y los eventos
+      llegaron a Postgres.
+  - **Sin trabajo duplicado**: `ingestId` repetidos = 0, muestras con el
+    mismo dispositivo+métrica+momento = 0, las cuatro colas con 0 jobs en
+    espera, un solo worker consumiendo y dos réplicas de la web que no
+    arrancan ningún loop (`Background loops and receivers run in the worker`
+    en el log de instrumentación de las dos).
+  - **Lo que el despliegue destapó** (todo con su propio PR):
+    - `#363`: la imagen del worker no copiaba `packages/learning`, así que el
+      worker **no arrancaba en ningún despliegue**, tampoco en producción.
+    - `#364`: el registro de salud es process-local y Next.js empaqueta la
+      instrumentación y los route handlers por separado, así que la web no
+      podía ver los loops del worker: `/api/health` los lista ahora desde el
+      snapshot que el worker publica en Redis.
+    - `#365`: el buffer del receptor syslog se agrandaba antes del bind (y
+      nunca crecía), el worker no decía que sus loops eran esperados (y un
+      loop que no se espera no se vigila), y los receptores se contaban como
+      loops muertos porque no tienen tick.
+  - **Lo que queda abierto** (no se arregla acá, por ser un cambio del
+    producer de jobs con riesgo de duplicar trabajo en la misma tarea que valida
+    que no se duplique):
+    - **El tick de calentamiento no ocurre tras un reinicio.** El
+      `upsertJobScheduler` de BullMQ no reprograma un schedule que ya existe,
+      así que el job que el log anuncia como `firstTickAt` (arranque + 5 s) no
+      se produce: el primer tick real es el siguiente turno natural (poll 15
+      min, FEC 1 h, firmware 24 h). El log afirma una hora que no se cumple.
+    - **El registro de salud se vacía en cada reinicio**, así que el health
+      queda degradado hasta que el loop de intervalo largo haya tickeado
+      alguna vez. Es la misma causa que el punto anterior.
+    - **El poll se traga los errores de construcción de conector**
+      (`catch {}` sin log): si una conexión no se puede construir, no se polea
+      y no se dice nada. El health decía "polling OK" mientras no poleaba nada.
+    - **El staging necesita un NMS**: el seed crea una conexión SmartOLT sin
+      `baseUrl`, que ningún loop puede usar. Para la prueba se levantó el mock
+      NMS del propio repo (`smartoltMockResponse`) y se habilitaron las
+      excepciones de la política SSRF (`NMS_ALLOW_HTTP`, `NMS_ALLOWED_PORTS`,
+      `NMS_ALLOW_PRIVATE_NETWORKS`, `NMS_ALLOWED_HOSTS`).
