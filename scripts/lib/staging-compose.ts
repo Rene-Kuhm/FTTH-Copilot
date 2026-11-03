@@ -181,6 +181,22 @@ export function servicePorts(service: ComposeService | undefined): string[] {
 }
 
 /**
+ * El comando de un servicio, como lista de strings.
+ *
+ * Por qué: en YAML el comando puede ser una lista (`command: ["pnpm", …]`) o
+ * un string suelto (`command: "pnpm …"`), y Compose acepta los dos. Quien
+ * quiera compararlo no debería tener que distinguir los casos: por eso
+ * devuelve siempre una lista.
+ */
+export function serviceCommand(service: ComposeService | undefined): string[] {
+  if (!service) return [];
+  const command = service.command;
+  if (Array.isArray(command)) return command.map((part) => String(part));
+  if (typeof command === 'string') return [command];
+  return [];
+}
+
+/**
  * Si la interpolación exige la variable: `${VAR}` y `${VAR:?msg}` sí;
  * `${VAR:-def}` y `${VAR-def}` no.
  */

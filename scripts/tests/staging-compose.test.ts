@@ -7,6 +7,7 @@ import {
   loadStagingCompose,
   mergeCompose,
   requiredEnvVariables,
+  serviceCommand,
   serviceEnvironment,
   servicePorts,
 } from '../lib/staging-compose.ts';
@@ -162,7 +163,7 @@ test("el staging declara el mock NMS como servicio, detrás de un profile", () =
 
 test("el mock NMS corre el mock del repo, no una reimplementación", () => {
   const staging = loadStagingCompose(REPO_ROOT);
-  const command = (staging.services['mock-nms']?.command ?? []).map(String);
+  const command = serviceCommand(staging.services['mock-nms']);
 
   assert.ok(
     command.some((part) => part.includes('mock-nms-server.ts')),
