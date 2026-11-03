@@ -242,6 +242,68 @@ export function detectHangedLoops(
 }
 
 /**
+ * The state of a service, in words.
+ *
+ * The health endpoint is read by a person when something is wrong. The
+ * numbers say what happened; the state says what it means: a loop that has
+ * not ticked yet is *warming up* —not dead— and a loop whose expected tick
+ * did not arrive is *hung*.
+ */
+export type ServiceStatus = 'ok' | 'warming' | 'error' | 'hung' | 'inactive';
+
+/**
+ * The state of one service.
+ *
+ * Pure: the same service and the same clock always give the same state.
+ */
+export function serviceStatus(
+  service: ServiceHealth,
+  now: number = Date.now(),
+  recentErrorMs: number = 5 * 60 * 1000,
+): ServiceStatus {
+  if (!service.expected) return 'inactive';
+  // A receiver does not tick: its socket is the whole of its health.
+  if (isReceiver(service)) return service.bound === true ? 'ok' : 'error';
+  if (
+    service.lastError !== null &&
+    service.lastErrorAt !== null &&
+    now - service.lastErrorAt <= recentErrorMs
+  ) {
+    return 'error';
+  }
+  const deadline = service.nextRunAt;
+  if (service.lastRunAt === null) {
+    // It never ticked: it is warming up while the tick it waits for is
+    // still to come, and hung when that tick is already late.
+    if (deadline === undefined || deadline === null) return 'hung';
+    return now > deadline + TICK_GRACE_MS ? 'hung' : 'warming';
+  }
+  if (deadline !== undefined && deadline !== null && now > deadline + TICK_GRACE_MS) {
+    return 'hung';
+  }
+  return 'ok';
+}
+
+/**
+ * The state of every service, with the state in words.
+ *
+ * It is what the health endpoint publishes: the numbers of the registry plus
+ * the state that they mean. The registry is not modified — the state is
+ * computed on the way out.
+ */
+export function withServiceStatus(
+  snapshot: Record<string, ServiceHealth>,
+  now: number = Date.now(),
+  recentErrorMs?: number,
+): Record<string, ServiceHealth & { status: ServiceStatus }> {
+  const out: Record<string, ServiceHealth & { status: ServiceStatus }> = {};
+  for (const [name, service] of Object.entries(snapshot)) {
+    out[name] = { ...service, status: serviceStatus(service, now, recentErrorMs) };
+  }
+  return out;
+}
+
+/**
  * Compute the overall verdict: `true` (healthy) iff every expected
  * service is either running cleanly OR has no recent error.
  *

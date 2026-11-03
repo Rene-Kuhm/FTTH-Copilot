@@ -9,6 +9,7 @@ import {
   recordSuccess,
   recordSyslogBound,
   recordSnmpBound,
+  serviceStatus,
   setNextRun,
   snapshotHealth,
   TICK_GRACE_MS,
@@ -307,6 +308,85 @@ describe('un loop que todavía no tuvo su primer tick', () => {
 
     expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual([]);
     expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(true);
+  });
+});
+
+/**
+ * The state of a service, in words.
+ *
+ * The health endpoint is read by a person when something is wrong. The
+ * numbers say what happened; the state says what it means: a loop that has
+ * not ticked yet is *warming up*, not dead, and a loop whose expected tick
+ * did not arrive is *hung*.
+ */
+describe('el estado de un servicio', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('un loop que espera su primer tick está calentando', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW + 60_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('warming');
+  });
+
+  it('un loop que ya corrió está bien', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 1_000,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW + 900_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('ok');
+  });
+
+  it('un loop con un error reciente está en error', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 60_000,
+      lastError: 'el NMS no responde',
+      lastErrorAt: NOW - 1_000,
+      nextRunAt: NOW + 900_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('error');
+  });
+
+  it('un loop cuyo tick esperado no llegó está colgado', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 3_600_000,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW - TICK_GRACE_MS - 1_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('hung');
+  });
+
+  it('un servicio que el operador no activó está inactivo', () => {
+    const service: ServiceHealth = {
+      expected: false,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+    };
+    expect(serviceStatus(service, NOW)).toBe('inactive');
+  });
+
+  it('un receptor se juzga por su socket', () => {
+    const bound: ServiceHealth = {
+      expected: true,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      bound: true,
+    };
+    const unbound: ServiceHealth = { ...bound, bound: false };
+    expect(serviceStatus(bound, NOW)).toBe('ok');
+    expect(serviceStatus(unbound, NOW)).toBe('error');
   });
 });
 

@@ -40,7 +40,9 @@ export {
   recordError,
   recordSyslogBound,
   recordSnmpBound,
+  serviceStatus,
   setNextRun,
+  withServiceStatus,
   snapshotHealth,
   detectHangedLoops,
   overallHealthy,
@@ -49,6 +51,7 @@ export {
   type LoopCadence,
   type SchedulerName,
   type ServiceHealth,
+  type ServiceStatus,
 } from './health';
 
 export {
