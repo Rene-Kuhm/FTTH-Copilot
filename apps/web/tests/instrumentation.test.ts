@@ -80,6 +80,18 @@ describe('instrumentation: who owns the background work', () => {
     delete process.env['SNMP_RECEIVER_ENABLED'];
   });
 
+  it('no arranca con las excepciones de la política SSRF activadas en producción', async () => {
+    // En producción, una excepción de la política SSRF es un agujero hacia
+    // la red interna. El web no levanta: el operador ve por qué.
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NMS_ALLOW_HTTP', 'true');
+    vi.stubEnv('DEPLOY_ENV', '');
+
+    await expect(register()).rejects.toThrow(/política SSRF/);
+
+    vi.unstubAllEnvs();
+  });
+
   it('starts the recurring loops when the mode is embedded', async () => {
     process.env['BACKEND_MODE'] = 'embedded';
 

@@ -169,3 +169,19 @@ test("el mock NMS corre el mock del repo, no una reimplementación", () => {
     'el servicio tiene que correr el servidor del mock que está en el repo',
   );
 });
+
+test("la plantilla de staging declara las excepciones de la política SSRF", () => {
+  // El staging apunta al mock NMS, que vive en el loopback: la política
+  // SSRF tiene que exceptuarse. Las excepciones se declaran acá y en ningún
+  // otro lado: el arranque de producción las rechaza.
+  const defined = envFileVariables(stagingEnvExample());
+
+  for (const name of [
+    'NMS_ALLOW_HTTP',
+    'NMS_ALLOW_PRIVATE_NETWORKS',
+    'NMS_ALLOWED_HOSTS',
+    'NMS_ALLOWED_PORTS',
+  ]) {
+    assert.ok(defined.has(name), `${name} la necesita el staging para apuntar al mock NMS`);
+  }
+});

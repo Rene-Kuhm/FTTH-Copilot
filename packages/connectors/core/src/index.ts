@@ -344,6 +344,8 @@ export function isRateLimitError(err: unknown): err is RateLimitError {
 export {
   NMS_REQUEST_TIMEOUT_MS,
   UnsafeNmsUrlError,
+  assertNoSsrfExceptionsInProduction,
   assertSafeNmsBaseUrl,
   assertSafeNmsRequestUrl,
+  ssrfExceptionsIn,
 } from './security';
