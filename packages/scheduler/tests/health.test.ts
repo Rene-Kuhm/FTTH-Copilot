@@ -8,6 +8,7 @@ import {
   recordError,
   recordSuccess,
   recordSyslogBound,
+  recordSnmpBound,
   snapshotHealth,
   type SchedulerName,
   type ServiceHealth,
@@ -210,5 +211,42 @@ describe('detectHangedLoops (Fase 2 — 2.6)', () => {
       ['polling', { expected: true, lastRunAt: null, lastError: null, lastErrorAt: null }],
     ]);
     expect(detectHangedLoops(s, NOW)).toEqual(detectHangedLoops(s, NOW));
+  });
+});
+
+/**
+ * The receivers are not loops.
+ *
+ * The syslog and SNMP receivers hold a UDP socket: they do not tick, so
+ * there is no last run to judge them by. Their health is whether the socket
+ * is bound. A receiver that was judged by its clock would be reported as
+ * hung forever.
+ */
+describe('the health of the receivers', () => {
+  beforeEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  it('does not report a bound receiver as hung', () => {
+    markExpected('syslog');
+    recordSyslogBound(true);
+    markExpected('snmp');
+    recordSnmpBound(true);
+
+    expect(detectHangedLoops(snapshotHealth(), Date.now())).toEqual([]);
+  });
+
+  it('reports a receiver whose socket is not bound as unhealthy', () => {
+    markExpected('syslog');
+    recordSyslogBound(false);
+
+    expect(overallHealthy(snapshotHealth())).toBe(false);
+  });
+
+  it('leaves a bound receiver healthy even without a tick', () => {
+    markExpected('syslog');
+    recordSyslogBound(true);
+
+    expect(overallHealthy(snapshotHealth())).toBe(true);
   });
 });
