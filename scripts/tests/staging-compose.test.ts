@@ -247,3 +247,69 @@ test("el staging publica un puerto HTTP propio", () => {
 
   assert.ok(values.get('STAGING_HTTP_PORT'), 'el staging tiene que declarar su puerto HTTP');
 });
+
+test("la plantilla del staging declara la marca que permite las excepciones SSRF", () => {
+  // La marca `DEPLOY_ENV=staging` es lo único que permite las excepciones de
+  // la política SSRF con `NODE_ENV=production` —que es el modo del staging—.
+  // Si desaparece de la plantilla, el web y el worker se niegan a arrancar y
+  // el CI no se entera: el staging deja de levantar.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.equal(
+    values.get('DEPLOY_ENV'),
+    'staging',
+    'la plantilla tiene que declarar la marca de staging: sin ella el worker y el web no arrancan',
+  );
+});
+
+test("las excepciones SSRF de la plantilla están activadas", () => {
+  // El mock NMS vive en el loopback: la política, por defecto, lo rechaza.
+  // Las excepciones tienen que estar activadas, no declaradas y apagadas.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.equal(values.get('NMS_ALLOW_HTTP'), 'true');
+  assert.equal(values.get('NMS_ALLOW_PRIVATE_NETWORKS'), 'true');
+});
+
+test("el puerto del mock NMS es el mismo en todas las variables que lo mencionan", () => {
+  // El mock escucha en `MOCK_NMS_PORT`, la conexión del seed lo apunta en
+  // `DEMO_NMS_BASE_URL` y la política SSRF tiene que abrirlo en
+  // `NMS_ALLOWED_PORTS`. Si uno de los tres no coincide, el staging levanta
+  // y no polea contra nada.
+  const values = envFileValues(stagingEnvExample());
+  const port = values.get('MOCK_NMS_PORT');
+  const host = values.get('MOCK_NMS_HOST');
+
+  assert.ok(port, 'la plantilla tiene que declarar el puerto del mock NMS');
+  assert.ok(host, 'la plantilla tiene que declarar la interfaz del mock NMS');
+  assert.equal(
+    values.get('DEMO_NMS_BASE_URL'),
+    `http://${host}:${port}`,
+    'la conexión del seed tiene que apuntar al puerto en el que escucha el mock',
+  );
+  assert.equal(
+    values.get('NMS_ALLOWED_PORTS'),
+    port,
+    'la política SSRF tiene que admitir el puerto del mock',
+  );
+  assert.equal(
+    values.get('NMS_ALLOWED_HOSTS'),
+    host,
+    'la política SSRF tiene que admitir la interfaz del mock',
+  );
+});
+
+test("el compose monta los ficheros del mock NMS", () => {
+  // Sin los bind mounts el contenedor no arranca: los ficheros del mock no
+  // están en la imagen `node:22-alpine`. El CI tiene que verlos.
+  const staging = loadStagingCompose(REPO_ROOT);
+  const raw = staging.services['mock-nms']?.['volumes'];
+  const volumes = Array.isArray(raw) ? raw.map(String) : [];
+
+  for (const file of ['mock-nms.ts', 'mock-nms-server.ts', 'package.json']) {
+    assert.ok(
+      volumes.some((volume) => volume.includes(`/app/${file}`)),
+      `el servicio tiene que montar ${file}: sin él el contenedor no arranca`,
+    );
+  }
+});
