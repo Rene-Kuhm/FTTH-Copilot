@@ -81,8 +81,8 @@ export const TICK_GRACE_MS = 60_000;
 export interface LoopCadence {
   /** Period of the loop, in milliseconds. */
   intervalMs?: number;
-  /** Epoch ms of the next expected tick. */
-  nextRunAt?: number;
+  /** Epoch ms of the next expected tick, or null when it is not known. */
+  nextRunAt?: number | null;
 }
 
 const STATE = new Map<SchedulerName, ServiceHealth>();

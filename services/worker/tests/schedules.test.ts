@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { JOB_NAMES, recurringSchedulerId } from '@ftth-copilot/jobs';
+import { __resetSchedulerHealth, snapshotHealth } from '@ftth-copilot/scheduler';
 
 /**
  * The registration of the recurring schedules.
@@ -13,6 +14,8 @@ import { JOB_NAMES, recurringSchedulerId } from '@ftth-copilot/jobs';
 const mocks = vi.hoisted(() => ({
   createJobQueue: vi.fn(),
   scheduleRecurring: vi.fn(),
+  nextSchedulerRun: vi.fn(),
+  enqueueJob: vi.fn(),
   closeQueue: vi.fn(),
   onQueue: vi.fn(),
 }));
@@ -23,10 +26,13 @@ vi.mock('@ftth-copilot/jobs', async (importOriginal) => {
     ...actual,
     createJobQueue: mocks.createJobQueue,
     scheduleRecurring: mocks.scheduleRecurring,
+    nextSchedulerRun: mocks.nextSchedulerRun,
+    enqueueJob: mocks.enqueueJob,
   };
 });
 
 import { INGEST_DRAIN_LOOP, LEARNING_SNAPSHOT_LOOP, registerRecurringSchedules } from '../src/schedules';
+import { WARMUP_MS } from '../src/warmup';
 
 /** The registration of one loop, as it reached the queue. */
 interface RegisteredSchedule {
@@ -45,8 +51,113 @@ function schedules(): RegisteredSchedule[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // El registro de salud vive en la memoria del proceso: sin limpiarlo, el
+  // estado de un test se leeria en el siguiente.
+  __resetSchedulerHealth();
   mocks.createJobQueue.mockReturnValue({ close: mocks.closeQueue, on: mocks.onQueue });
   mocks.scheduleRecurring.mockResolvedValue(undefined);
+  // Por defecto ningún schedule tiene un tick conocido; cada test dice lo
+  // que le conviene con `nextRuns`.
+  mocks.nextSchedulerRun.mockResolvedValue(null);
+  mocks.enqueueJob.mockResolvedValue(undefined);
+});
+
+/**
+ * El tick de calentamiento.
+ *
+ * El schedule de un loop no se reprograma: después de un reinicio, el
+ * próximo tick es el que la rejilla tenía previsto, y para el firmware
+ * ese tick está a 24 h. El tick de calentamiento es el que hace que el
+ * loop pruebe que funciona enseguida, y su id sale de la ranura del
+ * schedule para que dos workers que arrancan a la vez no lo hagan dos
+ * veces.
+ */
+describe('el tick de calentamiento', () => {
+  const FAR = Date.now() + 6 * 60 * 60 * 1000;
+  const NEAR = Date.now() + 5_000;
+
+  /**
+   * Cada schedule tiene su propio reloj: el poll puede tener su tick a 24 h
+   * y el drenaje —que corre cada 30 s— el suyo a la vista.
+   */
+  function nextRuns(far: string[]): void {
+    mocks.nextSchedulerRun.mockImplementation(
+      async (_queue: unknown, schedulerId: string) =>
+        far.some((scope) => schedulerId.includes(scope)) ? FAR : NEAR,
+    );
+  }
+
+  it('no se encola cuando el schedule ya tiene un tick a la vista', async () => {
+    nextRuns([]);
+
+    await registerRecurringSchedules({ env: { METRICS_POLLER_ENABLED: 'true' } });
+
+    expect(mocks.enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('se encola cuando el próximo tick del schedule está lejos', async () => {
+    nextRuns(['poll-connections']);
+
+    await registerRecurringSchedules({ env: { METRICS_POLLER_ENABLED: 'true' } });
+
+    expect(mocks.enqueueJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('lleva el id determinista de la ranura del schedule y el retraso del calentamiento', async () => {
+    nextRuns(['poll-connections']);
+
+    await registerRecurringSchedules({ env: { METRICS_POLLER_ENABLED: 'true' } });
+
+    const [, name, data, options] = mocks.enqueueJob.mock.calls[0] as [
+      unknown,
+      string,
+      unknown,
+      { jobId: string; delayMs: number },
+    ];
+    expect(name).toBe(JOB_NAMES.pollConnections);
+    expect(data).toEqual({});
+    expect(options.jobId).toBe(`warmup-poll-connections-${FAR}`);
+    expect(options.delayMs).toBe(WARMUP_MS);
+  });
+
+  it('cada loop tiene su propio job de calentamiento', async () => {
+    nextRuns(['poll-connections', 'firmware-audit']);
+
+    await registerRecurringSchedules({
+      env: { METRICS_POLLER_ENABLED: 'true', FIRMWARE_AUDIT_ENABLED: 'true' },
+    });
+
+    const ids = mocks.enqueueJob.mock.calls.map(
+      (call) => (call as [unknown, unknown, unknown, { jobId: string }])[3].jobId,
+    );
+    expect(ids).toEqual([`warmup-poll-connections-${FAR}`, `warmup-firmware-audit-${FAR}`]);
+  });
+});
+
+/**
+ * El plazo del próximo tick.
+ *
+ * Es lo que dice que un loop que todavía no tickeó está calentando y no
+ * colgado: el registro de salud se vacía en cada arranque, y sin el plazo
+ * el health del sistema queda degradado hasta el primer tick.
+ */
+describe('el plazo del próximo tick en el registro de salud', () => {
+  it('publica cuándo espera el próximo tick de cada loop y con qué cadencia', async () => {
+    const FAR = Date.now() + 6 * 60 * 60 * 1000;
+    mocks.nextSchedulerRun.mockResolvedValue(FAR);
+
+    await registerRecurringSchedules({ env: { METRICS_POLLER_ENABLED: 'true' } });
+
+    const snap = snapshotHealth();
+    expect(snap['polling']?.nextRunAt).toBe(FAR);
+    expect(snap['polling']?.intervalMs).toBe(900_000);
+  });
+
+  it('no publica un plazo para un loop que no está habilitado', async () => {
+    await registerRecurringSchedules({ env: {} });
+
+    expect(snapshotHealth()['polling']).toBeUndefined();
+  });
 });
 
 describe('the periodic drain of the durable spool', () => {

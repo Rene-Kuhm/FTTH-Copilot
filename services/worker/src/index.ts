@@ -19,7 +19,12 @@ import Redis from 'ioredis';
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
 import { startHealthPublisher } from './health-publisher';
 import { registeredJobNames } from './registry';
-import { registerRecurringSchedules } from './schedules';
+import {
+  LOOP_DEADLINE_REFRESH_MS,
+  closeSchedules,
+  refreshLoopDeadlines,
+  registerRecurringSchedules,
+} from './schedules';
 import { startWorkerSnmpReceiver } from './snmp';
 import { startWorkerSyslogReceiver } from './syslog';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
@@ -185,6 +190,20 @@ async function main(): Promise<void> {
       log.error('Could not register recurring schedules', { error });
     });
 
+  // El plazo del próximo tick de cada loop se lee del schedule.
+  //
+  // La rejilla de un schedule avanza sola, y la avanza el worker que consume
+  // el tick — que puede ser otra réplica. Por eso el plazo no se calcula con
+  // los ticks de este proceso: se lee del sitio donde la rejilla vive. Sin
+  // esta lectura, el plazo de un loop se quedaría en el pasado y el health
+  // lo daría por colgado.
+  const deadlineRefresh = setInterval(() => {
+    void refreshLoopDeadlines();
+  }, LOOP_DEADLINE_REFRESH_MS);
+  // The timer must not keep the process alive on its own: the worker exits
+  // through its own shutdown handler.
+  deadlineRefresh.unref();
+
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (closing) return;
@@ -193,11 +212,13 @@ async function main(): Promise<void> {
 
     try {
       healthPublisher.stop();
+      clearInterval(deadlineRefresh);
       publisherRedis.disconnect();
       await server.close();
       await syslog.stop();
       await snmp.stop();
       await fleet.close();
+      await closeSchedules();
     } catch (error) {
       log.error('Error while shutting down', { error });
     }

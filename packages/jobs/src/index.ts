@@ -51,6 +51,7 @@ export { toJobsOptions, type EnqueueOptions } from './options';
 export {
   createJobQueue,
   enqueueJob,
+  nextSchedulerRun,
   scheduleRecurring,
   toRepeatOptions,
   type JobQueue,
