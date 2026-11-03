@@ -646,105 +646,18 @@ test("findWindowsShellViolations no mira runners Linux", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Regla 8: el step que publica en la release declara a qué tag.
+// Regla 8: el attach declara a qué tag adjunta los binarios.
 //
-// Sin `tag_name`, la action usa `github.ref`. En el flujo normal (push de un
-// tag) eso es el tag, pero en el `workflow_dispatch` —que es como se
-// relanza una release ya publicada— `github.ref` es la rama y la action
-// falla con "GitHub Releases requires a tag".
+// Los binarios se suben con `gh release upload`, que toma el tag como
+// argumento. Sin el tag explícito el paso no sabe a qué release subirlos, y en
+// un `workflow_dispatch` —que es como se relanza una release ya publicada— el
+// `github.ref` es la rama y no el tag.
 //
-// Así seeperdió la v0.4.0: el build de Windows era el primer fallo, pero
+// Así se perdió la v0.4.0: el build de Windows era el primer fallo, pero
 // detrás de él venía el attach, que no sabía a qué tag adjuntar.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const PUBLISH_STEP = [
-  "      - name: Attach binaries to release",
-  "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
-  "        with:",
-  "          files: artifacts/**/*",
-  "          fail_on_unmatched_files: false",
-];
-
-function attachWorkflow(withTag: boolean): string {
-  const with_ = withTag
-    ? [...PUBLISH_STEP, "          tag_name: ${{ inputs.release-tag }}"]
-    : PUBLISH_STEP;
-  return [
-    "name: Release",
-    "on:",
-    "  workflow_dispatch:",
-    "    inputs:",
-    "      tag:",
-    "        required: true",
-    "        type: string",
-    "permissions:",
-    "  contents: read",
-    "jobs:",
-    "  attach:",
-    "    permissions:",
-    "      contents: write",
-    "    steps:",
-    ...with_,
-  ].join("\n");
-}
-
-test("findAttachTagViolations marca el publish sin tag_name, con su línea", () => {
-  const violations = findAttachTagViolations(model(attachWorkflow(false)));
-
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0]?.rule, "attach-tag");
-  assert.equal(violations[0]?.line, 15);
-  assert.match(violations[0]?.message ?? "", /requires a tag/);
-});
-
-test("findAttachTagViolations acepta un publish con tag_name", () => {
-  assert.deepEqual(findAttachTagViolations(model(attachWorkflow(true))), []);
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Regla 9: el attach no pisa las notas de una release ya publicada.
-//
-// `softprops/action-gh-release` con `generate_release_notes: true` genera las
-// notas del tag y las ADJUNTA al cuerpo que la release ya tiene. En una
-// release ya publicada —la que release-please dejó con sus notas agrupadas por
-// scope— eso duplica el contenido: la v0.3.0 tiene hoy las notas de GitHub
-// repetidas cuatro veces, una por cada run que le adjuntó un artefacto.
-//
-// Las notas sólo se generan cuando la release todavía no existe: en ese caso
-// softprops la crea y tiene que darle un cuerpo.
-// ──────────────────────────────────────────────────────────────────────────────
-
-const EXISTENCE_CHECK = [
-  "      - name: Check if the release already exists",
-  "        id: release_state",
-  "        env:",
-  "          GH_TOKEN: ${{ github.token }}",
-  "          TAG: ${{ inputs.release-tag }}",
-  "        run: |",
-  "          set -euo pipefail",
-  '          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/dev/null 2>&1; then',
-  '            echo "exists=true" >> "$GITHUB_OUTPUT"',
-  "          else",
-  '            echo "exists=false" >> "$GITHUB_OUTPUT"',
-  "          fi",
-];
-
-const PUBLISH_STEP_WITH_TAG = [
-  "      - name: Attach binaries to release",
-  "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
-  "        with:",
-  "          files: artifacts/**/*",
-  "          fail_on_unmatched_files: false",
-  "          tag_name: ${{ inputs.release-tag }}",
-];
-
-/**
- * @param notesInput Valor de `generate_release_notes`, o `null` si no se declara.
- * @param check Si el job trae el step que consulta si la release existe.
- */
-function notesWorkflow(notesInput: string | null, check: boolean): string {
-  const steps = [...(check ? EXISTENCE_CHECK : []), ...PUBLISH_STEP_WITH_TAG];
-  if (notesInput !== null) steps.push(`          generate_release_notes: ${notesInput}`);
+function workflowOf(steps: readonly string[]): string {
   return [
     "name: Release",
     "on:",
@@ -764,37 +677,91 @@ function notesWorkflow(notesInput: string | null, check: boolean): string {
   ].join("\n");
 }
 
-test("findReleaseNotesViolations marca el publish que siempre genera las notas", () => {
-  const violations = findReleaseNotesViolations(model(notesWorkflow("true", true)));
+/**
+ * @param tag Valor de `TAG` en el env del step, o `null` si no lo declara.
+ */
+function uploadWorkflow(tag: string | null): string {
+  return workflowOf([
+    "      - name: Attach the binaries to the release",
+    "        env:",
+    "          GH_TOKEN: ${{ github.token }}",
+    ...(tag === null ? [] : [`          TAG: ${tag}`]),
+    "        run: |",
+    "          set -euo pipefail",
+    '          gh release upload "${TAG}" "${binaries[@]}" --clobber --repo "${GITHUB_REPOSITORY}"',
+  ]);
+}
 
-  assert.equal(violations.length, 1);
-  assert.equal(violations[0]?.rule, "release-notes");
-  assert.equal(violations[0]?.line, 27);
-  assert.match(violations[0]?.message ?? "", /notas/);
+test("findAttachTagViolations acepta el attach que declara el tag del input", () => {
+  assert.deepEqual(
+    findAttachTagViolations(model(uploadWorkflow("${{ inputs.release-tag }}"))),
+    [],
+  );
 });
 
-test("findReleaseNotesViolations marca el publish que no dice nada de las notas", () => {
-  const violations = findReleaseNotesViolations(model(notesWorkflow(null, true)));
+test("findAttachTagViolations marca el attach con el tag fijo", () => {
+  const violations = findAttachTagViolations(model(uploadWorkflow("v0.4.0")));
 
   assert.equal(violations.length, 1);
-  assert.equal(violations[0]?.rule, "release-notes");
-  assert.match(violations[0]?.message ?? "", /notas/);
+  assert.equal(violations[0]?.rule, "attach-tag");
+  assert.match(violations[0]?.message ?? "", /tag/);
 });
 
-test("findReleaseNotesViolations acepta el publish que sólo genera las notas si la release no existe", () => {
+test("findAttachTagViolations marca el attach sin tag", () => {
+  const violations = findAttachTagViolations(model(uploadWorkflow(null)));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "attach-tag");
+  assert.match(violations[0]?.message ?? "", /tag/);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Regla 9: el attach no reescribe el cuerpo de la release.
+//
+// `softprops/action-gh-release` actualiza la release antes de subir los
+// binarios: eso reescribe el changelog que release-please ya había escrito y,
+// con `generate_release_notes`, le suma encima las notas de GitHub. La v0.3.0
+// tiene hoy esas notas repetidas cuatro veces.
+//
+// Los assets se suben sin tocar el cuerpo: `gh release upload` sólo sube
+// archivos.
+// ──────────────────────────────────────────────────────────────────────────────
+
+test("findReleaseNotesViolations marca el step que usa softprops", () => {
   const violations = findReleaseNotesViolations(
-    model(notesWorkflow("${{ steps.release_state.outputs.exists == 'false' }}", true)),
+    model(
+      workflowOf([
+        "      - name: Attach binaries to release",
+        "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
+        "        with:",
+        "          files: artifacts/**/*",
+      ]),
+    ),
   );
 
-  assert.deepEqual(violations, []);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-notes");
+  assert.match(violations[0]?.message ?? "", /gh release upload/);
 });
 
-test("findReleaseNotesViolations marca el publish que consulta un step que no mira la release", () => {
+test("findReleaseNotesViolations marca el step que reescribe la release con la CLI", () => {
   const violations = findReleaseNotesViolations(
-    model(notesWorkflow("${{ steps.release_state.outputs.exists == 'false' }}", false)),
+    model(
+      workflowOf([
+        "      - name: Rewrite the release notes",
+        "        run: gh release edit v0.4.0 --notes-file notas.md",
+      ]),
+    ),
   );
 
   assert.equal(violations.length, 1);
   assert.equal(violations[0]?.rule, "release-notes");
-  assert.match(violations[0]?.message ?? "", /release/);
+  assert.match(violations[0]?.message ?? "", /cuerpo/);
+});
+
+test("findReleaseNotesViolations acepta el attach que sólo sube los binarios", () => {
+  assert.deepEqual(
+    findReleaseNotesViolations(model(uploadWorkflow("${{ inputs.release-tag }}"))),
+    [],
+  );
 });
