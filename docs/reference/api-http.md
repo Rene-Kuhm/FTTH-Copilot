@@ -1306,7 +1306,7 @@ Requiere el permiso `view_network`.
 |---|---|---|---|
 | `incidents` | `Incident[]` | sí | — |
 | `count` | `integer` | sí | — |
-| `page` | `{scope: string, hasMore: boolean, nextCursor: string}` | sí | — |
+| `page` | `{scope: string, hasMore: boolean, nextCursor: string, total: integer}` | sí | — |
 
 </details>
 
@@ -1739,7 +1739,7 @@ como contexto de fondo.
 |---|---|---|---|
 | `predictions` | `Prediction[]` | sí | — |
 | `count` | `integer` | sí | — |
-| `page` | `{scope: string, hasMore: boolean, nextCursor: string}` | sí | — |
+| `page` | `{scope: string, hasMore: boolean, nextCursor: string, total: integer}` | sí | — |
 
 </details>
 

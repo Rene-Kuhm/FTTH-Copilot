@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { readPage, type PageMeta } from '@/lib/api/paged-list';
 import { useAuth } from '@/lib/auth/client';
 import { SituationsPanel } from './SituationsPanel';
 import { NetworkTopologyMap } from './NetworkTopologyMap';
@@ -440,7 +441,7 @@ function SlaTable({ rows }: { rows: SlaRow[] }) {
 // Predictions panel (AIOps proactive)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PredictionsPanel({ predictions }: { predictions: Prediction[] }) {
+function PredictionsPanel({ predictions, total }: { predictions: Prediction[]; total: number }) {
   if (!predictions.length) return (
     <div className="flex items-center gap-2 py-3 text-xs text-success">
       <span className="h-2 w-2 rounded-full bg-success" />
@@ -459,6 +460,11 @@ function PredictionsPanel({ predictions }: { predictions: Prediction[] }) {
         {bySev.warning > 0 && <span className="text-warning font-bold">⚡ {bySev.warning} warnings</span>}
         {bySev.info > 0 && <span className="text-base-content/50">{bySev.info} info</span>}
       </div>
+      {total > predictions.length ? (
+        <p className="text-[10px] text-base-content/40">
+          Las {predictions.length} más recientes de {total}: los conteos son de esta parte.
+        </p>
+      ) : null}
       <div className="space-y-1 max-h-36 overflow-y-auto">
         {predictions.slice(0, 6).map((p) => {
           const sev = p.severity === 'critical' ? '#ef4444' : p.severity === 'warning' ? '#f59e0b' : '#6b7280';
@@ -627,6 +633,15 @@ export default function MetricsDashboard() {
   const [slaRows, setSlaRows] = useState<SlaRow[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [apiIncidents, setApiIncidents] = useState<Incident[]>([]);
+  // Totales del scope, no de la página: el contador de abiertos y el de
+  // alertas activas tienen que decir cuántos hay, no cuántos entraron en la
+  // respuesta.
+  const [openTotal, setOpenTotal] = useState(0);
+  const [predictionTotal, setPredictionTotal] = useState(0);
+  // El MTTR sale de una muestra de los resueltos: si hay más de los que
+  // entraron, el número es una muestra y hay que decirlo.
+  const [resolvedSample, setResolvedSample] = useState(false);
+  const [resolvedIncidents, setResolvedIncidents] = useState<Incident[]>([]);
   const [topologyRoots, setTopologyRoots] = useState<TopologyNode[]>([]);
 
   // SSE streaming: first poll, then SSE for live updates
@@ -715,15 +730,35 @@ export default function MetricsDashboard() {
       setUpdated(new Date());
 
       // ── Authenticated API calls ────────────────────────────────────────
-      const [slaData, predData, incData, treeData] = await Promise.all([
+      const [slaData, predData, incData, resolvedData, treeData] = await Promise.all([
         fetchApi<{ windowDays: number; sla: SlaRow[]; count: number }>(`/api/sla?days=7`),
-        fetchApi<{ predictions: Prediction[] }>('/api/predictions'),
-        fetchApi<{ incidents: Incident[]; count: number }>('/api/incidents'),
+        fetchApi<{ predictions: Prediction[]; page?: PageMeta }>('/api/predictions?limit=200'),
+        fetchApi<{ incidents: Incident[]; page?: PageMeta }>('/api/incidents?status=unresolved&limit=200'),
+        fetchApi<{ incidents: Incident[]; page?: PageMeta }>('/api/incidents?status=resolved&limit=200'),
         fetchApi<{ roots: TopologyNode[]; nodeCount: number; count: number }>('/api/topology/tree'),
       ]);
       if (slaData?.sla) setSlaRows(slaData.sla);
-      if (predData?.predictions) setPredictions(predData.predictions);
-      if (incData?.incidents) setApiIncidents(incData.incidents);
+
+      if (predData) {
+        const page = readPage<Prediction>(predData, 'predictions');
+        setPredictions(page.items);
+        setPredictionTotal(page.meta.total);
+      }
+
+      if (incData) {
+        const page = readPage<Incident>(incData, 'incidents');
+        setApiIncidents(page.items);
+        setOpenTotal(page.meta.total);
+      }
+
+      // El MTTR necesita los resueltos, que el scope por defecto no trae: sin
+      // esto el promedio salía siempre en cero.
+      if (resolvedData) {
+        const page = readPage<Incident>(resolvedData, 'incidents');
+        setResolvedIncidents(page.items);
+        setResolvedSample(page.meta.total > page.items.length);
+      }
+
       if (treeData?.roots) setTopologyRoots(treeData.roots);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fetch failed');
@@ -786,10 +821,13 @@ export default function MetricsDashboard() {
   // ── Derived ──────────────────────────────────────────────────────────
   const dispatchTotal = dispatches.reduce((s, d) => s + d.current, 0);
   const openIncidents = apiIncidents.filter(i => i.status !== 'resolved');
-  const mttrMs = apiIncidents.filter(i => i.status === 'resolved').length
-    ? apiIncidents.filter(i => i.status === 'resolved')
+  // El conteo de abiertos sale del total del scope, no del largo de la
+  // página: con la paginación, la respuesta trae una parte.
+  const openCount = openTotal > 0 ? openTotal : openIncidents.length;
+  const mttrMs = resolvedIncidents.length
+    ? resolvedIncidents
         .reduce((s, i) => s + (new Date(i.lastSeenAt).getTime() - new Date(i.firstSeenAt).getTime()), 0)
-        / apiIncidents.filter(i => i.status === 'resolved').length
+        / resolvedIncidents.length
     : 0;
 
   // ── Tab navigation ────────────────────────────────────────────
@@ -906,10 +944,10 @@ export default function MetricsDashboard() {
             <KpiTile label="Requests (15m)" value={fmt(requestsRate.total)} spark={requestsRate.pts} color="#10b981" />
             <KpiTile label="Tokens consumidos" value={fmt(llmTokens)} spark={[]} />
             <KpiTile label="Incidentes abiertos"
-              value={openIncidents.length}
-              color={openIncidents.length > 0 ? '#f59e0b' : '#10b981'}
+              value={openCount}
+              color={openCount > 0 ? '#f59e0b' : '#10b981'}
               spark={[]} />
-            <KpiTile label="MTTR avg"
+            <KpiTile label={resolvedSample ? 'MTTR avg (muestra)' : 'MTTR avg'}
               value={mttrMs > 0 ? fmtDur(mttrMs / 1000) : '—'}
               spark={[]} />
           </div>
@@ -1189,8 +1227,8 @@ export default function MetricsDashboard() {
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${predictions.length > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
-                    <svg className={`h-4 w-4 ${predictions.length > 0 ? 'text-warning' : 'text-success'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${predictionTotal > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
+                    <svg className={`h-4 w-4 ${predictionTotal > 0 ? 'text-warning' : 'text-success'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546"/>
                     </svg>
                   </div>
@@ -1200,14 +1238,14 @@ export default function MetricsDashboard() {
                   </div>
                 </div>
                 <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  predictions.length === 0 ? 'bg-success/10 text-success border border-success/20' :
+                  predictionTotal === 0 ? 'bg-success/10 text-success border border-success/20' :
                   predictions.some(p => p.severity === 'critical') ? 'bg-error/10 text-error border border-error/20' :
                   'bg-warning/10 text-warning border border-warning/20'
                 }`}>
-                  {predictions.length === 0 ? 'Clear' : `${predictions.length} active`}
+                  {predictionTotal === 0 ? 'Clear' : `${predictionTotal} active`}
                 </div>
               </div>
-              <PredictionsPanel predictions={predictions} />
+              <PredictionsPanel predictions={predictions} total={predictionTotal} />
             </div>
 
             {/* ── Incidents ── */}
@@ -1215,8 +1253,8 @@ export default function MetricsDashboard() {
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${openIncidents.length > 0 ? 'bg-error/10' : 'bg-success/10'}`}>
-                    <svg className={`h-4 w-4 ${openIncidents.length > 0 ? 'text-error' : 'text-success'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${openCount > 0 ? 'bg-error/10' : 'bg-success/10'}`}>
+                    <svg className={`h-4 w-4 ${openCount > 0 ? 'text-error' : 'text-success'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                       <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                     </svg>
@@ -1227,14 +1265,15 @@ export default function MetricsDashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {openIncidents.length > 0 && (
+                  {openCount > 0 && (
                     <div className="rounded-full bg-error/10 px-2.5 py-1 text-xs font-semibold text-error border border-error/20">
-                      {openIncidents.length} abiertos
+                      {openCount} abiertos
                     </div>
                   )}
                   {mttrMs > 0 && (
                     <div className="rounded-full bg-base-200 px-2.5 py-1 text-xs font-semibold text-base-content/50">
                       MTTR {fmtDur(mttrMs / 1000)}
+                      {resolvedSample ? ' (muestra)' : ''}
                     </div>
                   )}
                 </div>

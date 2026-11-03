@@ -434,6 +434,43 @@ volvia inusable para `DetectedAlert`. La forma es estructuralmente identica.
 
 14 tests para predictions; los 16 de incidents siguen verdes tras el refactor.
 
+### T8b ter - El frontend pide de a paginas (hecho)
+
+T8b y T8b bis dejaron el backend paginando, pero el frontend seguia leyendo la
+primera pagina y listo: los incidentes abiertos que no entraban en ella quedaban
+escondidos, y el operador no tenia forma de saber que faltaban. El riesgo que
+T8b queria evitar seguia presente del lado del cliente.
+
+#### El total del scope
+
+Una pagina no puede decir cuantos hay. Las dos rutas ahora contestan ademas
+`page.total`: cuantos hay en el scope, sin contar la paginacion (un `COUNT` con
+el mismo filtro, que el indice del scope ya cubre). `count` no cambia de
+significado: sigue siendo el largo de **esta** pagina.
+
+Sin ese numero, los tiles del dashboard contaban lo que entro en la pagina. Y
+el MTTR se calculaba sobre los incidentes **resueltos**, que el scope por
+defecto (`unresolved`) no trae: desde T8b el promedio salia **siempre en cero**,
+sin que nadie supiera por que. Ahora se piden los resueltos explicitamente y,
+cuando no entran todos, el numero se rotula como muestra.
+
+#### El cliente de la paginacion
+
+`apps/web/lib/api/paged-list.ts`: `readPage` lee la respuesta, `nextPageUrl` arma
+la URL de la pagina siguiente y `fetchAllPages` recorre el recorrido con un tope
+**explicito**. Si el tope corta antes del final, `truncated` lo dice: un conteo
+truncado en silencio es peor que ningun conteo.
+
+#### Los paneles
+
+- `IncidentsPanel` y `PredictiveAlerts` (dashboard del usuario): muestran cuantos
+  hay en total y ofrecen "cargar mas", que pide la pagina siguiente con el cursor y
+  la **agrega** a la lista. Sin mas paginas, el boton desaparece.
+- `MetricsDashboard` (console): los tiles usan el total del scope.
+- `NetworkTopologyMap`: colorea cada dispositivo con la severidad de su incidente.
+  Si la respuesta viene recortada, un equipo con incidente se ve sin incidente, asi
+  que pide la mayor parte posible y avisa cuando no alcanzo.
+
 ## SEC-008b - Advisory lock en schedulers (hecho)
 
 ### Problema

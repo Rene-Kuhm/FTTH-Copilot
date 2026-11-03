@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { readPage } from '@/lib/api/paged-list';
 
 interface TreeNode { kind: string; id: string; children: TreeNode[]; downstreamCount: number }
 interface TopologyResponse { roots: TreeNode[]; nodeCount: number; count: number }
 interface Incident { id: string; deviceKind: string; deviceId: string; severity: string; status: string }
-interface IncidentsResponse { incidents: Incident[]; count: number }
+interface IncidentsResponse { incidents: Incident[]; count: number; page?: { total?: number; hasMore?: boolean } }
 
 const KIND_META: Record<string, { icon: string; color: string; bg: string; w: number; h: number }> = {
   OLT: { icon: 'OLT', color: '#3b82f6', bg: '#3b82f615', w: 80, h: 44 },
@@ -157,6 +158,9 @@ export function NetworkTopologyMap() {
   const [incidents, setIncidents] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Si los incidentes no dieron abasto, el mapa está incompleto y hay que
+  // decirlo: un equipo con incidente puede verse sin incidente.
+  const [incidentsTruncated, setIncidentsTruncated] = useState(false);
 
   const fetchData = useCallback(async () => {
      
@@ -164,14 +168,20 @@ export function NetworkTopologyMap() {
     try {
       const [topoRes, incRes] = await Promise.all([
         fetch('/api/topology/tree', { credentials: 'include' }).then(r => r.json()) as Promise<TopologyResponse>,
-        fetch('/api/incidents', { credentials: 'include' }).then(r => r.json()) as Promise<IncidentsResponse>,
+        fetch('/api/incidents?status=unresolved&limit=200', { credentials: 'include' }).then(r => r.json()) as Promise<IncidentsResponse>,
       ]);
       setRoots(topoRes.roots ?? []);
+      // El mapa colorea cada dispositivo con la severidad de su incidente: si
+      // la respuesta viene paginada y sólo se trae una parte, los equipos sin
+      // incidente se ven sin incidente. Por eso pide la mayor parte posible
+      // y avisa cuando no alcanzó.
+      const page = readPage<Incident>(incRes, 'incidents');
       const imap = new Map<string, string>();
-      for (const inc of incRes.incidents ?? []) {
+      for (const inc of page.items) {
         imap.set(`${inc.deviceKind}:${inc.deviceId}`, inc.severity);
       }
       setIncidents(imap);
+      setIncidentsTruncated(page.meta.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading topology');
     } finally {
@@ -214,6 +224,13 @@ export function NetworkTopologyMap() {
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-base-300" /> OK</span>
         </div>
       </div>
+
+      {incidentsTruncated ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+          Hay más incidentes de los que se pudieron traer: el mapa puede mostrar
+          equipos con incidente como si no lo tuvieran.
+        </p>
+      ) : null}
 
       <div className="relative overflow-x-auto rounded-xl border border-base-200 bg-base-100">
         <div style={{ width: 700, height: svgH, position: 'relative' }}>

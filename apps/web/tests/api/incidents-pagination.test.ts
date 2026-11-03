@@ -15,10 +15,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
+  count: vi.fn(),
 }));
 
 vi.mock('@ftth-copilot/db', () => ({
-  prisma: { incident: { findMany: mocks.findMany } },
+  prisma: { incident: { findMany: mocks.findMany, count: mocks.count } },
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -55,6 +56,32 @@ function call(query = '') {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.findMany.mockResolvedValue([]);
+  mocks.count.mockResolvedValue(0);
+});
+
+describe('total', () => {
+  it('dice cuántos incidentes hay en el scope, no solo los de la página', async () => {
+    // La página trae uno, pero el scope tiene 120: un panel que necesita el
+    // total (el contador de abiertos) no puede deducirlo del largo de la
+    // página.
+    mocks.findMany.mockResolvedValue([incident()]);
+    mocks.count.mockResolvedValue(120);
+
+    const res = await call();
+    const body = await res.json();
+
+    expect(body.page.total).toBe(120);
+  });
+
+  it('el total cuenta el scope entero, sin el cursor', async () => {
+    mocks.count.mockResolvedValue(7);
+
+    await call('?cursor=abc');
+
+    const where = mocks.count.mock.calls[0][0].where;
+    expect(where.status).toEqual({ in: ['open', 'acknowledged'] });
+    expect(where).not.toHaveProperty('OR');
+  });
 });
 
 describe('default scope', () => {

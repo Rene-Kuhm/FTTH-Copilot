@@ -4248,7 +4248,11 @@ components:
               type: boolean
             nextCursor:
               type: [string, "null"]
-          required: [scope, hasMore]
+            total:
+              type: integer
+              description: >-
+                Cuántos hay en el scope, sin contar la paginación.
+          required: [scope, hasMore, total]
       required: [incidents, count, page]
 
     IncidentDetail:
@@ -4474,7 +4478,11 @@ components:
               type: boolean
             nextCursor:
               type: [string, "null"]
-          required: [scope, hasMore]
+            total:
+              type: integer
+              description: >-
+                Cuántos hay en el scope, sin contar la paginación.
+          required: [scope, hasMore, total]
       required: [predictions, count, page]
 
     MarkerDeviceKind:

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { BellIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons';
 import { csrfFetch } from '@/lib/auth/csrf-client';
+import { nextPageUrl, readPage, type PageMeta } from '@/lib/api/paged-list';
 
 interface Prediction {
   id: string;
@@ -38,19 +39,36 @@ function formatEta(etaMs: number | null): string {
 export function PredictiveAlerts() {
   const auth = useAuth();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [pageMeta, setPageMeta] = useState<PageMeta | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async () => {
+  /**
+   * Loads a page of predictions.
+   *
+   * With a cursor the page is **added** to what is already on screen; without
+   * one it is the first page and it replaces the list. The endpoint answers
+   * with a page, so the panel says how many there are and offers to load the
+   * rest instead of quietly showing the first ones only.
+   */
+  const load = useCallback(async (cursor?: string | null) => {
     if (!auth.user) return;
-    setLoading(true);
+    const appending = typeof cursor === 'string' && cursor.length > 0;
+    if (appending) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const response = await fetch('/api/predictions', { credentials: 'include' });
+      const response = await fetch(nextPageUrl('/api/predictions', cursor ?? null), {
+        credentials: 'include',
+      });
       const body = await response.json().catch(() => ({}));
-      setPredictions(body.predictions ?? []);
+      const page = readPage<Prediction>(body, 'predictions');
+      setPredictions((prev) => (appending ? [...prev, ...page.items] : page.items));
+      setPageMeta(page.meta);
     } catch {
       // noop — a failed predictions read should never block the dashboard
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [auth.user]);
 
@@ -89,7 +107,9 @@ export function PredictiveAlerts() {
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
-          {predictions.length} alerta{predictions.length === 1 ? '' : 's'}
+          {pageMeta?.hasMore
+            ? `${predictions.length} de ${pageMeta.total} alertas`
+            : `${predictions.length} alerta${predictions.length === 1 ? '' : 's'}`}
         </span>
       </div>
 
@@ -146,6 +166,22 @@ export function PredictiveAlerts() {
           })}
         </ul>
       )}
+
+      {pageMeta?.hasMore ? (
+        <div className="border-t border-white/[0.06] px-5 py-3 sm:px-6">
+          <button
+            type="button"
+            onClick={() => void load(pageMeta.nextCursor)}
+            disabled={loadingMore}
+            data-testid="load-more-predictions"
+            className="rounded-md border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.06] disabled:opacity-50"
+          >
+            {loadingMore
+              ? 'Cargando…'
+              : `Cargar más alertas (${Math.max(0, pageMeta.total - predictions.length)} restantes)`}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

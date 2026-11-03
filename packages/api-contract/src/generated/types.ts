@@ -488,6 +488,7 @@ export type IncidentList = {
   scope: string;
   hasMore: boolean;
   nextCursor?: string;
+  total: number;
   [key: string]: unknown;
 };
   [key: string]: unknown;
@@ -621,6 +622,7 @@ export type PredictionList = {
   scope: string;
   hasMore: boolean;
   nextCursor?: string;
+  total: number;
   [key: string]: unknown;
 };
   [key: string]: unknown;

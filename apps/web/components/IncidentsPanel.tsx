@@ -7,6 +7,7 @@ import { ServerStackIcon } from './icons';
 import { FeedbackControls } from './FeedbackControls';
 import { InvestigationCard } from './InvestigationCard';
 import { csrfFetch } from '@/lib/auth/csrf-client';
+import { nextPageUrl, readPage, type PageMeta } from '@/lib/api/paged-list';
 import type { FiberPlan } from './FiberPlanViewer';
 
 // ── Fase E — temporal topology impact (Fase E-7.1) ───────────────────────────
@@ -55,7 +56,9 @@ interface ConfirmState {
 export function IncidentsPanel() {
   const auth = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [pageMeta, setPageMeta] = useState<PageMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [openInvestigations, setOpenInvestigations] = useState<Record<string, boolean>>({});
 
@@ -68,16 +71,35 @@ export function IncidentsPanel() {
     }));
   }, []);
 
-  const load = useCallback(async () => {
+  /**
+   * Loads a page of incidents.
+   *
+   * With a cursor the page is **added** to what is already on screen: the
+   * operator asked for the next ones, not a replacement. Without one it is
+   * the first page, and it replaces the list.
+   *
+   * The endpoint answers with a page, not with the whole list. Silently
+   * showing only the first page would hide open incidents, so the panel says
+   * how many there are and offers to load the rest.
+   */
+  const load = useCallback(async (cursor?: string | null) => {
     if (!auth.user) return;
+    const appending = typeof cursor === 'string' && cursor.length > 0;
+    if (appending) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const response = await fetch('/api/incidents', { credentials: 'include' });
+      const response = await fetch(nextPageUrl('/api/incidents', cursor ?? null), {
+        credentials: 'include',
+      });
       const body = await response.json().catch(() => ({}));
-      setIncidents(body.incidents ?? []);
+      const page = readPage<Incident>(body, 'incidents');
+      setIncidents((prev) => (appending ? [...prev, ...page.items] : page.items));
+      setPageMeta(page.meta);
     } catch {
       // noop — a failed incidents read should never block the dashboard
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [auth.user]);
 
@@ -160,7 +182,9 @@ export function IncidentsPanel() {
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
-          {incidents.length} incidente{incidents.length === 1 ? '' : 's'}
+          {pageMeta?.hasMore
+            ? `${incidents.length} de ${pageMeta.total} incidentes`
+            : `${incidents.length} incidente${incidents.length === 1 ? '' : 's'}`}
         </span>
       </div>
 
@@ -249,6 +273,22 @@ export function IncidentsPanel() {
           })}
         </ul>
       )}
+
+      {pageMeta?.hasMore ? (
+        <div className="border-t border-white/[0.06] px-5 py-3 sm:px-6">
+          <button
+            type="button"
+            onClick={() => void load(pageMeta.nextCursor)}
+            disabled={loadingMore}
+            data-testid="load-more-incidents"
+            className="rounded-md border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.06] disabled:opacity-50"
+          >
+            {loadingMore
+              ? 'Cargando…'
+              : `Cargar más incidentes (${Math.max(0, pageMeta.total - incidents.length)} restantes)`}
+          </button>
+        </div>
+      ) : null}
 
       {confirm ? (
         <ConfirmModal state={confirm} onClose={closeConfirm} onSubmit={submitConfirm} onChange={setConfirm} />
