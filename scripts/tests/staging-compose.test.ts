@@ -142,3 +142,30 @@ test("la plantilla de staging define las variables que el compose exige", () => 
     assert.ok(defined.has(name), `${name} la exige el compose y la plantilla no la define`);
   }
 });
+
+test("el staging declara el mock NMS como servicio, detrás de un profile", () => {
+  const staging = loadStagingCompose(REPO_ROOT);
+  const mock = staging.services['mock-nms'];
+
+  assert.ok(mock, 'el staging no declara el servicio del mock NMS');
+  assert.deepEqual(
+    mock.profiles ?? [],
+    ['mock-nms'],
+    'el mock NMS va detrás de un profile: un staging con un NMS real no lo tiene que levantar',
+  );
+  assert.equal(
+    mock.network_mode,
+    'host',
+    'el worker corre en la red del host: el mock tiene que estar en el loopback del host',
+  );
+});
+
+test("el mock NMS corre el mock del repo, no una reimplementación", () => {
+  const staging = loadStagingCompose(REPO_ROOT);
+  const command = (staging.services['mock-nms']?.command ?? []).map(String);
+
+  assert.ok(
+    command.some((part) => part.includes('mock-nms-server.ts')),
+    'el servicio tiene que correr el servidor del mock que está en el repo',
+  );
+});
