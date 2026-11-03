@@ -20,7 +20,10 @@ export {
   snapshotHealth,
   detectHangedLoops,
   overallHealthy,
+  serviceStatus,
+  setNextRun,
+  withServiceStatus,
   __resetSchedulerHealth,
 } from '@ftth-copilot/scheduler';
 
-export type { SchedulerName, ServiceHealth } from '@ftth-copilot/scheduler';
+export type { SchedulerName, ServiceHealth, ServiceStatus } from '@ftth-copilot/scheduler';

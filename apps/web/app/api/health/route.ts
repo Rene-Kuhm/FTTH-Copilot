@@ -4,6 +4,7 @@ import {
   overallHealthy,
   snapshotHealth,
   detectHangedLoops,
+  withServiceStatus,
 } from '@/lib/monitoring/scheduler-health';
 import { readWorkerHealth } from '@/lib/monitoring/worker-health';
 import {
@@ -54,11 +55,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   const localServices = snapshotHealth();
   const readsWorker = workerOwns && !containerScope;
   const workerSnapshot = readsWorker ? await readWorkerHealth() : null;
-  const services = readsWorker ? (workerSnapshot?.services ?? {}) : localServices;
+  const registered = readsWorker ? (workerSnapshot?.services ?? {}) : localServices;
 
-  const schedulersHealthy = overallHealthy(services);
   const now = Date.now();
-  const hungLoops = detectHangedLoops(services, now);
+  const schedulersHealthy = overallHealthy(registered);
+  const hungLoops = detectHangedLoops(registered, now);
+  // The services travel with the state they mean: a loop that has not
+  // ticked yet is warming up —with the instant of its next tick— and not
+  // dead.
+  const services = withServiceStatus(registered, now);
   const connections = snapshotEvaluatedConnectionHealth(now);
   const database = await checkDatabaseHealth();
 

@@ -238,6 +238,56 @@ redis-cli -a "$REDIS_PASSWORD" --no-auth-warning \
   get ftth:worker:scheduler-health | jq .
 ```
 
+### The warm-up tick after a restart
+
+The schedule of a loop is a grid, and BullMQ does **not** reprogram a grid
+that already exists: `upsertJobScheduler` keeps the iteration that is
+there. On a cold start the grid is created with `now + 5 s` and its first
+job is the warm-up tick, five seconds after the worker comes up. After a
+restart there is no cold start — the grid is the one of the first boot —
+so the first tick of a loop would be the one the grid had planned, which
+for the firmware is 24 hours away.
+
+The worker compares that next run with the clock. When it is more than a
+minute away, it forces a warm-up tick of its own, five seconds after the
+boot. The id of that job comes from the slot of the grid
+(`warmup-<scope>-<slot>`), which is what keeps it single:
+
+- two workers that boot at the same time compute the same id, and BullMQ
+  refuses to enqueue a second job with an id that already exists;
+- a worker that restarts inside the same slot does not warm the loop
+  twice, because the id of that slot is already taken.
+
+The warm-up is a real tick: it samples the NMS like any other. A restart
+therefore costs one extra poll, and never two.
+
+### The deadline of a loop
+
+The registry of the health lives in the memory of the process and starts
+empty on every boot. A worker that just came up has loops that never
+ticked, and "never ticked" read as "dead" would leave the health of the
+whole system degraded until the first tick.
+
+The deadline is what tells the two apart. It belongs to the schedule, not
+to the process: the worker reads the next run of the grid from BullMQ and
+publishes it, with the period of the loop, in the snapshot
+(`nextRunAt` and `intervalMs` per service). The worker refreshes it every
+30 seconds, because the grid moves on its own — the worker that consumes
+the tick may be another replica.
+
+With the deadline, a loop that has not ticked yet is **warming up**: it
+is not degraded while its tick is still to come, and it is *hung* when
+the tick it was waiting for does not arrive. `/api/health` publishes that
+state per service:
+
+| State      | What it means                                                       |
+| ---------- | ------------------------------------------------------------------- |
+| `ok`       | The loop ticked and its last tick is not old.                       |
+| `warming`  | The loop has not ticked yet, and its expected tick is still to come. |
+| `error`    | The last tick failed; `lastError` says why.                         |
+| `hung`     | The tick that was expected did not arrive.                          |
+| `inactive` | The operator did not enable the loop.                               |
+
 ### What the worker exports
 
 | Metric | Type | What it answers |

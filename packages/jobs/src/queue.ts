@@ -143,6 +143,25 @@ export async function scheduleRecurring<Q extends QueueKey>(
 }
 
 /**
+ * The next run of a recurring schedule, in epoch milliseconds.
+ *
+ * The upsert of a schedule does NOT reprogram a grid that already exists:
+ * BullMQ keeps the iteration of the schedule that is there, and the
+ * `startDate` of the upsert is ignored. The only way to know when the next
+ * tick is really due is to ask BullMQ.
+ *
+ * Returns null when the schedule does not exist, or when it exists without
+ * a next run — a schedule that was never produced a tick.
+ */
+export async function nextSchedulerRun<Q extends QueueKey>(
+  queue: JobQueue<Q>,
+  schedulerId: string,
+): Promise<number | null> {
+  const scheduler = await queue.getJobScheduler(schedulerId);
+  return scheduler?.next ?? null;
+}
+
+/**
  * Converts a recurring schedule into BullMQ's repeat options.
  *
  * Exported for tests: the mapping is the part of the producer that can be

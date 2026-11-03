@@ -32,7 +32,8 @@ vi.mock('@ftth-copilot/connectors-factory', () => ({
   buildConnectorFromConnection: mocks.buildConnectorFromConnection,
 }));
 
-import { runScheduledPoll } from '../src/index';
+import { runScheduledPoll, tryStart } from '../src/index';
+import { __resetSchedulerHealth, snapshotHealth } from '../src/health';
 
 const originalEnv = { ...process.env };
 
@@ -123,7 +124,7 @@ describe('runScheduledPoll notification routing', () => {
     );
   });
 
-  it('skips a connection whose connector cannot be built', async () => {
+  it('consulta las conexiones que sí se pueden construir, aunque otra falle', async () => {
     mocks.prismaNmsFindMany.mockResolvedValueOnce([
       { id: 'conn-broken', tenantId: 'tenant-1', status: 'connected' },
     ]);
@@ -132,11 +133,102 @@ describe('runScheduledPoll notification routing', () => {
     });
     mocks.pollConnections.mockResolvedValueOnce({ results: [], errors: [], deleted: 0 });
 
-    await runScheduledPoll();
-
+    // El loop falla, pero la consulta de las conexiones sanas no se pierde.
+    await expect(runScheduledPoll()).rejects.toThrow(/no base url/);
     expect(mocks.pollConnections).toHaveBeenCalledWith(
       [],
       expect.objectContaining({}),
     );
+  });
+});
+
+/**
+ * Los errores del poll.
+ *
+ * Una conexión cuyo conector no se puede construir —sin URL base, con
+ * credenciales inválidas, o con una URL que la política de SSRF rechaza—
+ * es un fallo del loop, no un detalle que se salta: antes, el poll se
+ * tragaba el error y el health decía "polling OK" sin haber consultado
+ * nada.
+ */
+describe('los errores del poll', () => {
+  beforeEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  it('falla con el motivo cuando una conexión no se puede construir', async () => {
+    mocks.prismaNmsFindMany.mockResolvedValueOnce([
+      { id: 'conn-broken', tenantId: 'tenant-1', status: 'connected' },
+    ]);
+    mocks.buildConnectorFromConnection.mockImplementationOnce(() => {
+      throw new Error('El conector no tiene una URL base configurada.');
+    });
+    mocks.pollConnections.mockResolvedValueOnce({ results: [], errors: [], deleted: 0 });
+
+    await expect(runScheduledPoll()).rejects.toThrow(/URL base configurada/);
+  });
+
+  it('deja el loop de polling en error, con el motivo, en el registro de salud', async () => {
+    mocks.prismaNmsFindMany.mockResolvedValueOnce([
+      { id: 'conn-broken', tenantId: 'tenant-1', status: 'connected' },
+    ]);
+    mocks.buildConnectorFromConnection.mockImplementationOnce(() => {
+      throw new Error('El conector no tiene una URL base configurada.');
+    });
+    mocks.pollConnections.mockResolvedValueOnce({ results: [], errors: [], deleted: 0 });
+
+    await tryStart('polling', runScheduledPoll);
+
+    const snap = snapshotHealth();
+    expect(snap['polling']?.lastError).toContain('URL base configurada');
+    expect(snap['polling']?.lastError).toContain('conn-broken');
+    expect(snap['polling']?.lastErrorAt).not.toBeNull();
+  });
+
+  it('consulta igual las conexiones que sí se pueden construir', async () => {
+    const goodConnector = { ping: vi.fn() };
+    mocks.prismaNmsFindMany.mockResolvedValueOnce([
+      { id: 'conn-good', tenantId: 'tenant-1', status: 'connected' },
+      { id: 'conn-broken', tenantId: 'tenant-1', status: 'connected' },
+    ]);
+    mocks.buildConnectorFromConnection
+      .mockReturnValueOnce({ connector: goodConnector })
+      .mockImplementationOnce(() => {
+        throw new Error('El conector no tiene una URL base configurada.');
+      });
+    mocks.pollConnections.mockResolvedValueOnce({ results: [], errors: [], deleted: 0 });
+
+    await expect(runScheduledPoll()).rejects.toThrow(/URL base configurada/);
+
+    // El trabajo de la conexión sana no se pierde por el fallo de la otra.
+    expect(mocks.pollConnections).toHaveBeenCalledWith(
+      [{ connector: goodConnector, meta: { tenantId: 'tenant-1', connectionId: 'conn-good' } }],
+      expect.objectContaining({}),
+    );
+  });
+
+  it('falla también cuando el poll de una conexión falla', async () => {
+    mocks.prismaNmsFindMany.mockResolvedValueOnce([
+      { id: 'conn-1', tenantId: 'tenant-1', status: 'connected' },
+    ]);
+    mocks.buildConnectorFromConnection.mockReturnValueOnce({ connector: { ping: vi.fn() } });
+    mocks.pollConnections.mockResolvedValueOnce({
+      results: [],
+      errors: [{ tenantId: 'tenant-1', connectionId: 'conn-1', error: 'el NMS no responde' }],
+      deleted: 0,
+    });
+
+    await expect(runScheduledPoll()).rejects.toThrow(/el NMS no responde/);
+  });
+
+  it('no falla cuando todas las conexiones se consultan bien', async () => {
+    mocks.prismaNmsFindMany.mockResolvedValueOnce([
+      { id: 'conn-1', tenantId: 'tenant-1', status: 'connected' },
+    ]);
+    mocks.buildConnectorFromConnection.mockReturnValueOnce({ connector: { ping: vi.fn() } });
+    mocks.pollConnections.mockResolvedValueOnce({ results: [], errors: [], deleted: 0 });
+
+    await expect(runScheduledPoll()).resolves.toBeDefined();
+    expect(snapshotHealth()['polling']?.lastError ?? null).toBeNull();
   });
 });

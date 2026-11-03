@@ -136,6 +136,66 @@ describe('GET /api/health', () => {
   });
 });
 
+/**
+ * El estado de cada loop, en palabras.
+ *
+ * El registro de salud se vacía en cada arranque, así que un worker recién
+ * levantado tiene loops sin ningún tick. El health tiene que decir que
+ * están calentando y cuándo esperan su próximo tick, no que están muertos.
+ */
+describe('GET /api/health — el estado de cada loop', () => {
+  beforeEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  afterEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  it('dice que un loop que espera su primer tick está calentando', async () => {
+    markExpected('polling', { intervalMs: 900_000, nextRunAt: Date.now() + 60_000 });
+
+    const res = await GET(new Request('http://localhost/api/health'));
+    const body = await res.json();
+
+    expect(body.services['polling']?.status).toBe('warming');
+  });
+
+  it('publica cuándo espera el próximo tick y con qué cadencia', async () => {
+    const nextRunAt = Date.now() + 900_000;
+    markExpected('polling', { intervalMs: 900_000, nextRunAt });
+
+    const res = await GET(new Request('http://localhost/api/health'));
+    const body = await res.json();
+
+    expect(body.services['polling']?.nextRunAt).toBe(nextRunAt);
+    expect(body.services['polling']?.intervalMs).toBe(900_000);
+  });
+
+  it('no degrada el sistema por un loop que todavía no tickeó', async () => {
+    markExpected('firmware', { intervalMs: 86_400_000, nextRunAt: Date.now() + 3_600_000 });
+
+    const res = await GET(new Request('http://localhost/api/health'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('ok');
+    expect(body.services['firmware']?.status).toBe('warming');
+  });
+
+  it('dice en error el loop cuyo poll falló, con el motivo', async () => {
+    markExpected('polling');
+    recordSuccess('polling', Date.now() - 60_000);
+    recordError('polling', 'la conexión conn-1 no se pudo construir', Date.now() - 1_000);
+
+    const res = await GET(new Request('http://localhost/api/health'));
+    const body = await res.json();
+
+    expect(body.services['polling']?.status).toBe('error');
+    expect(body.services['polling']?.lastError).toBe('la conexión conn-1 no se pudo construir');
+  });
+});
+
 import { __resetConnectionHealth, recordConnectionError, recordConnectionSuccess } from '@/lib/monitoring/connection-health';
 
 describe('GET /api/health — Fase 2 fields (2.6)', () => {

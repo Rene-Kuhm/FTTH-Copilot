@@ -92,6 +92,10 @@ function isServiceHealth(value: unknown): value is ServiceHealth {
   if (service['lastError'] !== null && typeof service['lastError'] !== 'string') return false;
   if (!isNullableNumber(service['lastErrorAt'])) return false;
   if (service['bound'] !== undefined && typeof service['bound'] !== 'boolean') return false;
+  // The deadline and the cadence are optional: a snapshot published before
+  // they existed is still a valid one.
+  if (service['nextRunAt'] !== undefined && !isNullableNumber(service['nextRunAt'])) return false;
+  if (service['intervalMs'] !== undefined && !isNullableNumber(service['intervalMs'])) return false;
   return true;
 }
 

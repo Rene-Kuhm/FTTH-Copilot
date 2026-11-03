@@ -31,6 +31,16 @@ function positiveInt(value: string | undefined, fallback: number): number {
 }
 
 /**
+ * The message of a failure, whatever it was thrown as.
+ *
+ * The reason a loop failed is what the operator reads in the health, so it
+ * has to be the message of the error and not a generic string.
+ */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
  * Single-flight guard for a recurring scheduled loop.
  *
  * Background (Fase F / monitoring contract):
@@ -160,7 +170,7 @@ async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<bo
     //   "Se descartan errores del poller, de conexiones y del receptor
     //    syslog. Por ejemplo, el puerto syslog puede estar ocupado y
     //    el error no queda informado."
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     log.warn('tick threw', { loopName: name, error: err });
     recordSchedulerError(name as 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection', message);
   } finally {
@@ -205,9 +215,14 @@ function readVulnerableFirmwareAllowlist(): string[] {
 
 /**
  * One scheduled poll: build a live connector for every `connected` connection
- * and run the sample -> persist -> detect -> notify cycle for each. A connection
- * that cannot be built (e.g. decryption failure) is skipped without aborting the
- * rest.
+ * and run the sample -> persist -> detect -> notify cycle for each.
+ *
+ * A connection that cannot be built (no base URL, credentials that do not
+ * decrypt, a URL the SSRF policy rejects) is a failure of the loop and not a
+ * detail to skip: the poll used to swallow it and the health reported
+ * "polling OK" without having consulted anything. The failure is raised at
+ * the end, once the connections that do work have been polled, so that one
+ * broken connection never stops the others.
  */
 export async function runScheduledPoll() {
   const connections = await prisma.nmsConnection.findMany({
@@ -215,6 +230,7 @@ export async function runScheduledPoll() {
   });
 
   const entries: PollEntry[] = [];
+  const failures: string[] = [];
   for (const connection of connections) {
     try {
       const { connector } = buildConnectorFromConnection(connection);
@@ -222,8 +238,10 @@ export async function runScheduledPoll() {
         connector,
         meta: { tenantId: connection.tenantId, connectionId: connection.id },
       });
-    } catch {
-      // Skip unbuildable connections.
+    } catch (err) {
+      failures.push(
+        `la conexión ${connection.id} (${connection.tenantId}) no se pudo construir: ${errorMessage(err)}`,
+      );
     }
   }
 
@@ -234,7 +252,7 @@ export async function runScheduledPoll() {
   const whatsappRecipient = process.env['WHATSAPP_RECIPIENT'];
   const whatsappApiKey = process.env['WHATSAPP_API_KEY'];
 
-  return pollConnections(entries, {
+  const result = await pollConnections(entries, {
     retentionDays: positiveInt(process.env['METRICS_RETENTION_DAYS'], 30),
     webhookUrl: process.env['ALERT_WEBHOOK_URL'],
     telegram: botToken && chatId ? { botToken, chatId } : undefined,
@@ -248,6 +266,18 @@ export async function runScheduledPoll() {
     escalateAfterMs: positiveInt(process.env['ALERT_ESCALATE_AFTER_MS'], 4 * 60 * 60 * 1000),
     includeOltDetail: process.env['METRICS_SAMPLE_OLT_DETAIL'] === 'true',
   });
+
+  for (const error of result.errors) {
+    failures.push(
+      `la conexión ${error.connectionId} (${error.tenantId}) falló en el poll: ${error.error}`,
+    );
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`El poll no pudo consultar todas las conexiones: ${failures.join(' | ')}`);
+  }
+
+  return result;
 }
 
 /**

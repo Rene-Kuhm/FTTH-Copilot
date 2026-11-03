@@ -34,33 +34,66 @@
  * immediately, so a one-shot tick on top of it would poll the NMS twice at
  * every boot. The schedule is started at `now + WARMUP_MS` instead, which
  * reproduces the five-second warm-up the in-process loop had.
+ *
+ * The warm-up after a restart (S9):
+ *
+ * That works on a cold start only. `upsertJobScheduler` does not reprogram a
+ * schedule that already exists — BullMQ keeps the iteration grid of the
+ * schedule that is there — so after a restart the first tick of a loop is
+ * the one the grid had planned, which for the firmware is 24 h away. The
+ * worker compares that next run with the clock and, when it is too far
+ * away, forces a warm-up tick of its own. Its job id comes from the slot of
+ * the grid, so two workers booting at the same time force the same job and
+ * BullMQ enqueues one.
  */
 
 import { createLogger } from '@ftth-copilot/shared';
-import { markExpected, type SchedulerName } from '@ftth-copilot/scheduler';
+import { markExpected, setNextRun, type SchedulerName } from '@ftth-copilot/scheduler';
 import {
   JOB_NAMES,
   createJobQueue,
+  enqueueJob,
+  nextSchedulerRun,
   recurringSchedulerId,
   redisConnectionOptions,
   scheduleRecurring,
   type JobName,
+  type JobQueue,
   type QueueData,
   type QueueJobMap,
   type QueueKey,
   type RedisConnectionOptions,
 } from '@ftth-copilot/jobs';
+import { decideWarmup, warmupJobId, WARMUP_MS } from './warmup';
 
 const log = createLogger({ name: 'worker-schedules' });
 
 /**
  * Grace period before the first tick of a loop, in milliseconds.
  *
- * The in-process loops ran a warm-up five seconds after boot. The schedule
- * starts at the same instant, so the first poll lands five seconds after the
- * worker comes up instead of one full interval later.
+ * Re-exported from the module of the warm-up, where the decision about it
+ * lives.
  */
-export const WARMUP_MS = 5_000;
+export { WARMUP_MS } from './warmup';
+
+/**
+ * How many completed warm-up jobs are kept.
+ *
+ * The id of a warm-up job is what reserves its slot: while the job is there,
+ * a second worker that boots in the same slot cannot enqueue another one.
+ * The retention keeps the id taken after the job ran.
+ */
+const WARMUP_JOB_RETENTION = 20;
+
+/**
+ * How often the deadline of every loop is refreshed, in milliseconds.
+ *
+ * The deadline moves with the grid of the schedule, and the grid moves
+ * without this process doing anything: a loop that another replica consumes
+ * advances the grid from the outside. Reading it from time to time is what
+ * keeps the deadline of the loops honest.
+ */
+export const LOOP_DEADLINE_REFRESH_MS = 30_000;
 
 /** Retry policy of every tick the worker produces. */
 const TICK_OPTIONS = {
@@ -211,6 +244,14 @@ export interface RegisteredLoop {
   everyMs: number;
   /** When the first tick is due, in epoch milliseconds. */
   firstTickAtMs: number;
+  /**
+   * When the next tick of the schedule is really due, in epoch milliseconds.
+   *
+   * It is not `firstTickAtMs` after a restart: the grid of a schedule that
+   * already exists is not reprogrammed, so the tick that is due is the one
+   * the grid had planned. Null when the schedule has no next run.
+   */
+  nextRunAtMs: number | null;
 }
 
 /** A loop that was not registered, and why. */
@@ -249,10 +290,36 @@ function positiveInt(value: string | undefined, fallback: number): number {
 }
 
 /**
- * Registers one loop: the recurring schedule and its immediate first tick.
+ * A loop this process registered, with what is needed to read its schedule.
  *
- * The queue is opened for the registration and closed right after: the
- * schedule lives in Redis, not in the connection.
+ * The state lives in the module: the worker reads the grid of its own loops
+ * from time to time to publish when their next tick is due.
+ */
+interface RegisteredLoopState {
+  scope: string;
+  queue: QueueKey;
+  schedulerId: string;
+  everyMs: number;
+  healthName?: SchedulerName;
+}
+
+/** The loops this process registered. */
+const REGISTERED_LOOPS = new Map<string, RegisteredLoopState>();
+
+/**
+ * The queues this process opened to read its own schedules.
+ *
+ * They stay open for the life of the process: the deadline of the loops is
+ * read from them, and the worker already holds a connection per queue for
+ * the consumers.
+ */
+const SCHEDULE_QUEUES = new Map<QueueKey, JobQueue<QueueKey>>();
+
+/**
+ * Registers one loop: the recurring schedule and, when the schedule needs
+ * it, the warm-up tick.
+ *
+ * The queue stays open: the deadline of the loop is read from it.
  */
 async function registerLoop<Q extends QueueKey>(
   definition: LoopDefinition<Q>,
@@ -292,6 +359,40 @@ async function registerLoop<Q extends QueueKey>(
       options: TICK_OPTIONS,
     });
 
+    // The upsert above does not reprogram a schedule that already exists:
+    // the grid that keeps ticking is the one of the first boot. Reading it
+    // is the only way to know when the next tick of this loop is really due.
+    const nextRunAtMs = await nextSchedulerRun(queue, schedulerId);
+
+    const warmup = decideWarmup({ nextRunAtMs, nowMs: Date.now() });
+    if (warmup.force && nextRunAtMs !== null) {
+      // The id comes from the slot of the grid: two workers that boot while
+      // the schedule is in the same slot force the same job, and BullMQ
+      // enqueues one.
+      const jobId = warmupJobId(definition.scope, nextRunAtMs);
+      await enqueueJob(queue, definition.jobName, definition.data, {
+        jobId,
+        delayMs: WARMUP_MS,
+        attempts: TICK_OPTIONS.attempts,
+        backoff: TICK_OPTIONS.backoff,
+        removeOnComplete: WARMUP_JOB_RETENTION,
+      });
+      log.info('Warm-up tick enqueued', {
+        scope: definition.scope,
+        jobId,
+        nextRunAt: new Date(nextRunAtMs).toISOString(),
+      });
+    }
+
+    SCHEDULE_QUEUES.set(definition.queue, queue as JobQueue<QueueKey>);
+    REGISTERED_LOOPS.set(definition.scope, {
+      scope: definition.scope,
+      queue: definition.queue,
+      schedulerId,
+      everyMs,
+      healthName: definition.healthName,
+    });
+
     return {
       scope: definition.scope,
       queue: definition.queue,
@@ -299,9 +400,11 @@ async function registerLoop<Q extends QueueKey>(
       schedulerId,
       everyMs,
       firstTickAtMs,
+      nextRunAtMs,
     };
-  } finally {
+  } catch (error) {
     await queue.close();
+    throw error;
   }
 }
 
@@ -336,9 +439,15 @@ export async function registerRecurringSchedules(
       registered.push(outcome);
       // A scheduled loop is a loop this process is expected to run: the
       // health registry has to say so, or the health does not watch it and a
-      // poll that stops ticking goes unnoticed.
+      // poll that stops ticking goes unnoticed. The deadline and the
+      // cadence are what the owner of the schedule knows and the registry
+      // does not: with them, a loop that has not ticked yet is warming up
+      // and not dead.
       if (definition.healthName) {
-        markExpected(definition.healthName);
+        markExpected(definition.healthName, {
+          intervalMs: outcome.everyMs,
+          nextRunAt: outcome.nextRunAtMs,
+        });
       }
     } else {
       skipped.push(outcome);
@@ -346,4 +455,40 @@ export async function registerRecurringSchedules(
   }
 
   return { registered, skipped };
+}
+
+/**
+ * Reads the next tick of every registered loop and publishes it.
+ *
+ * The grid of a schedule moves on its own: the loop that consumes the tick
+ * is the one that advances it, and it may be another replica. The deadline
+ * that the health registry holds is therefore read from BullMQ from time to
+ * time, instead of being computed from the ticks of this process.
+ */
+export async function refreshLoopDeadlines(): Promise<void> {
+  for (const loop of REGISTERED_LOOPS.values()) {
+    if (!loop.healthName) continue;
+    const queue = SCHEDULE_QUEUES.get(loop.queue);
+    if (!queue) continue;
+    try {
+      const nextRunAtMs = await nextSchedulerRun(queue, loop.schedulerId);
+      setNextRun(loop.healthName, nextRunAtMs);
+    } catch (error) {
+      // Redis being unreachable is reported by the health of the queues; the
+      // deadline that is already published stays as it is.
+      log.warn('Could not read the next tick of a loop', { scope: loop.scope, error });
+    }
+  }
+}
+
+/**
+ * Closes the queues this process opened to read its own schedules.
+ */
+export async function closeSchedules(): Promise<void> {
+  const queues = [...SCHEDULE_QUEUES.values()];
+  SCHEDULE_QUEUES.clear();
+  REGISTERED_LOOPS.clear();
+  await Promise.all(queues.map(async (queue) => {
+    await queue.close();
+  }));
 }

@@ -27,6 +27,9 @@
  *   - `lastErrorAt`  — epoch ms of the last error, or null.
  *   - `bound`        — for syslog: whether the UDP socket is currently
  *                       bound. False after a bind error or socket close.
+ *   - `nextRunAt`    — epoch ms of the next tick the service is expected to
+ *                       produce, or null when it is not known.
+ *   - `intervalMs`   — period of the loop, when it is known.
  */
 
 export type SchedulerName = 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection' | 'snmp';
@@ -37,6 +40,49 @@ export interface ServiceHealth {
   lastError: string | null;
   lastErrorAt: number | null;
   bound?: boolean;
+  /**
+   * Epoch ms of the next tick this service is expected to produce.
+   *
+   * It is what separates a loop *warming up* from a loop *hung*: the
+   * registry starts empty on every boot, so a worker that just came up has
+   * loops that never ran yet. Without a deadline, "never ran" can only mean
+   * "dead" — and the health of the whole system would stay degraded until
+   * the first tick, which for the firmware is 24 h away.
+   *
+   * The deadline belongs to the schedule, not to this process: whoever owns
+   * the schedule publishes it, and it advances with the schedule.
+   */
+  nextRunAt?: number | null;
+  /**
+   * Period of the loop, in milliseconds.
+   *
+   * Known for the loops that run on a schedule. It lets a consumer tell a
+   * slow loop from a dead one without guessing.
+   */
+  intervalMs?: number | null;
+}
+
+/**
+ * How long a loop may miss its expected tick before it counts as hung.
+ *
+ * The tick is delivered by the queue, not by a clock: it can arrive a few
+ * seconds late without anything being wrong. The grace covers that delay
+ * and the time it takes the owner of the schedule to publish a new deadline.
+ */
+export const TICK_GRACE_MS = 60_000;
+
+/**
+ * The cadence of a loop: how often it ticks and when it ticks next.
+ *
+ * Optional on purpose: a service that does not tick on a schedule (a
+ * receiver) has no cadence, and neither has a loop whose schedule is not
+ * known yet.
+ */
+export interface LoopCadence {
+  /** Period of the loop, in milliseconds. */
+  intervalMs?: number;
+  /** Epoch ms of the next expected tick, or null when it is not known. */
+  nextRunAt?: number | null;
 }
 
 const STATE = new Map<SchedulerName, ServiceHealth>();
@@ -64,14 +110,39 @@ function getOrCreate(name: SchedulerName, expected: boolean): ServiceHealth {
   return s;
 }
 
-/** Mark a service as configured to run (env flag enabled). */
-export function markExpected(name: SchedulerName): ServiceHealth {
-  return getOrCreate(name, true);
+/** Applies the cadence that the owner of the schedule published. */
+function applyCadence(s: ServiceHealth, cadence: LoopCadence): void {
+  if (cadence.intervalMs !== undefined) s.intervalMs = cadence.intervalMs;
+  if (cadence.nextRunAt !== undefined) s.nextRunAt = cadence.nextRunAt;
+}
+
+/**
+ * Mark a service as configured to run (env flag enabled).
+ *
+ * The optional cadence is what the owner of the schedule knows and this
+ * registry does not: how often the loop ticks and when it ticks next.
+ */
+export function markExpected(name: SchedulerName, cadence?: LoopCadence): ServiceHealth {
+  const s = getOrCreate(name, true);
+  if (cadence) applyCadence(s, cadence);
+  return s;
 }
 
 /** Mark a service as not configured to run (env flag disabled). */
 export function markNotExpected(name: SchedulerName): ServiceHealth {
   return getOrCreate(name, false);
+}
+
+/**
+ * Publishes when the next tick of a service is expected.
+ *
+ * The deadline belongs to the schedule: it moves forward on its own as the
+ * schedule produces its ticks, and the owner of the schedule is the one
+ * that can read it. The registry only holds it.
+ */
+export function setNextRun(name: SchedulerName, nextRunAt: number | null): void {
+  const s = getOrCreate(name, STATE.get(name)?.expected ?? false);
+  s.nextRunAt = nextRunAt;
 }
 
 /** Record a successful tick. Clears the last-error fields. */
@@ -129,10 +200,18 @@ function isReceiver(service: ServiceHealth): boolean {
 /**
  * Per-service "is the loop hung?" check (Fase 2 — 2.6).
  *
- * A loop is considered hung when its last successful tick is older
- * than `staleAfterMs` (default 10 minutes). Returns the list of
- * services that are expected AND have not produced a tick in that
- * window. Pure: same snapshot → same list.
+ * A loop is considered hung when the tick it was expected to produce did
+ * not arrive. Returns the list of services that are expected AND missed
+ * that tick. Pure: same snapshot → same list.
+ *
+ * Two ways to know what was expected:
+ *
+ *   - The service publishes a deadline (`nextRunAt`): the tick was due at
+ *     that instant, and it is hung when it did not arrive. This is the case
+ *     of the loops that run on a schedule, and it is what keeps a worker
+ *     that just booted from reporting its own loops as dead.
+ *   - The service has no deadline: the fallback is the age of its last
+ *     tick, with a fixed threshold.
  */
 export function detectHangedLoops(
   snapshot: Record<string, ServiceHealth>,
@@ -144,6 +223,13 @@ export function detectHangedLoops(
     if (!s.expected) continue;
     // A receiver has no tick: it is watched by its socket, not by a clock.
     if (isReceiver(s)) continue;
+    const deadline = s.nextRunAt;
+    if (deadline !== undefined && deadline !== null) {
+      // The schedule says when the tick was due. Missing it — and only
+      // missing it — is what makes the loop hung.
+      if (now > deadline + TICK_GRACE_MS) out.push(name);
+      continue;
+    }
     if (s.lastRunAt === null) {
       // Never ran — counted as hung, not as recovered. This is the
       // "ausencia de primera ejecución" case the roadmap requires.
@@ -151,6 +237,68 @@ export function detectHangedLoops(
       continue;
     }
     if (now - s.lastRunAt > staleAfterMs) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * The state of a service, in words.
+ *
+ * The health endpoint is read by a person when something is wrong. The
+ * numbers say what happened; the state says what it means: a loop that has
+ * not ticked yet is *warming up* —not dead— and a loop whose expected tick
+ * did not arrive is *hung*.
+ */
+export type ServiceStatus = 'ok' | 'warming' | 'error' | 'hung' | 'inactive';
+
+/**
+ * The state of one service.
+ *
+ * Pure: the same service and the same clock always give the same state.
+ */
+export function serviceStatus(
+  service: ServiceHealth,
+  now: number = Date.now(),
+  recentErrorMs: number = 5 * 60 * 1000,
+): ServiceStatus {
+  if (!service.expected) return 'inactive';
+  // A receiver does not tick: its socket is the whole of its health.
+  if (isReceiver(service)) return service.bound === true ? 'ok' : 'error';
+  if (
+    service.lastError !== null &&
+    service.lastErrorAt !== null &&
+    now - service.lastErrorAt <= recentErrorMs
+  ) {
+    return 'error';
+  }
+  const deadline = service.nextRunAt;
+  if (service.lastRunAt === null) {
+    // It never ticked: it is warming up while the tick it waits for is
+    // still to come, and hung when that tick is already late.
+    if (deadline === undefined || deadline === null) return 'hung';
+    return now > deadline + TICK_GRACE_MS ? 'hung' : 'warming';
+  }
+  if (deadline !== undefined && deadline !== null && now > deadline + TICK_GRACE_MS) {
+    return 'hung';
+  }
+  return 'ok';
+}
+
+/**
+ * The state of every service, with the state in words.
+ *
+ * It is what the health endpoint publishes: the numbers of the registry plus
+ * the state that they mean. The registry is not modified — the state is
+ * computed on the way out.
+ */
+export function withServiceStatus(
+  snapshot: Record<string, ServiceHealth>,
+  now: number = Date.now(),
+  recentErrorMs?: number,
+): Record<string, ServiceHealth & { status: ServiceStatus }> {
+  const out: Record<string, ServiceHealth & { status: ServiceStatus }> = {};
+  for (const [name, service] of Object.entries(snapshot)) {
+    out[name] = { ...service, status: serviceStatus(service, now, recentErrorMs) };
   }
   return out;
 }
@@ -173,12 +321,14 @@ export function overallHealthy(snapshot: Record<string, ServiceHealth>, recentEr
       if (now - s.lastErrorAt <= recentErrorMs) return false;
     }
   }
-  // If a service is expected and has never run, treat as unhealthy.
-  // The interval defaults are minutes-to-hours, so a missing
-  // lastRunAt means the loop is dead. A stale error without a
-  // successful tick is different: after the recent-error window has
-  // elapsed, the operator-facing verdict recovers even though
-  // detectHangedLoops still reports the missing tick separately.
+  // If a service is expected and has never run, it is unhealthy — unless
+  // it published the deadline of the tick it is waiting for. The interval
+  // defaults are minutes-to-hours, so a missing lastRunAt usually means the
+  // loop is dead; but a worker that just booted has no tick yet, and its
+  // loops are warming up, not dead. A stale error without a successful
+  // tick is different: after the recent-error window has elapsed, the
+  // operator-facing verdict recovers even though detectHangedLoops still
+  // reports the missing tick separately.
   for (const s of services) {
     if (!s.expected) continue;
     // A receiver does not tick: its socket is the whole of its health.
@@ -187,7 +337,14 @@ export function overallHealthy(snapshot: Record<string, ServiceHealth>, recentEr
       if (s.bound !== true) return false;
       continue;
     }
-    if (s.lastRunAt === null && s.lastErrorAt === null) return false;
+    if (s.lastRunAt === null && s.lastErrorAt === null) {
+      // Never ran and never failed. It is only a degradation when the tick
+      // it was waiting for did not arrive: a loop that publishes its
+      // deadline is warming up, not dead.
+      const deadline = s.nextRunAt;
+      if (deadline === undefined || deadline === null) return false;
+      if (now > deadline + TICK_GRACE_MS) return false;
+    }
   }
   return true;
 }

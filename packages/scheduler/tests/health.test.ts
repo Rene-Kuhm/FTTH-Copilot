@@ -9,7 +9,10 @@ import {
   recordSuccess,
   recordSyslogBound,
   recordSnmpBound,
+  serviceStatus,
+  setNextRun,
   snapshotHealth,
+  TICK_GRACE_MS,
   type SchedulerName,
   type ServiceHealth,
 } from '../src/index';
@@ -211,6 +214,179 @@ describe('detectHangedLoops (Fase 2 — 2.6)', () => {
       ['polling', { expected: true, lastRunAt: null, lastError: null, lastErrorAt: null }],
     ]);
     expect(detectHangedLoops(s, NOW)).toEqual(detectHangedLoops(s, NOW));
+  });
+});
+
+/**
+ * Un loop que todavía no tuvo su primer tick desde el arranque.
+ *
+ * El registro de salud vive en la memoria del proceso y se vacía en cada
+ * arranque: un worker recién levantado tiene sus loops "esperados" y ningún
+ * tick todavía. Medido como "nunca corrió", eso es un loop muerto — y el
+ * health del sistema queda degradado aunque el loop vaya a tickear en
+ * cinco segundos. Con el firmware, cuyo primer tick está a 24 h, esa
+ * degradación duraba casi un día después de cada despliegue.
+ *
+ * El plazo del próximo tick (`nextRunAt`) es lo que distingue las dos
+ * cosas: un loop *calentando* —su tick todavía no venció— no está
+ * degradado, y uno *colgado* —el tick que debía haber ocurrido no
+ * ocurrió— sí.
+ */
+describe('un loop que todavía no tuvo su primer tick', () => {
+  const NOW = 1_700_000_000_000;
+
+  beforeEach(() => {
+    __resetSchedulerHealth();
+  });
+
+  it('no cuenta como degradado mientras su próximo tick esperado no venció', () => {
+    markExpected('firmware', { intervalMs: 86_400_000, nextRunAt: NOW + 60_000 });
+
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(true);
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual([]);
+  });
+
+  it('cuenta como degradado cuando el tick que esperaba ya venció', () => {
+    markExpected('firmware', { intervalMs: 86_400_000, nextRunAt: NOW - TICK_GRACE_MS - 1_000 });
+
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(false);
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual(['firmware']);
+  });
+
+  it('aguanta la ventana de gracia: un tick que llega tarde todavía no cuelga al loop', () => {
+    markExpected('firmware', { intervalMs: 86_400_000, nextRunAt: NOW - TICK_GRACE_MS + 1_000 });
+
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(true);
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual([]);
+  });
+
+  it('sigue degradado cuando el loop no tiene plazo conocido', () => {
+    // Sin plazo no hay con qué absolverlo: es el caso de siempre.
+    markExpected('firmware');
+
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(false);
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual(['firmware']);
+  });
+
+  it('publica el plazo y la cadencia del loop', () => {
+    markExpected('polling', { intervalMs: 900_000, nextRunAt: NOW + 900_000 });
+
+    const snap = snapshotHealth();
+    expect(snap['polling']?.nextRunAt).toBe(NOW + 900_000);
+    expect(snap['polling']?.intervalMs).toBe(900_000);
+  });
+
+  it('el plazo se puede corregir sin tocar el resto del estado', () => {
+    markExpected('polling', { intervalMs: 900_000, nextRunAt: NOW });
+    setNextRun('polling', NOW + 900_000);
+
+    const snap = snapshotHealth();
+    expect(snap['polling']?.nextRunAt).toBe(NOW + 900_000);
+    expect(snap['polling']?.intervalMs).toBe(900_000);
+  });
+
+  it('un loop que ya corrió no cuelga mientras su próximo tick no venció', () => {
+    // El umbral fijo de diez minutos colgaría a este loop: su último tick
+    // fue hace una hora. El plazo del schedule manda sobre ese umbral.
+    markExpected('polling', { intervalMs: 900_000, nextRunAt: NOW + 900_000 });
+    recordSuccess('polling', NOW - 3_600_000);
+
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual([]);
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(true);
+  });
+
+  it('un loop que corrió y cuyo plazo venció está colgado', () => {
+    markExpected('polling', { intervalMs: 900_000, nextRunAt: NOW - TICK_GRACE_MS - 1_000 });
+    recordSuccess('polling', NOW - 3_600_000);
+
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual(['polling']);
+  });
+
+  it('un receptor sigue sin depender de un tick', () => {
+    markExpected('syslog');
+    recordSyslogBound(true);
+
+    expect(detectHangedLoops(snapshotHealth(), NOW)).toEqual([]);
+    expect(overallHealthy(snapshotHealth(), 5 * 60 * 1000, NOW)).toBe(true);
+  });
+});
+
+/**
+ * The state of a service, in words.
+ *
+ * The health endpoint is read by a person when something is wrong. The
+ * numbers say what happened; the state says what it means: a loop that has
+ * not ticked yet is *warming up*, not dead, and a loop whose expected tick
+ * did not arrive is *hung*.
+ */
+describe('el estado de un servicio', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('un loop que espera su primer tick está calentando', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW + 60_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('warming');
+  });
+
+  it('un loop que ya corrió está bien', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 1_000,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW + 900_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('ok');
+  });
+
+  it('un loop con un error reciente está en error', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 60_000,
+      lastError: 'el NMS no responde',
+      lastErrorAt: NOW - 1_000,
+      nextRunAt: NOW + 900_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('error');
+  });
+
+  it('un loop cuyo tick esperado no llegó está colgado', () => {
+    const service: ServiceHealth = {
+      expected: true,
+      lastRunAt: NOW - 3_600_000,
+      lastError: null,
+      lastErrorAt: null,
+      nextRunAt: NOW - TICK_GRACE_MS - 1_000,
+    };
+    expect(serviceStatus(service, NOW)).toBe('hung');
+  });
+
+  it('un servicio que el operador no activó está inactivo', () => {
+    const service: ServiceHealth = {
+      expected: false,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+    };
+    expect(serviceStatus(service, NOW)).toBe('inactive');
+  });
+
+  it('un receptor se juzga por su socket', () => {
+    const bound: ServiceHealth = {
+      expected: true,
+      lastRunAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      bound: true,
+    };
+    const unbound: ServiceHealth = { ...bound, bound: false };
+    expect(serviceStatus(bound, NOW)).toBe('ok');
+    expect(serviceStatus(unbound, NOW)).toBe('error');
   });
 });
 

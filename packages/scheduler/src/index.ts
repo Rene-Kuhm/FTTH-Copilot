@@ -40,12 +40,18 @@ export {
   recordError,
   recordSyslogBound,
   recordSnmpBound,
+  serviceStatus,
+  setNextRun,
+  withServiceStatus,
   snapshotHealth,
   detectHangedLoops,
   overallHealthy,
   __resetSchedulerHealth,
+  TICK_GRACE_MS,
+  type LoopCadence,
   type SchedulerName,
   type ServiceHealth,
+  type ServiceStatus,
 } from './health';
 
 export {
