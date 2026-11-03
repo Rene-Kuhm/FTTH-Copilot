@@ -868,3 +868,35 @@ debe romperse) y los tests de durabilidad de las fases 4.
     `.env.staging.example` y la política de producción no las rechaza, y
     los `container_name` fijos de `docker-compose.prod.yml` impiden que
     producción y staging convivan en un mismo host.
+||||||| parent of 273e388 (docs(odd): el staging reproducible y lo que queda para la revalidación)
+- **L37** (2026-11-03) — **El staging quedó reproducible** (`#367`: el mock NMS
+  como servicio del compose, las excepciones SSRF declaradas y acotadas, la
+  convivencia de producción y staging en un mismo host, y la guía que levanta
+  todo desde cero).
+  - **El staging tiene un NMS declarado**: el compose declara el mock que ya
+    está en el repo (`smartoltMockResponse`) detrás del profile `mock-nms`,
+    servido por HTTP en `127.0.0.1:18080`, y el seed crea la conexión con esa
+    URL (`DEMO_NMS_BASE_URL`). Sin URL base el conector no se puede construir:
+    el poll no consultaba nada y el health decía "polling OK" sin polear.
+  - **Las excepciones de la política SSRF están declaradas y acotadas**: viven
+    en `.env.staging.example`, y el web y el worker se niegan a arrancar con
+    ellas activadas cuando `NODE_ENV=production` y sin `DEPLOY_ENV=staging`.
+  - **Producción y staging conviven en un host**: se fueron los `container_name`
+    fijos (`ftth_prod_*`) del compose de producción y el staging declara su
+    proyecto (`ftth-staging`).
+  - **La guía levanta el stack de cero a arriba**, y una regla de CI ata la
+    guía al compose para que no vuelva a quedar atrás.
+  - **Lo que sigue abierto**:
+    - **La revalidación de T14 en la VPS con la imagen nueva**: hace falta que
+      `#366` (el health tras un reinicio y el tick de calentamiento) y este PR
+      estén mergeados para poder desplegar. Después: reiniciar el worker,
+      comprobar que el health **no** se degrada (estado `warming` con su
+      `nextRunAt`), que hay **un** tick de calentamiento y que no hay ticks
+      duplicados.
+    - **El proyecto del compose del staging cambió de nombre** (`ftth-staging`):
+      en `vps-casa` hay que bajar el stack viejo (`ftth-copilot-*`) antes de
+      levantar el nuevo, o los dos stacks quedan con nombres distintos y el
+      puerto `8080` queda tomado por el de producción.
+    - **`~/ftth-staging.sh` no levanta el profile `mock-nms`**: el mock es un
+      servicio del compose detrás del profile, así que el script tiene que
+      levantarlo (`--profile mock-nms up -d mock-nms`) o queda levantado a mano.
