@@ -813,12 +813,6 @@ function resetsExtraHeaders(run: string): boolean {
 }
 
 /**
- * Corre las siete reglas sobre un conjunto de workflows.
- *
- * Devuelve todas las violaciones; una lista vacía significa que el repo
- * cumple la política.
- */
-/**
  * Regla 7: en un runner Windows, todo `run:` declara su shell.
  *
  * En Windows el shell por defecto de un `run:` es `pwsh`, no `bash`. Un
@@ -851,6 +845,12 @@ export function findWindowsShellViolations(model: WorkflowModel): PolicyViolatio
   return violations;
 }
 
+/**
+ * Corre las siete reglas sobre un conjunto de workflows.
+ *
+ * Devuelve todas las violaciones; una lista vacía significa que el repo
+ * cumple la política.
+ */
 export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolation[] {
   const models = files
     .map((file) => parseWorkflow(file))
