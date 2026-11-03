@@ -158,6 +158,12 @@ sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 32)|" .env.stagi
 > en el bundle durante el build. Sin el build arg, el bundle sale sin secreto y toda ruta
 > protegida redirige a `/login`.
 
+> Las tres `DATABASE_URL` las arma el compose a partir de `POSTGRES_USER`, `POSTGRES_PASSWORD`
+> y `POSTGRES_DB`: la de la web y la del `db-migrate` apuntan a `postgres:5432` (la red de
+> Compose) y la del worker a `127.0.0.1:${POSTGRES_PORT}` (la red del host). No hay que
+> escribirlas en `.env.staging`, y así no pueden quedar con una password distinta de la de
+> `POSTGRES_PASSWORD`. En producción la del `db-migrate` llega por `env_file: .env.prod`.
+
 ### 3.3 Levantar
 
 ```bash
