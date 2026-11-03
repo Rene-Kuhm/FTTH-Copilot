@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfirmedIncident, RelevantIncidentResult } from '@ftth-copilot/shared';
 import {
+  CONFIRMED_BY_WEIGHTS,
+  confirmedByWeight,
   DEFAULT_LIMIT,
   DEFAULT_SINCE_DAYS,
   MIN_SPARSESCORE,
@@ -468,5 +470,102 @@ describe('retrieveRelevantIncidents — retracciones (T1.2)', () => {
       confirmedIncidents: retractable,
     });
     expect(results).toEqual([]);
+  });
+});
+
+// ── T1.3 — el peso por origen (D2) ───────────────────────────────────────────
+//
+// `operator = 1.0`, `system = 0.8`, `agent = 0.5`. El peso multiplica el
+// score sparse, igual que el `DEVICE_HINT_BOOST`.
+//
+// El peso es parte del learning loop, así que lo gobierna el interruptor del
+// tenant: con `off` y con `shadow` la salida es byte-idéntica a la de hoy
+// (en shadow el usuario ve la salida actual; es el patrón de Laya). Sólo
+// `active` lo aplica.
+
+describe('retrieveRelevantIncidents — peso por confirmedBy (T1.3)', () => {
+  const sameTokens = 'rx bajo onu potencia';
+
+  const rows = [
+    incident({ id: 'ci-agent', confirmedBy: 'agent', searchTokens: sameTokens }),
+    incident({ id: 'ci-system', confirmedBy: 'system', searchTokens: sameTokens }),
+    incident({ id: 'ci-operator', confirmedBy: 'operator', searchTokens: sameTokens }),
+  ];
+
+  const base = {
+    tenantId: 't1',
+    query: 'rx bajo',
+    now: NOW,
+    confirmedIncidents: rows,
+  };
+
+  it('los pesos iniciales son operator=1.0, system=0.8, agent=0.5', () => {
+    expect(CONFIRMED_BY_WEIGHTS).toEqual({ operator: 1.0, system: 0.8, agent: 0.5 });
+  });
+
+  it('sin learningMode, el ranking es el de siempre: el orden de las filas', () => {
+    const results = retrieveRelevantIncidents({ ...base });
+    expect(results.map((r) => r.id)).toEqual(['ci-agent', 'ci-system', 'ci-operator']);
+  });
+
+  it("learningMode 'off' → salida byte-idéntica a la de hoy", () => {
+    const before = retrieveRelevantIncidents({ ...base });
+    const off = retrieveRelevantIncidents({ ...base }, { learningMode: 'off' });
+    expect(JSON.stringify(off)).toBe(JSON.stringify(before));
+  });
+
+  it("learningMode 'shadow' → el operador sigue viendo la salida actual", () => {
+    const before = retrieveRelevantIncidents({ ...base });
+    const shadow = retrieveRelevantIncidents({ ...base }, { learningMode: 'shadow' });
+    expect(JSON.stringify(shadow)).toBe(JSON.stringify(before));
+  });
+
+  it("learningMode 'active' → el peso ordena: operador, sistema, agente", () => {
+    const active = retrieveRelevantIncidents({ ...base }, { learningMode: 'active' });
+    expect(active.map((r) => r.id)).toEqual(['ci-operator', 'ci-system', 'ci-agent']);
+  });
+
+  it('el peso se compone con el DEVICE_HINT_BOOST: multiplica el mismo score', () => {
+    const boosted = [
+      incident({ id: 'ci-agent', confirmedBy: 'agent', deviceId: 'onu-1', searchTokens: sameTokens }),
+      incident({
+        id: 'ci-operator',
+        confirmedBy: 'operator',
+        deviceId: 'onu-2',
+        searchTokens: sameTokens,
+      }),
+    ];
+    // Sin el interruptor, el boost (1.5) deja al agente primero.
+    const off = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'rx bajo',
+      now: NOW,
+      deviceHint: 'onu-1',
+      confirmedIncidents: boosted,
+    });
+    expect(off.map((r) => r.id)).toEqual(['ci-agent', 'ci-operator']);
+
+    // Con `active`, el peso del agente (0.5) multiplica el score ya
+    //boostado: 1.5 × 0.5 = 0.75, menos que el 1.0 del operador.
+    const active = retrieveRelevantIncidents(
+      {
+        tenantId: 't1',
+        query: 'rx bajo',
+        now: NOW,
+        deviceHint: 'onu-1',
+        confirmedIncidents: boosted,
+      },
+      { learningMode: 'active' },
+    );
+    expect(active.map((r) => r.id)).toEqual(['ci-operator', 'ci-agent']);
+  });
+
+  it('un confirmedBy fuera del juego cerrado no hunde la fila: pesa 1.0', () => {
+    expect(confirmedByWeight('operator')).toBe(1.0);
+    expect(confirmedByWeight('system')).toBe(0.8);
+    expect(confirmedByWeight('agent')).toBe(0.5);
+    expect(confirmedByWeight('inventado')).toBe(1);
+    expect(confirmedByWeight(undefined)).toBe(1);
+    expect(confirmedByWeight(null)).toBe(1);
   });
 });

@@ -506,8 +506,15 @@ para que la revisión no las tenga que adivinar:
   no arrastra la auditoría. `retrieveRelevantIncidents` acepta
   `retractedIncidentIds` y las filas retractadas quedan fuera del recall; la ruta de
   chat consulta las retracciones filtradas por tenant.
-- [ ] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`
+- [x] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`
   ⇒ salida byte-idéntica a hoy.
+  → `CONFIRMED_BY_WEIGHTS` (`operator = 1.0`, `system = 0.8`, `agent = 0.5`) en
+  `packages/evidence`: el peso multiplica el score sparse, igual que el
+  `DEVICE_HINT_BOOST`. Lo gobierna el interruptor del tenant: con `off` y con
+  `shadow` la salida es byte-idéntica a la de hoy (en shadow el operador ve la
+  salida actual, no la aprendida — es el patrón de Laya); sólo `active` lo
+  aplica. El peso vive en `evidence` y no en `packages/learning` porque
+  evidence no puede importar al learning (I1).
 - [ ] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta
   `confirm` y en la promoción (D3).
 - [ ] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas

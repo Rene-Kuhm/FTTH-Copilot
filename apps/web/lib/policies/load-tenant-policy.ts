@@ -81,6 +81,8 @@ export async function loadTenantPolicy(tenantId: string): Promise<TenantPolicy |
     truthGateMode: 'observe' | 'strict' | null;
     abstainOnCodes: unknown;
     promotionMinAgeMs: number | null;
+    learningMode: 'off' | 'shadow' | 'active';
+    learningArtifactPins: unknown;
     lastEvaluatedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -108,6 +110,13 @@ export async function loadTenantPolicy(tenantId: string): Promise<TenantPolicy |
     ...(row.truthGateMode !== null ? { truthGateMode: row.truthGateMode } : {}),
     ...(abstainOnCodes !== undefined ? { abstainOnCodes } : {}),
     ...(row.promotionMinAgeMs !== null ? { promotionMinAgeMs: row.promotionMinAgeMs } : {}),
+    // T1.1 — el interruptor del learning loop. La columna no es nullable en
+    // la base (default `off`), así que el modo viaja siempre y explícito:
+    // `off` no es lo mismo que ausente.
+    learningMode: row.learningMode ?? 'off',
+    ...(row.learningArtifactPins !== null && row.learningArtifactPins !== undefined
+      ? { learningArtifactPins: row.learningArtifactPins as Record<string, string> }
+      : {}),
     ...(row.lastEvaluatedAt !== null
       ? { lastEvaluatedAt: row.lastEvaluatedAt.toISOString() }
       : {}),

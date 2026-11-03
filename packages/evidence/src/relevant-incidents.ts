@@ -11,7 +11,7 @@
  * `formatRelevantIncidentsBlock` renders them under an explicit
  * "contexto, no evidencia" heading.
  */
-import type { ConfirmedIncident, RelevantIncidentResult } from '@ftth-copilot/shared';
+import type { ConfirmedIncident, LearningMode, RelevantIncidentResult } from '@ftth-copilot/shared';
 import { scoreCorpus, tokenize } from './bm25-lite';
 
 /** Reciprocal-rank-fusion constant. Phase 2 merges a dense list with the same K. */
@@ -28,6 +28,39 @@ export const DEFAULT_SINCE_DAYS = 90;
 
 /** Multiplier applied to the sparse score when `deviceHint` matches the row. */
 export const DEVICE_HINT_BOOST = 1.5;
+
+/** El origen de una confirmación: `operator`, `agent` o `system`. */
+export type ConfirmedBy = ConfirmedIncident['confirmedBy'];
+
+/**
+ * Peso de recuperación por origen (D2, T1.3).
+ *
+ * `operator = 1.0`, `system = 0.8`, `agent = 0.5`: una fila que el agente se
+ * auto-confirmó pesa menos que una que confirmó un técnico, y una que el
+ * sistema promovió pesa menos que una que confirmó un humano. Son los
+ * valores iniciales — se calibran en la Fase 4 y pasan a `TenantPolicy`.
+ *
+ * Se aplican igual que el `DEVICE_HINT_BOOST`: multiplican el score sparse
+ * **antes** del filtro de `MIN_SPARSESCORE`, así que una fila marginal de
+ * origen débil se descarta y no compite.
+ */
+export const CONFIRMED_BY_WEIGHTS: Readonly<Record<ConfirmedBy, number>> = {
+  operator: 1.0,
+  system: 0.8,
+  agent: 0.5,
+};
+
+/**
+ * El peso de una fila cuyo `confirmedBy` no está en el juego cerrado.
+ *
+ * Fallo seguro: 1.0, o sea la fila no se penaliza. Un valor desconocido
+ * nunca tiene que hundir una fila que un técnico confirmó.
+ */
+export function confirmedByWeight(confirmedBy: unknown): number {
+  if (typeof confirmedBy !== 'string') return 1;
+  const weight = CONFIRMED_BY_WEIGHTS[confirmedBy as ConfirmedBy];
+  return typeof weight === 'number' ? weight : 1;
+}
 
 const DAY_MS = 86_400_000;
 
@@ -70,6 +103,14 @@ export interface RetrieveRelevantIncidentsArgs {
 export interface RetrievalTenantPolicy {
   readonly retrievalLimit?: number;
   readonly retrievalSinceDays?: number;
+  /**
+   * El interruptor del learning loop (T1.1).
+   *
+   * Vive acá, y no en `packages/learning`, porque este paquete no puede
+   * importar al de learning: la pared del Truth Gate (I1) lo prohíbe. El
+   * tipo canónico está en `@ftth-copilot/shared`.
+   */
+  readonly learningMode?: LearningMode;
 }
 
 function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): boolean {
@@ -138,11 +179,20 @@ export function retrieveRelevantIncidents(
     candidates.map((row) => ({ tokens: tokenize(row.searchTokens) })),
   );
 
+  // T1.3 (D2) — el peso por origen sólo se aplica con el learning loop
+  // `active`. Con `off` y con `shadow` la salida es byte-idéntica a la de
+  // hoy: en shadow el operador ve la salida actual, no la aprendida (es el
+  // patrón de Laya: en shadow la decisión se registra, no se aplica).
+  const weightsEnabled = tenantPolicy?.learningMode === 'active';
+
   const ranked = candidates
-    .map((row, i) => ({
-      row,
-      sparseScore: sparse[i]! * (matchesHint(row, args.deviceHint) ? DEVICE_HINT_BOOST : 1),
-    }))
+    .map((row, i) => {
+      const sparseScore = sparse[i]! * (matchesHint(row, args.deviceHint) ? DEVICE_HINT_BOOST : 1);
+      return {
+        row,
+        sparseScore: weightsEnabled ? sparseScore * confirmedByWeight(row.confirmedBy) : sparseScore,
+      };
+    })
     .filter((entry) => entry.sparseScore >= MIN_SPARSESCORE)
     .sort((a, b) => b.sparseScore - a.sparseScore);
 
