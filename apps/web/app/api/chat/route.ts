@@ -207,6 +207,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       where: {
         tenantId: providerArgs.tenantId,
         resolvedAt: { gte: cutoff },
+        // T1.4 (D3) — una fila en cuarentena no es parte de la KB: espera
+        // revisión humana, así que el recall no la trae.
+        state: 'active',
       },
       select: {
         id: true,

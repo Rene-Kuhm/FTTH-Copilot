@@ -377,6 +377,26 @@ describe('POST /api/chat — retrievalProvider wiring (Fase D / WU3)', () => {
     expect(rankingArgs.retractedIncidentIds).toEqual(['ci-1', 'ci-2']);
   });
 
+  it('only fetches active rows: a quarantined one is not part of the KB (T1.4)', async () => {
+    mocks.runAgent.mockImplementation(
+      async (opts: { retrievalProvider?: (args: unknown) => Promise<unknown[]> }) => {
+        await opts.retrievalProvider!({ tenantId: 'tenant-1', query: 'rx bajo' });
+        return {
+          text: 'contexto',
+          toolCalls: [okToolCall()],
+          verdicts: [{ toolName: 'list_onus', code: 'ok', reason: 'fresh', severity: 'info' }],
+        };
+      },
+    );
+
+    await callRoute({ message: 'rx bajo' });
+
+    const dbArgs = mocks.prismaConfirmedIncidentFindMany.mock.calls[0]?.[0] as {
+      where: { tenantId: string; state: string };
+    };
+    expect(dbArgs.where.state).toBe('active');
+  });
+
   it('demo mode: retrievalProvider is still wired but the closure returns [] (no DB query)', async () => {    setupHappyPath({ dataSource: fakeDemoDataSource });
     mocks.runAgent.mockImplementation(
       async (opts: { retrievalProvider?: (args: unknown) => Promise<unknown[]> }) => {

@@ -103,6 +103,17 @@ enum ConfirmedBy {
   system
 }
 
+// El estado de un incidente confirmado dentro de la KB (learning loop, T1.4).
+//
+// `active` es el default: la fila es parte de la KB y el recall la puede
+// recuperar. `quarantined` es una fila que el saneamiento de escritura
+// marcó (D3): no se rechaza en silencio —queda en la base para auditoría—
+// pero no entra al recall hasta que un humano la revisa.
+enum ConfirmedIncidentState {
+  active
+  quarantined
+}
+
 // Fase E — per-tenant override of Fase C/D module constants. One row per
 // Tenant (1:1). Absent → byte-identical to Fase C/D; per-tenant wins over
 // env over module default. See `openspec/changes/fase-e-tenant-topology/`.
@@ -513,6 +524,10 @@ model ConfirmedIncident {
   confirmedBy             ConfirmedBy
   confirmedByUserId       String?
   confirmedByUser         User?          @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  // El estado de la fila en la KB (learning loop, T1.4 — D3). Una fila con
+  // instrucciones embebidas no se rechaza en silencio: queda `quarantined`
+  // y espera revisión humana para entrar al recall.
+  state                   ConfirmedIncidentState @default(active)
   searchTokens            String         @db.Text // precomputed BM25 tokens, lowercased
   embedding               Bytes? // nullable; Phase 2 pgvector deferred
   createdAt               DateTime       @default(now())

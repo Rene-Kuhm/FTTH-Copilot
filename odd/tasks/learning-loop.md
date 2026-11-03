@@ -515,8 +515,16 @@ para que la revisión no las tenga que adivinar:
   salida actual, no la aprendida — es el patrón de Laya); sólo `active` lo
   aplica. El peso vive en `evidence` y no en `packages/learning` porque
   evidence no puede importar al learning (I1).
-- [ ] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta
+- [x] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta
   `confirm` y en la promoción (D3).
+  → `sanitizeFreeText` (`apps/web/lib/kb/sanitize-free-text.ts`): NFKC, remoción de
+  invisibles y de control, cap de bytes reusando `FREE_TEXT_MAX_BYTES`, y detección de
+  instrucciones con `detectInstructionInjection`. La taxonomía de inyección es canónica en
+  `@ftth-copilot/shared` (`shared/src/injection.ts`) y `packages/eval` la reexporta sin
+  cambiar su API. `ConfirmedIncident.state` (`active` | `quarantined`, default `active`)
+  con migración aditiva: una fila con instrucciones embebidas no se rechaza en silencio —
+  se guarda en cuarentena, con el motivo en la auditoría, y el recall trae sólo filas
+  `active`.
 - [ ] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas
   envenenadas en la KB (instrucciones, role-reassignment, smuggling de nombre de
   cliente); el eval gate debe seguir en 100%.
