@@ -142,6 +142,76 @@ export async function assertSafeNmsBaseUrl(
 }
 
 /**
+ * The port the policy allows when nothing says otherwise.
+ */
+const DEFAULT_ALLOWED_PORT = '443';
+
+/**
+ * The exceptions of the policy that the environment has activated.
+ *
+ * Only the ones that *open* the policy count:
+ *
+ *   - `NMS_ALLOW_HTTP` admits plain HTTP;
+ *   - `NMS_ALLOW_PRIVATE_NETWORKS` admits the loopback and the private
+ *     networks;
+ *   - `NMS_ALLOWED_PORTS` admits ports other than the default;
+ *   - `NMS_ALLOWED_HOSTS` that names a loopback or a private address: the
+ *     list can only narrow the hosts, but a private address in it is
+ *     exactly the hole the staging needs.
+ *
+ * A list of public hosts is not an exception: that is the policy being
+ * hardened, not opened.
+ */
+export function ssrfExceptionsIn(env: NodeJS.ProcessEnv = process.env): string[] {
+  const exceptions: string[] = [];
+
+  if (env['NMS_ALLOW_HTTP'] === 'true') exceptions.push('NMS_ALLOW_HTTP');
+  if (env['NMS_ALLOW_PRIVATE_NETWORKS'] === 'true') exceptions.push('NMS_ALLOW_PRIVATE_NETWORKS');
+
+  const ports = (env['NMS_ALLOWED_PORTS'] ?? '')
+    .split(',')
+    .map((port) => port.trim())
+    .filter(Boolean);
+  if (ports.some((port) => port !== DEFAULT_ALLOWED_PORT)) exceptions.push('NMS_ALLOWED_PORTS');
+
+  const hosts = (env['NMS_ALLOWED_HOSTS'] ?? '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  const namesPrivateHost = hosts.some(
+    (host) => host === 'localhost' || host.endsWith('.localhost') || (isIP(host) !== 0 && isPrivateIp(host)),
+  );
+  if (namesPrivateHost) exceptions.push('NMS_ALLOWED_HOSTS');
+
+  return exceptions;
+}
+
+/**
+ * The SSRF policy has no exceptions in production.
+ *
+ * The policy is restrictive on purpose: HTTPS, no localhost, no private
+ * networks, port 443. The staging has to except itself from three of those
+ * rules to point at the mock NMS that lives in the loopback — and that
+ * exception must never reach production, where it means that an NMS (or an
+ * attacker with a DNS) can reach the internal network.
+ *
+ * The staging is the one environment that may activate them, and it says so
+ * with `DEPLOY_ENV=staging`.
+ */
+export function assertNoSsrfExceptionsInProduction(env: NodeJS.ProcessEnv = process.env): void {
+  if (env['NODE_ENV'] !== 'production') return;
+  if (env['DEPLOY_ENV'] === 'staging') return;
+
+  const exceptions = ssrfExceptionsIn(env);
+  if (exceptions.length === 0) return;
+
+  throw new Error(
+    `La política SSRF no admite excepciones en producción: ${exceptions.join(', ')}. ` +
+      'El único entorno donde se pueden activar es el staging (DEPLOY_ENV=staging).',
+  );
+}
+
+/**
  * Validates a per-request URL against the configured base URL and re-checks
  * the network policy (DNS included) on every call.
  *

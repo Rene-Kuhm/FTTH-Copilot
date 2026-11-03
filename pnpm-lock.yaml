@@ -944,6 +944,9 @@ importers:
 
   services/worker:
     dependencies:
+      '@ftth-copilot/connectors-core':
+        specifier: workspace:*
+        version: link:../../packages/connectors/core
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../../packages/db

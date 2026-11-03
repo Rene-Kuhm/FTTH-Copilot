@@ -8,7 +8,10 @@
     "skipLibCheck": true,
     "declaration": true,
     "noEmit": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    // El servidor del mock NMS lo ejecuta node tal cual en el contenedor del
+    // staging, y node no resuelve los imports sin la extensión.
+    "allowImportingTsExtensions": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

@@ -101,4 +101,121 @@ suite('database seed (seed.ts) idempotency and security', () => {
     expect(newUserCount).toBe(initialUserCount);
     expect(newConnCount).toBe(initialConnCount);
   });
+
+  /**
+   * La URL base de la conexión.
+   *
+   * Una conexión sin URL base no la puede usar ningún loop: el conector no
+   * se puede construir y el poll no tiene contra qué consultar. El staging
+   * necesita una que apunte al mock NMS.
+   */
+  it('creates the connection with the base URL of the environment', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      process.env.DEMO_NMS_BASE_URL = 'http://127.0.0.1:18080';
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+
+      const res = await seed({ adminPassword: 'seed-with-base-url' });
+
+      const conn = await prisma.nmsConnection.findUnique({ where: { id: res.connectionId } });
+      expect(conn?.baseUrl).toBe('http://127.0.0.1:18080');
+    } finally {
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
+
+  it('leaves the connection without a base URL when the environment does not say one', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      delete process.env.DEMO_NMS_BASE_URL;
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+
+      const res = await seed({ adminPassword: 'seed-without-base-url' });
+
+      const conn = await prisma.nmsConnection.findUnique({ where: { id: res.connectionId } });
+      expect(conn?.baseUrl).toBeNull();
+    } finally {
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
+
+  /**
+   * La conexión del seed es suya: no pisa la de otro.
+   *
+   * El seed tomaba cualquier conexión SmartOLT del tenant. Con eso, un
+   * `DEMO_NMS_BASE_URL` de staging repuntaba la conexión real del operador
+   * al mock sintético, sin avisar: el operador veía su NMS real
+   * reemplazado por el mock, y la fila `demo-smartolt-connection` ni
+   * siquiera se creaba.
+   */
+  it('does not overwrite the base URL of a connection that is not the seed\'s', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+      const operator = await prisma.nmsConnection.create({
+        data: {
+          id: 'operator-smartolt-connection',
+          tenantId: DEFAULT_TENANT_ID,
+          provider: 'SMARTOLT',
+          label: 'SmartOLT del operador',
+          encryptedKey: 'operator-encrypted-key',
+          status: 'connected',
+          baseUrl: 'https://nms.real.ejemplo.com',
+        },
+      });
+      process.env.DEMO_NMS_BASE_URL = 'http://127.0.0.1:18080';
+
+      await seed({ adminPassword: 'seed-beside-operator-connection' });
+
+      const after = await prisma.nmsConnection.findUnique({ where: { id: operator.id } });
+      expect(after?.baseUrl).toBe('https://nms.real.ejemplo.com');
+    } finally {
+      await prisma.nmsConnection.deleteMany({
+        where: { id: 'operator-smartolt-connection' },
+      });
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
+
+  it('creates its own connection pointing at the mock when the operator has one', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+      await prisma.nmsConnection.create({
+        data: {
+          id: 'operator-smartolt-connection',
+          tenantId: DEFAULT_TENANT_ID,
+          provider: 'SMARTOLT',
+          label: 'SmartOLT del operador',
+          encryptedKey: 'operator-encrypted-key',
+          status: 'connected',
+          baseUrl: 'https://nms.real.ejemplo.com',
+        },
+      });
+      process.env.DEMO_NMS_BASE_URL = 'http://127.0.0.1:18080';
+
+      const res = await seed({ adminPassword: 'seed-with-own-connection' });
+
+      expect(res.connectionId).not.toBe('operator-smartolt-connection');
+      const own = await prisma.nmsConnection.findUnique({ where: { id: res.connectionId } });
+      expect(own?.baseUrl).toBe('http://127.0.0.1:18080');
+    } finally {
+      await prisma.nmsConnection.deleteMany({
+        where: { id: 'operator-smartolt-connection' },
+      });
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
 });

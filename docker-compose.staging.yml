@@ -21,6 +21,11 @@
 #
 # La decisión de dónde montarlo y con qué Redis y Postgres está en
 # `docs/how-to/desplegar-en-staging.md`.
+#
+# El nombre del proyecto es propio: Compose genera los nombres de los
+# contenedores a partir de él, así que con el mismo nombre que producción los
+# dos stacks no podrían convivir en un mismo host.
+name: ftth-staging
 
 services:
   postgres:
@@ -85,6 +90,54 @@ services:
         condition: service_started
     networks:
       - ftth-network
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Mock NMS — el NMS contra el que polea el staging.
+  #
+  # El staging necesita un NMS: sin él, la conexión que crea el seed no se
+  # puede consultar y los loops no tienen nada que hacer. Este sirve el mock
+  # que ya está en el repo (`smartoltMockResponse`), por HTTP, para que lo
+  # que se ejercita sea el conector real —el que aplica la política SSRF y
+  # habla con `fetch`— y no un atajo por dentro.
+  #
+  # Va detrás de un profile porque un staging con un NMS real no lo tiene que
+  # levantar, y porque sirve datos sintéticos: nunca en producción.
+  # ─────────────────────────────────────────────────────────────────────
+  mock-nms:
+    image: node:22-alpine
+    restart: unless-stopped
+    # En la red del host, como el worker: la conexión apunta a
+    # `http://127.0.0.1:${MOCK_NMS_PORT}`.
+    network_mode: host
+    profiles:
+      - mock-nms
+    command:
+      - node
+      - --experimental-strip-types
+      - /app/mock-nms-server.ts
+    environment:
+      MOCK_NMS_HOST: "${MOCK_NMS_HOST:-127.0.0.1}"
+      MOCK_NMS_PORT: "${MOCK_NMS_PORT:-18080}"
+    volumes:
+      # El servidor y el mock del repo, tal cual. El `package.json` va con
+      # ellos para que node los trate como módulos ESM sin adivinar.
+      - ./packages/connectors/smartolt/package.json:/app/package.json:ro
+      - ./packages/connectors/smartolt/src/mock-nms.ts:/app/mock-nms.ts:ro
+      - ./packages/connectors/smartolt/src/mock-nms-server.ts:/app/mock-nms-server.ts:ro
+    healthcheck:
+      # El mock corre en la red del host: si el puerto ya lo tiene otro
+      # proceso, el contenedor muere con `EADDRINUSE` y `restart:
+      # unless-stopped` lo vuelve a levantar en bucle. El healthcheck
+      # convierte ese bucle en un estado visible: "unhealthy" en vez de un
+      # contenedor que aparece y desaparece.
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1:${MOCK_NMS_PORT:-18080}/api/system/get_olts
+          | grep -q OLT-MOCK-1 || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   caddy_data:

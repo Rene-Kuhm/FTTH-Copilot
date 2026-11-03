@@ -13,6 +13,7 @@
  */
 
 import { createLogger } from '@ftth-copilot/shared';
+import { assertNoSsrfExceptionsInProduction } from '@ftth-copilot/connectors-core';
 import { redisUrl } from '@ftth-copilot/jobs';
 import { WORKER_HEALTH_KEY } from '@ftth-copilot/scheduler';
 import Redis from 'ioredis';
@@ -78,6 +79,13 @@ function readMetricsToken(env: NodeJS.ProcessEnv): string | undefined {
 
 async function main(): Promise<void> {
   const env = process.env;
+
+  // The SSRF policy has no exceptions in production. The worker is the one
+  // that talks to the NMS, so it is the one that refuses to start with them
+  // activadas: en producción, una excepción es un agujero hacia la red
+  // interna.
+  assertNoSsrfExceptionsInProduction(env);
+
   const port = readPort(env);
   const host = readHost(env);
 

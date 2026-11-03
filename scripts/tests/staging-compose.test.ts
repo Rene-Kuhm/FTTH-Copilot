@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
+  envFileValues,
   envFileVariables,
   loadStagingCompose,
   mergeCompose,
   requiredEnvVariables,
+  serviceCommand,
   serviceEnvironment,
   servicePorts,
 } from '../lib/staging-compose.ts';
@@ -140,5 +142,174 @@ test("la plantilla de staging define las variables que el compose exige", () => 
 
   for (const name of requiredEnvVariables(staging.services)) {
     assert.ok(defined.has(name), `${name} la exige el compose y la plantilla no la define`);
+  }
+});
+
+test("el staging declara el mock NMS como servicio, detrás de un profile", () => {
+  const staging = loadStagingCompose(REPO_ROOT);
+  const mock = staging.services['mock-nms'];
+
+  assert.ok(mock, 'el staging no declara el servicio del mock NMS');
+  assert.deepEqual(
+    mock.profiles ?? [],
+    ['mock-nms'],
+    'el mock NMS va detrás de un profile: un staging con un NMS real no lo tiene que levantar',
+  );
+  assert.equal(
+    mock.network_mode,
+    'host',
+    'el worker corre en la red del host: el mock tiene que estar en el loopback del host',
+  );
+});
+
+test("el mock NMS corre el mock del repo, no una reimplementación", () => {
+  const staging = loadStagingCompose(REPO_ROOT);
+  const command = serviceCommand(staging.services['mock-nms']);
+
+  assert.ok(
+    command.some((part) => part.includes('mock-nms-server.ts')),
+    'el servicio tiene que correr el servidor del mock que está en el repo',
+  );
+});
+
+test("la plantilla de staging declara las excepciones de la política SSRF", () => {
+  // El staging apunta al mock NMS, que vive en el loopback: la política
+  // SSRF tiene que exceptuarse. Las excepciones se declaran acá y en ningún
+  // otro lado: el arranque de producción las rechaza.
+  const defined = envFileVariables(stagingEnvExample());
+
+  for (const name of [
+    'NMS_ALLOW_HTTP',
+    'NMS_ALLOW_PRIVATE_NETWORKS',
+    'NMS_ALLOWED_HOSTS',
+    'NMS_ALLOWED_PORTS',
+  ]) {
+    assert.ok(defined.has(name), `${name} la necesita el staging para apuntar al mock NMS`);
+  }
+});
+
+test("ningún servicio del compose de producción tiene un container_name fijo", () => {
+  // Con un nombre fijo, dos despliegues en el mismo host se pisan: el
+  // staging levantaría un contenedor llamado `ftth_prod_victoriametrics`, que
+  // es el nombre que quiere producción. Compose ya genera un nombre único
+  // por proyecto, así que el nombre fijo no aporta nada.
+  const prod = fs.readFileSync(path.join(REPO_ROOT, 'docker-compose.prod.yml'), 'utf8');
+  const fixed = [...prod.matchAll(/^\s*container_name:\s*(\S+)/gm)].map((match) => match[1]);
+
+  assert.deepEqual(
+    fixed,
+    [],
+    `container_name fijos en el compose de producción: ${fixed.join(', ')}`,
+  );
+});
+
+test("el staging declara su propio nombre de proyecto", () => {
+  // Los nombres de los contenedores los genera Compose a partir del nombre
+  // del proyecto. Si el staging compartiera el proyecto de producción, sus
+  // contenedores se llamarían igual que los de producción y no podrían
+  // convivir en el mismo host.
+  const staging = fs.readFileSync(path.join(REPO_ROOT, 'docker-compose.staging.yml'), 'utf8');
+  const name = /^name:\s*(\S+)/m.exec(staging)?.[1];
+
+  assert.equal(name, 'ftth-staging', 'el staging tiene que declarar su propio nombre de proyecto');
+});
+
+test("los puertos del staging no son los que ya ocupa producción", () => {
+  // Los nombres de los contenedores ya no se pisan: cada stack tiene su
+  // proyecto. Los puertos del host sí se pisan, y son de producción y del
+  // worker: Postgres, Redis, VictoriaMetrics y los tres que el worker toma
+  // en la red del host (su health y los dos sockets UDP).
+  const alwaysTaken = new Set(['5432', '6379', '8428', '8081', '5514', '1162']);
+  const values = envFileValues(stagingEnvExample());
+
+  for (const name of [
+    'POSTGRES_PORT',
+    'REDIS_PORT',
+    'WORKER_PORT',
+    'SYSLOG_UDP_PORT',
+    'SNMP_UDP_PORT',
+  ]) {
+    const value = values.get(name);
+
+    assert.ok(value, `${name} tiene que estar en la plantilla del staging`);
+    assert.ok(
+      !alwaysTaken.has(value),
+      `${name}=${value} es un puerto que ya usa producción o el worker: los dos stacks no pueden convivir`,
+    );
+  }
+});
+
+test("el staging publica un puerto HTTP propio", () => {
+  // El 8080 sólo lo usa producción si levanta el profile `laya`, que es
+  // opcional. El staging declara el suyo, para que la URL del dashboard no
+  // dependa de si el otro stack lo tiene levantado.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.ok(values.get('STAGING_HTTP_PORT'), 'el staging tiene que declarar su puerto HTTP');
+});
+
+test("la plantilla del staging declara la marca que permite las excepciones SSRF", () => {
+  // La marca `DEPLOY_ENV=staging` es lo único que permite las excepciones de
+  // la política SSRF con `NODE_ENV=production` —que es el modo del staging—.
+  // Si desaparece de la plantilla, el web y el worker se niegan a arrancar y
+  // el CI no se entera: el staging deja de levantar.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.equal(
+    values.get('DEPLOY_ENV'),
+    'staging',
+    'la plantilla tiene que declarar la marca de staging: sin ella el worker y el web no arrancan',
+  );
+});
+
+test("las excepciones SSRF de la plantilla están activadas", () => {
+  // El mock NMS vive en el loopback: la política, por defecto, lo rechaza.
+  // Las excepciones tienen que estar activadas, no declaradas y apagadas.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.equal(values.get('NMS_ALLOW_HTTP'), 'true');
+  assert.equal(values.get('NMS_ALLOW_PRIVATE_NETWORKS'), 'true');
+});
+
+test("el puerto del mock NMS es el mismo en todas las variables que lo mencionan", () => {
+  // El mock escucha en `MOCK_NMS_PORT`, la conexión del seed lo apunta en
+  // `DEMO_NMS_BASE_URL` y la política SSRF tiene que abrirlo en
+  // `NMS_ALLOWED_PORTS`. Si uno de los tres no coincide, el staging levanta
+  // y no polea contra nada.
+  const values = envFileValues(stagingEnvExample());
+  const port = values.get('MOCK_NMS_PORT');
+  const host = values.get('MOCK_NMS_HOST');
+
+  assert.ok(port, 'la plantilla tiene que declarar el puerto del mock NMS');
+  assert.ok(host, 'la plantilla tiene que declarar la interfaz del mock NMS');
+  assert.equal(
+    values.get('DEMO_NMS_BASE_URL'),
+    `http://${host}:${port}`,
+    'la conexión del seed tiene que apuntar al puerto en el que escucha el mock',
+  );
+  assert.equal(
+    values.get('NMS_ALLOWED_PORTS'),
+    port,
+    'la política SSRF tiene que admitir el puerto del mock',
+  );
+  assert.equal(
+    values.get('NMS_ALLOWED_HOSTS'),
+    host,
+    'la política SSRF tiene que admitir la interfaz del mock',
+  );
+});
+
+test("el compose monta los ficheros del mock NMS", () => {
+  // Sin los bind mounts el contenedor no arranca: los ficheros del mock no
+  // están en la imagen `node:22-alpine`. El CI tiene que verlos.
+  const staging = loadStagingCompose(REPO_ROOT);
+  const raw = staging.services['mock-nms']?.['volumes'];
+  const volumes = Array.isArray(raw) ? raw.map(String) : [];
+
+  for (const file of ['mock-nms.ts', 'mock-nms-server.ts', 'package.json']) {
+    assert.ok(
+      volumes.some((volume) => volume.includes(`/app/${file}`)),
+      `el servicio tiene que montar ${file}: sin él el contenedor no arranca`,
+    );
   }
 });

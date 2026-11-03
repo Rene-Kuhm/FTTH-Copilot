@@ -191,7 +191,6 @@ services:
     build:
       context: ./services/laya
       dockerfile: Dockerfile
-    container_name: ftth_prod_laya
     restart: unless-stopped
     environment:
       LAYA_MODE: ${LAYA_MODE:-shadow}
@@ -224,7 +223,6 @@ services:
   # ─────────────────────────────────────────────────────────────────────
   victoriametrics:
     image: ${VICTORIAMETRICS_IMAGE:-victoriametrics/victoria-metrics:v1.153.0}
-    container_name: ftth_prod_victoriametrics
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/opt/vm/entrypoint.sh"]
     environment:
@@ -273,7 +271,6 @@ services:
   # ─────────────────────────────────────────────────────────────────────
   vmalert:
     image: ${VMALERT_IMAGE:-victoriametrics/vmalert:v1.153.0}
-    container_name: ftth_prod_vmalert
     restart: unless-stopped
     entrypoint: ["/vmalert-prod"]
     command:
@@ -303,7 +300,6 @@ services:
 #
 # vmstorage:
 #   image: victoriametrics/victoria-metrics:v1.153.0
-#   container_name: ftth_prod_vmstorage
 #   restart: unless-stopped
 #   command:
 #     - '-storageDataPath=/storage'
@@ -316,7 +312,6 @@ services:
 #
 # vmselect:
 #   image: victoriametrics/victoria-metrics:v1.153.0
-#   container_name: ftth_prod_vmselect
 #   restart: unless-stopped
 #   command:
 #     - '-search=true'
@@ -331,7 +326,6 @@ services:
 #
 # vminsert:
 #   image: victoriametrics/victoria-metrics:v1.153.0
-#   container_name: ftth_prod_vminsert
 #   restart: unless-stopped
 #   command:
 #     - '-insert=true'

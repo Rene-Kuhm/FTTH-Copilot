@@ -19,6 +19,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
+    "@ftth-copilot/connectors-core": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/ingest": "workspace:*",
     "@ftth-copilot/investigations": "workspace:*",

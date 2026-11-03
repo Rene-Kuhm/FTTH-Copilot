@@ -22,6 +22,12 @@
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // The SSRF policy has no exceptions in production. The web refuses to
+    // start with them activadas: en producción, una excepción es un agujero
+    // hacia la red interna.
+    const { assertNoSsrfExceptionsInProduction } = await import('@ftth-copilot/connectors-core');
+    assertNoSsrfExceptionsInProduction(process.env);
+
     const { workerOwnsBackgroundWork } = await import('@ftth-copilot/jobs');
     const { createLogger } = await import('@ftth-copilot/shared');
     const log = createLogger({ name: 'instrumentation' });
