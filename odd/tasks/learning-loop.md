@@ -525,9 +525,14 @@ para que la revisión no las tenga que adivinar:
   con migración aditiva: una fila con instrucciones embebidas no se rechaza en silencio —
   se guarda en cuarentena, con el motivo en la auditoría, y el recall trae sólo filas
   `active`.
-- [ ] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas
+- [x] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas
   envenenadas en la KB (instrucciones, role-reassignment, smuggling de nombre de
   cliente); el eval gate debe seguir en 100%.
+  → `packages/eval/corpus/red.json` suma tres casos de `retrieval-block`
+  (`direct-override`, `role-reassignment`, `customer-name-smuggle`), cada uno con su
+  fila de KB envenenada. Un test ata el corpus con el detector del saneador: toda fila
+  envenenada del corpus tiene que ser detectada, o el corpus miente sobre la cobertura.
+  El eval gate sigue en 100% (259 tests del paquete en verde).
 - [ ] **T1.6** Corpus de abstención para I7: casos sin datos suficientes con
   incidentes históricos muy parecidos en la KB. Línea base de abstención
   registrada.
