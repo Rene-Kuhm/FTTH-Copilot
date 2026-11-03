@@ -46,7 +46,7 @@
  *
  * Ver `docs/reference/contenedores-y-ci.md` para el detalle de cada regla.
  */
-import { LineCounter, isScalar, parseDocument, visit } from "yaml";
+import { LineCounter, isMap, isScalar, isSeq, parseDocument, visit } from "yaml";
 
 /** Identificador de cada regla de la política. */
 export type PolicyRule =
@@ -55,7 +55,8 @@ export type PolicyRule =
   | "release-wiring"
   | "caller-permissions"
   | "release-token-dispatch"
-  | "release-token-headers";
+  | "release-token-headers"
+  | "windows-shell";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -77,6 +78,10 @@ export interface WorkflowStep {
   readonly uses: string | null;
   /** Inputs `with:` del step. */
   readonly with: Record<string, unknown> | null;
+  /** Shell `shell:` declarado por el step, si lo declara. */
+  readonly shell: string | null;
+  /** Línea (1-based) del step en el archivo, o `null` si no se pudo ubicar. */
+  readonly line: number | null;
 }
 
 /** Un job de un workflow, con lo que declara sobre sus permisos. */
@@ -99,6 +104,10 @@ export interface WorkflowJob {
   readonly reusableCall: string | null;
   /** Variables `env:` declaradas a nivel de job. */
   readonly env: Record<string, string>;
+  /** Valor de `runs-on:` del job, aplanado a texto (vacío si no tiene). */
+  readonly runsOn: string;
+  /** Shell de `defaults.run.shell` del job, si lo declara. */
+  readonly defaultShell: string | null;
   /** Steps del job, en orden. */
   readonly steps: readonly WorkflowStep[];
 }
@@ -138,6 +147,8 @@ export interface WorkflowModel {
   readonly tagPushTriggers: readonly string[];
   /** Si el workflow acepta `workflow_dispatch`. */
   readonly hasWorkflowDispatch: boolean;
+  /** Shell de `defaults.run.shell` del workflow, si lo declara. */
+  readonly defaultShell: string | null;
 }
 
 /** Una violación de la política. */
@@ -223,10 +234,27 @@ function normalizeEnv(value: unknown): Record<string, string> {
 }
 
 /** Normaliza los steps de un job. */
-function normalizeSteps(value: unknown): WorkflowStep[] {
+function defaultShellOf(node: Record<string, unknown>): string | null {
+  const defaults = node.defaults;
+  if (!isRecord(defaults)) return null;
+  const run = defaults.run;
+  if (!isRecord(run)) return null;
+  return typeof run.shell === "string" ? run.shell : null;
+}
+
+function runsOnOf(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter((v) => typeof v === "string").join(" ");
+  if (isRecord(value)) return JSON.stringify(value);
+  return "";
+}
+
+function normalizeSteps(value: unknown, lines: readonly (number | null)[] = []): WorkflowStep[] {
   if (!Array.isArray(value)) return [];
+  let index = -1;
   const steps: WorkflowStep[] = [];
   for (const raw of value) {
+    index += 1;
     if (!isRecord(raw)) continue;
     steps.push({
       name: typeof raw.name === "string" ? raw.name : "",
@@ -239,6 +267,8 @@ function normalizeSteps(value: unknown): WorkflowStep[] {
       run: typeof raw.run === "string" ? raw.run : null,
       uses: typeof raw.uses === "string" ? raw.uses : null,
       with: isRecord(raw.with) ? (raw.with as Record<string, unknown>) : null,
+      shell: typeof raw.shell === "string" ? raw.shell : null,
+      line: lines[index] ?? null,
     });
   }
   return steps;
@@ -274,6 +304,24 @@ export function parseWorkflow(file: WorkflowFile): WorkflowModel | null {
     },
   });
 
+  // Línea de cada step, por job, para que la violación apunte al step.
+  const stepLines = new Map<string, (number | null)[]>();
+  const jobsMap = document.get("jobs", true);
+  if (isMap(jobsMap)) {
+    for (const item of jobsMap.items) {
+      if (!isScalar(item.key) || !isMap(item.value)) continue;
+      const stepsSeq = item.value.get("steps", true);
+      if (!isSeq(stepsSeq)) continue;
+      stepLines.set(
+        String(item.key.value),
+        stepsSeq.items.map((node) => {
+          const range = (node as { range?: [number, number, number] | null }).range;
+          return range ? lineCounter.linePos(range[0]).line : null;
+        }),
+      );
+    }
+  }
+
   const plain = document.toJS() as Record<string, unknown>;
   const jobs: WorkflowJob[] = [];
   const jobsNode = plain.jobs;
@@ -293,7 +341,9 @@ export function parseWorkflow(file: WorkflowFile): WorkflowModel | null {
         permissions: normalizePermissions(definition.permissions),
         reusableCall,
         env: normalizeEnv(definition.env),
-        steps: normalizeSteps(definition.steps),
+        runsOn: runsOnOf(definition["runs-on"]),
+        defaultShell: defaultShellOf(definition),
+        steps: normalizeSteps(definition.steps, stepLines.get(name)),
       });
     }
   }
@@ -339,6 +389,7 @@ export function parseWorkflow(file: WorkflowFile): WorkflowModel | null {
     dispatchTargets,
     tagPushTriggers,
     hasWorkflowDispatch,
+    defaultShell: defaultShellOf(plain),
   };
 }
 
@@ -762,7 +813,40 @@ function resetsExtraHeaders(run: string): boolean {
 }
 
 /**
- * Corre las seis reglas sobre un conjunto de workflows.
+ * Regla 7: en un runner Windows, todo `run:` declara su shell.
+ *
+ * En Windows el shell por defecto de un `run:` es `pwsh`, no `bash`. Un
+ * script bash (`set -euo pipefail`, `$(...)`, `jq ... > archivo`) corre en
+ * PowerShell y muere con `ParserError` antes de ejecutar nada. Así se cayó
+ * el build de Windows de la v0.4.0, y con él el adjunto de todos los
+ * instaladores de escritorio a la release.
+ *
+ * Se exige que el shell sea explícito, en el step o en `defaults.run.shell`
+ * del job o del workflow: quien escribe el step dice qué intérprete espera.
+ */
+export function findWindowsShellViolations(model: WorkflowModel): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const job of model.jobs) {
+    if (!/windows/i.test(job.runsOn)) continue;
+    if (job.defaultShell !== null || model.defaultShell !== null) continue;
+    for (const step of job.steps) {
+      if (step.run === null || step.shell !== null) continue;
+      violations.push({
+        rule: "windows-shell",
+        path: model.path,
+        line: step.line,
+        message:
+          `el step "${step.name || "(sin nombre)"}" del job "${job.name}" corre en Windows sin ` +
+          "`shell:`; ahí el shell por defecto es pwsh. Declará `shell: bash` (o `pwsh`) en el " +
+          "step o en `defaults.run.shell` del job.",
+      });
+    }
+  }
+  return violations;
+}
+
+/**
+ * Corre las siete reglas sobre un conjunto de workflows.
  *
  * Devuelve todas las violaciones; una lista vacía significa que el repo
  * cumple la política.
@@ -775,6 +859,7 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
   for (const model of models) {
     violations.push(...findUnpinnedActions(model));
     violations.push(...findJobsWithoutPermissions(model));
+    violations.push(...findWindowsShellViolations(model));
   }
   violations.push(...findReleaseWiringViolations(models));
   violations.push(...findCallerPermissionViolations(models));

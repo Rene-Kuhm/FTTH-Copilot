@@ -153,10 +153,17 @@ En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.
   `.github/actions/desktop-build`, que compilan los mismos bytes sin pedir
   `id-token: write`. La regla `caller-permissions` de
   `scripts/lib/supply-chain.ts` verifica esta relación.
+- **En un runner Windows, todo `run:` declara su shell** (en el step o en
+  `defaults.run.shell`). Ahí el shell por defecto es `pwsh`, no `bash`: un
+  script bash sin `shell:` muere con `ParserError` antes de ejecutar nada.
+  Así se cayó el build de Windows de la v0.4.0 y, con él, el adjunto de todos
+  los instaladores de escritorio. El job `build-windows` de
+  `build-desktop.yml` declara `defaults.run.shell: bash`, y el único step
+  PowerShell lo dice con `shell: pwsh`. La regla `windows-shell` lo verifica.
 - El job `supply-chain` de `ci.yml` falla si alguien agrega una acción sin
   fijar, si un job no declara `permissions:`, si el pipeline de release queda
-  desconectado o si un caller no concede lo que pide el workflow que llama
-  (ver §9.4). Es hermético: sólo lee los YAML del repo. La
+  desconectado, si un caller no concede lo que pide el workflow que llama
+  (ver §9.4) o si un step de Windows no declara su shell. Es hermético: sólo lee los YAML del repo. La
   política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
   `pnpm check:supply-chain`.
 - `.github/dependabot.yml` actualiza las acciones fijadas por SHA (cambia el

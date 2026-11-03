@@ -11,6 +11,7 @@ import {
   findReleaseWiringViolations,
   findUnpinnedActions,
   findUnpinnedCompositeActions,
+  findWindowsShellViolations,
   isPinnedToSha,
   parseWorkflow,
   remoteActionRef,
@@ -578,4 +579,66 @@ test("findReleaseTokenHeaderViolations no se queja del push sin token propio", (
   ];
 
   assert.deepEqual(findReleaseTokenHeaderViolations(models), []);
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Regla 7: shell explícito en runners Windows.
+//
+// En Windows el `run:` sin `shell:` corre en pwsh. El step bash que
+// normalizaba el SBOM murió con ParserError y la v0.4.0 se publicó sin
+// ningún instalador de escritorio.
+// ──────────────────────────────────────────────────────────────────────
+
+function windowsJob(extra: string[] = [], stepExtra: string[] = []): string {
+  return [
+    "name: W",
+    "on:",
+    "  workflow_dispatch:",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  build-windows:",
+    "    runs-on: windows-latest",
+    "    permissions:",
+    "      contents: read",
+    ...extra,
+    "    steps:",
+    "      - name: Checkout",
+    "        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "      - name: Normalize",
+    "        run: |",
+    "          set -euo pipefail",
+    "          jq -S . sbom.json > out.json",
+    ...stepExtra,
+  ].join("\n");
+}
+
+test("findWindowsShellViolations marca un run: sin shell en Windows, con su línea", () => {
+  const violations = findWindowsShellViolations(model(windowsJob()));
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "windows-shell");
+  assert.equal(violations[0]?.line, 14);
+  assert.match(violations[0]?.message ?? "", /Normalize/);
+  assert.match(violations[0]?.message ?? "", /pwsh/);
+});
+
+test("findWindowsShellViolations acepta shell en el step", () => {
+  const content = windowsJob([], ["        shell: bash"]);
+  assert.deepEqual(findWindowsShellViolations(model(content)), []);
+});
+
+test("findWindowsShellViolations acepta defaults.run.shell del job o del workflow", () => {
+  const jobDefaults = windowsJob(["    defaults:", "      run:", "        shell: bash"]);
+  assert.deepEqual(findWindowsShellViolations(model(jobDefaults)), []);
+
+  const workflowDefaults = windowsJob().replace(
+    "jobs:",
+    ["defaults:", "  run:", "    shell: bash", "jobs:"].join("\n"),
+  );
+  assert.deepEqual(findWindowsShellViolations(model(workflowDefaults)), []);
+});
+
+test("findWindowsShellViolations no mira runners Linux", () => {
+  const linux = windowsJob().replace("windows-latest", "ubuntu-22.04");
+  assert.deepEqual(findWindowsShellViolations(model(linux)), []);
 });
