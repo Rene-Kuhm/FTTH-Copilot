@@ -124,6 +124,20 @@ services:
       - ./packages/connectors/smartolt/package.json:/app/package.json:ro
       - ./packages/connectors/smartolt/src/mock-nms.ts:/app/mock-nms.ts:ro
       - ./packages/connectors/smartolt/src/mock-nms-server.ts:/app/mock-nms-server.ts:ro
+    healthcheck:
+      # El mock corre en la red del host: si el puerto ya lo tiene otro
+      # proceso, el contenedor muere con `EADDRINUSE` y `restart:
+      # unless-stopped` lo vuelve a levantar en bucle. El healthcheck
+      # convierte ese bucle en un estado visible: "unhealthy" en vez de un
+      # contenedor que aparece y desaparece.
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1:${MOCK_NMS_PORT:-18080}/api/system/get_olts
+          | grep -q OLT-MOCK-1 || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   caddy_data:
