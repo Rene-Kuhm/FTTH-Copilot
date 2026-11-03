@@ -22,6 +22,33 @@ describe('worker health reader', () => {
     lastErrorAt: null,
   };
 
+  it('waits for the connection before reading', async () => {
+    const order: string[] = [];
+    await readWorkerHealthWith({
+      ensureReady: async () => {
+        order.push('ready');
+      },
+      get: async () => {
+        order.push('get');
+        return null;
+      },
+    });
+
+    expect(order).toEqual(['ready', 'get']);
+  });
+
+  it('returns null when the connection never comes up', async () => {
+    const published = JSON.stringify(buildWorkerHealthSnapshot({ polling }, {}, 1_700_000_000_000));
+    const snapshot = await readWorkerHealthWith({
+      ensureReady: async () => {
+        throw new Error('Redis no estuvo lista a tiempo');
+      },
+      get: async () => published,
+    });
+
+    expect(snapshot).toBeNull();
+  });
+
   it('reads the snapshot that the worker published', async () => {
     const published = JSON.stringify(
       buildWorkerHealthSnapshot({ polling }, { backlog: 2 }, 1_700_000_000_000),

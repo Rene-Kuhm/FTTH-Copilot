@@ -33,6 +33,57 @@ const log = createLogger({ name: 'worker-health' });
  */
 export interface WorkerHealthReader {
   get(key: string): Promise<string | null>;
+  /**
+   * Waits for the connection to be established.
+   *
+   * Optional, like the one of the rate limiter: a client that is already
+   * connected does not need it, and a test double does not either.
+   */
+  ensureReady?(): Promise<void>;
+}
+
+/**
+ * How long the reader waits for the connection.
+ *
+ * The health endpoint is on the path of whoever asks how the system is: a
+ * Redis that is slow to answer has to cost a bounded wait, not a hang.
+ */
+const READY_TIMEOUT_MS = 1_000;
+
+/**
+ * Waits for the client to be ready.
+ *
+ * With `enableOfflineQueue: false`, a command that goes out before the
+ * connection is up is **lost**: ioredis rejects it instead of queueing it.
+ * Without this wait, the first request of every process would read nothing
+ * — and the health would say "the worker is not working" on every restart.
+ */
+function waitForReady(client: Redis): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Redis no estuvo lista a tiempo'));
+    }, READY_TIMEOUT_MS);
+
+    function onReady(): void {
+      cleanup();
+      resolve();
+    }
+
+    function onError(error: Error): void {
+      cleanup();
+      reject(error);
+    }
+
+    function cleanup(): void {
+      clearTimeout(timer);
+      client.off('ready', onReady);
+      client.off('error', onError);
+    }
+
+    client.once('ready', onReady);
+    client.once('error', onError);
+  });
 }
 
 /**
@@ -47,6 +98,7 @@ export async function readWorkerHealthWith(
 ): Promise<WorkerHealthSnapshot | null> {
   let raw: string | null;
   try {
+    await reader.ensureReady?.();
     raw = await reader.get(key);
   } catch (error) {
     log.warn('Could not read the health snapshot of the worker', { error });
@@ -76,8 +128,19 @@ function createReader(url: string): WorkerHealthReader {
     log.warn('Worker health Redis client error', { error });
   });
 
+  let ready: Promise<void> | undefined;
+
   return {
     get: (key) => client.get(key),
+    ensureReady: async (): Promise<void> => {
+      if (client.status === 'ready') return;
+      ready ??= waitForReady(client).catch((error: unknown) => {
+        // The state is released: the next request tries to connect again.
+        ready = undefined;
+        throw error;
+      });
+      return ready;
+    },
   };
 }
 
