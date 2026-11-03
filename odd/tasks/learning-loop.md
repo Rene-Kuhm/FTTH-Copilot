@@ -2,7 +2,9 @@
 
 **Status**: Fase 0 completa (T0.1–T0.5): `packages/learning` es el núcleo
 puro y el worker congela el dataset por tenant con su hash de contenido. La
-Fase 1 (`TenantPolicy.learningMode` y retracciones) espera revisión.
+Fase 1 (T1.1–T1.6) también está completa: el interruptor por tenant, las
+retracciones, el peso por origen, el saneamiento en escritura con cuarentena y
+los dos corpus. La Fase 2 (recall denso) es la siguiente.
 **Created**: 2026-10-31
 **Scope**: Cerrar el bucle de aprendizaje de FTTH-Copilot: que el sistema mejore
 con cada diagnóstico confirmado o refutado por un operador, en tres capas
@@ -533,9 +535,15 @@ para que la revisión no las tenga que adivinar:
   fila de KB envenenada. Un test ata el corpus con el detector del saneador: toda fila
   envenenada del corpus tiene que ser detectada, o el corpus miente sobre la cobertura.
   El eval gate sigue en 100% (259 tests del paquete en verde).
-- [ ] **T1.6** Corpus de abstención para I7: casos sin datos suficientes con
+- [x] **T1.6** Corpus de abstención para I7: casos sin datos suficientes con
   incidentes históricos muy parecidos en la KB. Línea base de abstención
   registrada.
+  → `ftth.eval-abstention-corpus.v1` (`packages/eval/src/abstention-corpus.ts`): ocho
+  casos sin datos (veredicto `incomplete`) con al menos un vecino muy parecido en la KB
+  — el caso tentador en el que el LLM completaría con historia en vez de abstenerse. La
+  línea base queda registrada en `ABSTENTION_BASELINE_RATE` (1.0): cuando el learning
+  loop se prenda, la tasa medida tiene que ser ≥ la línea base, o el aprendizaje está
+  llenando los huecos de datos con historia.
 
 ### Fase 2 — L1 recall denso (shadow)
 - [ ] **T2.1** Spike: medir `multilingual-e5-small` vs `bge-m3` en ONNX/CPU sobre un
