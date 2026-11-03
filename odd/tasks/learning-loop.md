@@ -498,8 +498,14 @@ para que la revisión no las tenga que adivinar:
   (que no puede importar a learning, I1) y el runtime. `resolveLearningMode` y
   `resolveArtifactPins` (`packages/learning/src/policy.ts`) resuelven con la precedencia
   `args.X ?? tenantPolicy.X ?? default.X`, igual que `retrievalLimit`.
-- [ ] **T1.2** Tabla `ConfirmedIncidentRetraction` + exclusión en
+- [x] **T1.2** Tabla `ConfirmedIncidentRetraction` + exclusión en
   `retrieveRelevantIncidents` (D2). Test: fila retractada nunca se recupera.
+  → `ConfirmedIncidentRetraction` (append-only: `tenantId`, `incidentId`, `reason`,
+  `retractedByUserId`, `createdAt`; único por `(tenantId, incidentId)`) con migración
+  aditiva. `incidentId` es referencia blanda, sin FK: la KB es inmutable y su borrado
+  no arrastra la auditoría. `retrieveRelevantIncidents` acepta
+  `retractedIncidentIds` y las filas retractadas quedan fuera del recall; la ruta de
+  chat consulta las retracciones filtradas por tenant.
 - [ ] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`
   ⇒ salida byte-idéntica a hoy.
 - [ ] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta

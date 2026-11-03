@@ -50,6 +50,16 @@ export interface RetrieveRelevantIncidentsArgs {
   mode?: 'live' | 'demo';
   now?: Date;
   confirmedIncidents: ConfirmedIncident[];
+  /**
+   * Los ids de los incidentes que el tenant retractó (T1.2, D2).
+   *
+   * `ConfirmedIncident` es inmutable: la corrección es una fila aparte
+   * (`ConfirmedIncidentRetraction`). La fila retractada queda fuera del
+   * recall, del entrenamiento y del índice, pero sigue en la base para
+   * auditoría. Los ids llegan ya filtrados por tenant: el llamador los
+   * consulta con `tenantId` y los pasa acá.
+   */
+  retractedIncidentIds?: readonly string[];
 }
 
 /**
@@ -76,9 +86,10 @@ function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): bool
  *  2. short-circuit to `[]` outside live mode (demo == live parity: demo
  *     never sees tenant history);
  *  3. scope to `tenantId` and to the `sinceDays` window on `resolvedAt`;
- *  4. BM25 over the pre-computed `searchTokens`, boosted by `deviceHint`;
- *  5. drop candidates below `MIN_SPARSESCORE` (kills zero-overlap rows);
- *  6. RRF over the surviving sparse ranking, capped at `limit`.
+ *  4. drop the retracted rows (T1.2, D2);
+ *  5. BM25 over the pre-computed `searchTokens`, boosted by `deviceHint`;
+ *  6. drop candidates below `MIN_SPARSESCORE` (kills zero-overlap rows);
+ *  7. RRF over the surviving sparse ranking, capped at `limit`.
  *
  * Deviation from `design.md`, recorded deliberately: the design writes the
  * final score as the raw `Σ 1 / (RRF_K + rank)`. With `RRF_K = 60` the best
@@ -106,8 +117,18 @@ export function retrieveRelevantIncidents(
   const sinceDays = args.sinceDays ?? tenantPolicy?.retrievalSinceDays ?? DEFAULT_SINCE_DAYS;
   const cutoff = now.getTime() - sinceDays * DAY_MS;
 
+  // T1.2 — las filas retractadas no se recuperan (D2). El conjunto se arma
+  // una vez: la lista puede ser larga y el filtro corre por cada fila.
+  const retracted =
+    args.retractedIncidentIds && args.retractedIncidentIds.length > 0
+      ? new Set(args.retractedIncidentIds)
+      : null;
+
   const candidates = args.confirmedIncidents.filter(
-    (row) => row.tenantId === args.tenantId && Date.parse(row.resolvedAt) >= cutoff,
+    (row) =>
+      row.tenantId === args.tenantId &&
+      Date.parse(row.resolvedAt) >= cutoff &&
+      !(retracted !== null && retracted.has(row.id)),
   );
   if (candidates.length === 0) return [];
 

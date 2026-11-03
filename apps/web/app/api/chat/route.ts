@@ -227,6 +227,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         searchTokens: true,
       },
     })) as unknown as ConfirmedIncident[];
+    // T1.2 (D2) — los incidentes que el tenant retractó quedan fuera del
+    // recall. La consulta va filtrada por tenant: una retracción de otro ISP
+    // no puede sacar una fila de este.
+    const retractions = await prisma.confirmedIncidentRetraction.findMany({
+      where: { tenantId: providerArgs.tenantId },
+      select: { incidentId: true },
+    });
     return retrieveRelevantIncidents(
       {
         tenantId: providerArgs.tenantId,
@@ -236,6 +243,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         sinceDays: effectiveSinceDays,
         mode: 'live',
         confirmedIncidents,
+        retractedIncidentIds: retractions.map((row) => row.incidentId),
       },
       tenantPolicy ?? undefined,
     );

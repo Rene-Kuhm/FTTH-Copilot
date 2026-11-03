@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   prismaAgentActionLogCreate: vi.fn(),
   prismaDetectedAlertFindMany: vi.fn(),
   prismaConfirmedIncidentFindMany: vi.fn(),
+  // T1.2 — las retracciones del tenant (D2): las filas retractadas quedan
+  // fuera del recall.
+  prismaConfirmedIncidentRetractionFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
   prismaTenantPolicyFindUnique: vi.fn(),
   // Fase F — verdictLog default: success (the route's fail-safe
@@ -77,6 +80,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     confirmedIncident: {
       findMany: mocks.prismaConfirmedIncidentFindMany,
+    },
+    confirmedIncidentRetraction: {
+      findMany: mocks.prismaConfirmedIncidentRetractionFindMany,
     },
     pendingIncidentCandidate: {
       create: mocks.prismaPendingIncidentCandidateCreate,
@@ -164,6 +170,7 @@ function setupHappyPath(overrides: {
   mocks.prismaAgentActionLogCreate.mockReset();
   mocks.prismaDetectedAlertFindMany.mockReset();
   mocks.prismaConfirmedIncidentFindMany.mockReset();
+  mocks.prismaConfirmedIncidentRetractionFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.prismaTenantPolicyFindUnique.mockReset();
   // Fase F — verdictLog default: success (count: 0 keeps the
@@ -187,6 +194,8 @@ function setupHappyPath(overrides: {
   mocks.prismaDetectedAlertFindMany.mockResolvedValue([]);
   // Default: no confirmed incidents in the DB; retrieval short-circuits.
   mocks.prismaConfirmedIncidentFindMany.mockResolvedValue([]);
+  // T1.2 — default: el tenant no retractó nada.
+  mocks.prismaConfirmedIncidentRetractionFindMany.mockResolvedValue([]);
   mocks.prismaPendingIncidentCandidateCreate.mockResolvedValue({ id: 'pending-1' });
   // Default: no TenantPolicy row → runAgent receives tenantPolicy: undefined
   mocks.prismaTenantPolicyFindUnique.mockResolvedValue(null);
@@ -331,8 +340,44 @@ describe('POST /api/chat — retrievalProvider wiring (Fase D / WU3)', () => {
     expect(rankingArgs.confirmedIncidents).toHaveLength(1);
   });
 
-  it('demo mode: retrievalProvider is still wired but the closure returns [] (no DB query)', async () => {
-    setupHappyPath({ dataSource: fakeDemoDataSource });
+  // ── T1.2 — retracciones (D2) ────────────────────────────────────────────
+
+  it('queries the tenant retractions and forwards their ids to the ranker', async () => {
+    mocks.prismaConfirmedIncidentRetractionFindMany.mockResolvedValue([
+      { id: 'ret-1', incidentId: 'ci-1' },
+      { id: 'ret-2', incidentId: 'ci-2' },
+    ]);
+    mocks.runAgent.mockImplementation(
+      async (opts: { retrievalProvider?: (args: unknown) => Promise<unknown[]> }) => {
+        await opts.retrievalProvider!({ tenantId: 'tenant-1', query: 'rx bajo' });
+        return {
+          text: 'contexto',
+          toolCalls: [okToolCall()],
+          verdicts: [{ toolName: 'list_onus', code: 'ok', reason: 'fresh', severity: 'info' }],
+        };
+      },
+    );
+
+    const res = await callRoute({ message: 'rx bajo' });
+
+    expect(res.status).toBe(200);
+    // La consulta de retracciones va filtrada por tenant: una retracción de
+    // otro ISP no puede sacar una fila de este.
+    expect(mocks.prismaConfirmedIncidentRetractionFindMany).toHaveBeenCalledTimes(1);
+    const retractionArgs = mocks.prismaConfirmedIncidentRetractionFindMany.mock.calls[0]?.[0] as {
+      where: { tenantId: string };
+      select: { incidentId: boolean };
+    };
+    expect(retractionArgs.where.tenantId).toBe('tenant-1');
+    expect(retractionArgs.select.incidentId).toBe(true);
+    // Y los ids llegan al ranker, que es el que excluye.
+    const rankingArgs = mocks.retrieveRelevantIncidents.mock.calls[0]?.[0] as {
+      retractedIncidentIds?: string[];
+    };
+    expect(rankingArgs.retractedIncidentIds).toEqual(['ci-1', 'ci-2']);
+  });
+
+  it('demo mode: retrievalProvider is still wired but the closure returns [] (no DB query)', async () => {    setupHappyPath({ dataSource: fakeDemoDataSource });
     mocks.runAgent.mockImplementation(
       async (opts: { retrievalProvider?: (args: unknown) => Promise<unknown[]> }) => {
         expect(opts.retrievalProvider).toBeDefined();

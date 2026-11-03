@@ -170,6 +170,7 @@ model Tenant {
   deviceEvents   DeviceEvent[]
 
   confirmedIncidents        ConfirmedIncident[]
+  confirmedIncidentRetractions ConfirmedIncidentRetraction[]
   pendingIncidentCandidates PendingIncidentCandidate[]
   policy                    TenantPolicy?
   topologyEdges             TopologyEdge[]
@@ -222,6 +223,7 @@ model User {
   conversations          Conversation[]
   rateLimitBuckets       RateLimitBucket[]
   confirmedIncidents     ConfirmedIncident[]
+  confirmedIncidentRetractions ConfirmedIncidentRetraction[]
   investigationRuns      InvestigationRun[]      @relation("InvestigationRunRequestedBy")
   investigationFeedbacks InvestigationFeedback[] @relation("InvestigationFeedbackAuthor")
 
@@ -630,6 +632,34 @@ model TenantPolicy {
   updatedAt          DateTime       @updatedAt
 
   @@map("tenant_policies")
+}
+
+// La retracción de un incidente confirmado (learning loop, Fase 1 — T1.2, D2).
+//
+// `ConfirmedIncident` es inmutable por diseño: para corregirla sin romper esa
+// garantía, la retracción es una fila aparte y append-only. La fila
+// retractada queda fuera del recall, del entrenamiento y del índice, pero
+// sigue en la base para auditoría.
+//
+// `incidentId` es una referencia blanda (sin FK) por la misma razón que
+// `ConfirmedIncident.investigationFeedbackId`: la KB es inmutable y su
+// borrado no tiene que arrastrar la auditoría. La aplicación valida
+// `(tenantId, incidentId)` al insertar.
+model ConfirmedIncidentRetraction {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  incidentId        String
+  reason            String   @db.Text
+  retractedByUserId String?
+  retractedByUser   User?    @relation(fields: [retractedByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+
+  // Una retraction por incidente y por tenant: retractar dos veces es un
+  // error de la aplicación, no dos filas.
+  @@unique([tenantId, incidentId])
+  @@index([tenantId, createdAt])
+  @@map("confirmed_incident_retractions")
 }
 
 // Fase E — temporal topology (single-edge model). One row per directed

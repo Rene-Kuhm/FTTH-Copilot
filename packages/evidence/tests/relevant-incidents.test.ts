@@ -390,3 +390,83 @@ describe('retrieveRelevantIncidents — Fase E tenantPolicy 2nd arg', () => {
     expect(results.map((r) => r.id).sort()).toEqual(['old', 'recent']);
   });
 });
+
+// ── T1.2 — retracciones (D2) ────────────────────────────────────────────────
+//
+// `ConfirmedIncident` es inmutable: la corrección es una fila aparte
+// (`ConfirmedIncidentRetraction`). La fila retractada queda fuera del
+// recall, del entrenamiento y del índice, pero sigue en la base para
+// auditoría.
+
+describe('retrieveRelevantIncidents — retracciones (T1.2)', () => {
+  const retractable = [
+    incident({
+      id: 'ci-1',
+      summary: 'Corte de fibra en la troncal',
+      rootCause: 'Corte de fibra',
+      fix: 'Cambio de fibra',
+      searchTokens: 'corte fibra troncal',
+    }),
+    incident({
+      id: 'ci-2',
+      summary: 'Corte de fibra en el splitter',
+      rootCause: 'Corte de fibra',
+      fix: 'Splice de la caja',
+      searchTokens: 'corte fibra splitter',
+    }),
+  ];
+
+  it('sin retracciones, recupera las dos filas', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'corte de fibra',
+      now: NOW,
+      confirmedIncidents: retractable,
+    });
+    expect(results.map((r) => r.id)).toEqual(['ci-1', 'ci-2']);
+  });
+
+  it('una fila retractada nunca se recupera, aunque sea la que más puntúa', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'corte de fibra',
+      now: NOW,
+      confirmedIncidents: retractable,
+      retractedIncidentIds: ['ci-1'],
+    });
+    expect(results.map((r) => r.id)).toEqual(['ci-2']);
+  });
+
+  it('la retracción de una fila que no está en el corpus no cambia nada', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'corte de fibra',
+      now: NOW,
+      confirmedIncidents: retractable,
+      retractedIncidentIds: ['ci-no-existe'],
+    });
+    expect(results.map((r) => r.id)).toEqual(['ci-1', 'ci-2']);
+  });
+
+  it('retractar todas las filas deja el recall vacío', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'corte de fibra',
+      now: NOW,
+      confirmedIncidents: retractable,
+      retractedIncidentIds: ['ci-1', 'ci-2'],
+    });
+    expect(results).toEqual([]);
+  });
+
+  it('la retracción no habilita el recall en demo: sigue devolviendo []', () => {
+    const results = retrieveRelevantIncidents({
+      tenantId: 't1',
+      query: 'corte de fibra',
+      now: NOW,
+      mode: 'demo',
+      confirmedIncidents: retractable,
+    });
+    expect(results).toEqual([]);
+  });
+});
