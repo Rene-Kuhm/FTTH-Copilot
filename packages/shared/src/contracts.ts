@@ -309,7 +309,7 @@ export type PendingIncidentCandidate = z.infer<typeof pendingIncidentCandidateSc
 //
 // Stable JSON envelope for the optional per-tenant override row (1:1 with
 // `Tenant`). The runtime consults `tenantPolicy.X ?? env.X ?? moduleDefault.X`
-// per knob; absent row → Fase C/D byte-identical. Five nullable knobs are
+// per knob; absent row → Fase C/D byte-identical. The nullable knobs are
 // independent — a tenant may pin `retrievalLimit` without touching
 // `promotionMinAgeMs`.
 //
@@ -320,6 +320,8 @@ export type PendingIncidentCandidate = z.infer<typeof pendingIncidentCandidateSc
 //   - abstainOnCodes:     subset of VerdictCode (`ok` allowed for forward-
 //                         compat; runtime filters the meaningless entries)
 //   - promotionMinAgeMs:  >= 0 (0 means "promote immediately")
+//   - learningMode:       'off' | 'shadow' | 'active' (T1.1)
+//   - learningArtifactPins: capa → versión del artefacto (T1.1)
 //
 // `.strict()` rejects unknown top-level keys so a future spec bump can never
 // silently drift the wire format.
@@ -335,6 +337,13 @@ export const tenantPolicySchema = z
       .array(z.enum(['ok', 'low_confidence', 'stale', 'incomplete']))
       .optional(),
     promotionMinAgeMs: z.number().int().min(0).optional(),
+    // T1.1 — el interruptor del learning loop. `off` es el default: el
+    // despliegue no cambia lo que ve el operador hasta que un tenant lo
+    // prende a mano. `learningArtifactPins` dice qué versión de cada
+    // artefacto aprendido usa el tenant; el rollback es volver el pin a la
+    // versión anterior o dejar el modo en `off`.
+    learningMode: z.enum(['off', 'shadow', 'active']).optional(),
+    learningArtifactPins: z.record(z.string().min(1).max(64), z.string().min(1).max(256)).optional(),
     lastEvaluatedAt: z.string().datetime().optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),

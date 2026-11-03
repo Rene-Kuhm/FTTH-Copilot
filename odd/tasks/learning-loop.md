@@ -490,8 +490,14 @@ para que la revisión no las tenga que adivinar:
    cruza queda listado en `crossing`.
 
 ### Fase 1 — Salvaguardas antes del aprendizaje
-- [ ] **T1.1** `TenantPolicy.learningMode` (`off` default) + `learningArtifactPins`;
+- [x] **T1.1** `TenantPolicy.learningMode` (`off` default) + `learningArtifactPins`;
   migración Prisma; resolver con precedencia como `retrievalLimit`.
+  → `LearningMode` (`off | shadow | active`, default `off`) y `learningArtifactPins`
+  (`Json?`) en `TenantPolicy`, con migración aditiva. El tipo canónico del modo vive
+  en `@ftth-copilot/shared` (`learning.ts`): lo consultan el núcleo puro, `evidence`
+  (que no puede importar a learning, I1) y el runtime. `resolveLearningMode` y
+  `resolveArtifactPins` (`packages/learning/src/policy.ts`) resuelven con la precedencia
+  `args.X ?? tenantPolicy.X ?? default.X`, igual que `retrievalLimit`.
 - [ ] **T1.2** Tabla `ConfirmedIncidentRetraction` + exclusión en
   `retrieveRelevantIncidents` (D2). Test: fila retractada nunca se recupera.
 - [ ] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`

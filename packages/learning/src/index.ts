@@ -14,6 +14,9 @@
  *   topológico y ventana, y split temporal sin fuga entre train y eval (D9).
  * - `sampleSufficiency` (T0.4) — insuficiencia honesta: bajo la muestra
  *   mínima la métrica no se publica (I10).
+ * - `resolveLearningMode` y `resolveArtifactPins` (T1.1) — el interruptor
+ *   `off → shadow → active` del tenant y los pins de artefacto, resueltos
+ *   con la precedencia `args.X ?? tenantPolicy.X ?? default.X`.
  */
 export * from './types';
 export * from './errors';
@@ -22,3 +25,4 @@ export * from './labels';
 export * from './events';
 export * from './sufficiency';
 export * from './snapshot';
+export * from './policy';

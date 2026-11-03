@@ -620,6 +620,11 @@ model TenantPolicy {
   truthGateMode      TruthGateMode?
   abstainOnCodes     Json?
   promotionMinAgeMs  Int?
+  // El interruptor del learning loop (Fase 1, T1.1). `off` es el default.
+  learningMode       LearningMode   @default(off)
+  // Qué versión de cada artefacto aprendido usa el tenant. El rollback es
+  // volver el pin a la versión anterior, o dejar el modo en `off`.
+  learningArtifactPins Json?
   lastEvaluatedAt    DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
@@ -840,6 +845,18 @@ model LearningArtifact {
 // embeddings, baselines y modelos (Fases 2 a 4) se registran aquí.
 enum LearningArtifactKind {
   snapshot
+}
+
+// El interruptor del learning loop por tenant (Fase 1, tarea T1.1).
+//
+// `off` es el default: desplegar el código no cambia lo que ve el operador.
+// `shadow` calcula la salida aprendida y la registra al lado de la actual,
+// pero el usuario sigue viendo la actual. `active` es la promoción, que
+// sólo se puede alcanzar con el gate de release en verde (D10).
+enum LearningMode {
+  off
+  shadow
+  active
 }
 
 // Fase 5 — Maintenance windows (roadmap 5.1 + 5.2).
