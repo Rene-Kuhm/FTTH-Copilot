@@ -26,6 +26,7 @@
     "@ftth-copilot/learning": "workspace:*",
     "@ftth-copilot/scheduler": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",
+    "ioredis": "^5.11.1",
     "tsx": "^4.19.2"
   },
   "devDependencies": {

@@ -82,6 +82,6 @@ EXPOSE 1162/udp
 EXPOSE 5514/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider "http://127.0.0.1:3001/api/health?scope=container" || exit 1
 
 CMD ["node", "apps/web/server.js"]

@@ -37,4 +37,11 @@ describe('scheduler package surface', () => {
     expect(typeof scheduler.snapshotHealth).toBe('function');
     expect(typeof scheduler.__resetSchedulerHealth).toBe('function');
   });
+
+  it('exposes the contract of the health snapshot the worker publishes', () => {
+    expect(typeof scheduler.buildWorkerHealthSnapshot).toBe('function');
+    expect(typeof scheduler.parseWorkerHealthSnapshot).toBe('function');
+    expect(scheduler.WORKER_HEALTH_KEY).toBe('ftth:worker:scheduler-health');
+    expect(scheduler.WORKER_HEALTH_TTL_SECONDS).toBeGreaterThan(0);
+  });
 });
