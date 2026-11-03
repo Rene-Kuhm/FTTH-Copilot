@@ -56,6 +56,15 @@ export const FAILURE_LOG_THROTTLE_MS = 60_000;
  */
 export interface HealthPublisherClient {
   set(key: string, value: string, mode: 'EX', ttlSeconds: number): Promise<unknown>;
+  /**
+   * Whether the client is connected.
+   *
+   * Optional: a client without it is assumed to be ready. A client that
+   * refuses commands while it has no connection would otherwise turn every
+   * publication into a connection error — the publisher skips the tick and
+   * the next one writes.
+   */
+  isReady?(): boolean;
 }
 
 /** Options of the publisher. */
@@ -125,6 +134,11 @@ export function createHealthPublisher(options: HealthPublisherOptions): HealthPu
 
   return {
     async publish(): Promise<boolean> {
+      // A client without a connection refuses the command. The tick is
+      // skipped instead of failing: the next one writes, and the key has a
+      // TTL, so nothing is lost but a few seconds of freshness.
+      if (options.client.isReady && !options.client.isReady()) return false;
+
       const snapshot = buildWorkerHealthSnapshot(services(), counters(), now());
       try {
         await options.client.set(key, JSON.stringify(snapshot), 'EX', ttlSeconds);

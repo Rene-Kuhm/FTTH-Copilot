@@ -23,31 +23,32 @@ vi.mock('@ftth-copilot/shared', async (importOriginal) => {
  * endpoint. The snapshot travels through Redis, and this suite pins what the
  * worker puts there.
  */
-describe('worker health publisher', () => {
-  const polling: ServiceHealth = {
-    expected: true,
-    lastRunAt: 1_700_000_000_000,
-    lastError: null,
-    lastErrorAt: null,
-  };
+/** A loop that ticked, as the registry describes it. */
+const polling: ServiceHealth = {
+  expected: true,
+  lastRunAt: 1_700_000_000_000,
+  lastError: null,
+  lastErrorAt: null,
+};
 
-  /** A Redis client that records what it was asked to write. */
-  function recordingClient(): {
-    client: { set: (key: string, value: string, mode: 'EX', ttl: number) => Promise<unknown> };
-    writes: Array<{ key: string; value: string; mode: string; ttl: number }>;
-  } {
-    const writes: Array<{ key: string; value: string; mode: string; ttl: number }> = [];
-    return {
-      writes,
-      client: {
-        set: async (key, value, mode, ttl) => {
-          writes.push({ key, value, mode, ttl });
-          return 'OK';
-        },
+/** A Redis client that records what it was asked to write. */
+function recordingClient(): {
+  client: { set: (key: string, value: string, mode: 'EX', ttl: number) => Promise<unknown> };
+  writes: Array<{ key: string; value: string; mode: string; ttl: number }>;
+} {
+  const writes: Array<{ key: string; value: string; mode: string; ttl: number }> = [];
+  return {
+    writes,
+    client: {
+      set: async (key, value, mode, ttl) => {
+        writes.push({ key, value, mode, ttl });
+        return 'OK';
       },
-    };
-  }
+    },
+  };
+}
 
+describe('worker health publisher', () => {
   afterEach(() => {
     vi.useRealTimers();
     logMock.warn.mockClear();
@@ -147,5 +148,32 @@ describe('worker health publisher', () => {
     handle.stop();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(writes).toHaveLength(2);
+  });
+});
+
+describe('the connection of the publisher', () => {
+  it('does not write before the connection is ready', async () => {
+    const { client, writes } = recordingClient();
+    const publisher = createHealthPublisher({
+      client: { ...client, isReady: () => false },
+      services: () => ({ polling }),
+    });
+
+    // The client refuses commands while it has no connection: the tick is
+    // skipped and the next one writes. Losing the first publication is
+    // better than a log full of connection errors.
+    expect(await publisher.publish()).toBe(false);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('writes once the connection is ready', async () => {
+    const { client, writes } = recordingClient();
+    const publisher = createHealthPublisher({
+      client: { ...client, isReady: () => true },
+      services: () => ({ polling }),
+    });
+
+    expect(await publisher.publish()).toBe(true);
+    expect(writes).toHaveLength(1);
   });
 });

@@ -131,7 +131,14 @@ async function main(): Promise<void> {
     log.warn('Health publisher could not reach Redis', { error: error.message });
   });
 
-  const healthPublisher = startHealthPublisher({ client: publisherRedis });
+  const healthPublisher = startHealthPublisher({
+    client: {
+      set: (key, value, mode, ttlSeconds) => publisherRedis.set(key, value, mode, ttlSeconds),
+      // The client refuses commands while it has no connection: the
+      // publisher skips the tick rather than logging a connection error.
+      isReady: () => publisherRedis.status === 'ready',
+    },
+  });
   log.info('Health publisher started', { key: WORKER_HEALTH_KEY });
 
   // The worker owns the syslog socket: it binds it, spools every datagram
