@@ -258,6 +258,18 @@ export function envFileVariables(content: string): Set<string> {
   return names;
 }
 
+/** Los valores de un archivo `.env`, por nombre. */
+export function envFileValues(content: string): Map<string, string> {
+  const values = new Map<string, string>();
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(trimmed);
+    if (match?.[1]) values.set(match[1], match[2]!.trim());
+  }
+  return values;
+}
+
 /** El compose de staging ya fusionado, tal como lo levanta Compose. */
 export function loadStagingCompose(repoRoot: string): ComposeFile {
   const prod = fs.readFileSync(path.join(repoRoot, 'docker-compose.prod.yml'), 'utf8');

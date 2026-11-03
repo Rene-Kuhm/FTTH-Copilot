@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
+  envFileValues,
   envFileVariables,
   loadStagingCompose,
   mergeCompose,
@@ -211,4 +212,38 @@ test("el staging declara su propio nombre de proyecto", () => {
   const name = /^name:\s*(\S+)/m.exec(staging)?.[1];
 
   assert.equal(name, 'ftth-staging', 'el staging tiene que declarar su propio nombre de proyecto');
+});
+
+test("los puertos del staging no son los que ya ocupa producción", () => {
+  // Los nombres de los contenedores ya no se pisan: cada stack tiene su
+  // proyecto. Los puertos del host sí se pisan, y son de producción y del
+  // worker: Postgres, Redis, VictoriaMetrics y los tres que el worker toma
+  // en la red del host (su health y los dos sockets UDP).
+  const alwaysTaken = new Set(['5432', '6379', '8428', '8081', '5514', '1162']);
+  const values = envFileValues(stagingEnvExample());
+
+  for (const name of [
+    'POSTGRES_PORT',
+    'REDIS_PORT',
+    'WORKER_PORT',
+    'SYSLOG_UDP_PORT',
+    'SNMP_UDP_PORT',
+  ]) {
+    const value = values.get(name);
+
+    assert.ok(value, `${name} tiene que estar en la plantilla del staging`);
+    assert.ok(
+      !alwaysTaken.has(value),
+      `${name}=${value} es un puerto que ya usa producción o el worker: los dos stacks no pueden convivir`,
+    );
+  }
+});
+
+test("el staging publica un puerto HTTP propio", () => {
+  // El 8080 sólo lo usa producción si levanta el profile `laya`, que es
+  // opcional. El staging declara el suyo, para que la URL del dashboard no
+  // dependa de si el otro stack lo tiene levantado.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.ok(values.get('STAGING_HTTP_PORT'), 'el staging tiene que declarar su puerto HTTP');
 });
