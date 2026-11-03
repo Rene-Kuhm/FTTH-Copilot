@@ -9,7 +9,15 @@ import {
   readCarrierVersion,
   syncCarriers,
   writeCarrierVersion,
+  type VersionCarrier,
 } from "../lib/version-carriers.ts";
+
+/** El carrier de una ruta, o un fallo del test. */
+function carrierAt(carrierPath: string): VersionCarrier {
+  const carrier = VERSION_CARRIERS.find((candidate) => candidate.path === carrierPath);
+  assert.notEqual(carrier, undefined, `no está el carrier ${carrierPath}`);
+  return carrier as VersionCarrier;
+}
 
 const SYNC_OWNED = [
   "apps/web/android/app/build.gradle",
@@ -35,13 +43,12 @@ test("readCarrierVersion lee la versión de cada carrier", () => {
   for (const carrier of VERSION_CARRIERS.filter((c) => c.owner === "sync")) {
     const content = samples[carrier.path];
     assert.notEqual(content, undefined, `falta la muestra de ${carrier.path}`);
-    assert.equal(readCarrierVersion(content, carrier), "0.4.0", carrier.path);
+    assert.equal(readCarrierVersion(content as string, carrier), "0.4.0", carrier.path);
   }
 });
 
 test("writeCarrierVersion reemplaza la versión sin tocar el resto", () => {
-  const carrier = VERSION_CARRIERS.find((c) => c.path === "packages/learning/src/version.ts");
-  assert.notEqual(carrier, undefined);
+  const carrier = carrierAt("packages/learning/src/version.ts");
 
   const content = "export const LEARNING_CODE_VERSION = '0.4.0';\n";
   const updated = writeCarrierVersion(content, carrier, "0.5.0");
@@ -50,8 +57,7 @@ test("writeCarrierVersion reemplaza la versión sin tocar el resto", () => {
 });
 
 test("writeCarrierVersion no inventa una versión si el patrón no aparece", () => {
-  const carrier = VERSION_CARRIERS.find((c) => c.path === "packages/learning/src/version.ts");
-  assert.notEqual(carrier, undefined);
+  const carrier = carrierAt("packages/learning/src/version.ts");
 
   const content = "export const OTRA_COSA = '0.4.0';\n";
 

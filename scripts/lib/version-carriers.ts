@@ -77,6 +77,21 @@ export const VERSION_CARRIERS: readonly VersionCarrier[] = [
 ];
 
 /**
+ * Lee un fichero, o `null` si no está.
+ *
+ * Sin `existsSync` + `readFileSync`: ese par es un check-then-act y CodeQL lo
+ * marca como carrera en el sistema de ficheros (`js/file-system-race`).
+ */
+function readFileOrNull(file: string): string | null {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/**
  * Los `package.json` que llevan la versión.
  *
  * Los gestiona release-please (`extra-files`), así que no entran en la
@@ -84,21 +99,21 @@ export const VERSION_CARRIERS: readonly VersionCarrier[] = [
  */
 export function packageManifestPaths(root: string): string[] {
   const packagesDir = path.join(root, "packages");
-  const connectors = ["core", "mikrotik", "mikrowisp", "smartolt"].map((name) =>
-    path.join("packages", "connectors", name, "package.json"),
-  );
-  const inPackages = fs.existsSync(packagesDir)
-    ? fs
-        .readdirSync(packagesDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join("packages", entry.name, "package.json"))
-        .filter((manifest) => fs.existsSync(path.join(root, manifest)))
-    : [];
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs.readdirSync(packagesDir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   return [
     "package.json",
     "apps/web/package.json",
-    ...inPackages,
-    ...connectors.filter((manifest) => fs.existsSync(path.join(root, manifest))),
+    ...entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join("packages", entry.name, "package.json")),
+    ...["core", "mikrotik", "mikrowisp", "smartolt"].map((name) =>
+      path.join("packages", "connectors", name, "package.json"),
+    ),
   ];
 }
 
@@ -138,12 +153,11 @@ export interface SyncResult {
 export function syncCarriers(root: string, version: string): SyncResult[] {
   const results: SyncResult[] = [];
   for (const carrier of VERSION_CARRIERS.filter((candidate) => candidate.owner === "sync")) {
-    const file = path.join(root, carrier.path);
-    if (!fs.existsSync(file)) {
+    const content = readFileOrNull(path.join(root, carrier.path));
+    if (content === null) {
       results.push({ path: carrier.path, status: "missing" });
       continue;
     }
-    const content = fs.readFileSync(file, "utf8");
     if (readCarrierVersion(content, carrier) === version) {
       results.push({ path: carrier.path, status: "unchanged" });
       continue;
@@ -153,7 +167,7 @@ export function syncCarriers(root: string, version: string): SyncResult[] {
       results.push({ path: carrier.path, status: "no-match" });
       continue;
     }
-    fs.writeFileSync(file, updated);
+    fs.writeFileSync(path.join(root, carrier.path), updated);
     results.push({ path: carrier.path, status: "updated" });
   }
   return results;
@@ -180,17 +194,17 @@ export function findVersionMismatches(root: string, expected: string): VersionMi
   const mismatches: VersionMismatch[] = [];
 
   for (const manifest of packageManifestPaths(root)) {
-    const file = path.join(root, manifest);
-    if (!fs.existsSync(file)) continue;
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as { version?: string };
+    const content = readFileOrNull(path.join(root, manifest));
+    if (content === null) continue;
+    const parsed = JSON.parse(content) as { version?: string };
     const found = parsed.version ?? "<missing>";
     if (found !== expected) mismatches.push({ path: manifest, label: "package version", found });
   }
 
   for (const carrier of VERSION_CARRIERS) {
-    const file = path.join(root, carrier.path);
-    if (!fs.existsSync(file)) continue;
-    const found = readCarrierVersion(fs.readFileSync(file, "utf8"), carrier);
+    const content = readFileOrNull(path.join(root, carrier.path));
+    if (content === null) continue;
+    const found = readCarrierVersion(content, carrier);
     if (found !== expected) {
       mismatches.push({ path: carrier.path, label: carrier.label, found: found ?? "<missing>" });
     }
