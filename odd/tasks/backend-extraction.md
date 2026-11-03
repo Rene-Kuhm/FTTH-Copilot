@@ -886,6 +886,26 @@ debe romperse) y los tests de durabilidad de las fases 4.
     proyecto (`ftth-staging`).
   - **La guía levanta el stack de cero a arriba**, y una regla de CI ata la
     guía al compose para que no vuelva a quedar atrás.
+  - **Lo que encontró la revisión independiente del PR** (todo corregido en el
+    mismo PR, antes de que se mergee):
+    - **El seed pisaba la conexión del operador**: tomaba cualquier conexión
+      SmartOLT del tenant y le sobrescribía la `baseUrl` con el
+      `DEMO_NMS_BASE_URL` del staging. Ahora la conexión del seed es la suya
+      (la de su id) y las de otros no se tocan.
+    - **Los puertos del staging se pisaban con los de producción** (Redis en
+      el 6379, el health del worker en el 8081, syslog en el 5514 y SNMP en
+      el 1162). La plantilla del staging trae puertos propios (5434, 6380,
+      8082, 5515 y 1163) y una regla de CI lo verifica.
+    - **La marca `DEPLOY_ENV=staging` no estaba atada a nada**: es lo único
+      que permite las excepciones SSRF con `NODE_ENV=production`, así que si
+      desaparecía de la plantilla el staging dejaba de levantar sin que el
+      CI lo notara. Ahora hay una regla que la exige.
+    - **La receta de la guía rompía un staging que ya estaba montado**
+      (copiaba la plantilla encima y regeneraba los secretos). Ahora hay un
+      camino de upgrade que sólo agrega las variables nuevas.
+    - **El worker no tenía ninguna regla que lo atara** a la comprobación
+      SSRF: ahora la hay (lee su `index.ts` y comprueba que la comprobación
+      ocurre antes de que arranquen los workers).
   - **Lo que sigue abierto**:
     - **La revalidación de T14 en la VPS con la imagen nueva**: hace falta que
       `#366` (el health tras un reinicio y el tick de calentamiento) y este PR
@@ -896,7 +916,13 @@ debe romperse) y los tests de durabilidad de las fases 4.
     - **El proyecto del compose del staging cambió de nombre** (`ftth-staging`):
       en `vps-casa` hay que bajar el stack viejo (`ftth-copilot-*`) antes de
       levantar el nuevo, o los dos stacks quedan con nombres distintos y el
-      puerto `8080` queda tomado por el de producción.
+      puerto `8080` queda tomado por el viejo. Los volúmenes también cambian
+      de nombre (Compose los nombra con el proyecto), así que el stack nuevo
+      ve una base vacía: es un staging, se vuelve a sembrar.
+    - **El `.env.staging` de la VPS es anterior a este PR**: le faltan la
+      marca `DEPLOY_ENV=staging`, las cuatro excepciones SSRF, las variables
+      del mock NMS y los puertos nuevos. El camino está en la guía
+      (`docs/how-to/desplegar-en-staging.md`, §3.2).
     - **`~/ftth-staging.sh` no levanta el profile `mock-nms`**: el mock es un
       servicio del compose detrás del profile, así que el script tiene que
       levantarlo (`--profile mock-nms up -d mock-nms`) o queda levantado a mano.
