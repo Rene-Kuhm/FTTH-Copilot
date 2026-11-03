@@ -94,3 +94,46 @@ describe('syslog receiver lifecycle', () => {
     expect(snapshotHealth()['syslog']?.bound).toBe(false);
   });
 });
+
+describe('the receive buffer of the syslog socket', () => {
+  let dir: string;
+  let port = 0;
+  let stop: (() => void) | null = null;
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'syslog-buffer-'));
+    process.env['EVENT_SPOOL_DIR'] = dir;
+    process.env['SYSLOG_RECEIVER_ENABLED'] = 'true';
+    process.env['SYSLOG_TENANT_ID'] = 'tenant-buffer';
+    process.env['SYSLOG_MAX_EVENTS_PER_MINUTE'] = '10000';
+    // A small buffer keeps the test independent of the host's rmem_max.
+    process.env['SYSLOG_RECV_BUFFER_BYTES'] = '8192';
+    port = await freeUdpPort();
+    process.env['SYSLOG_UDP_PORT'] = String(port);
+    vi.resetModules();
+  });
+
+  afterEach(async () => {
+    stop?.();
+    stop = null;
+    const { stopEventDrainer } = await import('../src/ingest');
+    stopEventDrainer();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('enlarges the buffer once the socket is bound', async () => {
+    const { snapshotHealth } = await import('@ftth-copilot/scheduler');
+    const { startSyslogReceiver } = await import('../src/syslog-receiver');
+
+    stop = startSyslogReceiver();
+    await delay(300);
+
+    const health = snapshotHealth()['syslog'];
+    // The buffer can only be enlarged once the socket has a file descriptor:
+    // before the bind, uv_recv_buffer_size fails with EBADF and the socket
+    // keeps the small default buffer — the one that drops datagrams when a
+    // link flap floods the port.
+    expect(health?.lastError ?? null).toBeNull();
+    expect(health?.bound).toBe(true);
+  });
+});
