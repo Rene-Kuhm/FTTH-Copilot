@@ -831,3 +831,40 @@ debe romperse) y los tests de durabilidad de las fases 4.
       NMS del propio repo (`smartoltMockResponse`) y se habilitaron las
       excepciones de la política SSRF (`NMS_ALLOW_HTTP`, `NMS_ALLOWED_PORTS`,
       `NMS_ALLOW_PRIVATE_NETWORKS`, `NMS_ALLOWED_HOSTS`).
+
+- **L36** (2026-11-03) — **El health del worker después de un reinicio** (la
+  primera mitad de lo que L35 dejó abierto).
+  - **El tick de calentamiento ocurre de verdad.** El
+    `upsertJobScheduler` de BullMQ no reprograma una rejilla que ya existe,
+    así que el `firstTickAt` que el log anunciaba (arranque + 5 s) no se
+    producía después de un reinicio: el primer tick real era el siguiente
+    turno natural (poll 15 min, FEC 1 h, firmware 24 h). El worker compara
+    ahora el próximo tick de la rejilla con el reloj y, cuando está lejos,
+    fuerza un tick de calentamiento cinco segundos después del arranque.
+  - **Sin duplicar trabajo.** El id de ese job sale de la ranura de la
+    rejilla (`warmup-<scope>-<slot>`): dos workers que arrancan a la vez
+    calculan el mismo id y BullMQ encola uno solo, y un reinicio dentro de
+    la misma ranura no repite el calentamiento. El test de integración
+    levanta dos registros a la vez contra un Redis real y cuenta un único
+    tick de calentamiento por loop.
+  - **El registro de salud ya no se vacía en cada reinicio.** El registro
+    acepta el plazo del próximo tick (`nextRunAt`) y la cadencia
+    (`intervalMs`) del loop, que son los que sabe el dueño de la rejilla y
+    el registro no. Un loop que todavía no tickeó está *calentando* —con la
+    hora de su próximo tick— y no degrada el sistema; uno cuyo tick
+    esperado no llegó está *colgado*. `/api/health` publica el estado de
+    cada servicio (`ok`, `warming`, `error`, `hung`, `inactive`).
+  - **El poll ya no se traga los errores de construcción del conector.** Una
+    conexión sin `baseUrl`, con credenciales que no descifran o con una URL
+    que la política de SSRF rechaza no se puede consultar; antes el `catch {}`
+    sin log lo saltaba y el health decía "polling OK" sin haber consultado
+    nada. El fallo se levanta al final del ciclo, con el motivo y el id de
+    la conexión, y queda como error del loop `polling`. Las conexiones que
+    sí se pueden consultar se consultan igual.
+  - **Lo que sigue abierto** (va en su propio PR, porque toca el entorno y
+    no el código de los loops): el staging necesita un NMS de verdad —el
+    seed crea una conexión SmartOLT sin `baseUrl`—, las excepciones de la
+    política SSRF que el staging necesita hoy no están declaradas en
+    `.env.staging.example` y la política de producción no las rechaza, y
+    los `container_name` fijos de `docker-compose.prod.yml` impiden que
+    producción y staging convivan en un mismo host.

@@ -235,6 +235,15 @@ los route handlers por separado, así que cada proceso tiene su propia copia del
 la de la web está vacía. El worker publica su estado en Redis
 (`ftth:worker:scheduler-health`, con TTL de 60 segundos) y la web lo lee de ahí.
 
+Cada servicio trae su estado (`ok`, `warming`, `error`, `hung`, `inactive`), el instante de
+su próximo tick (`nextRunAt`) y su cadencia (`intervalMs`). Un worker recién arrancado tiene
+sus loops *calentando*: el registro de salud vive en la memoria del proceso y empieza
+vacío, así que sin el plazo del próximo tick el health del sistema quedaría degradado
+hasta el primer tick — y con el firmware, casi un día después de cada despliegue. El tick
+de calentamiento ocurre de verdad: el worker lo fuerza cuando el próximo tick de la rejilla
+está lejos, y su id sale de la ranura de esa rejilla, así que dos workers que arrancan a la
+vez producen **un** tick de calentamiento, no dos.
+
 El campo `owner` dice de quién es el registro: `worker` o `embedded`. En modo worker, si el
 worker no publica nada —porque está caído o porque todavía no arrancó— el health responde
 `503 degraded`: el trabajo de fondo no tiene dueño y el health tiene que decirlo, en vez de
