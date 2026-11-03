@@ -383,3 +383,7 @@ jobs:
           files: artifacts/**/*
           fail_on_unmatched_files: false
           generate_release_notes: true
+          # The tag has to be explicit: without it the action takes
+          # `github.ref`, which in a workflow_dispatch is the branch and not
+          # the tag, and it aborts with "GitHub Releases requires a tag".
+          tag_name: ${{ inputs.release-tag }}

@@ -282,6 +282,24 @@ verifica que el workflow que publica la release despacha al que atesta, y que
 ese workflow acepta `workflow_dispatch`. Si alguien borra el dispatch, el
 check falla y el CI se pone rojo.
 
+### 9.4 bis El tag se declara siempre
+
+`softprops/action-gh-release` usa `github.ref` cuando no le dicen a qué tag
+adjuntar. En el flujo normal —release-please crea el tag y dispara el
+dispatch— `github.ref` es la rama desde la que se despachó, no el tag: por eso
+el tag se pasa explícito.
+
+Cuando el tag **no** se declara, el caso se ve en el relanzamiento manual de
+una release ya publicada (el `workflow_dispatch` de `release.yml` con
+`-f tag=v0.4.0`): ahí `github.ref` es la rama y la action aborta con
+`GitHub Releases requires a tag`, y la release se queda sin los instaladores.
+Pasó con la v0.4.0: los tres builds compilaron bien y los dos attaches
+fallaron.
+
+La regla `attach-tag` de `scripts/lib/supply-chain.ts` falla el check de supply
+chain si algún step que use `softprops/action-gh-release` no declara
+`tag_name`. Se puede correr local: `pnpm check:supply-chain`.
+
 ### 9.5 La línea base del changelog
 
 release-please arma el changelog de cada release con los commits que encuentra

@@ -11,6 +11,7 @@ import {
   findReleaseWiringViolations,
   findUnpinnedActions,
   findUnpinnedCompositeActions,
+  findAttachTagViolations,
   findWindowsShellViolations,
   isPinnedToSha,
   parseWorkflow,
@@ -641,4 +642,60 @@ test("findWindowsShellViolations acepta defaults.run.shell del job o del workflo
 test("findWindowsShellViolations no mira runners Linux", () => {
   const linux = windowsJob().replace("windows-latest", "ubuntu-22.04");
   assert.deepEqual(findWindowsShellViolations(model(linux)), []);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Regla 8: el step que publica en la release declara a qué tag.
+//
+// Sin `tag_name`, la action usa `github.ref`. En el flujo normal (push de un
+// tag) eso es el tag, pero en el `workflow_dispatch` —que es como se
+// relanza una release ya publicada— `github.ref` es la rama y la action
+// falla con "GitHub Releases requires a tag".
+//
+// Así seeperdió la v0.4.0: el build de Windows era el primer fallo, pero
+// detrás de él venía el attach, que no sabía a qué tag adjuntar.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const PUBLISH_STEP = [
+  "      - name: Attach binaries to release",
+  "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
+  "        with:",
+  "          files: artifacts/**/*",
+  "          fail_on_unmatched_files: false",
+];
+
+function attachWorkflow(withTag: boolean): string {
+  const with_ = withTag
+    ? [...PUBLISH_STEP, "          tag_name: ${{ inputs.release-tag }}"]
+    : PUBLISH_STEP;
+  return [
+    "name: Release",
+    "on:",
+    "  workflow_dispatch:",
+    "    inputs:",
+    "      tag:",
+    "        required: true",
+    "        type: string",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  attach:",
+    "    permissions:",
+    "      contents: write",
+    "    steps:",
+    ...with_,
+  ].join("\n");
+}
+
+test("findAttachTagViolations marca el publish sin tag_name, con su línea", () => {
+  const violations = findAttachTagViolations(model(attachWorkflow(false)));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "attach-tag");
+  assert.equal(violations[0]?.line, 15);
+  assert.match(violations[0]?.message ?? "", /requires a tag/);
+});
+
+test("findAttachTagViolations acepta un publish con tag_name", () => {
+  assert.deepEqual(findAttachTagViolations(model(attachWorkflow(true))), []);
 });

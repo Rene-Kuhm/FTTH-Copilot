@@ -56,7 +56,8 @@ export type PolicyRule =
   | "caller-permissions"
   | "release-token-dispatch"
   | "release-token-headers"
-  | "windows-shell";
+  | "windows-shell"
+  | "attach-tag";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -164,6 +165,13 @@ export interface PolicyViolation {
 
 /** La acción que publica las releases del repo. */
 const PUBLISHER_ACTION = "googleapis/release-please-action";
+/**
+ * La action que adjunta los binarios a la release.
+ *
+ * Sin `tag_name` usa `github.ref`, que en un `workflow_dispatch` es la rama
+ * y no el tag: la action falla con "GitHub Releases requires a tag".
+ */
+const ATTACH_ACTION = "softprops/action-gh-release";
 
 /** La acción que emite la procedencia SLSA de los artefactos. */
 const ATTESTATION_ACTION = "actions/attest-build-provenance";
@@ -851,6 +859,40 @@ export function findWindowsShellViolations(model: WorkflowModel): PolicyViolatio
  * Devuelve todas las violaciones; una lista vacía significa que el repo
  * cumple la política.
  */
+/**
+ * Regla 8: el step que adjunta los binarios a la release declara a qué tag.
+ *
+ * `softprops/action-gh-release` usa `github.ref` cuando no le dicen el tag.
+ * En el flujo normal (push de un tag `v*`) eso es el tag y todo bien, pero
+ * en el `workflow_dispatch` —que es como se relanza una release ya
+ * publicada, para regenerar sus instaladores— `github.ref` es la rama y la
+ * action aborta con "GitHub Releases requires a tag".
+ *
+ * Por eso el tag se declara siempre: es lo único que funciona en los dos
+ * caminos.
+ */
+export function findAttachTagViolations(model: WorkflowModel): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const job of model.jobs) {
+    for (const step of job.steps) {
+      if (step.uses === null) continue;
+      if (remoteActionRef(step.uses)?.startsWith(`${ATTACH_ACTION}@`) !== true) continue;
+      const tagName = step.with?.["tag_name"];
+      if (typeof tagName === "string" && tagName.length > 0) continue;
+      violations.push({
+        rule: "attach-tag",
+        path: model.path,
+        line: step.line,
+        message:
+          `el step "${step.name || "(sin nombre)"}" adjunta a la release sin \`tag_name\`: ` +
+          "en un workflow_dispatch, github.ref es la rama y la action falla con " +
+          "\"GitHub Releases requires a tag\". Declará `tag_name: ${{ inputs.release-tag }}`.",
+      });
+    }
+  }
+  return violations;
+}
+
 export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolation[] {
   const models = files
     .map((file) => parseWorkflow(file))
@@ -860,6 +902,7 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
     violations.push(...findUnpinnedActions(model));
     violations.push(...findJobsWithoutPermissions(model));
     violations.push(...findWindowsShellViolations(model));
+    violations.push(...findAttachTagViolations(model));
   }
   violations.push(...findReleaseWiringViolations(models));
   violations.push(...findCallerPermissionViolations(models));
