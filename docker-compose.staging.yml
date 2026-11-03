@@ -21,6 +21,11 @@
 #
 # La decisión de dónde montarlo y con qué Redis y Postgres está en
 # `docs/how-to/desplegar-en-staging.md`.
+#
+# El nombre del proyecto es propio: Compose genera los nombres de los
+# contenedores a partir de él, así que con el mismo nombre que producción los
+# dos stacks no podrían convivir en un mismo host.
+name: ftth-staging
 
 services:
   postgres:

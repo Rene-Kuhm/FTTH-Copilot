@@ -546,10 +546,10 @@ VICTORIAMETRICS_STORAGE_NODES=2
 **Monitoring cluster health:**
 ```bash
 # Check vmstorage cluster state
-docker exec ftth_prod_vmstorage   wget -qO- 'http://localhost:8482/cluster/lookups' | jq
+docker compose exec vmstorage   wget -qO- 'http://localhost:8482/cluster/lookups' | jq
 
 # Check replication status
-docker exec ftth_prod_vmstorage   wget -qO- 'http://localhost:8482/cluster/replication'
+docker compose exec vmstorage   wget -qO- 'http://localhost:8482/cluster/replication'
 ```
 
 For rolling updates, see: https://docs.victoriametrics.com/Cluster-VictoriaMetrics.html#updating-cluster
@@ -734,5 +734,5 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --scale app
 | Puerto 3001 ocupado | Cambiar `PORT` en `.env.prod` y reiniciar |
 | Error "Refusing to seed in production" | Verificar `NODE_ENV=production` + `ALLOW_PRODUCTION_SEED=false` en `.env.prod` |
 | Métricas no responden | Verificar que VictoriaMetrics esté corriendo (`docker compose ps`); `curl http://127.0.0.1:8428/health` desde el contenedor debe devolver `OK` (usar 127.0.0.1, no `localhost`: resuelve a `::1` y VM escucha solo IPv4); verificar que `METRICS_BEARER_TOKEN` coincide entre app y scrape config |
-| Alertas/rules no cargan | `docker exec ftth_prod_victoriametrics wget -qO- http://vmalert:8880/api/v1/rules`. Cada regla trae `health` y `lastError`. Ojo: el single-node de VictoriaMetrics NO evalúa reglas; si quitás `vmalert`, no hay recording ni alerting. |
+| Alertas/rules no cargan | `docker compose exec victoriametrics wget -qO- http://vmalert:8880/api/v1/rules`. Cada regla trae `health` y `lastError`. Ojo: el single-node de VictoriaMetrics NO evalúa reglas; si quitás `vmalert`, no hay recording ni alerting. |
 | Alertas evaluan pero no notifican | `vmalert` arranca sin canal de salida. Montá un notifier config y pasá `-notifier.config`; mientras tanto consultá `/api/v1/rules` directamente. |

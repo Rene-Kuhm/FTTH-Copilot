@@ -185,3 +185,29 @@ test("la plantilla de staging declara las excepciones de la política SSRF", () 
     assert.ok(defined.has(name), `${name} la necesita el staging para apuntar al mock NMS`);
   }
 });
+
+test("ningún servicio del compose de producción tiene un container_name fijo", () => {
+  // Con un nombre fijo, dos despliegues en el mismo host se pisan: el
+  // staging levantaría un contenedor llamado `ftth_prod_victoriametrics`, que
+  // es el nombre que quiere producción. Compose ya genera un nombre único
+  // por proyecto, así que el nombre fijo no aporta nada.
+  const prod = fs.readFileSync(path.join(REPO_ROOT, 'docker-compose.prod.yml'), 'utf8');
+  const fixed = [...prod.matchAll(/^\s*container_name:\s*(\S+)/gm)].map((match) => match[1]);
+
+  assert.deepEqual(
+    fixed,
+    [],
+    `container_name fijos en el compose de producción: ${fixed.join(', ')}`,
+  );
+});
+
+test("el staging declara su propio nombre de proyecto", () => {
+  // Los nombres de los contenedores los genera Compose a partir del nombre
+  // del proyecto. Si el staging compartiera el proyecto de producción, sus
+  // contenedores se llamarían igual que los de producción y no podrían
+  // convivir en el mismo host.
+  const staging = fs.readFileSync(path.join(REPO_ROOT, 'docker-compose.staging.yml'), 'utf8');
+  const name = /^name:\s*(\S+)/m.exec(staging)?.[1];
+
+  assert.equal(name, 'ftth-staging', 'el staging tiene que declarar su propio nombre de proyecto');
+});
