@@ -147,3 +147,38 @@ describe('the learning snapshot loop', () => {
     expect(LEARNING_SNAPSHOT_LOOP.scope).toBe('learning-snapshot');
   });
 });
+
+describe('the health registry of the scheduled loops', () => {
+  beforeEach(async () => {
+    const { __resetSchedulerHealth } = await import('@ftth-copilot/scheduler');
+    __resetSchedulerHealth();
+  });
+
+  it('marks the loops it schedules as expected', async () => {
+    const { snapshotHealth } = await import('@ftth-copilot/scheduler');
+
+    await registerRecurringSchedules({
+      env: {
+        METRICS_POLLER_ENABLED: 'true',
+        FIRMWARE_AUDIT_ENABLED: 'true',
+        FEC_COLLECTION_ENABLED: 'true',
+      },
+    });
+
+    // A loop that is not expected is not watched: the health would not
+    // report it as hung, and a poll that stops ticking would go unnoticed.
+    expect(snapshotHealth()['polling']?.expected).toBe(true);
+    expect(snapshotHealth()['firmware']?.expected).toBe(true);
+    expect(snapshotHealth()['fec']?.expected).toBe(true);
+  });
+
+  it('does not mark a loop it did not schedule', async () => {
+    const { snapshotHealth } = await import('@ftth-copilot/scheduler');
+
+    await registerRecurringSchedules({ env: { METRICS_POLLER_ENABLED: 'true' } });
+
+    expect(snapshotHealth()['polling']?.expected).toBe(true);
+    expect(snapshotHealth()['firmware']).toBeUndefined();
+    expect(snapshotHealth()['fec']).toBeUndefined();
+  });
+});

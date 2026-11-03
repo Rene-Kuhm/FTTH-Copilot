@@ -37,6 +37,7 @@
  */
 
 import { createLogger } from '@ftth-copilot/shared';
+import { markExpected, type SchedulerName } from '@ftth-copilot/scheduler';
 import {
   JOB_NAMES,
   createJobQueue,
@@ -94,6 +95,14 @@ export interface LoopDefinition<Q extends QueueKey> {
   intervalFlag: string;
   /** Period used when the env var is unset or invalid, in milliseconds. */
   defaultIntervalMs: number;
+  /**
+   * The name of this loop in the health registry.
+   *
+   * Optional: the loops that are not in the registry —the safety nets— do
+   * not have one. The registry watches the loops that produce telemetry,
+   * and a loop it does not know about cannot be reported as hung.
+   */
+  healthName?: SchedulerName;
 }
 
 /** The polling loop: samples every connected NMS. */
@@ -105,6 +114,7 @@ export const POLL_LOOP: LoopDefinition<'poll'> = {
   enabledFlag: 'METRICS_POLLER_ENABLED',
   intervalFlag: 'METRICS_POLL_INTERVAL_MS',
   defaultIntervalMs: 900_000,
+  healthName: 'polling',
 };
 
 /** The firmware audit loop: checks live firmware against the allowlist. */
@@ -116,6 +126,7 @@ export const FIRMWARE_LOOP: LoopDefinition<'firmware'> = {
   enabledFlag: 'FIRMWARE_AUDIT_ENABLED',
   intervalFlag: 'FIRMWARE_AUDIT_INTERVAL_MS',
   defaultIntervalMs: 86_400_000,
+  healthName: 'firmware',
 };
 
 /** The FEC collection loop: samples optical telemetry of a slice of ONUs. */
@@ -127,6 +138,7 @@ export const FEC_LOOP: LoopDefinition<'fec'> = {
   enabledFlag: 'FEC_COLLECTION_ENABLED',
   intervalFlag: 'FEC_COLLECTION_INTERVAL_MS',
   defaultIntervalMs: 3_600_000,
+  healthName: 'fec',
 };
 
 /**
@@ -322,6 +334,12 @@ export async function registerRecurringSchedules(
     const outcome = await registerLoop(definition, env, connection);
     if ('schedulerId' in outcome) {
       registered.push(outcome);
+      // A scheduled loop is a loop this process is expected to run: the
+      // health registry has to say so, or the health does not watch it and a
+      // poll that stops ticking goes unnoticed.
+      if (definition.healthName) {
+        markExpected(definition.healthName);
+      }
     } else {
       skipped.push(outcome);
     }

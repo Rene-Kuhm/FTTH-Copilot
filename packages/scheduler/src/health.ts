@@ -115,6 +115,18 @@ export function snapshotHealth(): Record<string, ServiceHealth> {
 }
 
 /**
+ * Whether a service is a receiver and not a loop.
+ *
+ * The syslog and SNMP receivers hold a UDP socket and do not tick: there is
+ * no last run to judge them by. Their health is whether the socket is bound,
+ * and a receiver judged by its clock would be reported as hung forever —
+ * which would leave the health of the whole system degraded for good.
+ */
+function isReceiver(service: ServiceHealth): boolean {
+  return service.bound !== undefined;
+}
+
+/**
  * Per-service "is the loop hung?" check (Fase 2 — 2.6).
  *
  * A loop is considered hung when its last successful tick is older
@@ -130,6 +142,8 @@ export function detectHangedLoops(
   const out: SchedulerName[] = [];
   for (const [name, s] of Object.entries(snapshot) as Array<[SchedulerName, ServiceHealth]>) {
     if (!s.expected) continue;
+    // A receiver has no tick: it is watched by its socket, not by a clock.
+    if (isReceiver(s)) continue;
     if (s.lastRunAt === null) {
       // Never ran — counted as hung, not as recovered. This is the
       // "ausencia de primera ejecución" case the roadmap requires.
@@ -158,14 +172,6 @@ export function overallHealthy(snapshot: Record<string, ServiceHealth>, recentEr
     if (s.lastError !== null && s.lastErrorAt !== null) {
       if (now - s.lastErrorAt <= recentErrorMs) return false;
     }
-    // For syslog, "bound" must be true. We can't use the error
-    // window for "never bound" — fall through to the lastRunAt check
-    // below.
-  }
-  // Syslog-specific: if expected but never bound, unhealthy.
-  const syslog = snapshot['syslog'];
-  if (syslog !== undefined && syslog.expected && syslog.bound === false) {
-    return false;
   }
   // If a service is expected and has never run, treat as unhealthy.
   // The interval defaults are minutes-to-hours, so a missing
@@ -175,6 +181,12 @@ export function overallHealthy(snapshot: Record<string, ServiceHealth>, recentEr
   // detectHangedLoops still reports the missing tick separately.
   for (const s of services) {
     if (!s.expected) continue;
+    // A receiver does not tick: its socket is the whole of its health.
+    // Judged by its clock, a bound receiver would be unhealthy forever.
+    if (isReceiver(s)) {
+      if (s.bound !== true) return false;
+      continue;
+    }
     if (s.lastRunAt === null && s.lastErrorAt === null) return false;
   }
   return true;
