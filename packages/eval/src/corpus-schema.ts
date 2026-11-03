@@ -34,6 +34,12 @@
 
 import { z } from 'zod';
 
+// La taxonomia de inyeccion es canonica en `@ftth-copilot/shared`
+// (`shared/src/injection.ts`): la comparten este contrato de evaluacion y el
+// detector de texto del saneador de la KB. Se reexporta aca para no cambiar
+// la API publica de `packages/eval`.
+import { INJECTION_KINDS } from '@ftth-copilot/shared';
+
 // ── Version markers ──────────────────────────────────────────────────────────
 
 export const EVAL_CORPUS_SCHEMA = 'ftth.eval-corpus.v1' as const;
@@ -52,15 +58,7 @@ export const evalSurfaceSchema = z.enum([
 ]);
 export type EvalSurface = z.infer<typeof evalSurfaceSchema>;
 
-export const injectionKindSchema = z.enum([
-  'direct-override',
-  'role-reassignment',
-  'customer-name-smuggle',
-  'connector-payload-smuggle',
-  'retrieval-row-smuggle',
-  'prediction-smuggle',
-  'system-injection',
-]);
+export const injectionKindSchema = z.enum(INJECTION_KINDS);
 export type InjectionKind = z.infer<typeof injectionKindSchema>;
 
 export const expectedGateSchema = z.enum(['allow', 'warn', 'abstain']);

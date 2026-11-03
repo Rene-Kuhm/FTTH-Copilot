@@ -61,3 +61,28 @@ export type ResolvedLabel = (typeof RESOLVED_LABELS)[number];
  * nunca se publica un número.
  */
 export const DEFAULT_MIN_SAMPLE_SIZE = 30;
+
+// ── El interruptor del learning loop (T1.1) ─────────────────────────────────
+//
+// El modo vive acá, y no en `packages/learning`, porque lo consultan tres
+// paquetes: el núcleo puro (que resuelve la precedencia), `packages/evidence`
+// (que NO puede importar a learning — la pared del Truth Gate, I1) y el
+// runtime. AGENTS.md §4: un tipo duplicado en dos paquetes es un bug.
+//
+// `off` es el default y no un caso excepcional: desplegar el código no
+// cambia lo que ve el operador. `shadow` calcula la salida aprendida y la
+// registra al lado de la actual, pero el usuario sigue viendo la actual.
+
+/** Juego cerrado de modos del learning loop. */
+export const LEARNING_MODES = ['off', 'shadow', 'active'] as const;
+
+/** Tipo de modo del learning loop. */
+export type LearningMode = (typeof LEARNING_MODES)[number];
+
+/** Modo por defecto: el learning loop apagado. */
+export const DEFAULT_LEARNING_MODE: LearningMode = 'off';
+
+/** ¿El valor es un modo del learning loop? */
+export function isLearningMode(value: unknown): value is LearningMode {
+  return typeof value === 'string' && (LEARNING_MODES as readonly string[]).includes(value);
+}

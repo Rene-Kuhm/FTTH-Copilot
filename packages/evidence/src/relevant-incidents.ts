@@ -11,7 +11,7 @@
  * `formatRelevantIncidentsBlock` renders them under an explicit
  * "contexto, no evidencia" heading.
  */
-import type { ConfirmedIncident, RelevantIncidentResult } from '@ftth-copilot/shared';
+import type { ConfirmedIncident, LearningMode, RelevantIncidentResult } from '@ftth-copilot/shared';
 import { scoreCorpus, tokenize } from './bm25-lite';
 
 /** Reciprocal-rank-fusion constant. Phase 2 merges a dense list with the same K. */
@@ -28,6 +28,39 @@ export const DEFAULT_SINCE_DAYS = 90;
 
 /** Multiplier applied to the sparse score when `deviceHint` matches the row. */
 export const DEVICE_HINT_BOOST = 1.5;
+
+/** El origen de una confirmación: `operator`, `agent` o `system`. */
+export type ConfirmedBy = ConfirmedIncident['confirmedBy'];
+
+/**
+ * Peso de recuperación por origen (D2, T1.3).
+ *
+ * `operator = 1.0`, `system = 0.8`, `agent = 0.5`: una fila que el agente se
+ * auto-confirmó pesa menos que una que confirmó un técnico, y una que el
+ * sistema promovió pesa menos que una que confirmó un humano. Son los
+ * valores iniciales — se calibran en la Fase 4 y pasan a `TenantPolicy`.
+ *
+ * Se aplican igual que el `DEVICE_HINT_BOOST`: multiplican el score sparse
+ * **antes** del filtro de `MIN_SPARSESCORE`, así que una fila marginal de
+ * origen débil se descarta y no compite.
+ */
+export const CONFIRMED_BY_WEIGHTS: Readonly<Record<ConfirmedBy, number>> = {
+  operator: 1.0,
+  system: 0.8,
+  agent: 0.5,
+};
+
+/**
+ * El peso de una fila cuyo `confirmedBy` no está en el juego cerrado.
+ *
+ * Fallo seguro: 1.0, o sea la fila no se penaliza. Un valor desconocido
+ * nunca tiene que hundir una fila que un técnico confirmó.
+ */
+export function confirmedByWeight(confirmedBy: unknown): number {
+  if (typeof confirmedBy !== 'string') return 1;
+  const weight = CONFIRMED_BY_WEIGHTS[confirmedBy as ConfirmedBy];
+  return typeof weight === 'number' ? weight : 1;
+}
 
 const DAY_MS = 86_400_000;
 
@@ -50,6 +83,16 @@ export interface RetrieveRelevantIncidentsArgs {
   mode?: 'live' | 'demo';
   now?: Date;
   confirmedIncidents: ConfirmedIncident[];
+  /**
+   * Los ids de los incidentes que el tenant retractó (T1.2, D2).
+   *
+   * `ConfirmedIncident` es inmutable: la corrección es una fila aparte
+   * (`ConfirmedIncidentRetraction`). La fila retractada queda fuera del
+   * recall, del entrenamiento y del índice, pero sigue en la base para
+   * auditoría. Los ids llegan ya filtrados por tenant: el llamador los
+   * consulta con `tenantId` y los pasa acá.
+   */
+  retractedIncidentIds?: readonly string[];
 }
 
 /**
@@ -60,6 +103,14 @@ export interface RetrieveRelevantIncidentsArgs {
 export interface RetrievalTenantPolicy {
   readonly retrievalLimit?: number;
   readonly retrievalSinceDays?: number;
+  /**
+   * El interruptor del learning loop (T1.1).
+   *
+   * Vive acá, y no en `packages/learning`, porque este paquete no puede
+   * importar al de learning: la pared del Truth Gate (I1) lo prohíbe. El
+   * tipo canónico está en `@ftth-copilot/shared`.
+   */
+  readonly learningMode?: LearningMode;
 }
 
 function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): boolean {
@@ -76,9 +127,10 @@ function matchesHint(row: ConfirmedIncident, hint: DeviceHint | undefined): bool
  *  2. short-circuit to `[]` outside live mode (demo == live parity: demo
  *     never sees tenant history);
  *  3. scope to `tenantId` and to the `sinceDays` window on `resolvedAt`;
- *  4. BM25 over the pre-computed `searchTokens`, boosted by `deviceHint`;
- *  5. drop candidates below `MIN_SPARSESCORE` (kills zero-overlap rows);
- *  6. RRF over the surviving sparse ranking, capped at `limit`.
+ *  4. drop the retracted rows (T1.2, D2);
+ *  5. BM25 over the pre-computed `searchTokens`, boosted by `deviceHint`;
+ *  6. drop candidates below `MIN_SPARSESCORE` (kills zero-overlap rows);
+ *  7. RRF over the surviving sparse ranking, capped at `limit`.
  *
  * Deviation from `design.md`, recorded deliberately: the design writes the
  * final score as the raw `Σ 1 / (RRF_K + rank)`. With `RRF_K = 60` the best
@@ -106,8 +158,18 @@ export function retrieveRelevantIncidents(
   const sinceDays = args.sinceDays ?? tenantPolicy?.retrievalSinceDays ?? DEFAULT_SINCE_DAYS;
   const cutoff = now.getTime() - sinceDays * DAY_MS;
 
+  // T1.2 — las filas retractadas no se recuperan (D2). El conjunto se arma
+  // una vez: la lista puede ser larga y el filtro corre por cada fila.
+  const retracted =
+    args.retractedIncidentIds && args.retractedIncidentIds.length > 0
+      ? new Set(args.retractedIncidentIds)
+      : null;
+
   const candidates = args.confirmedIncidents.filter(
-    (row) => row.tenantId === args.tenantId && Date.parse(row.resolvedAt) >= cutoff,
+    (row) =>
+      row.tenantId === args.tenantId &&
+      Date.parse(row.resolvedAt) >= cutoff &&
+      !(retracted !== null && retracted.has(row.id)),
   );
   if (candidates.length === 0) return [];
 
@@ -117,11 +179,20 @@ export function retrieveRelevantIncidents(
     candidates.map((row) => ({ tokens: tokenize(row.searchTokens) })),
   );
 
+  // T1.3 (D2) — el peso por origen sólo se aplica con el learning loop
+  // `active`. Con `off` y con `shadow` la salida es byte-idéntica a la de
+  // hoy: en shadow el operador ve la salida actual, no la aprendida (es el
+  // patrón de Laya: en shadow la decisión se registra, no se aplica).
+  const weightsEnabled = tenantPolicy?.learningMode === 'active';
+
   const ranked = candidates
-    .map((row, i) => ({
-      row,
-      sparseScore: sparse[i]! * (matchesHint(row, args.deviceHint) ? DEVICE_HINT_BOOST : 1),
-    }))
+    .map((row, i) => {
+      const sparseScore = sparse[i]! * (matchesHint(row, args.deviceHint) ? DEVICE_HINT_BOOST : 1);
+      return {
+        row,
+        sparseScore: weightsEnabled ? sparseScore * confirmedByWeight(row.confirmedBy) : sparseScore,
+      };
+    })
     .filter((entry) => entry.sparseScore >= MIN_SPARSESCORE)
     .sort((a, b) => b.sparseScore - a.sparseScore);
 

@@ -2,7 +2,9 @@
 
 **Status**: Fase 0 completa (T0.1–T0.5): `packages/learning` es el núcleo
 puro y el worker congela el dataset por tenant con su hash de contenido. La
-Fase 1 (`TenantPolicy.learningMode` y retracciones) espera revisión.
+Fase 1 (T1.1–T1.6) también está completa: el interruptor por tenant, las
+retracciones, el peso por origen, el saneamiento en escritura con cuarentena y
+los dos corpus. La Fase 2 (recall denso) es la siguiente.
 **Created**: 2026-10-31
 **Scope**: Cerrar el bucle de aprendizaje de FTTH-Copilot: que el sistema mejore
 con cada diagnóstico confirmado o refutado por un operador, en tres capas
@@ -490,20 +492,58 @@ para que la revisión no las tenga que adivinar:
    cruza queda listado en `crossing`.
 
 ### Fase 1 — Salvaguardas antes del aprendizaje
-- [ ] **T1.1** `TenantPolicy.learningMode` (`off` default) + `learningArtifactPins`;
+- [x] **T1.1** `TenantPolicy.learningMode` (`off` default) + `learningArtifactPins`;
   migración Prisma; resolver con precedencia como `retrievalLimit`.
-- [ ] **T1.2** Tabla `ConfirmedIncidentRetraction` + exclusión en
+  → `LearningMode` (`off | shadow | active`, default `off`) y `learningArtifactPins`
+  (`Json?`) en `TenantPolicy`, con migración aditiva. El tipo canónico del modo vive
+  en `@ftth-copilot/shared` (`learning.ts`): lo consultan el núcleo puro, `evidence`
+  (que no puede importar a learning, I1) y el runtime. `resolveLearningMode` y
+  `resolveArtifactPins` (`packages/learning/src/policy.ts`) resuelven con la precedencia
+  `args.X ?? tenantPolicy.X ?? default.X`, igual que `retrievalLimit`.
+- [x] **T1.2** Tabla `ConfirmedIncidentRetraction` + exclusión en
   `retrieveRelevantIncidents` (D2). Test: fila retractada nunca se recupera.
-- [ ] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`
+  → `ConfirmedIncidentRetraction` (append-only: `tenantId`, `incidentId`, `reason`,
+  `retractedByUserId`, `createdAt`; único por `(tenantId, incidentId)`) con migración
+  aditiva. `incidentId` es referencia blanda, sin FK: la KB es inmutable y su borrado
+  no arrastra la auditoría. `retrieveRelevantIncidents` acepta
+  `retractedIncidentIds` y las filas retractadas quedan fuera del recall; la ruta de
+  chat consulta las retracciones filtradas por tenant.
+- [x] **T1.3** Peso por `confirmedBy` en el ranking (D2), con `learningMode: off`
   ⇒ salida byte-idéntica a hoy.
-- [ ] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta
+  → `CONFIRMED_BY_WEIGHTS` (`operator = 1.0`, `system = 0.8`, `agent = 0.5`) en
+  `packages/evidence`: el peso multiplica el score sparse, igual que el
+  `DEVICE_HINT_BOOST`. Lo gobierna el interruptor del tenant: con `off` y con
+  `shadow` la salida es byte-idéntica a la de hoy (en shadow el operador ve la
+  salida actual, no la aprendida — es el patrón de Laya); sólo `active` lo
+  aplica. El peso vive en `evidence` y no en `packages/learning` porque
+  evidence no puede importar al learning (I1).
+- [x] **T1.4** Saneamiento en escritura + estado `quarantined` en la ruta
   `confirm` y en la promoción (D3).
-- [ ] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas
+  → `sanitizeFreeText` (`apps/web/lib/kb/sanitize-free-text.ts`): NFKC, remoción de
+  invisibles y de control, cap de bytes reusando `FREE_TEXT_MAX_BYTES`, y detección de
+  instrucciones con `detectInstructionInjection`. La taxonomía de inyección es canónica en
+  `@ftth-copilot/shared` (`shared/src/injection.ts`) y `packages/eval` la reexporta sin
+  cambiar su API. `ConfirmedIncident.state` (`active` | `quarantined`, default `active`)
+  con migración aditiva: una fila con instrucciones embebidas no se rechaza en silencio —
+  se guarda en cuarentena, con el motivo en la auditoría, y el recall trae sólo filas
+  `active`.
+- [x] **T1.5** Corpus red nuevo para la superficie `retrieval-block` con filas
   envenenadas en la KB (instrucciones, role-reassignment, smuggling de nombre de
   cliente); el eval gate debe seguir en 100%.
-- [ ] **T1.6** Corpus de abstención para I7: casos sin datos suficientes con
+  → `packages/eval/corpus/red.json` suma tres casos de `retrieval-block`
+  (`direct-override`, `role-reassignment`, `customer-name-smuggle`), cada uno con su
+  fila de KB envenenada. Un test ata el corpus con el detector del saneador: toda fila
+  envenenada del corpus tiene que ser detectada, o el corpus miente sobre la cobertura.
+  El eval gate sigue en 100% (259 tests del paquete en verde).
+- [x] **T1.6** Corpus de abstención para I7: casos sin datos suficientes con
   incidentes históricos muy parecidos en la KB. Línea base de abstención
   registrada.
+  → `ftth.eval-abstention-corpus.v1` (`packages/eval/src/abstention-corpus.ts`): ocho
+  casos sin datos (veredicto `incomplete`) con al menos un vecino muy parecido en la KB
+  — el caso tentador en el que el LLM completaría con historia en vez de abstenerse. La
+  línea base queda registrada en `ABSTENTION_BASELINE_RATE` (1.0): cuando el learning
+  loop se prenda, la tasa medida tiene que ser ≥ la línea base, o el aprendizaje está
+  llenando los huecos de datos con historia.
 
 ### Fase 2 — L1 recall denso (shadow)
 - [ ] **T2.1** Spike: medir `multilingual-e5-small` vs `bge-m3` en ONNX/CPU sobre un

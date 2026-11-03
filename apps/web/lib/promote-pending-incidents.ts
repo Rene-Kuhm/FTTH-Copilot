@@ -14,6 +14,7 @@
 import { prisma, Prisma } from '@ftth-copilot/db';
 import { PROMOTION_MIN_AGE_MS, eligibleForPromotion } from '@ftth-copilot/evidence';
 import type { TenantPolicy } from '@ftth-copilot/shared';
+import { sanitizeFreeText } from '@/lib/kb/sanitize-free-text';
 
 export interface PromotePendingIncidentsResult {
   promoted: number;
@@ -135,7 +136,14 @@ export async function promotePendingIncidents(
 
     const observedAt = sourceIncident.resolvedAt ?? candidate.proposedConfirmedAt;
     const resolvedAt = sourceIncident.resolvedAt ?? candidate.proposedConfirmedAt;
-    const searchTokens = candidate.summary
+
+    // T1.4 (D3) — el texto libre se sanea AL ESCRIBIR, también en la
+    // promoción: el resumen lo escribe el agente, pero el mismo texto
+    // sale del recall como contexto. Una fila con instrucciones embebidas
+    // queda `quarantined` y espera revisión humana.
+    const sanitizedSummary = sanitizeFreeText(candidate.summary);
+    const state = sanitizedSummary.suspicion ? ('quarantined' as const) : ('active' as const);
+    const searchTokens = sanitizedSummary.text
       .toLowerCase()
       .split(/\s+/)
       .filter((t) => t.length > 0)
@@ -151,13 +159,14 @@ export async function promotePendingIncidents(
           severity: sourceIncident.severity,
           sourceIncidentId: candidate.sourceIncidentId,
           sourceTool: '__agent_promote__',
-          summary: candidate.summary,
+          summary: sanitizedSummary.text,
           symptoms: {} as object,
-          rootCause: candidate.summary,
+          rootCause: sanitizedSummary.text,
           fix: 'Promovido desde el run del agente.',
           observedAt,
           resolvedAt,
           confirmedBy: 'agent',
+          state,
           searchTokens,
         },
       });

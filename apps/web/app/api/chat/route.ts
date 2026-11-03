@@ -207,6 +207,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       where: {
         tenantId: providerArgs.tenantId,
         resolvedAt: { gte: cutoff },
+        // T1.4 (D3) — una fila en cuarentena no es parte de la KB: espera
+        // revisión humana, así que el recall no la trae.
+        state: 'active',
       },
       select: {
         id: true,
@@ -227,6 +230,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         searchTokens: true,
       },
     })) as unknown as ConfirmedIncident[];
+    // T1.2 (D2) — los incidentes que el tenant retractó quedan fuera del
+    // recall. La consulta va filtrada por tenant: una retracción de otro ISP
+    // no puede sacar una fila de este.
+    const retractions = await prisma.confirmedIncidentRetraction.findMany({
+      where: { tenantId: providerArgs.tenantId },
+      select: { incidentId: true },
+    });
     return retrieveRelevantIncidents(
       {
         tenantId: providerArgs.tenantId,
@@ -236,6 +246,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         sinceDays: effectiveSinceDays,
         mode: 'live',
         confirmedIncidents,
+        retractedIncidentIds: retractions.map((row) => row.incidentId),
       },
       tenantPolicy ?? undefined,
     );

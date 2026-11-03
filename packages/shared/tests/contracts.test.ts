@@ -639,6 +639,43 @@ describe('ftth.tenant-policy.v1', () => {
     ).toBe(false);
   });
 
+  // ── T1.1 — el interruptor del learning loop ───────────────────────────────
+
+  it('accepts the learning knobs of the Fase 1 (learningMode + pins)', () => {
+    const withLearning: TenantPolicy = {
+      ...valid,
+      learningMode: 'shadow',
+      learningArtifactPins: { l1: 'recall-v3' },
+    };
+    expect(tenantPolicySchema.safeParse(withLearning).success).toBe(true);
+  });
+
+  it('accepts a policy without the learning knobs (they are optional)', () => {
+    const minimal: TenantPolicy = {
+      schema: TENANT_POLICY_SCHEMA,
+      schemaVersion: 1,
+      tenantId: 't1',
+      createdAt: '2026-09-01T11:00:00.000Z',
+      updatedAt: '2026-09-01T11:00:00.000Z',
+    };
+    expect(tenantPolicySchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it('rejects a learningMode outside the closed set', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, learningMode: 'enabled' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a pin that is not a non-empty string', () => {
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, learningArtifactPins: { l1: '' } }).success,
+    ).toBe(false);
+    expect(
+      tenantPolicySchema.safeParse({ ...valid, learningArtifactPins: { l1: 7 } }).success,
+    ).toBe(false);
+  });
+
   it('rejects retrievalLimit < 1 or > 50', () => {
     expect(
       tenantPolicySchema.safeParse({ ...valid, retrievalLimit: 0 }).success,

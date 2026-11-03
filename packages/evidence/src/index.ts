@@ -65,6 +65,7 @@ export {
   tokenize,
 } from './bm25-lite';
 export {
+  CONFIRMED_BY_WEIGHTS,
   DEFAULT_LIMIT,
   DEFAULT_SINCE_DAYS,
   DEVICE_HINT_BOOST,
@@ -72,8 +73,10 @@ export {
   MissingTenantError,
   RELEVANT_INCIDENTS_HEADING,
   RRF_K,
+  confirmedByWeight,
   formatRelevantIncidentsBlock,
   retrieveRelevantIncidents,
+  type ConfirmedBy,
   type DeviceHint,
   type RetrieveRelevantIncidentsArgs,
   type RetrievalTenantPolicy,

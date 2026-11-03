@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   prismaAgentActionLogCreate: vi.fn(),
   prismaDetectedAlertFindMany: vi.fn(),
   prismaConfirmedIncidentFindMany: vi.fn(),
+  // T1.2 — las retracciones del tenant (D2).
+  prismaConfirmedIncidentRetractionFindMany: vi.fn(),
   prismaPendingIncidentCandidateCreate: vi.fn(),
   prismaTenantPolicyFindUnique: vi.fn(),
   // Fase F — verdictLog persistence (F-5.2).
@@ -73,6 +75,9 @@ vi.mock('@ftth-copilot/db', () => ({
     },
     confirmedIncident: {
       findMany: mocks.prismaConfirmedIncidentFindMany,
+    },
+    confirmedIncidentRetraction: {
+      findMany: mocks.prismaConfirmedIncidentRetractionFindMany,
     },
     pendingIncidentCandidate: {
       create: mocks.prismaPendingIncidentCandidateCreate,
@@ -155,6 +160,7 @@ beforeEach(() => {
   mocks.prismaAgentActionLogCreate.mockReset();
   mocks.prismaDetectedAlertFindMany.mockReset();
   mocks.prismaConfirmedIncidentFindMany.mockReset();
+  mocks.prismaConfirmedIncidentRetractionFindMany.mockReset();
   mocks.prismaPendingIncidentCandidateCreate.mockReset();
   mocks.prismaTenantPolicyFindUnique.mockReset();
   // Fase F — verdictLog default: success.
@@ -177,6 +183,8 @@ beforeEach(() => {
   mocks.prismaAgentActionLogCreate.mockResolvedValue({ id: 'log' });
   mocks.prismaDetectedAlertFindMany.mockResolvedValue([]);
   mocks.prismaConfirmedIncidentFindMany.mockResolvedValue([]);
+  // T1.2 — default: el tenant no retractó nada.
+  mocks.prismaConfirmedIncidentRetractionFindMany.mockResolvedValue([]);
   mocks.prismaPendingIncidentCandidateCreate.mockResolvedValue({ id: 'pending-1' });
   // Default: no TenantPolicy row.
   mocks.prismaTenantPolicyFindUnique.mockResolvedValue(null);
