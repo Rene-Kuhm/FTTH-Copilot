@@ -173,3 +173,16 @@ export {
 } from './pilot-acceptance';
 
 
+export {
+  ABSTENTION_BASELINE_RATE,
+  ABSTENTION_CORPUS,
+  ABSTENTION_CORPUS_FLOOR,
+  ABSTENTION_CORPUS_SCHEMA,
+  ABSTENTION_CORPUS_VERSION,
+  assertAbstentionCorpusFloor,
+  computeCorpusAbstentionRate,
+  loadAbstentionCorpus,
+  type AbstentionCorpus,
+  type AbstentionCorpusCase,
+  type AbstentionCorpusNeighbor,
+} from './abstention-corpus';

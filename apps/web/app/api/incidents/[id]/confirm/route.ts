@@ -7,6 +7,7 @@ import { tokenize } from '@ftth-copilot/evidence';
 import { auditIncident } from '@ftth-copilot/soc';
 import { buildAuditContext } from '@/lib/audit-context';
 import { enforceApiRateLimit } from '@/lib/rate-limit-store';
+import { sanitizeFreeText } from '@/lib/kb/sanitize-free-text';
 
 /**
  * POST /api/incidents/:id/confirm — operator confirmation path for Fase D.
@@ -123,7 +124,23 @@ export async function POST(
   }
 
   const now = new Date();
-  const searchTokens = buildSearchTokens(parsed.data.rootCause, parsed.data.fix, parsed.data.summary);
+
+  // T1.4 (D3) — el texto libre se sanea AL ESCRIBIR, antes de persistir y
+  // antes de que exista el embedding: si el texto malicioso entra al vector,
+  // sanear en lectura llega tarde. Una fila con instrucciones embebidas no
+  // se rechaza en silencio: queda `quarantined` y espera revisión humana.
+  const sanitizedSummary = sanitizeFreeText(parsed.data.summary);
+  const sanitizedRootCause = sanitizeFreeText(parsed.data.rootCause);
+  const sanitizedFix = sanitizeFreeText(parsed.data.fix);
+  const suspicion =
+    sanitizedSummary.suspicion ?? sanitizedRootCause.suspicion ?? sanitizedFix.suspicion;
+  const state = suspicion ? ('quarantined' as const) : ('active' as const);
+
+  const searchTokens = buildSearchTokens(
+    sanitizedRootCause.text,
+    sanitizedFix.text,
+    sanitizedSummary.text,
+  );
 
   let created;
   try {
@@ -136,14 +153,15 @@ export async function POST(
         sourceIncidentId: incident.id,
         investigationFeedbackId: linkedFeedbackId,
         sourceTool: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
-        summary: parsed.data.summary,
+        summary: sanitizedSummary.text,
         symptoms: {} as object,
-        rootCause: parsed.data.rootCause,
-        fix: parsed.data.fix,
+        rootCause: sanitizedRootCause.text,
+        fix: sanitizedFix.text,
         observedAt: incident.firstSeenAt,
         resolvedAt: incident.resolvedAt ?? now,
         confirmedBy: 'operator',
         confirmedByUserId: user.id,
+        state,
         searchTokens,
       },
     });
@@ -166,16 +184,20 @@ export async function POST(
       tenantId: user.tenantId,
       userId: user.id,
       toolName: linkedFeedbackId ? '__investigation_confirm__' : '__operator_confirm__',
-      parameters: (
-        linkedFeedbackId
+      parameters: {
+        ...(linkedFeedbackId
           ? { ...parsed.data, investigationFeedbackId: linkedFeedbackId }
-          : { rootCause: parsed.data.rootCause, fix: parsed.data.fix, summary: parsed.data.summary }
-      ) as unknown as object,
+          : { rootCause: parsed.data.rootCause, fix: parsed.data.fix, summary: parsed.data.summary }),
+        // T1.4 — la cuarentena queda auditada en el momento en que hay un
+        // humano responsable: qué patrón se detectó y dónde.
+        ...(suspicion
+          ? { quarantine: { kind: suspicion.kind, evidence: suspicion.evidence } }
+          : {}),
+      } as unknown as object,
       result: created.id,
       durationMs: 0,
     },
   });
-
   // ── Audit log ─────────────────────────────────────────────────────────
   await auditIncident.confirmed(
     buildAuditContext(req as unknown as import('next/server').NextRequest, user),

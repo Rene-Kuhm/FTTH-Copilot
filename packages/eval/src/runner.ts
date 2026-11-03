@@ -91,11 +91,11 @@ export interface EvalRunSummary {
  * for white-box coverage tests; the function is intentionally pure.
  */
 export function computeGateDecision(
-  verdicts: Verdict[] | undefined,
+  verdicts: readonly Verdict[] | undefined,
   mode: TruthGateMode = 'strict',
   tenantPolicy?: AbstentionTenantPolicy,
 ): GateDecision {
-  return shouldAbstain(verdicts ?? [], mode, tenantPolicy);
+  return shouldAbstain([...(verdicts ?? [])], mode, tenantPolicy);
 }
 
 /**

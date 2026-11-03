@@ -11,14 +11,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_LEARNING_MODE,
   DEFAULT_MIN_SAMPLE_SIZE,
   FEEDBACK_LABELS,
   FEEDBACK_LABEL_CONFIRMED,
   FEEDBACK_LABEL_INCORRECT,
   FEEDBACK_LABEL_INSUFFICIENT,
+  LEARNING_MODES,
   RESOLVED_LABELS,
   RESOLVED_LABEL_CONFLICTED,
   isFeedbackLabel,
+  isLearningMode,
 } from '../src/learning';
 
 describe('learning — contrato canónico', () => {
@@ -53,5 +56,29 @@ describe('learning — contrato canónico', () => {
 
   it('el umbral de muestra mínima es 30 (regla 1.6 del roadmap)', () => {
     expect(DEFAULT_MIN_SAMPLE_SIZE).toBe(30);
+  });
+});
+
+// ── T1.1 — el interruptor del learning loop ────────────────────────────────
+
+describe('learning — interruptor por tenant (T1.1)', () => {
+  it('el juego cerrado de modos es exactamente off, shadow, active', () => {
+    expect(LEARNING_MODES).toEqual(['off', 'shadow', 'active']);
+  });
+
+  it('el default es `off`: desplegar el código no cambia lo que ve el operador', () => {
+    expect(DEFAULT_LEARNING_MODE).toBe('off');
+  });
+
+  it('isLearningMode acepta los tres modos y rechaza cualquier otra cosa', () => {
+    expect(isLearningMode('off')).toBe(true);
+    expect(isLearningMode('shadow')).toBe(true);
+    expect(isLearningMode('active')).toBe(true);
+    expect(isLearningMode('enabled')).toBe(false);
+    expect(isLearningMode('OFF')).toBe(false);
+    expect(isLearningMode('')).toBe(false);
+    expect(isLearningMode(undefined)).toBe(false);
+    expect(isLearningMode(null)).toBe(false);
+    expect(isLearningMode(7)).toBe(false);
   });
 });

@@ -33,6 +33,9 @@ const fixedRow = {
   truthGateMode: 'observe' as 'observe' | 'strict',
   abstainOnCodes: JSON.stringify(['incomplete', 'stale']),
   promotionMinAgeMs: 60_000,
+  // T1.1 — el interruptor del learning loop.
+  learningMode: 'off' as 'off' | 'shadow' | 'active',
+  learningArtifactPins: null,
   lastEvaluatedAt: new Date('2026-09-01T12:00:00.000Z'),
   createdAt: new Date('2026-09-01T11:00:00.000Z'),
   updatedAt: new Date('2026-09-01T11:00:00.000Z'),
@@ -75,6 +78,7 @@ describe('loadTenantPolicy — row mapping', () => {
       truthGateMode: 'observe',
       abstainOnCodes: ['incomplete', 'stale'],
       promotionMinAgeMs: 60_000,
+      learningMode: 'off',
       lastEvaluatedAt: '2026-09-01T12:00:00.000Z',
       createdAt: '2026-09-01T11:00:00.000Z',
       updatedAt: '2026-09-01T11:00:00.000Z',
@@ -97,9 +101,22 @@ describe('loadTenantPolicy — row mapping', () => {
       schema: 'ftth.tenant-policy.v1',
       schemaVersion: 1,
       tenantId: 'tenant-1',
+      learningMode: 'off',
       createdAt: '2026-09-01T11:00:00.000Z',
       updatedAt: '2026-09-01T11:00:00.000Z',
     });
+  });
+
+  it('forwards the learning mode and the artifact pins (T1.1)', async () => {
+    mocks.prismaTenantPolicyFindUnique.mockResolvedValue({
+      ...fixedRow,
+      learningMode: 'active',
+      learningArtifactPins: { l1: 'recall-v3' },
+    });
+    const { loadTenantPolicy } = await import('@/lib/policies/load-tenant-policy');
+    const policy = await loadTenantPolicy('tenant-1');
+    expect(policy?.learningMode).toBe('active');
+    expect(policy?.learningArtifactPins).toEqual({ l1: 'recall-v3' });
   });
 
   it('returns null when the row schemaVersion is not 1', async () => {
