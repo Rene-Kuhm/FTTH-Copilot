@@ -152,9 +152,13 @@ SMARTOLT_API_BASE_URL=https://api.smartolt.com
 SMARTOLT_API_KEY=<real-api-key>
 
 # ── Red: política estricta ──────────────────────────────────────────────────
+# The web and the worker refuse to start with any of these exceptions active
+# in production (`NODE_ENV=production` without `DEPLOY_ENV=staging`): an
+# exception here is a hole straight into the internal network.
 NMS_ALLOWED_PORTS=443
 NMS_ALLOW_PRIVATE_NETWORKS=false
 NMS_ALLOW_HTTP=false
+DEPLOY_ENV=production
 
 # ── Métricas y observabilidad ─────────────────────────────────────────────
 METRICS_BEARER_TOKEN=<generate-with-openssl-rand-hex-32>
@@ -546,10 +550,12 @@ VICTORIAMETRICS_STORAGE_NODES=2
 **Monitoring cluster health:**
 ```bash
 # Check vmstorage cluster state
-docker compose exec vmstorage   wget -qO- 'http://localhost:8482/cluster/lookups' | jq
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec vmstorage \
+  wget -qO- 'http://localhost:8482/cluster/lookups' | jq
 
 # Check replication status
-docker compose exec vmstorage   wget -qO- 'http://localhost:8482/cluster/replication'
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec vmstorage \
+  wget -qO- 'http://localhost:8482/cluster/replication'
 ```
 
 For rolling updates, see: https://docs.victoriametrics.com/Cluster-VictoriaMetrics.html#updating-cluster
@@ -577,6 +583,28 @@ For rolling updates, see: https://docs.victoriametrics.com/Cluster-VictoriaMetri
 | HTTPS configurado con Caddy o reverse proxy propio | ☐ | Usar `docker-compose.https.yml` o terminación TLS propia |
 | `CADDY_EMAIL` configurado en `.env.prod` | ☐ | Para notificaciones de vencimiento de certificado |
 | Dominio apontado a DNS antes de levantar Caddy | ☐ | Caddy necesita DNS resuelto para generar certificados |
+
+### 6.1.1 La política SSRF no admite excepciones en producción
+
+La política por defecto es estricta a propósito: HTTPS, sin localhost, sin redes
+privadas y en el puerto 443. El staging necesita exceptuarse de tres de esas
+reglas —su NMS vive en el loopback del host—, y esa excepción **no puede
+llegar a producción**: con `NODE_ENV=production` y sin la marca de staging
+(`DEPLOY_ENV=staging`), el web y el worker **se niegan a arrancar** si
+`NMS_ALLOW_HTTP`, `NMS_ALLOW_PRIVATE_NETWORKS`, `NMS_ALLOWED_HOSTS` o
+`NMS_ALLOWED_PORTS` abren la política.
+
+El error en el log es explícito:
+
+```
+La política SSRF no admite excepciones en producción: NMS_ALLOW_HTTP, ...
+```
+
+Qué hacer si aparece: o se quitan las excepciones del `.env.prod`, o —si el
+error es en un entorno que no es producción— se revisa que `NODE_ENV` y
+`DEPLOY_ENV` sean los que corresponde. `DEPLOY_ENV=staging` en el `.env.prod`
+desarma la comprobación: es la marca que sólo puede estar en el entorno del
+staging.
 
 ### 6.2 Rotación de credenciales
 
@@ -734,5 +762,5 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --scale app
 | Puerto 3001 ocupado | Cambiar `PORT` en `.env.prod` y reiniciar |
 | Error "Refusing to seed in production" | Verificar `NODE_ENV=production` + `ALLOW_PRODUCTION_SEED=false` en `.env.prod` |
 | Métricas no responden | Verificar que VictoriaMetrics esté corriendo (`docker compose ps`); `curl http://127.0.0.1:8428/health` desde el contenedor debe devolver `OK` (usar 127.0.0.1, no `localhost`: resuelve a `::1` y VM escucha solo IPv4); verificar que `METRICS_BEARER_TOKEN` coincide entre app y scrape config |
-| Alertas/rules no cargan | `docker compose exec victoriametrics wget -qO- http://vmalert:8880/api/v1/rules`. Cada regla trae `health` y `lastError`. Ojo: el single-node de VictoriaMetrics NO evalúa reglas; si quitás `vmalert`, no hay recording ni alerting. |
+| Alertas/rules no cargan | `docker compose --env-file .env.prod -f docker-compose.prod.yml exec victoriametrics wget -qO- http://vmalert:8880/api/v1/rules`. Cada regla trae `health` y `lastError`. Ojo: el single-node de VictoriaMetrics NO evalúa reglas; si quitás `vmalert`, no hay recording ni alerting. |
 | Alertas evaluan pero no notifican | `vmalert` arranca sin canal de salida. Montá un notifier config y pasá `-notifier.config`; mientras tanto consultá `/api/v1/rules` directamente. |
