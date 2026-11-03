@@ -431,6 +431,7 @@ export const IncidentListSchema = z.object({
   scope: z.string(),
   hasMore: z.boolean(),
   nextCursor: z.string().nullable().optional(),
+  total: z.number().int(),
 }).passthrough(),
 }).passthrough();
 
@@ -547,6 +548,7 @@ export const PredictionListSchema = z.object({
   scope: z.string(),
   hasMore: z.boolean(),
   nextCursor: z.string().nullable().optional(),
+  total: z.number().int(),
 }).passthrough(),
 }).passthrough();
 
