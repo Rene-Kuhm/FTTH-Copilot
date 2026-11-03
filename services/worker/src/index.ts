@@ -13,7 +13,11 @@
  */
 
 import { createLogger } from '@ftth-copilot/shared';
+import { redisUrl } from '@ftth-copilot/jobs';
+import { WORKER_HEALTH_KEY } from '@ftth-copilot/scheduler';
+import Redis from 'ioredis';
 import { DEFAULT_HEALTH_HOST, DEFAULT_HEALTH_PORT, startHealthServer } from './health';
+import { startHealthPublisher } from './health-publisher';
 import { registeredJobNames } from './registry';
 import { registerRecurringSchedules } from './schedules';
 import { startWorkerSnmpReceiver } from './snmp';
@@ -108,6 +112,28 @@ async function main(): Promise<void> {
   log.info('Consuming queues', { queues: fleet.runtime.queues });
   log.info('Job handlers registered', { handlers });
 
+  // The worker publishes the state of its loops so the web can report it.
+  //
+  // The registry of the loops lives in the memory of this process, and the
+  // health endpoint is served by the web: without this publication the web
+  // has no way of knowing that the loops are running, and its health would
+  // report an empty list of services while the work is being done.
+  //
+  // The connection is its own, apart from the one of the queue: a client
+  // that is down must not take the consumers down with it, and the
+  // publication must fail fast instead of queueing commands that will be
+  // sent minutes later.
+  const publisherRedis = new Redis(redisUrl(env), {
+    maxRetriesPerRequest: 3,
+    enableOfflineQueue: false,
+  });
+  publisherRedis.on('error', (error: Error) => {
+    log.warn('Health publisher could not reach Redis', { error: error.message });
+  });
+
+  const healthPublisher = startHealthPublisher({ client: publisherRedis });
+  log.info('Health snapshot published', { key: WORKER_HEALTH_KEY });
+
   // The worker owns the syslog socket: it binds it, spools every datagram
   // into the durable spool and enqueues the drain job. The gate is the one
   // of the package (`SYSLOG_RECEIVER_ENABLED=true` and `SYSLOG_TENANT_ID`
@@ -159,6 +185,8 @@ async function main(): Promise<void> {
     log.info('Shutting down', { signal });
 
     try {
+      healthPublisher.stop();
+      publisherRedis.disconnect();
       await server.close();
       await syslog.stop();
       await snmp.stop();
