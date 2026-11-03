@@ -46,7 +46,12 @@ RUN pnpm --filter @ftth-copilot/db exec prisma generate
 #   monitoring → { alerts → detection, analytics, connectors-core }, soc →
 #   { alerts, security, db }, analytics, connectors-factory → { db,
 #   connectors-{core, smartolt, mikrowisp, mikrotik} } }, security, shared,
-#   soc → { alerts, security, db } } }
+#   soc → { alerts, security, db }, learning → shared } }
+#
+# The closure is checked by `scripts/tests/worker-image.test.ts`: every
+# package of it has to be copied here. A package that enters the closure and
+# is not copied makes the image start and die at import time — the symptom
+# only shows up in a deployment.
 #
 # `--ignore-scripts` keeps the install hermetic: the only native artifact the
 # image needs is the Prisma query engine, which is copied from the stage above.
@@ -96,6 +101,11 @@ COPY packages/evidence/package.json ./packages/evidence/package.json
 COPY packages/evidence/src ./packages/evidence/src
 COPY packages/agent-core/package.json ./packages/agent-core/package.json
 COPY packages/agent-core/src ./packages/agent-core/src
+# The learning core: the worker runs the `learning.snapshot` job, which
+# freezes the dataset of each tenant. Without these two lines the image
+# starts and dies with `Cannot find package '@ftth-copilot/learning'`.
+COPY packages/learning/package.json ./packages/learning/package.json
+COPY packages/learning/src ./packages/learning/src
 COPY services/worker/package.json ./services/worker/package.json
 COPY services/worker/src ./services/worker/src
 
