@@ -101,4 +101,47 @@ suite('database seed (seed.ts) idempotency and security', () => {
     expect(newUserCount).toBe(initialUserCount);
     expect(newConnCount).toBe(initialConnCount);
   });
+
+  /**
+   * La URL base de la conexión.
+   *
+   * Una conexión sin URL base no la puede usar ningún loop: el conector no
+   * se puede construir y el poll no tiene contra qué consultar. El staging
+   * necesita una que apunte al mock NMS.
+   */
+  it('creates the connection with the base URL of the environment', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      process.env.DEMO_NMS_BASE_URL = 'http://127.0.0.1:18080';
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+
+      const res = await seed({ adminPassword: 'seed-with-base-url' });
+
+      const conn = await prisma.nmsConnection.findUnique({ where: { id: res.connectionId } });
+      expect(conn?.baseUrl).toBe('http://127.0.0.1:18080');
+    } finally {
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
+
+  it('leaves the connection without a base URL when the environment does not say one', async () => {
+    const original = process.env.DEMO_NMS_BASE_URL;
+    try {
+      delete process.env.DEMO_NMS_BASE_URL;
+      await prisma.nmsConnection.deleteMany({
+        where: { tenantId: DEFAULT_TENANT_ID, provider: 'SMARTOLT' },
+      });
+
+      const res = await seed({ adminPassword: 'seed-without-base-url' });
+
+      const conn = await prisma.nmsConnection.findUnique({ where: { id: res.connectionId } });
+      expect(conn?.baseUrl).toBeNull();
+    } finally {
+      if (original === undefined) delete process.env.DEMO_NMS_BASE_URL;
+      else process.env.DEMO_NMS_BASE_URL = original;
+    }
+  });
 });

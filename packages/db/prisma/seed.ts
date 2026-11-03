@@ -351,6 +351,15 @@ export async function seed(options?: {
 
   let connectionId = existingConn?.id ?? 'demo-smartolt-connection';
 
+  // The base URL of the demo connection.
+  //
+  // Without it no loop can use the connection: the connector cannot be
+  // built without a URL base, so the poll would not consult anything and
+  // the health would say "polling OK" without having polled. The staging
+  // points it at the mock NMS (`DEMO_NMS_BASE_URL`); without the variable
+  // the connection stays as it was, which is what the demo mode wants.
+  const demoBaseUrl = process.env['DEMO_NMS_BASE_URL']?.trim() || null;
+
   if (!existingConn) {
     const { encryptedKey } = encryptApiKey('mock-api-key');
     const conn = await prisma.nmsConnection.create({
@@ -361,9 +370,18 @@ export async function seed(options?: {
         label: 'Demo SmartOLT (Mock)',
         encryptedKey,
         status: 'connected',
+        baseUrl: demoBaseUrl,
       },
     });
     connectionId = conn.id;
+  } else if (demoBaseUrl !== null && existingConn.baseUrl !== demoBaseUrl) {
+    // The connection already existed and points somewhere else. The seed
+    // owns this row, so the URL it was told to use wins: without it the
+    // loops would keep polling nothing.
+    await prisma.nmsConnection.update({
+      where: { id: existingConn.id },
+      data: { baseUrl: demoBaseUrl },
+    });
   }
 
   // 4. Seed demo synthetic data (ONU metrics + alerts for the dashboard)
