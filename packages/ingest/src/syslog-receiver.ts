@@ -75,19 +75,17 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
 
   // UDP has no flow control: when the kernel receive buffer fills, it silently
   // drops datagrams with no error and no event. A burst (a link flap produces
-  // thousands of messages) has to be absorbed before anything else, so the
-  // buffer is enlarged before binding.
+  // thousands of messages) has to be absorbed before anything else.
+  //
+  // The buffer is enlarged **after** the bind, not before: the size of the
+  // buffer is a property of the socket, and a socket that is not bound yet
+  // has no file descriptor to set it on. `setRecvBufferSize()` before the
+  // bind fails with EBADF, and the socket keeps the small default buffer —
+  // exactly the one that drops the datagrams of a burst.
   const recvBufferBytes = positiveInt(
     process.env['SYSLOG_RECV_BUFFER_BYTES'],
     4 * 1024 * 1024,
   );
-  try {
-    socket.setRecvBufferSize(recvBufferBytes);
-  } catch (err) {
-    // Not fatal: the default buffer still works, just with less headroom.
-    const detail = err instanceof Error ? err.message : String(err);
-    recordSchedulerError('syslog', `could not enlarge recv buffer: ${detail}`);
-  }
 
   // Bound message size and ingest rate so a flood of UDP datagrams cannot
   // bloat the events table or exhaust the database connection pool.
@@ -151,6 +149,15 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
     recordSyslogBound(false);
   });
   socket.bind(port, () => {
+    // Now that the socket has a file descriptor, the receive buffer can be
+    // enlarged. Not fatal if it fails: the default buffer still works, just
+    // with less headroom.
+    try {
+      socket.setRecvBufferSize(recvBufferBytes);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      recordSchedulerError('syslog', `could not enlarge recv buffer: ${detail}`);
+    }
     recordSyslogBound(true);
     // The in-process drainer belongs to the embedded web. The worker drains
     // through the durable job queue instead.
