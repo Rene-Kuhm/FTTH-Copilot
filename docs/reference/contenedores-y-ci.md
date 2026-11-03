@@ -153,10 +153,19 @@ En el build de Tauri: `NEXT_PUBLIC_API_URL` (default `https://demo.ftth-copilot.
   `.github/actions/desktop-build`, que compilan los mismos bytes sin pedir
   `id-token: write`. La regla `caller-permissions` de
   `scripts/lib/supply-chain.ts` verifica esta relación.
+- **En un runner Windows, todo `run:` declara su shell** (en el step o en
+  `defaults.run.shell`). Ahí el shell por defecto es `pwsh`, no `bash`: un
+  script bash sin `shell:` muere con `ParserError` antes de ejecutar nada.
+  Así se cayó el build de Windows de la v0.4.0 y, con él, el adjunto de todos
+  los instaladores de escritorio. El job `build-windows` de
+  `build-desktop.yml` declara `defaults.run.shell: bash`, y el único step
+  PowerShell lo dice con `shell: pwsh`. La regla `windows-shell` lo verifica.
 - El job `supply-chain` de `ci.yml` falla si alguien agrega una acción sin
   fijar, si un job no declara `permissions:`, si el pipeline de release queda
-  desconectado o si un caller no concede lo que pide el workflow que llama
-  (ver §9.4). Es hermético: sólo lee los YAML del repo. La
+  desconectado, si un caller no concede lo que pide el workflow que llama
+  (ver §9.4), si un step de Windows no declara su shell, si un attach no declara
+  su tag (ver §9.4 bis) o si un attach genera las notas sin preguntar por el tag
+  (ver §9.4 ter). Es hermético: sólo lee los YAML del repo. La
   política vive en `scripts/lib/supply-chain.ts` y se puede correr local:
   `pnpm check:supply-chain`.
 - `.github/dependabot.yml` actualiza las acciones fijadas por SHA (cambia el
@@ -274,6 +283,59 @@ mano desde la pestaña Actions, para reintentar sin republicar la release.
 verifica que el workflow que publica la release despacha al que atesta, y que
 ese workflow acepta `workflow_dispatch`. Si alguien borra el dispatch, el
 check falla y el CI se pone rojo.
+
+### 9.4 bis El tag se declara siempre
+
+`softprops/action-gh-release` usa `github.ref` cuando no le dicen a qué tag
+adjuntar. En el flujo normal —release-please crea el tag y dispara el
+dispatch— `github.ref` es la rama desde la que se despachó, no el tag: por eso
+el tag se pasa explícito.
+
+Cuando el tag **no** se declara, el caso se ve en el relanzamiento manual de
+una release ya publicada (el `workflow_dispatch` de `release.yml` con
+`-f tag=v0.4.0`): ahí `github.ref` es la rama y la action aborta con
+`GitHub Releases requires a tag`, y la release se queda sin los instaladores.
+Pasó con la v0.4.0: los tres builds compilaron bien y los dos attaches
+fallaron.
+
+La regla `attach-tag` de `scripts/lib/supply-chain.ts` falla el check de supply
+chain si algún step que use `softprops/action-gh-release` no declara
+`tag_name`. Se puede correr local: `pnpm check:supply-chain`.
+
+### 9.4 ter Las notas de la release se generan una sola vez
+
+`softprops/action-gh-release` con `generate_release_notes: true` genera las notas
+del tag y las **agrega** al cuerpo que la release ya tiene. En una release que
+release-please ya publicó, ese cuerpo es el changelog con las entradas agrupadas
+por scope: las notas de GitHub se le suman encima y el resultado es un cuerpo con
+el mismo contenido repetido.
+
+Pasó con la v0.3.0, que hoy tiene las notas de GitHub repetidas cuatro veces,
+una por cada run que le adjuntó un artefacto.
+
+El attach, entonces, sólo genera las notas cuando la release todavía no existe
+—en ese caso softprops la crea y tiene que darle un cuerpo—. Para eso los jobs
+de attach consultan la API del tag antes de adjuntar:
+
+```yaml
+- name: Check if the release already exists
+  id: release_state
+  env:
+    GH_TOKEN: ${{ github.token }}
+    TAG: ${{ inputs.release-tag }}
+  run: |
+    set -euo pipefail
+    if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/dev/null 2>&1; then
+      echo "exists=true" >> "$GITHUB_OUTPUT"
+    else
+      echo "exists=false" >> "$GITHUB_OUTPUT"
+    fi
+```
+
+y el attach usa `generate_release_notes: ${{ steps.release_state.outputs.exists == 'false' }}`.
+
+La regla `release-notes` de `scripts/lib/supply-chain.ts` falla el check de supply
+chain si algún attach genera las notas sin preguntar antes por el tag.
 
 ### 9.5 La línea base del changelog
 

@@ -11,6 +11,9 @@ import {
   findReleaseWiringViolations,
   findUnpinnedActions,
   findUnpinnedCompositeActions,
+  findAttachTagViolations,
+  findReleaseNotesViolations,
+  findWindowsShellViolations,
   isPinnedToSha,
   parseWorkflow,
   remoteActionRef,
@@ -578,4 +581,220 @@ test("findReleaseTokenHeaderViolations no se queja del push sin token propio", (
   ];
 
   assert.deepEqual(findReleaseTokenHeaderViolations(models), []);
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Regla 7: shell explícito en runners Windows.
+//
+// En Windows el `run:` sin `shell:` corre en pwsh. El step bash que
+// normalizaba el SBOM murió con ParserError y la v0.4.0 se publicó sin
+// ningún instalador de escritorio.
+// ──────────────────────────────────────────────────────────────────────
+
+function windowsJob(extra: string[] = [], stepExtra: string[] = []): string {
+  return [
+    "name: W",
+    "on:",
+    "  workflow_dispatch:",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  build-windows:",
+    "    runs-on: windows-latest",
+    "    permissions:",
+    "      contents: read",
+    ...extra,
+    "    steps:",
+    "      - name: Checkout",
+    "        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "      - name: Normalize",
+    "        run: |",
+    "          set -euo pipefail",
+    "          jq -S . sbom.json > out.json",
+    ...stepExtra,
+  ].join("\n");
+}
+
+test("findWindowsShellViolations marca un run: sin shell en Windows, con su línea", () => {
+  const violations = findWindowsShellViolations(model(windowsJob()));
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "windows-shell");
+  assert.equal(violations[0]?.line, 14);
+  assert.match(violations[0]?.message ?? "", /Normalize/);
+  assert.match(violations[0]?.message ?? "", /pwsh/);
+});
+
+test("findWindowsShellViolations acepta shell en el step", () => {
+  const content = windowsJob([], ["        shell: bash"]);
+  assert.deepEqual(findWindowsShellViolations(model(content)), []);
+});
+
+test("findWindowsShellViolations acepta defaults.run.shell del job o del workflow", () => {
+  const jobDefaults = windowsJob(["    defaults:", "      run:", "        shell: bash"]);
+  assert.deepEqual(findWindowsShellViolations(model(jobDefaults)), []);
+
+  const workflowDefaults = windowsJob().replace(
+    "jobs:",
+    ["defaults:", "  run:", "    shell: bash", "jobs:"].join("\n"),
+  );
+  assert.deepEqual(findWindowsShellViolations(model(workflowDefaults)), []);
+});
+
+test("findWindowsShellViolations no mira runners Linux", () => {
+  const linux = windowsJob().replace("windows-latest", "ubuntu-22.04");
+  assert.deepEqual(findWindowsShellViolations(model(linux)), []);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Regla 8: el step que publica en la release declara a qué tag.
+//
+// Sin `tag_name`, la action usa `github.ref`. En el flujo normal (push de un
+// tag) eso es el tag, pero en el `workflow_dispatch` —que es como se
+// relanza una release ya publicada— `github.ref` es la rama y la action
+// falla con "GitHub Releases requires a tag".
+//
+// Así seeperdió la v0.4.0: el build de Windows era el primer fallo, pero
+// detrás de él venía el attach, que no sabía a qué tag adjuntar.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const PUBLISH_STEP = [
+  "      - name: Attach binaries to release",
+  "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
+  "        with:",
+  "          files: artifacts/**/*",
+  "          fail_on_unmatched_files: false",
+];
+
+function attachWorkflow(withTag: boolean): string {
+  const with_ = withTag
+    ? [...PUBLISH_STEP, "          tag_name: ${{ inputs.release-tag }}"]
+    : PUBLISH_STEP;
+  return [
+    "name: Release",
+    "on:",
+    "  workflow_dispatch:",
+    "    inputs:",
+    "      tag:",
+    "        required: true",
+    "        type: string",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  attach:",
+    "    permissions:",
+    "      contents: write",
+    "    steps:",
+    ...with_,
+  ].join("\n");
+}
+
+test("findAttachTagViolations marca el publish sin tag_name, con su línea", () => {
+  const violations = findAttachTagViolations(model(attachWorkflow(false)));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "attach-tag");
+  assert.equal(violations[0]?.line, 15);
+  assert.match(violations[0]?.message ?? "", /requires a tag/);
+});
+
+test("findAttachTagViolations acepta un publish con tag_name", () => {
+  assert.deepEqual(findAttachTagViolations(model(attachWorkflow(true))), []);
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Regla 9: el attach no pisa las notas de una release ya publicada.
+//
+// `softprops/action-gh-release` con `generate_release_notes: true` genera las
+// notas del tag y las ADJUNTA al cuerpo que la release ya tiene. En una
+// release ya publicada —la que release-please dejó con sus notas agrupadas por
+// scope— eso duplica el contenido: la v0.3.0 tiene hoy las notas de GitHub
+// repetidas cuatro veces, una por cada run que le adjuntó un artefacto.
+//
+// Las notas sólo se generan cuando la release todavía no existe: en ese caso
+// softprops la crea y tiene que darle un cuerpo.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const EXISTENCE_CHECK = [
+  "      - name: Check if the release already exists",
+  "        id: release_state",
+  "        env:",
+  "          GH_TOKEN: ${{ github.token }}",
+  "          TAG: ${{ inputs.release-tag }}",
+  "        run: |",
+  "          set -euo pipefail",
+  '          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/dev/null 2>&1; then',
+  '            echo "exists=true" >> "$GITHUB_OUTPUT"',
+  "          else",
+  '            echo "exists=false" >> "$GITHUB_OUTPUT"',
+  "          fi",
+];
+
+const PUBLISH_STEP_WITH_TAG = [
+  "      - name: Attach binaries to release",
+  "        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3",
+  "        with:",
+  "          files: artifacts/**/*",
+  "          fail_on_unmatched_files: false",
+  "          tag_name: ${{ inputs.release-tag }}",
+];
+
+/**
+ * @param notesInput Valor de `generate_release_notes`, o `null` si no se declara.
+ * @param check Si el job trae el step que consulta si la release existe.
+ */
+function notesWorkflow(notesInput: string | null, check: boolean): string {
+  const steps = [...(check ? EXISTENCE_CHECK : []), ...PUBLISH_STEP_WITH_TAG];
+  if (notesInput !== null) steps.push(`          generate_release_notes: ${notesInput}`);
+  return [
+    "name: Release",
+    "on:",
+    "  workflow_dispatch:",
+    "    inputs:",
+    "      tag:",
+    "        required: true",
+    "        type: string",
+    "permissions:",
+    "  contents: read",
+    "jobs:",
+    "  attach:",
+    "    permissions:",
+    "      contents: write",
+    "    steps:",
+    ...steps,
+  ].join("\n");
+}
+
+test("findReleaseNotesViolations marca el publish que siempre genera las notas", () => {
+  const violations = findReleaseNotesViolations(model(notesWorkflow("true", true)));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-notes");
+  assert.equal(violations[0]?.line, 27);
+  assert.match(violations[0]?.message ?? "", /notas/);
+});
+
+test("findReleaseNotesViolations marca el publish que no dice nada de las notas", () => {
+  const violations = findReleaseNotesViolations(model(notesWorkflow(null, true)));
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-notes");
+  assert.match(violations[0]?.message ?? "", /notas/);
+});
+
+test("findReleaseNotesViolations acepta el publish que sólo genera las notas si la release no existe", () => {
+  const violations = findReleaseNotesViolations(
+    model(notesWorkflow("${{ steps.release_state.outputs.exists == 'false' }}", true)),
+  );
+
+  assert.deepEqual(violations, []);
+});
+
+test("findReleaseNotesViolations marca el publish que consulta un step que no mira la release", () => {
+  const violations = findReleaseNotesViolations(
+    model(notesWorkflow("${{ steps.release_state.outputs.exists == 'false' }}", false)),
+  );
+
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0]?.rule, "release-notes");
+  assert.match(violations[0]?.message ?? "", /release/);
 });
