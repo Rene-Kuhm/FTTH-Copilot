@@ -6,7 +6,7 @@
  * red. Así la política se testea con `node --test` y se corre en el CI sin
  * depender de nada externo.
  *
- * Cuatro reglas:
+ * Nueve reglas:
  *
  *   1. `sha-pinning` — toda acción remota se usa fijada por SHA de commit.
  *      Un tag se puede mover (y una rama, con más razón): el SHA es lo único
@@ -44,6 +44,20 @@
  *      encabezado por cada valor** de esa clave: sin el reset, el push
  *      empuja con la credencial del checkout en vez de con la propia.
  *
+ *   7. `windows-shell` — un step que corre en Windows declara su shell, en el
+ *      step o en `defaults.run.shell` del job o del workflow. Sin eso el
+ *      intérprete por defecto es pwsh y un script de bash se rompe.
+ *
+ *   8. `attach-tag` — el step que adjunta los binarios a la release declara a
+ *      qué tag. Sin `tag_name` la action usa `github.ref`, que en un
+ *      `workflow_dispatch` es la rama y no el tag.
+ *
+ *   9. `release-notes` — el attach sólo genera las notas de la release cuando
+ *      la release todavía no existe. `generate_release_notes: true` genera las
+ *      notas del tag y las **agrega** al cuerpo que la release ya tiene: en
+ *      una release publicada por release-please eso duplica el contenido (la
+ *      v0.3.0 tiene hoy las notas de GitHub repetidas cuatro veces).
+ *
  * Ver `docs/reference/contenedores-y-ci.md` para el detalle de cada regla.
  */
 import { LineCounter, isMap, isScalar, isSeq, parseDocument, visit } from "yaml";
@@ -56,7 +70,9 @@ export type PolicyRule =
   | "caller-permissions"
   | "release-token-dispatch"
   | "release-token-headers"
-  | "windows-shell";
+  | "windows-shell"
+  | "attach-tag"
+  | "release-notes";
 
 /** Una acción referenciada por un `uses:`. */
 export interface ActionReference {
@@ -70,6 +86,8 @@ export interface ActionReference {
 export interface WorkflowStep {
   /** Nombre del step (puede estar vacío). */
   readonly name: string;
+  /** `id:` del step, si lo tiene (sirve para leer sus `outputs`). */
+  readonly id: string | null;
   /** Condición `if:` del step, si la tiene. */
   readonly if: string | null;
   /** Comando `run:` del step, si lo tiene. */
@@ -164,6 +182,13 @@ export interface PolicyViolation {
 
 /** La acción que publica las releases del repo. */
 const PUBLISHER_ACTION = "googleapis/release-please-action";
+/**
+ * La action que adjunta los binarios a la release.
+ *
+ * Sin `tag_name` usa `github.ref`, que en un `workflow_dispatch` es la rama
+ * y no el tag: la action falla con "GitHub Releases requires a tag".
+ */
+const ATTACH_ACTION = "softprops/action-gh-release";
 
 /** La acción que emite la procedencia SLSA de los artefactos. */
 const ATTESTATION_ACTION = "actions/attest-build-provenance";
@@ -258,6 +283,7 @@ function normalizeSteps(value: unknown, lines: readonly (number | null)[] = []):
     if (!isRecord(raw)) continue;
     steps.push({
       name: typeof raw.name === "string" ? raw.name : "",
+      id: typeof raw.id === "string" ? raw.id : null,
       if:
         typeof raw.if === "string"
           ? raw.if
@@ -851,6 +877,114 @@ export function findWindowsShellViolations(model: WorkflowModel): PolicyViolatio
  * Devuelve todas las violaciones; una lista vacía significa que el repo
  * cumple la política.
  */
+/**
+ * Regla 8: el step que adjunta los binarios a la release declara a qué tag.
+ *
+ * `softprops/action-gh-release` usa `github.ref` cuando no le dicen el tag.
+ * En el flujo normal (push de un tag `v*`) eso es el tag y todo bien, pero
+ * en el `workflow_dispatch` —que es como se relanza una release ya
+ * publicada, para regenerar sus instaladores— `github.ref` es la rama y la
+ * action aborta con "GitHub Releases requires a tag".
+ *
+ * Por eso el tag se declara siempre: es lo único que funciona en los dos
+ * caminos.
+ */
+export function findAttachTagViolations(model: WorkflowModel): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const job of model.jobs) {
+    for (const step of job.steps) {
+      if (step.uses === null) continue;
+      if (remoteActionRef(step.uses)?.startsWith(`${ATTACH_ACTION}@`) !== true) continue;
+      const tagName = step.with?.["tag_name"];
+      if (typeof tagName === "string" && tagName.length > 0) continue;
+      violations.push({
+        rule: "attach-tag",
+        path: model.path,
+        line: step.line,
+        message:
+          `el step "${step.name || "(sin nombre)"}" adjunta a la release sin \`tag_name\`: ` +
+          "en un workflow_dispatch, github.ref es la rama y la action falla con " +
+          "\"GitHub Releases requires a tag\". Declará `tag_name: ${{ inputs.release-tag }}`.",
+      });
+    }
+  }
+  return violations;
+}
+
+/**
+ * Regla 9: el attach sólo genera las notas si la release todavía no existe.
+ *
+ * `softprops/action-gh-release` con `generate_release_notes: true` genera las
+ * notas del tag y las **agrega** al cuerpo que la release ya tiene. Cuando la
+ * release ya está publicada —y release-please la publica con sus notas
+ * agrupadas por scope— el resultado es un cuerpo con las notas duplicadas: la
+ * v0.3.0 tiene hoy las notas de GitHub repetidas cuatro veces, una por cada
+ * run que le adjuntó un artefacto.
+ *
+ * Las notas sí se generan cuando la release todavía no existe: en ese caso
+ * softprops la crea y tiene que darle un cuerpo. Por eso el valor tiene que
+ * depender de una consulta a la API, no ser un `true` fijo.
+ */
+export function findReleaseNotesViolations(model: WorkflowModel): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const job of model.jobs) {
+    for (const step of job.steps) {
+      if (step.uses === null) continue;
+      if (remoteActionRef(step.uses)?.startsWith(`${ATTACH_ACTION}@`) !== true) continue;
+
+      const label = step.name || "(sin nombre)";
+      const raw = step.with?.["generate_release_notes"];
+      // En YAML `true` es un booleano y `false` también: el input llega como
+      // texto en el runner, pero el workflow dice una cosa y otra.
+      const notes =
+        typeof raw === "string" ? raw.trim() : typeof raw === "boolean" ? String(raw) : "";
+
+      if (notes === "" || notes === "false") {
+        violations.push({
+          rule: "release-notes",
+          path: model.path,
+          line: step.line,
+          message:
+            `el step "${label}" adjunta a la release sin \`generate_release_notes\`: ` +
+            "las notas de la release no las decide nadie y, si la release todavía no " +
+            "existe, softprops la crea sin cuerpo.",
+        });
+        continue;
+      }
+
+      const expression = /^\$\{\{(.+)\}\}$/.exec(notes);
+      if (expression === null) {
+        violations.push({
+          rule: "release-notes",
+          path: model.path,
+          line: step.line,
+          message:
+            `el step "${label}" adjunta a la release con \`generate_release_notes: ${notes}\`: ` +
+            "las notas de GitHub se agregan al cuerpo y duplican las que release-please ya " +
+            "escribió. Generalas sólo si la release no existe todavía.",
+        });
+        continue;
+      }
+
+      const referenced = /steps\.([A-Za-z0-9_-]+)\./.exec(expression[1]);
+      const source =
+        referenced === null ? undefined : job.steps.find((candidate) => candidate.id === referenced[1]);
+      if (source === undefined || source.run === null || !/releases\/tags\//.test(source.run)) {
+        violations.push({
+          rule: "release-notes",
+          path: model.path,
+          line: step.line,
+          message:
+            `el step "${label}" decide las notas con una expresión que no consulta si la ` +
+            "release ya existe. El attach tiene que preguntarle a la API por el tag antes de " +
+            "generar las notas.",
+        });
+      }
+    }
+  }
+  return violations;
+}
+
 export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolation[] {
   const models = files
     .map((file) => parseWorkflow(file))
@@ -860,6 +994,8 @@ export function checkSupplyChain(files: readonly WorkflowFile[]): PolicyViolatio
     violations.push(...findUnpinnedActions(model));
     violations.push(...findJobsWithoutPermissions(model));
     violations.push(...findWindowsShellViolations(model));
+    violations.push(...findAttachTagViolations(model));
+    violations.push(...findReleaseNotesViolations(model));
   }
   violations.push(...findReleaseWiringViolations(models));
   violations.push(...findCallerPermissionViolations(models));

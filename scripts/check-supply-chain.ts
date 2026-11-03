@@ -83,6 +83,8 @@ if (violations.length > 0) {
 console.log(
   `Política de supply chain OK: ${workflows.length} workflows y ` +
     `${compositeActions.length} acciones compuestas, todas las acciones fijadas por SHA, ` +
-    `todos los jobs con permissions:, el pipeline de release conectado y el ` +
-    `token de release coherente con su dispatch y sus encabezados.`,
+    `todos los jobs con permissions:, el pipeline de release conectado, el ` +
+    `token de release coherente con su dispatch y sus encabezados, cada ` +
+    `step de Windows con su shell declarado, cada attach con su tag y cada attach ` +
+    `que sólo genera las notas si la release todavía no existe.`,
 );
