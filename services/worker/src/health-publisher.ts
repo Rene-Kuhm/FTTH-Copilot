@@ -39,6 +39,15 @@ const log = createLogger({ name: 'health-publisher' });
 export const DEFAULT_PUBLISH_INTERVAL_MS = 20_000;
 
 /**
+ * How often a failed publication is reported.
+ *
+ * Redis being down is not rare, and the publisher tries every twenty
+ * seconds: without a throttle the log would repeat the same failure three
+ * times a minute for as long as the outage lasts.
+ */
+export const FAILURE_LOG_THROTTLE_MS = 60_000;
+
+/**
  * The minimum of the Redis client that the publisher needs.
  *
  * A local interface, not the one of ioredis: the publisher can then be
@@ -112,6 +121,8 @@ export function createHealthPublisher(options: HealthPublisherOptions): HealthPu
   const services = options.services ?? snapshotHealth;
   const counters = options.counters ?? (() => numericCounters(eventIngestStats()));
 
+  let lastFailureAt = Number.NEGATIVE_INFINITY;
+
   return {
     async publish(): Promise<boolean> {
       const snapshot = buildWorkerHealthSnapshot(services(), counters(), now());
@@ -119,7 +130,11 @@ export function createHealthPublisher(options: HealthPublisherOptions): HealthPu
         await options.client.set(key, JSON.stringify(snapshot), 'EX', ttlSeconds);
         return true;
       } catch (error) {
-        log.warn('Could not publish the health snapshot', { error });
+        const at = now();
+        if (at - lastFailureAt >= FAILURE_LOG_THROTTLE_MS) {
+          lastFailureAt = at;
+          log.warn('Could not publish the health snapshot', { error });
+        }
         return false;
       }
     },

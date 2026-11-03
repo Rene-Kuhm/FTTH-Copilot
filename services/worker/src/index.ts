@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   });
 
   const healthPublisher = startHealthPublisher({ client: publisherRedis });
-  log.info('Health snapshot published', { key: WORKER_HEALTH_KEY });
+  log.info('Health publisher started', { key: WORKER_HEALTH_KEY });
 
   // The worker owns the syslog socket: it binds it, spools every datagram
   // into the durable spool and enqueues the drain job. The gate is the one

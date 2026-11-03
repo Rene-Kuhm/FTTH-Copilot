@@ -7,6 +7,14 @@ import {
 } from '@ftth-copilot/scheduler';
 import { createHealthPublisher, startHealthPublisher } from '../src/health-publisher';
 
+const { logMock } = vi.hoisted(() => ({
+  logMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('@ftth-copilot/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ftth-copilot/shared')>();
+  return { ...actual, createLogger: () => logMock };
+});
+
 /**
  * The worker publishes the state of its loops.
  *
@@ -42,6 +50,7 @@ describe('worker health publisher', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    logMock.warn.mockClear();
   });
 
   it('writes the snapshot under the key of the contract', async () => {
@@ -93,6 +102,31 @@ describe('worker health publisher', () => {
     const publisher = createHealthPublisher({ client, services: () => ({ polling }) });
 
     expect(await publisher.publish()).toBe(false);
+    expect(logMock.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not repeat the same failure on every tick', async () => {
+    let clock = 0;
+    const client = {
+      set: async (): Promise<unknown> => {
+        throw new Error('ECONNREFUSED');
+      },
+    };
+    const publisher = createHealthPublisher({
+      client,
+      services: () => ({ polling }),
+      now: () => clock,
+    });
+
+    expect(await publisher.publish()).toBe(false);
+    clock = 1_000;
+    expect(await publisher.publish()).toBe(false);
+    expect(logMock.warn).toHaveBeenCalledTimes(1);
+
+    // The outage goes on: the log repeats it once a minute, not once a tick.
+    clock = 120_000;
+    expect(await publisher.publish()).toBe(false);
+    expect(logMock.warn).toHaveBeenCalledTimes(2);
   });
 
   it('keeps publishing on its own until it is stopped', async () => {
