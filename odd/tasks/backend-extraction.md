@@ -926,3 +926,35 @@ debe romperse) y los tests de durabilidad de las fases 4.
     - **`~/ftth-staging.sh` no levanta el profile `mock-nms`**: el mock es un
       servicio del compose detrás del profile, así que el script tiene que
       levantarlo (`--profile mock-nms up -d mock-nms`) o queda levantado a mano.
+- **L38** (2026-11-04) — **T14 revalidada en `vps-casa` con la imagen nueva**
+  (`#366` y `#367` mergeados). Lo que se midió y lo que encontró.
+  - **El health no se degrada tras un reinicio del worker.** Con el worker
+    recién arrancado, `/api/health` responde `status: ok` y `hungLoops: []`:
+    `polling`, `firmware` y `fec` aparecen como *warming* con su `nextRunAt` y
+    su `intervalMs`, no como loops muertos. Antes de esto, el mismo reinicio
+    dejaba el sistema degradado.
+  - **El tick de calentamiento ocurre y es uno por loop.** El arranque encola
+    tres `Warm-up tick enqueued` —`poll-connections`, `firmware-audit` y
+    `fec-collection`—, con el id del slot de la rejilla
+    (`warmup-<scope>-<slot>`), y el poll tickeó a los cinco segundos. Los otros
+    dos loops de la rejilla (`ingest-drain`, 30 s, e `investigation-sweep`,
+    60 s) no necesitan calentamiento: su próximo tick ya estaba cerca.
+  - **No hay trabajo duplicado**: cero filas con el mismo
+    dispositivo+métrica+momento en `metric_samples`, un `ingestId` por evento
+    en el spool, y las colas sin pendientes.
+  - **La revalidación encontró dos cosas rotas**, que van en su propio PR:
+    - **La pasada de detección de syslog no publicaba su plazo.** Es un loop
+      (cada `SYSLOG_DETECTION_INTERVAL_MS`), pero el registro la contaba como
+      colgada desde el primer instante: el health respondía 503 degradado en
+      cada reinicio del worker, hasta que la primera pasada pasaba. Con el
+      plazo, el worker recién arrancado queda *calentando* y sólo se vuelve
+      colgado si la pasada no llega.
+    - **La evidencia SNMP se perdía en silencio**: se guarda bajo
+      `SNMP_TENANT_ID` y, sin esa variable, el worker cae a `default-tenant`,
+      que el seed no crea → la FK se viola y el `catch` vacío se la tragaba.
+      El trap llegaba y se drenaba normalizado (`link_down | OLT-MOCK-1`), pero
+      su evidencia forense no se guardaba. Con el tenant declarado, la fila
+      queda guardada.
+  - **El staging se recreó** con el proyecto `ftth-staging` (el nombre nuevo
+    del compose): los volúmenes se nombran con el proyecto, así que la base
+    del staging nuevo arranca vacía y se vuelve a sembrar.
