@@ -94,7 +94,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
         heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       },
-      version: process.env['npm_package_version'] ?? '0.5.0',
+      version: process.env['npm_package_version'] ?? '0.6.0',
       database,
       owner: workerOwns ? 'worker' : 'embedded',
       scope: containerScope ? 'container' : 'system',
