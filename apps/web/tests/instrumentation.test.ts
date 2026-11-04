@@ -6,46 +6,24 @@
  * poll, it does not audit, it does not collect FEC telemetry, it does not
  * bind a socket and it does not schedule anything.
  *
- * The instrumentation still marks the loops as "not expected" in this
- * process, so /api/health stays honest about what this container is
- * responsible for.
+ * The instrumentation still marks the loops and the receivers as "not
+ * expected" in this process, so /api/health stays honest about what this
+ * container is responsible for.
+ *
+ * That the web does not *import* the in-process path is not checked here:
+ * those modules no longer exist, and a rule of CI
+ * (`scripts/tests/worker-only-backend.test.ts`) reads the imports of the
+ * web —static and dynamic— and fails if one of them comes back.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  /** Los módulos del camino en proceso: la web ya no los importa. */
-  imported: new Set<string>(),
   markNotExpected: vi.fn(),
 }));
-
-vi.mock('@/lib/monitoring/scheduler', () => {
-  mocks.imported.add('scheduler');
-  return {};
-});
 
 vi.mock('@/lib/monitoring/scheduler-health', () => ({
   markNotExpected: mocks.markNotExpected,
 }));
-
-vi.mock('@/lib/monitoring/syslog', () => {
-  mocks.imported.add('syslog');
-  return { startSyslogReceiver: vi.fn() };
-});
-
-vi.mock('@/lib/monitoring/snmp', () => {
-  mocks.imported.add('snmp');
-  return { startSnmpReceiver: vi.fn() };
-});
-
-vi.mock('@/lib/monitoring/event-ingest', () => {
-  mocks.imported.add('event-ingest');
-  return {};
-});
-
-vi.mock('@/lib/investigations/sweep', () => {
-  mocks.imported.add('sweep');
-  return { startInvestigationSweep: vi.fn() };
-});
 
 async function register(): Promise<void> {
   const mod = await import('@/instrumentation');
@@ -58,7 +36,6 @@ describe('instrumentation: el worker es el dueño del trabajo de fondo', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.imported.clear();
     process.env['NEXT_RUNTIME'] = 'nodejs';
     delete process.env['BACKEND_MODE'];
     delete process.env['SNMP_RECEIVER_ENABLED'];
@@ -84,15 +61,6 @@ describe('instrumentation: el worker es el dueño del trabajo de fondo', () => {
     vi.unstubAllEnvs();
   });
 
-  it('no importa el camino en proceso: ni los loops, ni los receptores, ni el barrido', async () => {
-    await register();
-
-    // Ni una sola importación: si la web no importa el módulo, no puede
-    // arrancar nada en proceso. Es la forma de comprobar que el camino
-    // embedded desapareció de verdad, y no sólo que dejó de llamarse.
-    expect([...mocks.imported]).toEqual([]);
-  });
-
   it('reporta los loops como no esperados en este proceso', async () => {
     await register();
 
@@ -110,12 +78,6 @@ describe('instrumentation: el worker es el dueño del trabajo de fondo', () => {
     expect(mocks.markNotExpected).toHaveBeenCalledWith('syslog');
     expect(mocks.markNotExpected).toHaveBeenCalledWith('syslog-detection');
     expect(mocks.markNotExpected).toHaveBeenCalledWith('snmp');
-  });
-
-  it('no barre los intentos de investigación abandonados: lo hace el worker', async () => {
-    await register();
-
-    expect(mocks.imported.has('sweep')).toBe(false);
   });
 
   it('arranca con el flag en worker', async () => {

@@ -6,9 +6,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   consumeInvestigationQuota: vi.fn(),
-  runInvestigationPipeline: vi.fn(),
   claimInvestigationAttempt: vi.fn(),
-  completeInvestigation: vi.fn(),
   failInvestigation: vi.fn(),
   awaitAttemptOutcome: vi.fn(),
   enqueueInvestigationAttempt: vi.fn(),
@@ -29,10 +27,12 @@ vi.mock('@/lib/investigations/quota', () => ({
   consumeInvestigationQuota: mocks.consumeInvestigationQuota,
 }));
 
+// El pipeline corre en el worker: la ruta sólo reclama, encola y espera.
+// Que la web no pueda correrlo en proceso no lo dice este test —la ruta
+// ni siquiera puede importarlo— sino una regla de CI
+// (`scripts/tests/worker-only-backend.test.ts`).
 vi.mock('@/lib/investigations/pipeline', () => ({
-  runInvestigationPipeline: mocks.runInvestigationPipeline,
   claimInvestigationAttempt: mocks.claimInvestigationAttempt,
-  completeInvestigation: mocks.completeInvestigation,
   failInvestigation: mocks.failInvestigation,
   awaitAttemptOutcome: mocks.awaitAttemptOutcome,
 }));
@@ -128,8 +128,6 @@ function resetMocks() {
   mocks.prismaIncidentFindFirst.mockResolvedValue(INCIDENT);
   mocks.prismaInvestigationRunFindFirst.mockResolvedValue(null);
   mocks.claimInvestigationAttempt.mockResolvedValue(CLAIMED);
-  mocks.runInvestigationPipeline.mockResolvedValue(validSnapshot);
-  mocks.completeInvestigation.mockResolvedValue({ versionId: 'v_test', versionIndex: 0, applied: true });
   mocks.failInvestigation.mockResolvedValue(true);
   mocks.getLatestInvestigationVersion.mockResolvedValue(persistedVersionV0);
   mocks.enqueueInvestigationAttempt.mockResolvedValue(undefined);
@@ -188,7 +186,6 @@ describe('POST /api/incidents/:id/investigate — security & quotas', () => {
     expect(res.headers.get('Retry-After')).toBe('45');
     const json = (await res.json()) as { error: string; retryAfter: number };
     expect(json.retryAfter).toBe(45);
-    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
   });
 
   it('returns 404 when incident does not belong to caller tenant', async () => {
@@ -209,7 +206,6 @@ describe('POST /api/incidents/:id/investigate — duplicate protection', () => {
     expect(json.status).toBe('pending');
     expect(json.runId).toBe('r_inflight');
     expect(json.retryAfterMs).toBe(3000);
-    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
     expect(mocks.enqueueInvestigationAttempt).not.toHaveBeenCalled();
   });
 
@@ -233,7 +229,6 @@ describe('POST /api/incidents/:id/investigate — el worker es el dueño del int
     const res = await callPost('inc-1');
 
     expect(res.status).toBe(201);
-    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
     expect(mocks.enqueueInvestigationAttempt).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-1',
@@ -289,7 +284,6 @@ describe('POST /api/incidents/:id/investigate — el worker es el dueño del int
     const body = (await res.json()) as { status: string; idempotent: boolean };
     expect(body.status).toBe('ready');
     expect(body.idempotent).toBe(true);
-    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
     expect(mocks.enqueueInvestigationAttempt).not.toHaveBeenCalled();
   });
 });
