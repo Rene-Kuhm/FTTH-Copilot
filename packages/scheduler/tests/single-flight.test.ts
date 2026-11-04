@@ -23,7 +23,7 @@ import { __setLogSinkForTests } from '@ftth-copilot/shared';
  * `finally`, so a thrown run never leaks the lock.
  *
  * The tests drive `tryStart` directly to avoid pulling the entire
- * `startPollingLoop` boot path (which needs Prisma, the connector
+ * boot path of the worker (which needs Prisma, the connector
  * factory, and Telegram env vars).
  *
  * Prisma is mocked because `tryStart` now takes a Postgres advisory lock
@@ -65,7 +65,7 @@ import { __clearSchedulerState, tryStart } from '../src/index';
 describe('single-flight scheduler guard', () => {
   it('exports tryStart as a testable helper', () => {
     // The single-flight guard is exposed for direct testing. This
-    // avoids having to exercise the full startPollingLoop boot path
+    // avoids having to exercise the full boot path of the worker
     // (which pulls Prisma + the connector factory).
     expect(typeof tryStart).toBe('function');
   });

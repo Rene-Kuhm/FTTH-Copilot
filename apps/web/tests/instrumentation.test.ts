@@ -20,11 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/monitoring/scheduler', () => {
   mocks.imported.add('scheduler');
-  return {
-    startPollingLoop: vi.fn(),
-    startFirmwareAuditLoop: vi.fn(),
-    startFecCollectionLoop: vi.fn(),
-  };
+  return {};
 });
 
 vi.mock('@/lib/monitoring/scheduler-health', () => ({

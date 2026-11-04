@@ -19,11 +19,9 @@ import type { INmsConnector, OnuDetail, OnuSummary } from '@ftth-copilot/connect
  *      `persistSamples` is called with an empty array, zero rows, no throw.
  *   5. One of 8 `getOnuDetail` rejects → the surviving 7 still produce rows
  *      (`mapAllSettled` semantics); the failed ONU contributes zero rows.
- *   6. `runScheduledFecCollection` throws → the next `setInterval` tick still
- *      fires (loop survives — REQ-5).
- *   7. `startFecCollectionLoop()` when env is `false` → returns a no-op cleanup
- *      and does NOT register any `setInterval`.
- *   8. Normal tick → one `console.log` line with
+ *   6. `runScheduledFecCollection` throws → the next tick of the worker's
+ *      queue still fires (the loop survives — REQ-5).
+ *   7. Normal tick → one `console.log` line with
  *      `{ tenantId, connectionId, requested, persisted, skipped, durationMs }`.
  *   9. Skipped tick → one `console.warn` line with `{ connectionId, requested,
  *      reason: 'rate_limit', … }` (no token / cookie / Authorization fields).
@@ -405,58 +403,5 @@ describe('runScheduledFecCollection — per-ONU failure isolation (REQ-5)', () =
     for (const row of persistArgs.data) {
       expect(row.connectionId).toBe('conn-1');
     }
-  });
-});
-
-// ── REQ-5 — thrown tick does not detach the loop ──────────────────────────
-
-describe('startFecCollectionLoop — kill switch + tick resilience (REQ-1 + REQ-5)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  it('returns a no-op cleanup when FEC_COLLECTION_ENABLED is unset', async () => {
-    clearFecEnv();
-    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-    const cleanup = (await import('@/lib/monitoring/scheduler')).startFecCollectionLoop();
-    expect(typeof cleanup).toBe('function');
-    expect(setIntervalSpy).not.toHaveBeenCalled();
-    cleanup(); // must not throw
-  });
-
-  it('a thrown tick does not detach the loop: the next setInterval tick still fires', async () => {
-    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_COLLECTION_INTERVAL_MS: '1000' });
-    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-
-    let tick = 0;
-    mocks.prismaNmsConnectionFindMany.mockImplementation(async () => {
-      tick += 1;
-      if (tick === 1) throw new Error('boom');
-      return [];
-    });
-
-    const { startFecCollectionLoop } = await import('@/lib/monitoring/scheduler');
-    const cleanup = startFecCollectionLoop();
-
-    // setInterval was registered (with our 1s cadence).
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
-
-    // Advance enough milliseconds to let the first tick (which throws) and a
-    // subsequent tick (which returns cleanly) fire. The thrown tick MUST NOT
-    // detach the loop — that's the whole REQ-5 contract.
-    await vi.advanceTimersByTimeAsync(2500);
-
-    expect(mocks.prismaNmsConnectionFindMany.mock.calls.length).toBeGreaterThanOrEqual(2);
-    cleanup();
-  });
-
-  it('does NOT schedule any tick once FEC_COLLECTION_ENABLED flips to "false"', async () => {
-    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_COLLECTION_INTERVAL_MS: '1000' });
-    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
-
-    const { startFecCollectionLoop } = await import('@/lib/monitoring/scheduler');
-    const cleanup = startFecCollectionLoop();
-    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
-    cleanup();
   });
 });

@@ -5,11 +5,11 @@
  *
  * The previous `/api/health` route only returned process metrics
  * (`uptime`, memory, version) and a static `{ status: 'ok' }`. It did
- * not actually check that the scheduled loops (`startPollingLoop`,
- * `startFirmwareAuditLoop`, `startFecCollectionLoop`, the syslog
- * receiver) were running. A syslog socket that failed to bind (e.g.
- * port already in use) would never surface in the health response, so
- * the NOC saw "ok" while telemetry silently stopped.
+ * not actually check that the scheduled loops (the poller, the firmware
+ * audit, the FEC collection and the syslog receiver) were running. A
+ * syslog socket that failed to bind (e.g. port already in use) would
+ * never surface in the health response, so the NOC saw "ok" while
+ * telemetry silently stopped.
  *
  * This module is a small process-local registry that the scheduled
  * loops update after every tick (success or failure) and after every

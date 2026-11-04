@@ -2,12 +2,13 @@
  * Delegation to `@ftth-copilot/scheduler`.
  *
  * The recurring work (polling, firmware audit, FEC collection) left the
- * Next.js process: it now lives in a package the background worker can also
- * run, so the same code serves the in-process loops (until the
- * `BACKEND_MODE=worker` cut-over) and the queue jobs.
+ * Next.js process: it now lives in a package the background worker runs
+ * from the durable queue. This module keeps the web's public API for the
+ * pieces the web still uses, so no call site changes its import.
  *
- * This module keeps the web's public API: every export it had before is still
- * exported here, so no call site changes its import.
+ * The in-process loop starters are gone: the worker is the only owner of
+ * the background work, and a second copy of a loop would poll the NMS twice
+ * and bind the same UDP socket.
  */
 
 export {
@@ -18,7 +19,4 @@ export {
   runScheduledPoll,
   runScheduledFirmwareAudit,
   runScheduledFecCollection,
-  startPollingLoop,
-  startFirmwareAuditLoop,
-  startFecCollectionLoop,
 } from '@ftth-copilot/scheduler';
