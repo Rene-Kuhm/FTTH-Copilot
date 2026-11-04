@@ -1,5 +1,5 @@
 import { prisma } from '@ftth-copilot/db';
-import { snapshotHealth, type SchedulerName } from '@/lib/monitoring/scheduler-health';
+import { readWorkerHealth } from '@/lib/monitoring/worker-health';
 import { layaMetrics } from '@ftth-copilot/shared';
 
 interface MetricsState {
@@ -135,16 +135,27 @@ export async function generatePrometheusMetrics(): Promise<string> {
   lines.push(`ftth_copilot_process_memory_bytes{type="external"} ${mem.external}`);
   lines.push('');
 
-  // 2. Scheduled service loops health
-  const services = snapshotHealth();
-  lines.push('# HELP ftth_copilot_service_loop_healthy Status of background scheduled loops (1=healthy/active, 0=degraded/stopped).');
-  lines.push('# TYPE ftth_copilot_service_loop_healthy gauge');
+  // 2. Scheduled service loops health.
+  //
+  // The worker owns the loops, so the state that counts is the one it
+  // publishes in Redis. The local registry of this web has them all as "not
+  // expected" — it does not run them — and publishing that as "degraded"
+  // would say that every loop is stopped when none of them runs here.
+  //
+  // No snapshot, no series: a zero would mean "stopped", and the truth is
+  // "I don't know".
+  const workerSnapshot = await readWorkerHealth();
+  const services = workerSnapshot?.services ?? {};
+  if (Object.keys(services).length > 0) {
+    lines.push('# HELP ftth_copilot_service_loop_healthy Status of background scheduled loops (1=healthy/active, 0=degraded/stopped).');
+    lines.push('# TYPE ftth_copilot_service_loop_healthy gauge');
 
-  for (const [name, s] of Object.entries(services) as [SchedulerName, typeof services[SchedulerName]][]) {
-    const isHealthy = s.expected ? (s.lastError === null ? 1 : 0) : 0;
-    lines.push(`ftth_copilot_service_loop_healthy{service="${name}",expected="${s.expected}"} ${isHealthy}`);
+    for (const [name, s] of Object.entries(services)) {
+      const isHealthy = s.expected ? (s.lastError === null ? 1 : 0) : 0;
+      lines.push(`ftth_copilot_service_loop_healthy{service="${name}",expected="${s.expected}"} ${isHealthy}`);
+    }
+    lines.push('');
   }
-  lines.push('');
 
   // 3. SNMP Traps In-Memory Counters
   lines.push('# HELP ftth_copilot_snmp_traps_total Cumulative SNMP traps received, deduped or dropped.');

@@ -22,6 +22,11 @@ const mockCountSamples = vi.fn();
 const mockCountTenants = vi.fn();
 const mockGroupByConnections = vi.fn();
 
+const { mockReadWorkerHealth } = vi.hoisted(() => ({ mockReadWorkerHealth: vi.fn() }));
+vi.mock('@/lib/monitoring/worker-health', () => ({
+  readWorkerHealth: mockReadWorkerHealth,
+}));
+
 vi.mock('@ftth-copilot/db', () => ({
   prisma: {
     detectedAlert: {
@@ -46,6 +51,9 @@ beforeEach(() => {
   __resetMetricsState();
   __resetSchedulerHealth();
   delete process.env.METRICS_BEARER_TOKEN;
+
+  mockReadWorkerHealth.mockReset();
+  mockReadWorkerHealth.mockResolvedValue(null);
 
   mockGroupByAlerts.mockReset().mockResolvedValue([
     { severity: 'warning', status: 'open', _count: { _all: 3 } },
@@ -126,15 +134,40 @@ describe('GET /api/metrics', () => {
     expect(body).toContain('ftth_copilot_rag_latency_seconds_count 1');
   });
 
-  it('reflects background scheduler service loops', async () => {
-    markExpected('polling');
-    recordSuccess('polling', Date.now());
+  it('publica la salud de los loops que publica el worker', async () => {
+    // El worker es el dueño de los loops: su registro es el que vale. El
+    // registro local de esta web los tiene todos como "no esperados", y
+    // publicarlo como "caído" diría que todos los loops están parados.
+    mockReadWorkerHealth.mockResolvedValue({
+      services: {
+        polling: {
+          expected: true,
+          lastRunAt: Date.now(),
+          lastError: null,
+          lastErrorAt: null,
+        },
+      },
+      counters: {},
+      publishedAt: Date.now(),
+    });
 
     const req = new NextRequest('http://localhost:3001/api/metrics');
     const res = await GET(req);
     const body = await res.text();
 
     expect(body).toContain('ftth_copilot_service_loop_healthy{service="polling",expected="true"} 1');
+  });
+
+  it('no publica la salud de los loops cuando el worker no dice nada', async () => {
+    // Sin snapshot no hay dato: publicaría "0", que en Prometheus significa
+    // "caído", y no "no sé".
+    mockReadWorkerHealth.mockResolvedValue(null);
+
+    const req = new NextRequest('http://localhost:3001/api/metrics');
+    const res = await GET(req);
+    const body = await res.text();
+
+    expect(body).not.toContain('ftth_copilot_service_loop_healthy');
   });
 
   it('enforces bearer authentication when METRICS_BEARER_TOKEN is configured', async () => {
