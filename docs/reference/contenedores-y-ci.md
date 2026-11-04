@@ -60,44 +60,69 @@ Notas verificadas:
 
 | Servicio | Imagen | Puertos | Volúmenes |
 |---|---|---|---|
-| `postgres` | `postgres:16-alpine`, `env_file: .env.prod` | no publicados | `postgres_data` |
+| `postgres` | `postgres:16-alpine`, `env_file: .env.prod` | `127.0.0.1:${POSTGRES_PORT:-5432}:5432` | `postgres_data` |
+| `redis` | `redis:8.10.2-alpine`, `env_file: .env.prod` | `127.0.0.1:${REDIS_PORT:-6379}:6379` | `redis_data` |
 | `db-migrate` | build `.` target `dependencies` | — | — |
-| `app` | build `.` target `runner`, imagen `ftth-copilot:latest` | `${PORT:-3001}:3001`, `${SNMP_UDP_PORT:-1162}:1162/udp`, `${SYSLOG_UDP_PORT:-5514}:5514/udp` | `spool_data:/var/lib/ftth-copilot/spool` |
+| `app` | build `.` target `runner`, imagen `ftth-copilot:latest` | `${PORT:-3001}:3001` | `spool_data:/var/lib/ftth-copilot/spool` |
+| `worker` | build `.`, `services/worker/Dockerfile` | red del host: `1162/udp`, `5514/udp`, `127.0.0.1:8081` | `spool_data:/var/lib/ftth-copilot/spool` |
 | `laya` | build `./services/laya` | `${LAYA_PORT:-8080}:8080` | — — profile `laya` |
 | `victoriametrics` | `victoria-metrics:v1.153.0` | `${VICTORIAMETRICS_PORT:-8428}:8428` | `victoriametrics_prod_data` |
 | `vmalert` | `vmalert:v1.153.0` | — | `docker/victoriametrics-alerts.yml` (ro) |
 
-Variables del contenedor `app` (`:44-55`): `NODE_ENV=production`, `PORT=3001`,
-`EVENT_SPOOL_DIR=/var/lib/ftth-copilot/spool`, `SYSLOG_RECV_BUFFER_BYTES` (default
+Variables del contenedor `app`: `NODE_ENV=production`, `PORT=3001`, `BACKEND_MODE=worker`,
+`REDIS_URL` (por el nombre del servicio, no por el loopback),
+`EVENT_SPOOL_DIR=/var/lib/ftth-copilot/spool/web`, `SYSLOG_RECV_BUFFER_BYTES` (default
 `4194304`), `LAYA_URL`.
 
-Retención de VictoriaMetrics: 12 meses por defecto (`:130`). Red `ftth-network`. El bloque
-de clúster HA de VictoriaMetrics está comentado (`:181-231`).
+El `worker` corre con `network_mode: host`: es el que bindea `1162/udp` y `5514/udp`, y
+llega a Postgres y a Redis por los puertos que el host publica (`127.0.0.1`), porque desde
+la red de Compose no se llega al host. El `app` no publica los puertos UDP: dos procesos
+no pueden tomar el mismo socket, y el que llegara segundo se quedaría sin él en
+silencio.
+
+Retención de VictoriaMetrics: 12 meses por defecto. Red `ftth-network`. El bloque
+de clúster HA de VictoriaMetrics está comentado.
 
 > `docker compose down -v` **borra el estado de producción**: el compose lo advierte
-> explícitamente en `:238-249`.
+> explícitamente en un comentario junto a la lista de volúmenes.
 
 ## 5. `docker-compose.https.yml` — producción detrás de Caddy
 
 | Servicio | Imagen | Puertos |
 |---|---|---|
-| `postgres` | `postgres:16-alpine`, `env_file: .env.prod` | no publicados |
+| `postgres` | `postgres:16-alpine`, `env_file: .env.prod` | `127.0.0.1:${POSTGRES_PORT:-5432}:5432` |
+| `redis` | `redis:8.10.2-alpine`, `env_file: .env.prod` | `127.0.0.1:${REDIS_PORT:-6379}:6379` |
 | `db-migrate` | build `.` target `dependencies` | — |
 | `app` | build `.` target `runner` | `expose: "3001"` (no publicado) |
+| `worker` | build `.`, `services/worker/Dockerfile` | red del host: `1162/udp`, `5514/udp`, `127.0.0.1:8081` |
 | `caddy` | `caddy:2-alpine` | `${CADDY_HTTP_PORT:-80}:80`, `${CADDY_HTTPS_PORT:-443}:443` |
 
-Caddy monta `Caddyfile.prod` (ro), con volúmenes `caddy_data` y `caddy_config`, y recibe
-`CADDY_DOMAIN` (`:91`). El compose provisiona el certificado Let's Encrypt
-automáticamente (`:1-14`).
+Es un compose **standalone**: trae su propia base, su Redis, su web, su worker y su
+proxy. Caddy monta `Caddyfile.prod` (ro), con volúmenes `caddy_data` y `caddy_config`, y
+recibe `CADDY_DOMAIN`. El compose provisiona el certificado Let's Encrypt
+automáticamente.
+
+Igual que en producción, `postgres` y `redis` se publican en el loopback del host: el
+worker corre en la red del host y desde la red de Compose no se llega a él. El `app` se
+alcanza sólo por la red de Compose: Caddy es el que lo publica.
 
 ## 6. PM2 — `ecosystem.config.cjs`
 
 | App | Script | Entorno |
 |---|---|---|
-| `ftth-copilot` | `/bin/bash` + `apps/web/start.sh` (ruta absoluta del host) | `env_file: './apps/web/.env'`, `NODE_ENV=production` (`:26-39`) |
-| `cloudflared` | `cloudflared tunnel --protocol http2 --no-autoupdate run` | `TUNNEL_TOKEN` leído del `.env` de la raíz, que nunca se commitea (`:40-49`) |
+| `ftth-copilot` | `/bin/bash` + `apps/web/start.sh` (ruta absoluta del host) | `env_file: './apps/web/.env'`, `NODE_ENV=production` |
+| `ftth-copilot-worker` | `/bin/bash` + `services/worker/start.sh` (ruta absoluta del host) | `env_file: './apps/web/.env'`, `NODE_ENV=production`, `WORKER_HOST=127.0.0.1` |
+| `cloudflared` | `cloudflared tunnel --protocol http2 --no-autoupdate run` | `TUNNEL_TOKEN` leído del `.env` de la raíz, que nunca se commitea |
 
-`cloudflared` tiene `restart_delay: 5000` y `max_restarts: 10` (`:47`).
+El worker y el web leen el mismo `apps/web/.env`: es el mismo despliegue, con la misma
+base y la misma cola. `services/worker/start.sh` se arma solo —hace `cd` a la raíz del
+repo y arranca `pnpm --filter @ftth-copilot/worker start`—, así que el único camino
+absoluto que hay que editar es el del script dentro del ecosystem. `WORKER_HOST` queda
+en el loopback porque el bloque `env` de PM2 gana sobre el `env_file`: sin
+`METRICS_BEARER_TOKEN`, el endpoint de métricas no tiene autenticación, y en un
+servidor público escucharía en todas las interfaces.
+
+`cloudflared` y el worker tienen `restart_delay: 5000` y `max_restarts: 10`.
 
 ## 7. systemd — `docker/vmbackup.service`
 

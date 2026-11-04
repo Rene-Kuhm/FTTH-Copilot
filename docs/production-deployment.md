@@ -119,11 +119,23 @@ CADDY_HTTP_PORT=80
 CADDY_HTTPS_PORT=443
 
 # 2. Usar el compose con HTTPS:
-docker compose -f docker-compose.https.yml up -d
+docker compose --env-file .env.prod -f docker-compose.https.yml up -d
 ```
 
 Caddy provisiona automáticamente el certificado TLS. No requiere cronjobs de
 renovación ni configuración manual de certificados.
+
+> El `--env-file .env.prod` no es opcional: las variables que Compose interpola
+> (`${REDIS_PASSWORD}`, `${POSTGRES_PASSWORD}`…) salen del archivo que se le pasa con
+> `--env-file`, no del `env_file` de un servicio. Sin él, el compose aborta con
+> `required variable REDIS_PASSWORD is missing a value`.
+
+El compose HTTPS es **standalone**: trae `postgres`, `redis`, `db-migrate`, `app`,
+`worker` y `caddy`. El worker es parte del stack, no una opción — sin él, el
+despliegue sirve HTTP y no polaba, no recibía traps y no drenaba el spool, sin
+nada que se viera rojo. `postgres` y `redis` se publican en el loopback del host
+(`127.0.0.1:5432` y `127.0.0.1:6379`) porque el worker corre en la red del host;
+desde la red de Compose no se llega al host.
 
 > Si ya tenés nginx, Traefik o Cloudflare como reverse proxy, podés usar
 > `docker-compose.prod.yml` y terminate HTTPS en tu proxy existente.
@@ -177,7 +189,7 @@ LAYA_SUGGEST_ROUTE=false
 LAYA_ALLOW_DIRECT_ROUTING=false
 
 # Modo microservicio Docker (activar con --profile laya):
-# docker compose --profile laya -f docker-compose.prod.yml up -d
+# docker compose --env-file .env.prod --profile laya -f docker-compose.prod.yml up -d
 # LAYA_URL=http://laya:8080
 # LAYA_PORT=8080
 ```
@@ -422,7 +434,7 @@ Dos cosas que conviene saber antes de editarlo:
 **Validar el config antes de desplegar:**
 ```bash
 # Scrape config
-docker compose -f docker-compose.prod.yml run --rm --no-deps \
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm --no-deps \
   -e VM_CONFIG_DRYRUN=1 victoriametrics
 
 # Reglas (vmalert valida el PromQL y las expresiones)
@@ -449,7 +461,7 @@ demo con `--profile alerts`).
 
 ```bash
 # Levantar con reglas en el demo
-docker compose -f docker-compose.demo.yml --profile alerts up -d
+docker compose --env-file .env.demo -f docker-compose.demo.yml --profile alerts up -d
 
 # Ver reglas, su salud y valores evaluados
 docker exec ftth_demo_victoriametrics \
@@ -540,7 +552,7 @@ VICTORIAMETRICS_STORAGE_NODES=2
 
 3. Update app config: `VICTORIAMETRICS_URL=http://vmselect:8481` (cluster uses port 8481, not 8428).
 
-4. Rebuild: `docker compose -f docker-compose.prod.yml up -d`
+4. Rebuild: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d`
 
 **Data flow in cluster mode:**
 - App writes metrics → `vminsert:8400` → `vmstorage:8400` (replicated)

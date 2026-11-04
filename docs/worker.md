@@ -134,6 +134,29 @@ by accident. Now it is the only owner of the background work, so a stack
 without it is a stack that does not poll anything: starting it by accident is
 not the risk anymore — forgetting it is.
 
+**Every** deployment brings it: the production compose, the staging override,
+the demo, and the HTTPS one (`docker-compose.https.yml`, which is standalone —
+its own Postgres, its own Redis, its own web and its own worker). The CI
+checks it: a compose that raises the web without a worker fails the build, and
+so does the PM2 ecosystem without a worker process.
+
+### Without Docker: PM2
+
+The deployment that does not use containers runs the worker as its own PM2
+process, next to the web and the tunnel:
+
+```bash
+pm2 start ecosystem.config.cjs
+```
+
+`ecosystem.config.cjs` declares `ftth-copilot-worker`, which runs
+`services/worker/start.sh`: it makes `cd` to the root of the repository and
+starts `pnpm --filter @ftth-copilot/worker start`. It reads the same
+`apps/web/.env` as the web — same deployment, same database, same queue — and
+keeps the health and metrics server on the loopback. `pnpm` has to be in the
+PATH of the process PM2 starts: PM2 only forwards its own environment, so the
+shell that launched it has to have it.
+
 ## The worker runs on the host network
 
 The worker service uses `network_mode: host`. This is not a convenience, it is
