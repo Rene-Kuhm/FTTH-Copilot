@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { test } from 'node:test';
 import YAML from 'yaml';
@@ -21,13 +22,26 @@ import YAML from 'yaml';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
-/** Los compose que declaran servicios: el worker va siempre en todos. */
-const COMPOSES = [
-  'docker-compose.yml',
-  'docker-compose.prod.yml',
-  'docker-compose.demo.yml',
-  'docker-compose.staging.yml',
-];
+/**
+ * Los compose que declaran servicios: el worker va siempre en todos.
+ *
+ * Se **descubren** en vez de listarse a mano. Un compose nuevo queda
+ * cubierto por las reglas sin que nadie tenga que acordarse de añadirlo a
+ * esta lista, y esa es exactamente la forma en que
+ * `docker-compose.https.yml` se quedó sin worker durante meses: nadie lo
+ * miraba porque no estaba en ninguna parte.
+ */
+function composes(): string[] {
+  return fs
+    .readdirSync(REPO_ROOT)
+    .filter((nombre) => /^docker-compose.*\.yml$/.test(nombre))
+    .sort();
+}
+
+/** Los compose que levantan la web (el servicio `app`). */
+function composesConWeb(): string[] {
+  return composes().filter((compose) => Boolean(leerCompose(compose).services['app']));
+}
 
 /** Plantillas de entorno: el valor de `BACKEND_MODE` que se entrega. */
 const PLANTILLAS = ['.env.example', '.env.staging.example', 'docs/demo-env-template.md'];
@@ -77,9 +91,43 @@ interface ComposeFile {
   services: Record<string, { profiles?: string[]; environment?: Record<string, unknown> }>;
 }
 
+/** Una app de PM2, tal como la declara `ecosystem.config.cjs`. */
+interface EcosystemApp {
+  name?: string;
+  script?: string;
+  args?: string;
+  env_file?: string;
+}
+
+interface EcosystemFile {
+  apps: EcosystemApp[];
+}
+
 function leerCompose(archivo: string): ComposeFile {
   const contenido = fs.readFileSync(path.join(REPO_ROOT, archivo), 'utf8');
   return YAML.parse(contenido) as ComposeFile;
+}
+
+/**
+ * Lee el ecosystem de PM2 **ejecutándolo**.
+ *
+ * Es un módulo de CommonJS sin efectos secundarios (sólo lee el `.env` de la
+ * raíz para el token del túnel), así que cargarlo dice la verdad de lo que
+ * PM2 va a levantar: no hay que parsear el fichero con expresiones
+ * regulares, que es como las reglas anteriores se quedaban ciegas.
+ */
+function leerEcosystem(): EcosystemFile {
+  const require = createRequire(import.meta.url);
+  try {
+    return require(path.join(REPO_ROOT, 'ecosystem.config.cjs')) as EcosystemFile;
+  } catch (error) {
+    assert.fail(`ecosystem.config.cjs no se puede cargar: ${(error as Error).message}`);
+  }
+}
+
+/** El comando con el que PM2 arranca una app: script y argumentos. */
+function comandoDe(app: EcosystemApp): string {
+  return `${app.script ?? ''} ${app.args ?? ''}`;
 }
 
 /** Todos los ficheros TypeScript de un directorio, recursivamente. */
@@ -345,7 +393,7 @@ test('el paquete de jobs ya no ofrece un selector de modo', () => {
 test('el worker no está detrás de un profile: es parte del stack', () => {
   // Un worker opcional es un worker que nadie levanta: la web no corre los
   // loops y nadie los corre por ella.
-  for (const compose of COMPOSES) {
+  for (const compose of composes()) {
     const servicios = leerCompose(compose).services;
     assert.ok(servicios['worker'], `${compose} tiene que declarar el servicio worker`);
 
@@ -363,7 +411,7 @@ test('ningún compose ni plantilla pide el modo embedded', () => {
   // `BACKEND_MODE: ${BACKEND_MODE:-embedded}`.
   const patron = /BACKEND_MODE[^\n]*embedded/;
 
-  for (const compose of COMPOSES) {
+  for (const compose of composes()) {
     const contenido = fs.readFileSync(path.join(REPO_ROOT, compose), 'utf8');
     assert.equal(
       patron.test(contenido),
@@ -385,7 +433,7 @@ test('ningún compose ni plantilla pide el modo embedded', () => {
 test('el compose le dice al web que el worker es el dueño', () => {
   // El compose es la fuente de la verdad del despliegue: si el web arranca
   // sin el flag, arranca igual, pero nadie polo.
-  for (const compose of ['docker-compose.prod.yml', 'docker-compose.demo.yml', 'docker-compose.staging.yml']) {
+  for (const compose of composesConWeb()) {
     const app = leerCompose(compose).services['app'];
     assert.ok(app, `${compose} tiene que declarar el servicio app`);
     assert.equal(
@@ -403,7 +451,7 @@ test('el web de un compose llega a Redis por el nombre del servicio', () => {
   // web hay que llegar por el nombre del servicio.
   //
   // El worker corre en la red del host, así que ése sí va por 127.0.0.1.
-  for (const compose of ['docker-compose.prod.yml', 'docker-compose.demo.yml']) {
+  for (const compose of composesConWeb()) {
     const app = leerCompose(compose).services['app'];
     assert.ok(app, `${compose} tiene que declarar el servicio app`);
 
@@ -414,4 +462,43 @@ test('el web de un compose llega a Redis por el nombre del servicio', () => {
       `${compose}: el web tiene que llegar a Redis por el nombre del servicio, no por el loopback`,
     );
   }
+});
+
+test('ningún despliegue levanta la web sin worker', () => {
+  // El web sólo sirve HTTP: el trabajo de fondo —el poll, el firmware, el
+  // FEC, la recepción de syslog y SNMP y el drenado del spool— es del worker.
+  //
+  // Un despliegue que levanta el web sin worker levanta un sistema que no
+  // pola nada, y no se da cuenta: el health no tiene los loops que esperar,
+  // así que tampoco hay nada que se vea rojo. Por eso esto se comprueba en
+  // el CI y no en el despliegue.
+  for (const compose of composesConWeb()) {
+    const servicios = leerCompose(compose).services;
+
+    assert.ok(
+      servicios['worker'],
+      `${compose} levanta la web pero no declara el servicio worker: el trabajo de fondo es del worker`,
+    );
+    assert.ok(
+      servicios['redis'],
+      `${compose} levanta la web pero no declara el servicio redis: es la cola que usa el worker`,
+    );
+  }
+
+  // Y lo mismo en el despliegue sin Docker.
+  const ecosystem = leerEcosystem();
+
+  const web = ecosystem.apps.find(
+    (app) => comandoDe(app).includes('apps/web/start.sh') || comandoDe(app).includes('next start'),
+  );
+  assert.ok(web, 'ecosystem.config.cjs tiene que declarar la app web');
+
+  const worker = ecosystem.apps.find(
+    (app) =>
+      comandoDe(app).includes('services/worker') || comandoDe(app).includes('@ftth-copilot/worker'),
+  );
+  assert.ok(
+    worker,
+    `el ecosystem levanta la web (${web.name}) sin un proceso de worker: el trabajo de fondo es del worker`,
+  );
 });
