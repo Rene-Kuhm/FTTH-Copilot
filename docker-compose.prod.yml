@@ -110,8 +110,9 @@ services:
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       # Durable ingest spool. MUST be a persistent volume: events buffered
       # while Postgres is unreachable are lost if the container is recreated.
-      # The web owns the `web` subdirectory of that volume: the worker owns
-      # `worker`, and two processes must never write the same spool.
+      # The web does not spool anything: the worker receives, writes and
+      # drains. The variable stays declared so the volume keeps the two
+      # subdirectories the layout expects.
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       # The kernel drops UDP datagrams silently once this buffer fills, so a
       # link flap needs headroom here.

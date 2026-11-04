@@ -174,8 +174,9 @@ services:
       # The durable queue. Redis is published on the loopback only and
       # requires a password; see the redis service below.
       REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
-      # The web owns the `web` subdirectory of the spool volume: the worker
-      # owns `worker`, and two processes must never write the same spool.
+      # The web does not spool anything: the worker receives, writes and
+      # drains. The variable stays declared so the volume keeps the two
+      # subdirectories the layout expects.
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
