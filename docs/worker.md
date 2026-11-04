@@ -92,9 +92,10 @@ while the Redis container looks perfectly healthy. Hex only uses `0-9a-f`.
 If the password must contain other characters, percent-encode it before it
 goes into the URL.
 
-`BACKEND_MODE` is read by `@ftth-copilot/jobs` (`assertWorkerBackendMode()`),
-so both the web and the worker agree on it. The only value that means
-something is `worker`, and an unset variable means the same.
+`BACKEND_MODE` is validated by `@ftth-copilot/jobs`
+(`assertWorkerBackendMode()`), and the web calls it at boot. The worker does
+not read it: the worker *is* the worker. The only value that means something
+is `worker`, and an unset variable means the same.
 
 The compose stacks set it explicitly in the app's `environment:`, so a
 `.env` left over from before the cut-over cannot put the web back in a mode
@@ -398,34 +399,35 @@ The extraction is reversible without a code revert.
 ### How to roll back
 
 The in-process path is gone, so the rollback is not a variable anymore: it is
-the previous image.
+the previous version. The **compose goes back with it** —the previous
+version's compose had the worker behind a profile, and that is what keeps
+the worker from starting next to a web that runs the loops in-process.
 
 ```bash
-# 1. Deploy the previous version of the web and of the worker.
+# 1. Stop the worker. The previous version of the web runs the loops
+#    in-process, and the two would poll the NMS twice and both would try to
+#    bind the UDP socket. The second one to try gets nothing, silently.
+docker compose stop worker
+
+# 2. Deploy the previous version. The checkout brings back its compose too.
+git checkout <commit-anterior>
 docker compose up -d --build
-# 2. Check that the web came up and that the worker is publishing its state.
-curl -s http://localhost:3001/api/health | jq '.owner, .services'
 ```
+
+`docker compose up -d --build` without the checkout would rebuild the
+*current* tree: it would roll nothing back, and it would start the worker
+again, because the worker is no longer behind a profile.
 
 No data migration is involved: the queue payload lives in Redis, and the rows
 the worker writes are the same rows the in-process path wrote. The jobs that
 were in the queue when the worker stopped are **not lost** either — they stay
 in Redis and the previous version picks them up.
 
-**The order matters.** The previous version of the web runs the loops
-in-process, so the worker has to be stopped before the web comes back with
-the old code: the two would poll the NMS twice and both would try to bind
-the UDP socket. The second one to try gets nothing, silently.
-
-```bash
-docker compose stop worker
-docker compose up -d --build
-```
-
 ### Verify the rollback
 
 ```bash
-# The web owns the loops again.
+# The web owns the loops again. The `owner` field says `embedded` here: the
+# previous version had both modes.
 curl -s http://localhost:3001/api/health | jq '.owner, .services'
 
 # The worker is not consuming anything.

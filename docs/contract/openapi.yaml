@@ -3753,6 +3753,19 @@ components:
           required: [rss, heapUsed]
         version:
           type: string
+        owner:
+          type: string
+          enum: [worker]
+          description: >-
+            De quién es el registro de los loops. El worker es el único dueño
+            del trabajo de fondo, así que siempre vale `worker`.
+        scope:
+          type: string
+          enum: [system, container]
+          description: >-
+            `system` (el default) incluye al worker: responde 503 cuando el
+            trabajo de fondo no tiene dueño. `container` mide sólo este
+            proceso, que es lo que necesita el health check del contenedor.
         database:
           type: object
           additionalProperties: true
@@ -3770,7 +3783,7 @@ components:
         ingest:
           type: object
           additionalProperties: true
-      required: [status, timestamp, uptime, memory, version]
+      required: [status, timestamp, uptime, memory, version, owner, scope]
 
     ChatRequest:
       type: object

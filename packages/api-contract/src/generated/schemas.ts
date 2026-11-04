@@ -167,6 +167,8 @@ export const HealthReportSchema = z.object({
   heapUsed: z.number(),
 }).passthrough(),
   version: z.string(),
+  owner: z.enum(["worker"]),
+  scope: z.enum(["system", "container"]),
   database: z.object({
 }).passthrough().optional(),
   services: z.object({

@@ -5,7 +5,7 @@
 #
 # For observability (metrics, dashboards), use docker-compose.demo.yml or
 # docker-compose.prod.yml which include the VictoriaMetrics service.
-# This base compose provides postgres + redis + optional laya only.
+# This base compose provides postgres, redis, the worker and optional laya.
 ---
 services:
   postgres:

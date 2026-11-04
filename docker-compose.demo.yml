@@ -10,9 +10,11 @@
 #
 # What it starts:
 #   1. postgres  — persistent volume, survives restarts
-#   2. db-migrate — runs Prisma migrations, exits
-#   3. app      — Next.js on :3001 with DEMO_MODE_ENABLED=true
-#   4. db-seed  — seeds demo account + synthetic ONUs/alerts, exits
+#   2. redis    — durable job queue
+#   3. db-migrate — runs Prisma migrations, exits
+#   4. app      — Next.js on :3001 with DEMO_MODE_ENABLED=true
+#   5. worker   — the background work: polls, audits, collects, receives
+#   6. db-seed  — seeds demo account + synthetic ONUs/alerts, exits
 #
 # Demo credentials:
 #   URL:     http://localhost:3001
