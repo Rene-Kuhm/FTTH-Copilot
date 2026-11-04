@@ -244,26 +244,28 @@ tarea.
 | T12 | S5, S20            | inline  | `d376289` (unidades 8-11) | Inventariar las rutas `app/api/**` que hoy hacen trabajo de fondo inline y cambiarlas a `enqueue`, manteniendo el contrato de respuesta. **Hecha**: el inventario (L26/L27) dejó un solo candidato real, `incidents/[id]/investigate`, y la unidad 8 lo movió a la cola `ftth-investigation` con claim por advisory lock. |
 | T13 | S5                | inline  | unidad 11 | Tests de contrato: las respuestas de esas rutas no cambian de forma observable; el efecto ahora ocurre vía job. **Hecha**: la unidad 11 los cubre (presupuesto, error, pending viejo, pedidos simultáneos, tenant ajeno, espera acotada). |
 | T14 | S15               | inline  | `#361`, `#363`, `#364`, `#365` | Correr en staging con `BACKEND_MODE=worker` y validar: poll, firmware, FEC, syslog, SNMP y drenado funcionan, con web escalada a 2 réplicas sin duplicar trabajo. **Hecha**: los seis planos quedaron validados contra un Postgres real en la VPS `vps-casa`, con la web en dos réplicas detrás de Caddy. La evidencia y lo que quedó abierto están en L35. |
-| T15 | S4, S6, S15        | pending | pending | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. **Es irreversible en código**: por eso espera a que T14 haya corrido verde. |
+| T15 | S4, S6, S15        | inline  | `#369` | Flip del default a `BACKEND_MODE=worker`; borrar el camino embedded de `instrumentation.ts` y el scheduler en proceso. **Hecha**: el worker es el único dueño del trabajo de fondo y el camino en proceso no existe más. Lo que se borró, lo que cambió y lo que queda como rollback, en L39. |
 | T16 | S18               | inline  | `0f63836`, `feafc26`, `8d5c4b5`, `fec08a2` | Observabilidad: exportar a VictoriaMetrics profundidad de cola, latencia de job, retries y dead-letters; panel/alertas mínimas. |
 | T18 | S19                | inline  | `replay:dead-letter` | Comando `replay:dead-letter`: devuelve los eventos del `events.dlq.jsonl` al spool (o los encola directo), con `dry-run`, filtro por tenant y conteo de recuperados/duplicados. Reusa el `ingestId` como clave de idempotencia, así que un replay repetido no duplica nada. |
 | T17 | S1, S17            | inline  | `40909a7` | Docs: `README`/deploy actualizados con la nueva topología (web + worker + redis), diagrama y runbook de rollback. |
 
 ## Plan de rollback
 
-El cambio va detrás de `BACKEND_MODE` y aterriza en pasos reversibles:
+El cambio aterrizó en pasos reversibles, y el último de ellos —T15— ya no lo
+es. El rollback ahora es la versión anterior del despliegue:
 
-1. **Dual-run.** Worker y loops en proceso son mutuamente excluyentes vía
-   `BACKEND_MODE`. Default queda `embedded` hasta T15. Rollback = poner
-   `BACKEND_MODE=embedded` y no desplegar el worker. Sin revert de código, sin
-   migración de datos.
+1. **Dual-run (hasta T15).** Worker y loops en proceso eran mutuamente
+   excluyentes vía `BACKEND_MODE`, y el default quedaba `embedded`. El
+   rollback era poner `BACKEND_MODE=embedded` y no desplegar el worker: sin
+   revert de código, sin migración de datos.
 2. **Sin cambio de schema en el camino crítico.** Los jobs llevan payload en
    Redis; las lecturas/escrituras a Postgres son las mismas filas que los loops
-   ya tocan, así que el rollback deja la DB en una forma que el camino embedded
+   ya tocan, así que el rollback deja la DB en una forma que el camino anterior
    entiende.
-3. **Revert por fase.** Cada fase es un commit con sus tests; cualquier fase se
-   revierte sola porque el camino embedded recién se borra en T15, tras correr
-   verde en staging.
+3. **Revert por fase.** Cada fase era un commit con sus tests, y cualquiera se
+   revertía sola porque el camino embedded recién se borró en T15, tras correr
+   verde en staging. T15 es el que rompe esa regla: desde ahí, volver atrás es
+   desplegar la versión anterior.
 4. **Pérdida de Redis sobrevivible.** Si Redis no está, el worker falla cerrado y
    alerta; como la recepción spoolea al store durable antes de encolar (per
    `event-ingest-durability`), ningún trap se pierde — se reproduce al volver
@@ -868,7 +870,6 @@ debe romperse) y los tests de durabilidad de las fases 4.
     `.env.staging.example` y la política de producción no las rechaza, y
     los `container_name` fijos de `docker-compose.prod.yml` impiden que
     producción y staging convivan en un mismo host.
-||||||| parent of 273e388 (docs(odd): el staging reproducible y lo que queda para la revalidación)
 - **L37** (2026-11-03) — **El staging quedó reproducible** (`#367`: el mock NMS
   como servicio del compose, las excepciones SSRF declaradas y acotadas, la
   convivencia de producción y staging en un mismo host, y la guía que levanta
@@ -958,3 +959,48 @@ debe romperse) y los tests de durabilidad de las fases 4.
   - **El staging se recreó** con el proyecto `ftth-staging` (el nombre nuevo
     del compose): los volúmenes se nombran con el proyecto, así que la base
     del staging nuevo arranca vacía y se vuelve a sembrar.
+
+- **L39** (2026-11-04) — **T15: el worker es el único dueño del trabajo de fondo**
+  (`#369`: el default da vuelta, y el camino `embedded` sale del código).
+  - **El flag dejó de ser un selector**: `BACKEND_MODE` ya no elige entre dos
+    caminos porque sólo queda uno. El valor `embedded` —el de un entorno que
+    nunca se migró— se rechaza al arrancar, en vez de caerse a un default: un
+    entorno así seguiría sirviendo HTTP mientras nadie polosaría, y ese
+    fallo es silencioso.
+  - **La web no importa el camino en proceso**: la instrumentación ya no
+    importa el scheduler, ni los receptores, ni el drainer, ni el barrido de
+    investigaciones. Sólo marca los loops y los receptores como "no
+    esperados" en su registro de salud, para que `/api/health` siga siendo
+    honesto sobre lo que este proceso es responsable.
+  - **La ruta de investigación siempre encola**: el pipeline corre en un solo
+    proceso —el worker— y es el que cierra el intento. Antes la web podía
+    correrlo en proceso y contestar `202` con la promesa viva.
+  - **El contrato de la API no cambió**: `/api/health` sigue contestando
+    `owner`, y ahora siempre vale `worker`.
+  - **Se fueron los loops en proceso del paquete `scheduler`**: los tres
+    `setInterval` (poll, firmware, FEC) y sus mapas de timers. El paquete
+    conserva las unidades ejecutables, que son las que el worker llama desde
+    los handlers de la cola.
+  - **Se fue el drainer en proceso del paquete `ingest`**: la opción
+    `startInProcessDrainer` ya no existe, así que no hay forma de encender
+    por error un segundo drainer avanzando el mismo offset del spool.
+  - **La infra despliega el worker siempre**: estaba detrás de un profile en
+    los tres compose. Los compose le dicen al web `BACKEND_MODE=worker`
+    explícitamente, así que un `.env` viejo no rompe el despliegue, y las
+    plantillas dejaron de entregar `embedded`.
+  - **El rollback ya no es una variable**: es la versión anterior. No hay
+    `BACKEND_MODE=embedded` que volver a poner, porque ese camino ya no
+    existe en el código. La guía del worker, la de producción y la del
+    staging lo dicen, y el modelo C4 ya no muestra al web como orquestador.
+  - **Reglas de CI nuevas** (`scripts/tests/worker-only-backend.test.ts`): la
+    web no puede volver a tener los módulos del camino en proceso, ni la
+    instrumentación puede importarlos; el paquete de ingest no puede volver
+    a exportar el drainer en proceso; el worker no puede estar detrás de un
+    profile; y ningún compose ni plantilla puede pedir el modo `embedded`.
+  - **Lo que sigue abierto**:
+    - **El despliegue real de este cambio**: T15 es irreversible en código, y
+      la primera vez que corre de verdad tiene que ser en el staging de la
+      VPS `vps-casa`, con el worker del `main` nuevo. Después, producción.
+    - **La revisión independiente**: el bloque es grande (un flag, la web, dos
+      packages, tres compose y la documentación) y conviene que lo mire
+      alguien antes de que se mergee.
