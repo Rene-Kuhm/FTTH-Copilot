@@ -173,7 +173,12 @@ services:
       BACKEND_MODE: worker
       # The durable queue. Redis is published on the loopback only and
       # requires a password; see the redis service below.
-      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
+      #
+      # The web runs inside the compose network, so 127.0.0.1 would be the
+      # web container itself — it does not reach the host. It reaches Redis by
+      # service name. (The worker is the opposite: it runs on the host
+      # network, so it reaches Redis there.)
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       # The web does not spool anything: the worker receives, writes and
       # drains. The variable stays declared so the volume keeps the two
       # subdirectories the layout expects.

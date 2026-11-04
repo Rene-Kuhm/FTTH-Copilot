@@ -152,6 +152,26 @@ test('el compose le dice al web que el worker es el dueño', () => {
   }
 });
 
+test('el web de un compose llega a Redis por el nombre del servicio', () => {
+  // El web vive en la red del compose, así que su loopback es su propio
+  // loopback: no llega al host. Redis se publica en el loopback del host
+  // (porque un puerto publicado no pasa por el firewall), así que desde el
+  // web hay que llegar por el nombre del servicio.
+  //
+  // El worker corre en la red del host, así que ése sí va por 127.0.0.1.
+  for (const compose of ['docker-compose.prod.yml', 'docker-compose.demo.yml']) {
+    const app = leerCompose(compose).services['app'];
+    assert.ok(app, `${compose} tiene que declarar el servicio app`);
+
+    const redisUrl = String(app.environment?.['REDIS_URL'] ?? '');
+    assert.doesNotMatch(
+      redisUrl,
+      /@(127\.0\.0\.1|localhost)(:|\/|$)/,
+      `${compose}: el web tiene que llegar a Redis por el nombre del servicio, no por el loopback`,
+    );
+  }
+});
+
 test('el paquete de ingest no tiene drainer en proceso', () => {
   // El drainer en proceso era del camino embedded. El worker drena desde el
   // job de la cola: dos drainers avanzarían el mismo offset del spool.
