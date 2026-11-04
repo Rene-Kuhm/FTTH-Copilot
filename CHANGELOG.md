@@ -12,6 +12,17 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.7.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.6.0...v0.7.0) (2026-11-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **worker:** el modo embedded se eliminó. Todo despliegue necesita el worker y Redis; BACKEND_MODE=embedded hace que la web no arranque. Ver docs/how-to/desplegar-en-produccion.md.
+
+### Added
+
+* **worker:** el worker es el único dueño del trabajo de fondo ([#369](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/369)) ([9c3cd7f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9c3cd7fb83c3c821c2aa5a66fd00d78ff038cd09))
+
 ## [0.6.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.5.0...v0.6.0) (2026-11-04)
 
 
