@@ -15,6 +15,7 @@ import {
   markExpected as markSchedulerExpected,
   markNotExpected as markSchedulerNotExpected,
   recordSyslogBound,
+  setNextRun,
 } from '@ftth-copilot/scheduler';
 
 const log = createLogger({ name: 'syslog' });
@@ -67,7 +68,19 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
     return () => {};
   }
   markSchedulerExpected('syslog');
-  markSchedulerExpected('syslog-detection');
+  // The detection pass is a loop, not a socket: it has a tick and a cadence,
+  // so the registry needs its deadline. Without it, a worker that just booted
+  // reported the loop as hung until the first pass — and the system degraded
+  // on every restart. The deadline says "it is warming up", and only a pass
+  // that does not arrive turns it into a hung loop.
+  const detectionIntervalMs = positiveInt(
+    process.env['SYSLOG_DETECTION_INTERVAL_MS'],
+    60 * 1000,
+  );
+  markSchedulerExpected('syslog-detection', {
+    intervalMs: detectionIntervalMs,
+    nextRunAt: Date.now() + detectionIntervalMs,
+  });
   recordSyslogBound(false);
 
   const port = positiveInt(process.env['SYSLOG_UDP_PORT'], 5514);
@@ -164,17 +177,27 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
     if (options.startInProcessDrainer !== false) startEventDrainer();
   });
 
-  const intervalMs = positiveInt(process.env['SYSLOG_DETECTION_INTERVAL_MS'], 60 * 1000);
+  const intervalMs = detectionIntervalMs;
+  log.info('Syslog detection scheduled', { everyMs: intervalMs, tenantId });
   const timer = setInterval(() => {
+    log.debug('Syslog detection pass started', { tenantId });
     runSecurityDetection({
       tenantId,
       webhookUrl: process.env['ALERT_WEBHOOK_URL'],
       telegram: telegramConfig(),
     })
-      .then(() => recordSchedulerSuccess('syslog-detection'))
+      .then(() => {
+        recordSchedulerSuccess('syslog-detection');
+        // The pass happened: the next one is due in an interval.
+        setNextRun('syslog-detection', Date.now() + intervalMs);
+      })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         recordSchedulerError('syslog-detection', msg);
+        // The pass failed, but the loop is alive: it tries again in an
+        // interval. The error is in the health; the deadline keeps the loop
+        // from being reported as hung on top of it.
+        setNextRun('syslog-detection', Date.now() + intervalMs);
       });
   }, intervalMs);
 

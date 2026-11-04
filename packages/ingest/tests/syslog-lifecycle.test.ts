@@ -80,6 +80,50 @@ describe('syslog receiver lifecycle', () => {
     expect(snapshotHealth()['syslog-detection']?.lastError).toBeTruthy();
   });
 
+  /**
+   * The detection pass is a loop: it has a cadence and a tick.
+   *
+   * The registry needs its deadline. Without it, a worker that just booted
+   * reported the loop as hung until the first pass — and the system degraded
+   * on every restart, which is what the deadline of the other loops exists to
+   * prevent.
+   */
+  it('publishes when the detection pass is due', async () => {
+    const { snapshotHealth } = await import('@ftth-copilot/scheduler');
+    const { startSyslogReceiver } = await import('../src/syslog-receiver');
+
+    process.env['SYSLOG_DETECTION_INTERVAL_MS'] = '60000';
+    stop = startSyslogReceiver();
+    await delay(100);
+
+    const service = snapshotHealth()['syslog-detection'];
+    expect(service?.expected).toBe(true);
+    expect(service?.intervalMs).toBe(60_000);
+    expect(service?.nextRunAt).toBeGreaterThan(Date.now());
+  });
+
+  it('renews the deadline of the detection pass after it runs', async () => {
+    const { snapshotHealth } = await import('@ftth-copilot/scheduler');
+    const { startSyslogReceiver } = await import('../src/syslog-receiver');
+
+    // The pass fails in this spec (the database is not reachable), but the
+    // loop is alive: the deadline moves forward anyway, or the health would
+    // report it as hung.
+    process.env['SYSLOG_DETECTION_INTERVAL_MS'] = '50';
+    stop = startSyslogReceiver();
+    await delay(100);
+    const first = snapshotHealth()['syslog-detection']?.nextRunAt ?? 0;
+
+    await delay(300);
+    const second = snapshotHealth()['syslog-detection']?.nextRunAt ?? 0;
+
+    // The deadline moves forward with every pass. Comparing the two instants
+    // —and not the deadline with the clock— is what makes this stable: with
+    // a fifty-millisecond interval, the deadline is in the past most of the
+    // time.
+    expect(second).toBeGreaterThan(first);
+  });
+
   it('reports the socket as unbound after the receiver stops', async () => {
     const { snapshotHealth } = await import('@ftth-copilot/scheduler');
     const { startSyslogReceiver } = await import('../src/syslog-receiver');
