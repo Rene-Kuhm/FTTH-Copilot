@@ -177,12 +177,16 @@ de la tabla de abajo referencia al menos uno.
   dead-letter**.
 - **S4** — Bajo `BACKEND_MODE=worker`, `apps/web/instrumentation.ts` **no**
   arranca polling, auditoría, FEC, syslog, SNMP ni drainer. Bajo `embedded`, el
-  comportamiento es idéntico a hoy.
+  comportamiento es idéntico a hoy. **Cerrada por T15**: el modo `embedded` ya
+  no existe, así que la web no arranca nunca nada (L39).
 - **S5** — La API HTTP queda estable: las 61 rutas de `apps/web/app/api/**`
   mantienen su contrato; donde hoy disparan trabajo de fondo inline, ahora
   **encolan un job**.
 - **S6** — El flag `BACKEND_MODE` selecciona `embedded` (comportamiento de hoy)
   vs `worker` (extraído), y permite dual-run y rollback **sin revertir código**.
+  **Cerrada por T15**: el flag dejó de ser un selector y sólo valida; el
+  rollback sin revertir código era la promesa del dual-run, y T15 es
+  justamente el commit que la termina (L39).
 - **S7** — Cada loop recurrente es idempotente por ventana: con dos workers,
   BullMQ **no ejecuta el mismo tick dos veces**.
 - **S8** — Recepción ≠ procesamiento: el receptor UDP solo spoolea al store
@@ -200,7 +204,8 @@ de la tabla de abajo referencia al menos uno.
   dominio nueva. El riesgo de regresión es de cableado, no de comportamiento.
 - **S15** — Rollback: `BACKEND_MODE=embedded` + no desplegar el worker. El
   default queda `embedded` hasta T15. Sin revert de código, sin migración de
-  datos.
+  datos. **Cerrada por T15**: el rollback pasa a ser la versión anterior del
+  despliegue (L39).
 - **S16** — La pérdida de Redis es sobrevivible: el worker falla cerrado y
   alerta; como la recepción spoolea al store durable antes de encolar, ningún
   trap se pierde — se reproduce al volver Redis.
