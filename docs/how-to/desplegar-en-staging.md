@@ -6,9 +6,8 @@ como dueño del trabajo de fondo y la web escalada a varias réplicas sin duplic
 
 **Por qué hace falta:** el modo `worker` no se puede validar en desarrollo. En desarrollo la
 web corre sola, en un proceso, contra un Postgres local: no hay segunda réplica que pueda
-duplicar el trabajo, ni cola, ni Redis. El flip del default (T15) borra el camino
-`embedded` del código, así que antes tiene que haber corrido verde en un entorno con las
-piezas de verdad.
+duplicar el trabajo, ni cola, ni Redis. T15 borró el camino `embedded` del código, así que
+antes tenía que haber corrido verde en un entorno con las piezas de verdad.
 
 ---
 
@@ -402,13 +401,13 @@ de calentamiento ocurre de verdad: el worker lo fuerza cuando el próximo tick d
 está lejos, y su id sale de la ranura de esa rejilla, así que dos workers que arrancan a la
 vez producen **un** tick de calentamiento, no dos.
 
-El campo `owner` dice de quién es el registro: `worker` o `embedded`. En modo worker, si el
-worker no publica nada —porque está caído o porque todavía no arrancó— el health responde
-`503 degraded`: el trabajo de fondo no tiene dueño y el health tiene que decirlo, en vez de
-mostrar una lista vacía que parece un sistema tranquilo.
+El campo `owner` dice de quién es el registro: siempre `worker`, porque es el único dueño.
+Si el worker no publica nada —porque está caído o porque todavía no arrancó— el health
+responde `503 degraded`: el trabajo de fondo no tiene dueño y el health tiene que decirlo,
+en vez de mostrar una lista vacía que parece un sistema tranquilo.
 
-Los contadores del ingest (`backlog`, `dropped`) vienen del worker en ese modo. La web no
-ingiere nada cuando el worker es el dueño, así que los suyos serían siempre cero.
+Los contadores del ingest (`backlog`, `dropped`) vienen del worker. La web no ingiere
+nada, así que los suyos serían siempre cero.
 
 ```bash
 # El estado de los loops, tal como lo ve la web
@@ -427,17 +426,25 @@ lo que los jobs producen y aparecen reintentos sobre el mismo job.
 
 ## 5. Rollback
 
-T14 no cambia código: es un despliegue. Volver atrás es poner `BACKEND_MODE=embedded` y
-bajar el worker.
+Desde T15 el camino `embedded` ya no existe: la web no arranca los loops ni los receptores.
+El rollback ya no es cambiar una variable, es desplegar la versión anterior.
 
 ```bash
+# 1. Bajar el worker: la versión anterior de la web corre los loops en proceso
+#    y los dos se pisarían.
 docker compose --env-file .env.staging \
   -f docker-compose.prod.yml -f docker-compose.staging.yml \
-  stop worker && rm -f .env.staging   # o BACKEND_MODE=embedded
+  stop worker
+
+# 2. Desplegar la versión anterior del repositorio.
+git checkout <commit-anterior>
+docker compose --env-file .env.staging \
+  -f docker-compose.prod.yml -f docker-compose.staging.yml \
+  up -d --build
 ```
 
-T15 sí es irreversible en código: borra el camino `embedded` de `instrumentation.ts` y el
-scheduler en proceso. Por eso T15 espera a que T14 haya corrido verde.
+No hay migración de datos: los jobs que estaban en la cola quedan en Redis y los toma la
+versión anterior. Por eso T15 esperó a que T14 hubiera corrido verde en el staging.
 
 ---
 

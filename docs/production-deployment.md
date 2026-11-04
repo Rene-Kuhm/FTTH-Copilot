@@ -52,19 +52,19 @@
 └─────────────┘
 ```
 
-El worker corre detrás del flag `BACKEND_MODE` y solo se despliega con su
-profile (`--profile worker`). Mientras `BACKEND_MODE=embedded` —el default—
-lo ejecuta la propia web. El contrato operativo completo (topología,
-despliegue, métricas y runbook de rollback) está en
-[`docs/worker.md`](worker.md).
+El worker es el dueño del trabajo de fondo: se despliega siempre, como parte
+del stack, y la web sólo sirve HTTP y SSE. No hay un modo `embedded` atrás:
+el camino en proceso se eliminó después de que el worker corriera verde en el
+staging. El contrato operativo completo (topología, despliegue, métricas y
+runbook de rollback) está en [`docs/worker.md`](worker.md).
 
 | Componente | Puerto | Volumen persistente | Descripción |
 |---|---|---|---|
 | `postgres` | 5432/TCP | `postgres_data` | Base de datos multi-tenant |
 | `app` | 3001/TCP | — | Next.js (sin estado) |
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
-| `redis` | 6379/TCP | `redis_data` | Cola durable de trabajos (BullMQ); solo con `BACKEND_MODE=worker` |
-| `worker` | 8081/TCP | `spool_data` | Trabajo de fondo; profile `worker`; red del host |
+| `redis` | 6379/TCP | `redis_data` | Cola durable de trabajos (BullMQ) |
+| `worker` | 8081/TCP | `spool_data` | Trabajo de fondo; red del host |
 | `victoriametrics` | 8428/TCP | `victoriametrics_prod_data` | TSDB + VMUI + API Prometheus-compatible |
 | `vmalert` | 8880/TCP (interno) | — | Evalúa recording/alerting rules; escribe series vía remote write |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |

@@ -232,7 +232,7 @@ layers: {
       connectors: "packages/connectors/*\nAdaptadores SmartOLT, Mikrowisp y MikroTik" {
         class: container
       }
-      snmp-receiver: "packages/monitoring/src/snmp/receiver.ts\nReceptor SNMP UDP 162/1162" {
+      snmp-receiver: "packages/ingest/src/snmp-receiver.ts\nReceptor SNMP UDP 162/1162 (lo bindea el worker)" {
         class: container
       }
 
@@ -251,7 +251,7 @@ layers: {
       db: "packages/db\nPrisma client y cifrado KMS (AES-256-GCM)" {
         class: container
       }
-      syslog-receiver: "apps/web/lib/monitoring/syslog.ts\nReceptor syslog UDP 5514" {
+      syslog-receiver: "packages/ingest/src/syslog-receiver.ts\nReceptor syslog UDP 5514 (lo bindea el worker)" {
         class: container
       }
     }
@@ -291,16 +291,14 @@ layers: {
       class: external-system
     }
 
-    # Ingesta. Los receptores UDP tienen dos dueños y solo uno los binds:
-    # con BACKEND_MODE=worker los tiene el worker, con `embedded` los tiene
-    # el proceso web. Los dos sockets no pueden coexistir.
+    # Ingesta. Los receptores UDP tienen un solo dueño: el worker los bindea
+    # en la red del host. El proceso web no los abre: dos sockets no pueden
+    # coexistir sobre el mismo puerto.
     smartolt -> ftth-copilot.connectors
     mikrowisp -> ftth-copilot.connectors
     mikrotik -> ftth-copilot.connectors: "REST + binario"
-    traps-snmp -> ftth-copilot.snmp-receiver: "UDP 162 / 1162 (embedded)"
-    syslog -> ftth-copilot.syslog-receiver: "UDP 5514 (embedded)"
-    traps-snmp -> ftth-copilot.worker: "UDP 162 / 1162 (worker)"
-    syslog -> ftth-copilot.worker: "UDP 5514 (worker)"
+    traps-snmp -> ftth-copilot.worker: "UDP 162 / 1162"
+    syslog -> ftth-copilot.worker: "UDP 5514"
     ftth-copilot.snmp-receiver -> ftth-copilot.monitoring: "Traps decodificados"
     ftth-copilot.syslog-receiver -> ftth-copilot.soc
 
@@ -373,9 +371,6 @@ layers: {
       data-access: "apps/web/lib/**\nAcceso a datos del tenant" {
         class: component
       }
-      scheduler: "apps/web/instrumentation.ts\nOrquestación en proceso (modo embedded)" {
-        class: component
-      }
     }
 
     # Contenedores vecinos y sistemas externos.
@@ -412,8 +407,6 @@ layers: {
     web.chat-agent -> web.data-access
     web.ops-metrics -> web.data-access
     web.ops-metrics -> connectors: "NMS y firmware"
-    web.scheduler -> web.ops-metrics: "Arranca bucles"
-    web.scheduler -> connectors
 
     # Dependencias fuera del contenedor.
     web.data-access -> db

@@ -151,13 +151,17 @@ Los paquetes están organizados por **responsabilidad**, no por capa técnica. L
 
 ```text
 instrumentation.register()
-  ├─► startPollingLoop()  (apps/web/lib/monitoring/scheduler.ts)
-  │     └─► si METRICS_POLLER_ENABLED=true, corre runScheduledPoll() cada N ms
-  ├─► startFirmwareAuditLoop()  (apps/web/lib/monitoring/scheduler.ts)
-  │     └─► si FIRMWARE_AUDIT_ENABLED=true, corre runScheduledFirmwareAudit() cada N ms
-  └─► startSyslogReceiver()  (apps/web/lib/monitoring/syslog.ts)
-        └─► si SYSLOG_RECEIVER_ENABLED=true + SYSLOG_TENANT_ID, bind UDP + detecta cada N ms
+  ├─► assertWorkerBackendMode()  (@ftth-copilot/jobs)
+  │     └─► si BACKEND_MODE=embedded (o un valor desconocido), el web no levanta
+  └─► markNotExpected('polling' | 'firmware' | 'fec' | 'syslog' | 'snmp')
+        └─► el trabajo de fondo es del worker; esta web no lo corre
 ```
+
+El worker es el que arranca el poll, la auditoría de firmware, la colección
+FEC, el receptor de syslog, el de SNMP y el drainer: lo hace desde la cola
+durable, no desde este proceso. La instrumentación de la web sólo marca esos
+loops como "no esperados" en su registro de salud, para que `/api/health`
+sea honesto sobre lo que este proceso es responsable.
 
 Detalles importantes:
 

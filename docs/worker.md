@@ -49,9 +49,8 @@ Three properties follow from the split:
 - **A slow poll no longer competes with HTTP.** Different processes, different
   event loops.
 
-Redis is what makes the split reversible: the jobs that the web enqueues are
-in the queue, not in the web's memory, so turning the worker off does not
-lose them.
+Redis is what makes the split safe: the jobs that the web enqueues are in the
+queue, not in the web's memory, so a worker that stops does not lose them.
 
 ## Environment
 
@@ -59,14 +58,14 @@ lose them.
 | -------------- | ------------------------ | ----------------------------------------------------------------------- |
 | `REDIS_URL`    | `redis://127.0.0.1:6379` | Redis instance that holds the queue. In compose the web reaches Redis by service name (`redis:6379`); the worker, which runs on the host network, uses `127.0.0.1`. |
 | `REDIS_PASSWORD` | —                      | Password of the Redis instance. Required in the compose stacks; generate it with `openssl rand -hex 32`. |
-| `BACKEND_MODE` | `embedded`               | `embedded` = the web runs the loops (today). `worker` = the worker runs them. |
+| `BACKEND_MODE` | `worker`                 | The worker is the only owner of the background work. There is no `embedded` mode left: a value of `embedded` is rejected at boot. |
 | `WORKER_PORT`  | `8081`                   | Port of the worker's health and metrics server.                          |
 | `WORKER_HOST`  | `0.0.0.0`                | Interface the health server binds to.                                   |
 | `WORKER_CONCURRENCY` | `1`                | Jobs of a queue that run at the same time.                              |
 | `METRICS_BEARER_TOKEN` | —              | Bearer token that `/metrics` requires. Shared with the app's `/api/metrics`, so the scrape configuration of the whole stack carries one credential. Without it `/metrics` is open, which is only safe on the loopback. |
 | `VICTORIAMETRICS_WORKER_SCRAPE_TARGET` | — | `host:port` of the worker as the VictoriaMetrics container sees it. Empty by default: the scrape job is only added when it is set. See [Que VictoriaMetrics raspe al worker](#que-victoriametrics-raspe-al-worker). |
 | `INVESTIGATION_PENDING_TTL_MS` | `900000` | Age after which a `pending` investigation attempt is abandoned and expires, so the incident can be investigated again. Must exceed the longest real investigation, retries included. |
-| `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often that sweep runs: in the worker under `worker`, in the web process under `embedded`. |
+| `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often the worker sweeps the investigation attempts that were abandoned. |
 | `LEARNING_SNAPSHOT_ENABLED` | `false` | Enables the `learning.snapshot` job, which freezes the learning dataset of every tenant. Off by default: it writes rows and nobody consumes them until a later phase of the learning loop. |
 | `LEARNING_SNAPSHOT_INTERVAL_MS` | `86400000` | How often the learning snapshot runs (once a day by default). |
 
@@ -93,40 +92,46 @@ while the Redis container looks perfectly healthy. Hex only uses `0-9a-f`.
 If the password must contain other characters, percent-encode it before it
 goes into the URL.
 
-`BACKEND_MODE` is read by `@ftth-copilot/jobs` (`backendMode()`), so both the
-web and the worker agree on it. The default stays `embedded` until the worker
-has run green in staging.
+`BACKEND_MODE` is read by `@ftth-copilot/jobs` (`assertWorkerBackendMode()`),
+so both the web and the worker agree on it. The only value that means
+something is `worker`, and an unset variable means the same.
 
-> **Pending:** `REDIS_URL`, `REDIS_PASSWORD` and `BACKEND_MODE` are documented
-> in `docs/demo-env-template.md`, but they are still missing from the
-> repository root `.env.example` — the agent sandbox blocks writes to that
-> path. Add these three lines to it:
->
-> ```bash
-> REDIS_URL=redis://localhost:6379
-> REDIS_PASSWORD=change-me
-> BACKEND_MODE=embedded
-> ```
+The compose stacks set it explicitly in the app's `environment:`, so a
+`.env` left over from before the cut-over cannot put the web back in a mode
+that does not exist.
 
-### Why the default is `embedded`
+### Why the worker is the only owner
 
-`embedded` is the behavior that is already proven in production. Flipping the
-default before the worker has proven itself would turn a failed extraction into
-a monitoring outage, which is exactly the failure this work exists to prevent.
+There used to be two paths: `embedded` (the loops inside the web process) and
+`worker`. `embedded` was the default because it was the behavior that was
+already proven in production, and flipping the default before the worker had
+proven itself would have turned a failed extraction into a monitoring outage.
+
+The worker ran green in staging —against a real Postgres, with the web
+scaled to two replicas and no duplicated tick— so the in-process path was
+removed. What is left is the one path that survives a deploy of the UI, runs
+the same loop once no matter how many web replicas there are, and keeps the
+UDP sockets in a single process.
+
+`BACKEND_MODE=embedded` is now an error, not a fallback. An environment that
+still asks for it is one that was never migrated, and the failure it would
+cause —a web serving HTTP while nobody polls anything— is silent. Failing at
+boot says it out loud.
 
 ## Deploying the worker
 
-The worker is behind a compose profile so it is never started by accident:
+The worker is part of the stack: `docker compose up -d` starts it along with
+the web, and the compose files set `BACKEND_MODE=worker` on the app so the
+two can never disagree.
 
 ```bash
-# Only when BACKEND_MODE=worker
-docker compose --profile worker up -d worker
+docker compose up -d
 ```
 
-Starting the worker while `BACKEND_MODE=embedded` is still set is the one
-combination that is actively harmful: the web would keep its own loops *and*
-the worker would run its own, so the NMS would be polled twice and both
-processes would try to bind the UDP socket.
+The worker used to sit behind a `--profile worker` so it could not be started
+by accident. Now it is the only owner of the background work, so a stack
+without it is a stack that does not poll anything: starting it by accident is
+not the risk anymore — forgetting it is.
 
 ## The worker runs on the host network
 
@@ -392,68 +397,67 @@ The extraction is reversible without a code revert.
 
 ### How to roll back
 
+The in-process path is gone, so the rollback is not a variable anymore: it is
+the previous image.
+
 ```bash
-# 1. Set BACKEND_MODE=embedded in the environment.
-# 2. Stop the worker.
-docker compose --profile worker stop worker
-# 3. Restart the web app so it picks up the flag.
-docker compose restart app
+# 1. Deploy the previous version of the web and of the worker.
+docker compose up -d --build
+# 2. Check that the web came up and that the worker is publishing its state.
+curl -s http://localhost:3001/api/health | jq '.owner, .services'
 ```
 
-The web goes back to running the loops in-process, which is exactly the
-behavior it had before the extraction. No data migration is involved: the
-queue payload lives in Redis, and the rows the worker would have written are
-the same rows the embedded path writes.
+No data migration is involved: the queue payload lives in Redis, and the rows
+the worker writes are the same rows the in-process path wrote. The jobs that
+were in the queue when the worker stopped are **not lost** either — they stay
+in Redis and the previous version picks them up.
 
-**The order matters.** Stop the worker *before* restarting the web with
-`BACKEND_MODE=embedded`. The two are mutually exclusive while they overlap:
-the web would run its own loops *and* the worker would run its own, so the
-NMS would be polled twice and both processes would try to bind the UDP
-socket. The second one to try gets nothing, silently.
+**The order matters.** The previous version of the web runs the loops
+in-process, so the worker has to be stopped before the web comes back with
+the old code: the two would poll the NMS twice and both would try to bind
+the UDP socket. The second one to try gets nothing, silently.
+
+```bash
+docker compose stop worker
+docker compose up -d --build
+```
 
 ### Verify the rollback
 
 ```bash
 # The web owns the loops again.
-curl -s http://localhost:3001/api/health | jq '.services'
+curl -s http://localhost:3001/api/health | jq '.owner, .services'
 
 # The worker is not consuming anything.
-docker compose --profile worker logs worker | tail -20
+docker compose logs worker | tail -20
 ```
-
-The jobs that were in the queue when the worker stopped are **not lost**: they
-stay in Redis, and the web's embedded path picks them up when it restarts.
-That is the whole point of the durable queue.
 
 ## What is still in the web
 
-The extraction is phased, and each phase moves one thing. Today:
+The extraction is finished: the worker owns the background work and the web
+serves HTTP and the SSE stream. What is left in the web:
 
-- **The recurring loops** (polling, firmware audit, FEC collection) already run
-  in the worker. Under `BACKEND_MODE=worker` the web does not start them; it
-  marks them as *not expected* in its own health registry so `/api/health`
-  stays honest about what this process is responsible for.
-- **The syslog receiver** already runs in the worker. It binds the UDP port,
-  so the two processes could never bind it at the same time: the kernel
-  hands each datagram to one socket and the other would wait forever for
-  messages that never arrive.
-- **The SNMP receiver** runs in the worker too, for the same reason, and the
-  web no longer drains the spool in process: the worker drains it through
-  the queue, and two drainers would advance the same offset.
-- **Incident investigations** run in the worker under `BACKEND_MODE=worker`.
-  `POST /api/incidents/:id/investigate` claims the attempt under a
-  per-incident Postgres advisory lock (so simultaneous requests start one
-  attempt), enqueues it on `ftth-investigation` with the job id
+- **Nothing that runs in the background.** The web does not import the
+  scheduler, nor the receivers, nor the drainer: a web that imported them
+  would be one refactor away from running two copies of every loop. The
+  instrumentation only marks the loops and the receivers as *not expected* in
+  its own health registry, so `/api/health` stays honest about what this
+  process is responsible for.
+- **The HTTP and the SSE stream**, and the enqueueing of the work that the
+  background needs.
+- **The incident investigations** are queued, not run: `POST
+  /api/incidents/:id/investigate` claims the attempt under a per-incident
+  Postgres advisory lock (so simultaneous requests start one attempt),
+  enqueues it on `ftth-investigation` with the job id
   `investigation-<runId>-<versionId>`, and waits for the result in Postgres up
   to the HTTP budget: `201` if it finished, `202` if not. The worker re-checks
   that the incident belongs to the tenant of the payload, skips an attempt
   that is no longer the run's `currentVersionId`, retries only transient
-  errors (at most 3 attempts), and otherwise leaves the run `failed`. Under
-  `embedded` the web runs the pipeline itself and closes that same promise
-  even after answering `202`. Either way an attempt ends `ready` or `failed`,
-  or the sweep moves it to `expired`; it is never left `pending` forever.
+  errors (at most 3 attempts), and otherwise leaves the run `failed`. An
+  attempt ends `ready` or `failed`, or the worker's sweep moves it to
+  `expired`; it is never left `pending` forever.
 
-Until the extraction is complete (phase 6 of `odd/tasks/backend-extraction.md`),
-`apps/web/instrumentation.ts` still starts the receivers when
-`BACKEND_MODE` is `embedded`. That is the rollback path, and it is removed
-only after the worker has run green in staging.
+
+The extraction is complete. `apps/web/instrumentation.ts` no longer starts
+anything: the worker has run green in staging, and the in-process path was
+removed with it.

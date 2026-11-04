@@ -124,16 +124,15 @@ abran un socket UDP en segundo plano.
 
 ```text
 instrumentation.register()
-  ├─► startPollingLoop()          (apps/web/lib/monitoring/scheduler.ts)
-  │     └─► si METRICS_POLLER_ENABLED=true, corre el poll cada N ms
-  ├─► startFirmwareAuditLoop()    (apps/web/lib/monitoring/scheduler.ts)
-  │     └─► si FIRMWARE_AUDIT_ENABLED=true, corre la auditoría cada N ms
-  └─► startSyslogReceiver()       (apps/web/lib/monitoring/syslog.ts)
-        └─► si SYSLOG_RECEIVER_ENABLED=true + SYSLOG_TENANT_ID, bind UDP y detecta
+  ├─► assertWorkerBackendMode()       (@ftth-copilot/jobs)
+  │     └─► si BACKEND_MODE=embedded (o un valor desconocido), el web no levanta
+  └─► markNotExpected('polling' | 'firmware' | 'fec' | 'syslog' | 'snmp')
+        └─► el poll, la auditoría, el FEC, los receptores y el drainer son del worker
 ```
 
 **Todo está apagado por defecto por diseño**: ningún plano de vigilancia corre sin que lo
-habilites explícitamente.
+habilites explícitamente. Y el trabajo de fondo no corre en la web en ningún caso: lo corre
+el worker, desde la cola durable.
 
 ## El sistema de archivos como tabla
 
