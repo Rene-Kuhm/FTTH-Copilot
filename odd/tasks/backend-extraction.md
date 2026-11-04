@@ -1002,6 +1002,12 @@ debe romperse) y los tests de durabilidad de las fases 4.
     instrumentación puede importarlos; el paquete de ingest no puede volver
     a exportar el drainer en proceso; el worker no puede estar detrás de un
     profile; y ningún compose ni plantilla puede pedir el modo `embedded`.
+  - **Los dos despliegues que levantaban el web sin worker ya no existen**:
+    `docker-compose.https.yml` (que es standalone) ahora trae Redis y worker
+    como los demás, y `ecosystem.config.cjs` (PM2, sin Docker) declara el
+    proceso del worker al lado del web y del túnel. Una regla de CI lo
+    comprueba: ningún compose ni el ecosystem puede levantar el web sin su
+    worker.
   - **Lo que sigue abierto**:
     - **El despliegue real de este cambio**: T15 es irreversible en código, y
       la primera vez que corre de verdad tiene que ser en el staging de la
@@ -1009,3 +1015,12 @@ debe romperse) y los tests de durabilidad de las fases 4.
     - **La revisión independiente**: el bloque es grande (un flag, la web, dos
       packages, tres compose y la documentación) y conviene que lo mire
       alguien antes de que se mergee.
+  - **Estado del staging al momento de esto**: `vps-casa` ya corre el `main`
+    con `#368` mergeado (el repo de la VPS volvió a `main`, `7ea2401`), con
+    la web en dos réplicas y el worker recreado desde esa imagen. El health
+    responde `status: ok` y `hungLoops: []` con `owner: worker`, el arranque
+    encola **un** warm-up tick por loop (`poll-connections`, `firmware-audit`,
+    `fec-collection`), las siete colas quedan vacías y no hay trabajo
+    duplicado: cero filas repetidas en `metric_samples` y un `ingestId` por
+    evento. La evidencia SNMP sigue guardada bajo `demo-tenant`. Falta
+    desplegar **este** bloque y repetir la misma comprobación.
