@@ -99,6 +99,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      # The worker is the owner of the background work: the web serves HTTP
+      # and the SSE stream, and nothing else. There is no `embedded` path
+      # left to fall back to.
+      BACKEND_MODE: worker
       # The durable queue. Redis is published on the loopback only and
       # requires a password; see the redis service below.
       # The web runs inside the compose network, so 127.0.0.1 would be the
@@ -120,10 +124,9 @@ services:
       - spool_data:/var/lib/ftth-copilot/spool
     ports:
       - "${PORT:-3001}:3001"
-      # The syslog (5514) and SNMP (1162) ports are not published here: in
-      # worker mode the worker binds them on the host network, and two
-      # processes cannot bind the same UDP port. They move back to this
-      # service when BACKEND_MODE=embedded.
+      # The syslog (5514) and SNMP (1162) ports are not published here: the
+      # worker binds them on the host network, and two processes cannot bind
+      # the same UDP port.
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,13 +136,12 @@ services:
       - ftth-network
 
   # ─────────────────────────────────────────────────────────────────────
-  # Worker — background job runner (backend extraction).
+  # Worker — background job runner.
   #
   # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
-  # and the event drainer. Behind a profile on purpose: while
-  # BACKEND_MODE=embedded (the default) the web still runs those loops, and
-  # running both would poll the NMS twice and double-bind the UDP socket.
-  #   docker compose --profile worker up
+  # and the event drainer. It is part of the stack, not an option: the web
+  # only serves HTTP, so a worker that is not running means a system that
+  # does not poll anything.
   #
   # It uses the host network on purpose: the syslog receiver is attributed
   # by the source IP of the datagram, and Docker's userland proxy for UDP
@@ -148,9 +150,9 @@ services:
   # attacks into one. With the host network the kernel delivers the datagram
   # with the real source address.
   #
-  # The spool volume is mounted here as well: in worker mode the worker is
-  # the one that receives syslog/SNMP and spools it, so the buffered events
-  # must survive a restart of this container.
+  # The spool volume is mounted here as well: the worker is the one that
+  # receives syslog/SNMP and spools it, so the buffered events must survive
+  # a restart of this container.
   # ─────────────────────────────────────────────────────────────────────
   worker:
     build:
@@ -179,8 +181,6 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
-    profiles:
-      - worker
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)

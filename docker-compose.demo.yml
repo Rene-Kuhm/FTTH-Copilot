@@ -79,11 +79,12 @@ services:
       - ftth-demo
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Worker — background job runner (backend extraction).
+  # Worker — background job runner.
   #
-  # Behind a profile on purpose: while BACKEND_MODE=embedded (the default)
-  # the web still runs the loops, and running both would poll the NMS twice.
-  #   docker compose -f docker-compose.demo.yml --profile worker up
+  # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
+  # and the event drainer. It is part of the stack, not an option: the web
+  # only serves HTTP, so a worker that is not running means a demo that does
+  # not poll anything.
   #
   # It uses the host network so the syslog receiver sees the real source IP
   # of every datagram: Docker's userland proxy for UDP would rewrite it to
@@ -119,8 +120,6 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
-    profiles:
-      - worker
 
   # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
@@ -168,6 +167,10 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      # The worker is the owner of the background work: the web serves HTTP
+      # and the SSE stream, and nothing else. There is no `embedded` path
+      # left to fall back to.
+      BACKEND_MODE: worker
       # The durable queue. Redis is published on the loopback only and
       # requires a password; see the redis service below.
       REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
@@ -213,9 +216,9 @@ services:
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
       # The worker scrape is a second job of the SAME scrape configuration
       # (the single-node binary reads a single file), and it is only added
-      # when this is set. Empty by default: the worker runs behind a
-      # profile, so a target that is always there would be a target that is
-      # always down. See docs/worker.md for the recipe.
+      # when this is set. Empty by default: a target that is always there
+      # and nothing scrapes it would be a target that is always down. See
+      # docs/worker.md for the recipe.
       VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-development}

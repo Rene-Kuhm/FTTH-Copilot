@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import YAML from 'yaml';
 
 /**
  * Reglas del corte de T15: el worker es el único dueño del trabajo de fondo.
@@ -14,6 +15,26 @@ import { test } from 'node:test';
  */
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
+/** Los compose que declaran servicios: el worker va siempre en todos. */
+const COMPOSES = [
+  'docker-compose.yml',
+  'docker-compose.prod.yml',
+  'docker-compose.demo.yml',
+  'docker-compose.staging.yml',
+];
+
+/** Plantillas de entorno: el valor de `BACKEND_MODE` que se entrega. */
+const PLANTILLAS = ['.env.example', '.env.staging.example', 'docs/demo-env-template.md'];
+
+interface ComposeFile {
+  services: Record<string, { profiles?: string[]; environment?: Record<string, unknown> }>;
+}
+
+function leerCompose(archivo: string): ComposeFile {
+  const contenido = fs.readFileSync(path.join(REPO_ROOT, archivo), 'utf8');
+  return YAML.parse(contenido) as ComposeFile;
+}
 
 /** Módulos que sólo tenían sentido con los loops dentro de la web. */
 const MODULOS_EN_PROCESO = [
@@ -75,6 +96,58 @@ test('la web sólo lee los contadores del ingest, no los escribe', () => {
       fuente.includes(simbolo),
       false,
       `la web no drena ni spoolea: ${simbolo} es del worker`,
+    );
+  }
+});
+
+test('el worker no está detrás de un profile: es parte del stack', () => {
+  // Un worker opcional es un worker que nadie levanta: la web no corre los
+  // loops y nadie los corre por ella.
+  for (const compose of COMPOSES) {
+    const servicios = leerCompose(compose).services;
+    assert.ok(servicios['worker'], `${compose} tiene que declarar el servicio worker`);
+
+    const profiles = servicios['worker'].profiles ?? [];
+    assert.deepEqual(
+      profiles,
+      [],
+      `${compose}: el worker no puede estar detrás de un profile (${profiles.join(', ')})`,
+    );
+  }
+});
+
+test('ningún compose pide el modo embedded', () => {
+  for (const compose of COMPOSES) {
+    const contenido = fs.readFileSync(path.join(REPO_ROOT, compose), 'utf8');
+    assert.equal(
+      /BACKEND_MODE:\s*["']?embedded/.test(contenido),
+      false,
+      `${compose}: el modo embedded no existe más`,
+    );
+  }
+});
+
+test('ninguna plantilla entrega el modo embedded', () => {
+  for (const plantilla of PLANTILLAS) {
+    const contenido = fs.readFileSync(path.join(REPO_ROOT, plantilla), 'utf8');
+    assert.equal(
+      /^BACKEND_MODE=embedded$/m.test(contenido),
+      false,
+      `${plantilla}: el modo embedded no existe más`,
+    );
+  }
+});
+
+test('el compose le dice al web que el worker es el dueño', () => {
+  // El compose es la fuente de la verdad del despliegue: si el web arranca
+  // sin el flag, arranca igual, pero nadie polo.
+  for (const compose of ['docker-compose.prod.yml', 'docker-compose.demo.yml', 'docker-compose.staging.yml']) {
+    const app = leerCompose(compose).services['app'];
+    assert.ok(app, `${compose} tiene que declarar el servicio app`);
+    assert.equal(
+      app.environment?.['BACKEND_MODE'],
+      'worker',
+      `${compose}: el web tiene que arrancar con BACKEND_MODE=worker`,
     );
   }
 });
