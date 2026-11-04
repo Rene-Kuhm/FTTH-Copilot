@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { drainSpool, spoolEvent, __closeSpoolForTests } from '../src/ingest';
+import { drainSpool, spoolEvent, eventIngestStats, __closeSpoolForTests } from '../src/ingest';
 
 /**
  * The drain entry point of the package.
@@ -109,5 +109,20 @@ describe('drainSpool', () => {
     expect(result.failed).toBe(1);
     // The event is still on disk: the drain failed, the event did not.
     expect(result.backlogRemains).toBe(true);
+  });
+
+  it('counts the events that could not be stored', async () => {
+    // The counter is what the worker publishes and the health shows: a drain
+    // that falla tiene que verse, no sólo el backlog.
+    const antes = eventIngestStats().drainFailures;
+
+    spoolEvent(payload('doomed'));
+    await drainSpool({
+      write: async () => {
+        throw new Error('database unavailable');
+      },
+    });
+
+    expect(eventIngestStats().drainFailures).toBe(antes + 1);
   });
 });

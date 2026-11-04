@@ -157,6 +157,10 @@ export async function drainSpool(options: DrainSpoolOptions = {}): Promise<Drain
     result.failed += outcome.failed;
     result.quarantined += outcome.quarantined;
 
+    // The counter is what the worker publishes and the health shows: a drain
+    // that fails has to be seen, not only the backlog it left behind.
+    drainFailures += outcome.failed;
+
     // The store refused the batch: the events stay on disk and the caller
     // retries later. Draining on would only hammer a database that is down.
     if (outcome.failed > 0) break;
@@ -189,7 +193,6 @@ export function eventIngestStats(): EventIngestStats {
   };
 }
 
-/** Test seam: inject a spool without touching the module singleton. */
 /**
  * Test seam: the spool instance this process is using.
  *
