@@ -69,12 +69,12 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 
 | Variable | Default | Significado |
 |---|---|---|
-| `FEC_COLLECTION_ENABLED` | `false` | Kill switch + opt-in. `false` ⇒ no se registra `setInterval`. |
+| `FEC_COLLECTION_ENABLED` | `false` | Kill switch + opt-in. `false` ⇒ el worker no registra el tick. |
 | `FEC_COLLECTION_INTERVAL_MS` | `3_600_000` (1 h) | Cadencia del tick. |
 | `FEC_FAN_OUT_PER_CYCLE` | `8` | Tamaño de la slice de `pickFecFanOutSlice` por tick. |
 | `FEC_RATE_LIMIT_PER_HOUR` | `15` | Techo de requests/hora al NMS. Si `sliceSize × (3 600 000 / intervalMs)` lo excede, el tick se skipea con un `console.warn` y `reason: 'rate_limit'`. |
 
-**Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el proceso evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El disposer devuelto por `startFecCollectionLoop()` limpia el `setInterval` activo al deshacer el wiring de instrumentation.
+**Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el worker evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El tick lo agenda el worker, desde la cola durable.
 
 ### 2.2 Métricas ópticas completas por ONT — ✅ shipped (chained: PR #88 + PR #89, archive)
 - **Objetivo:** cubrir RX/TX (ya hay) + **bias current, temperatura y LOS** por ONT.

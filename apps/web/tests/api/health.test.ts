@@ -6,6 +6,7 @@ import {
   recordError,
   recordSuccess,
   recordSyslogBound,
+  snapshotHealth,
 } from '@/lib/monitoring/scheduler-health';
 import { GET } from '@/app/api/health/route';
 
@@ -44,7 +45,14 @@ beforeEach(() => {
   mockQueryRaw.mockReset();
   mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
   mockReadWorkerHealth.mockReset();
-  mockReadWorkerHealth.mockResolvedValue(null);
+  // The worker is the only owner of the background work, so the state the
+  // endpoint reports is the state it publishes in Redis. The registry the
+  // tests fill here stands for that published snapshot.
+  mockReadWorkerHealth.mockImplementation(async () => ({
+    services: snapshotHealth(),
+    counters: {},
+    publishedAt: Date.now(),
+  }));
 });
 
 afterEach(() => {
@@ -350,16 +358,18 @@ describe('GET /api/health — the worker owns the background work', () => {
     expect(body.ingest.backlog).toBe(5);
   });
 
-  it('keeps reporting the loops of this process when the worker does not own them', async () => {
+  it('el worker es el dueño aunque el flag no esté seteado', async () => {
+    // El flag ya no elige entre dos caminos: el worker es siempre el dueño
+    // del trabajo de fondo. Lo que el health informa es lo que él publica,
+    // no el registro local de esta web.
     delete process.env['BACKEND_MODE'];
     markExpected('polling');
     recordSuccess('polling', Date.now());
 
     const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
-    expect(body.owner).toBe('embedded');
-    expect(body.services['polling']?.expected).toBe(true);
-    expect(res.status).toBe(200);
+    expect(body.owner).toBe('worker');
+    expect(body.services['polling']).toBeUndefined();
   });
 
   it('does not read the worker in container scope', async () => {

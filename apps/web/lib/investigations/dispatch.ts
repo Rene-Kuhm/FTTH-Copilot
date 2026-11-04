@@ -11,7 +11,7 @@ import {
 const log = createLogger({ name: 'investigation-dispatch' });
 
 /**
- * Productor de intentos de investigación desde la web (modo `worker`).
+ * Productor de intentos de investigación desde la web.
  *
  * La cola se abre una vez por proceso: abrir una conexión a Redis por request
  * sería una conexión nueva por cada clic en "investigar".

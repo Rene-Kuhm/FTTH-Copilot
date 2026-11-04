@@ -56,9 +56,8 @@ services:
     expose:
       - "3001"
     environment:
-      # El dueño del trabajo de fondo es el worker, no el proceso web. En
-      # `embedded` la web arranca los loops, el receptor syslog, el SNMP y
-      # el drainer; en `worker` no toca ninguno de ellos.
+      # El dueño del trabajo de fondo es el worker, no el proceso web: la web
+      # no arranca los loops, ni el receptor syslog, ni el SNMP, ni el drainer.
       BACKEND_MODE: worker
       # La URL se arma sola, para que no pueda quedar con una password
       # distinta de la de `POSTGRES_PASSWORD`.

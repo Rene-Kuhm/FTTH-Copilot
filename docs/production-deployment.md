@@ -52,19 +52,19 @@
 └─────────────┘
 ```
 
-El worker corre detrás del flag `BACKEND_MODE` y solo se despliega con su
-profile (`--profile worker`). Mientras `BACKEND_MODE=embedded` —el default—
-lo ejecuta la propia web. El contrato operativo completo (topología,
-despliegue, métricas y runbook de rollback) está en
-[`docs/worker.md`](worker.md).
+El worker es el dueño del trabajo de fondo: se despliega siempre, como parte
+del stack, y la web sólo sirve HTTP y SSE. No hay un modo `embedded` atrás:
+el camino en proceso se eliminó después de que el worker corriera verde en el
+staging. El contrato operativo completo (topología, despliegue, métricas y
+runbook de rollback) está en [`docs/worker.md`](worker.md).
 
 | Componente | Puerto | Volumen persistente | Descripción |
 |---|---|---|---|
 | `postgres` | 5432/TCP | `postgres_data` | Base de datos multi-tenant |
 | `app` | 3001/TCP | — | Next.js (sin estado) |
 | `db-migrate` | — | — | Corre migraciones y sale; ephemeral |
-| `redis` | 6379/TCP | `redis_data` | Cola durable de trabajos (BullMQ); solo con `BACKEND_MODE=worker` |
-| `worker` | 8081/TCP | `spool_data` | Trabajo de fondo; profile `worker`; red del host |
+| `redis` | 6379/TCP | `redis_data` | Cola durable de trabajos (BullMQ) |
+| `worker` | 8081/TCP | `spool_data` | Trabajo de fondo; red del host |
 | `victoriametrics` | 8428/TCP | `victoriametrics_prod_data` | TSDB + VMUI + API Prometheus-compatible |
 | `vmalert` | 8880/TCP (interno) | — | Evalúa recording/alerting rules; escribe series vía remote write |
 | SNMP receiver | 1162/UDP | — | Solo si `SNMP_RECEIVER_ENABLED=true` |
@@ -119,11 +119,23 @@ CADDY_HTTP_PORT=80
 CADDY_HTTPS_PORT=443
 
 # 2. Usar el compose con HTTPS:
-docker compose -f docker-compose.https.yml up -d
+docker compose --env-file .env.prod -f docker-compose.https.yml up -d
 ```
 
 Caddy provisiona automáticamente el certificado TLS. No requiere cronjobs de
 renovación ni configuración manual de certificados.
+
+> El `--env-file .env.prod` no es opcional: las variables que Compose interpola
+> (`${REDIS_PASSWORD}`, `${POSTGRES_PASSWORD}`…) salen del archivo que se le pasa con
+> `--env-file`, no del `env_file` de un servicio. Sin él, el compose aborta con
+> `required variable REDIS_PASSWORD is missing a value`.
+
+El compose HTTPS es **standalone**: trae `postgres`, `redis`, `db-migrate`, `app`,
+`worker` y `caddy`. El worker es parte del stack, no una opción — sin él, el
+despliegue sirve HTTP y no polaba, no recibía traps y no drenaba el spool, sin
+nada que se viera rojo. `postgres` y `redis` se publican en el loopback del host
+(`127.0.0.1:5432` y `127.0.0.1:6379`) porque el worker corre en la red del host;
+desde la red de Compose no se llega al host.
 
 > Si ya tenés nginx, Traefik o Cloudflare como reverse proxy, podés usar
 > `docker-compose.prod.yml` y terminate HTTPS en tu proxy existente.
@@ -177,7 +189,7 @@ LAYA_SUGGEST_ROUTE=false
 LAYA_ALLOW_DIRECT_ROUTING=false
 
 # Modo microservicio Docker (activar con --profile laya):
-# docker compose --profile laya -f docker-compose.prod.yml up -d
+# docker compose --env-file .env.prod --profile laya -f docker-compose.prod.yml up -d
 # LAYA_URL=http://laya:8080
 # LAYA_PORT=8080
 ```
@@ -422,7 +434,7 @@ Dos cosas que conviene saber antes de editarlo:
 **Validar el config antes de desplegar:**
 ```bash
 # Scrape config
-docker compose -f docker-compose.prod.yml run --rm --no-deps \
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm --no-deps \
   -e VM_CONFIG_DRYRUN=1 victoriametrics
 
 # Reglas (vmalert valida el PromQL y las expresiones)
@@ -449,7 +461,7 @@ demo con `--profile alerts`).
 
 ```bash
 # Levantar con reglas en el demo
-docker compose -f docker-compose.demo.yml --profile alerts up -d
+docker compose --env-file .env.demo -f docker-compose.demo.yml --profile alerts up -d
 
 # Ver reglas, su salud y valores evaluados
 docker exec ftth_demo_victoriametrics \
@@ -540,7 +552,7 @@ VICTORIAMETRICS_STORAGE_NODES=2
 
 3. Update app config: `VICTORIAMETRICS_URL=http://vmselect:8481` (cluster uses port 8481, not 8428).
 
-4. Rebuild: `docker compose -f docker-compose.prod.yml up -d`
+4. Rebuild: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d`
 
 **Data flow in cluster mode:**
 - App writes metrics → `vminsert:8400` → `vmstorage:8400` (replicated)

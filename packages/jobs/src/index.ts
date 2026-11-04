@@ -33,8 +33,7 @@ export {
 export {
   BACKEND_MODES,
   DEFAULT_BACKEND_MODE,
-  backendMode,
-  workerOwnsBackgroundWork,
+  assertWorkerBackendMode,
   type BackendMode,
 } from './backend-mode';
 

@@ -70,12 +70,14 @@ REDIS_URL=redis://redis:6379
 REDIS_PASSWORD=change-me
 # Who owns the background work (polling, firmware audit, FEC, syslog/SNMP
 # reception and the event drainer):
-#   embedded = inside the web process, the behavior of today
-#   worker   = in the separate services/worker process
-# The default stays 'embedded' until the worker has run green in staging.
-# Rollback is this one variable, plus not deploying the worker.
+#   worker = in the separate services/worker process. It is the only owner:
+#   the web serves HTTP and the SSE stream, and nothing else.
+# There is no 'embedded' mode left: the in-process path was removed once the
+# worker had run green in staging. A value of 'embedded' is rejected at
+# boot, because it means an environment that was never migrated — and it
+# would keep serving HTTP while nobody polls anything.
 # See docs/worker.md.
-BACKEND_MODE=embedded
+BACKEND_MODE=worker
 
 # ── Alert channels (disabled in demo) ──────────────────────────────────────
 ALERT_WEBHOOK_URL=

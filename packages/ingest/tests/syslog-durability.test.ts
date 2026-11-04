@@ -86,8 +86,8 @@ describe('syslog receiver durability', () => {
     stopReceiver = null;
     // The drainer outlives the receiver (it is shared), so it must be stopped
     // explicitly or it keeps committing offsets against the deleted spool.
-    const { stopEventDrainer } = await import('../src/ingest');
-    stopEventDrainer();
+    const { __closeSpoolForTests } = await import('../src/ingest');
+    __closeSpoolForTests();
     rmSync(join(spoolDir, 'events.jsonl'), { force: true });
     rmSync(join(spoolDir, 'events.offset'), { force: true });
     rmSync(join(spoolDir, 'events.consumed.jsonl'), { force: true });

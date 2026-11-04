@@ -22,13 +22,11 @@ import { __setLogSinkForTests } from '@ftth-copilot/shared';
  *      `persistSamples` is called with an empty array, zero rows, no throw.
  *   5. One of 8 `getOnuDetail` rejects → the surviving 7 still produce rows
  *      (`mapAllSettled` semantics); the failed ONU contributes zero rows.
- *   6. `runScheduledFecCollection` throws → the next `setInterval` tick still
- *      fires (loop survives — REQ-5).
- *   7. `startFecCollectionLoop()` when env is `false` → returns a no-op cleanup
- *      and does NOT register any `setInterval`.
- *   8. Normal tick → one structured info line with
+ *   6. `runScheduledFecCollection` throws → the next tick of the worker's
+ *      queue still fires (the loop survives — REQ-5).
+ *   7. Normal tick → one structured info line with
  *      `{ tenantId, connectionId, requested, persisted, skipped, durationMs }`.
- *   9. Skipped tick → one structured warning line with `{ connectionId, requested,
+ *   8. Skipped tick → one structured warning line with `{ connectionId, requested,
  *      reason: 'rate_limit', … }` (no token / cookie / Authorization fields).
  *
  * The scheduler module imports `@ftth-copilot/db` (Prisma singleton),

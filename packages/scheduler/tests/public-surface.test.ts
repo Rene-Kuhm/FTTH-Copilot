@@ -16,10 +16,12 @@ describe('scheduler package surface', () => {
     expect(typeof scheduler.runScheduledFecCollection).toBe('function');
   });
 
-  it('exposes the in-process loop starters', () => {
-    expect(typeof scheduler.startPollingLoop).toBe('function');
-    expect(typeof scheduler.startFirmwareAuditLoop).toBe('function');
-    expect(typeof scheduler.startFecCollectionLoop).toBe('function');
+  it('ya no expone los arrancadores en proceso: el worker es el único dueño', () => {
+    // El camino embedded desapareció: lo que quedaba eran los setInterval de
+    // la web. El worker llama a las unidades ejecutables desde la cola.
+    expect(scheduler).not.toHaveProperty('startPollingLoop');
+    expect(scheduler).not.toHaveProperty('startFirmwareAuditLoop');
+    expect(scheduler).not.toHaveProperty('startFecCollectionLoop');
   });
 
   it('exposes the concurrency helpers', () => {

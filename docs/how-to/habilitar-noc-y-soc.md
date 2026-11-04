@@ -31,8 +31,8 @@ METRICS_RETENTION_DAYS=30
 
 | Variable | Default | Qué hace |
 |---|---|---|
-| `METRICS_POLLER_ENABLED` | `false` | Tiene que ser el literal `true`. Es lo único que enciende el loop (`startPollingLoop` en `apps/web/lib/monitoring/scheduler.ts`) |
-| `METRICS_POLL_INTERVAL_MS` | `900000` (15 min) | Cadencia del poll. El primer tick corre ~5 s después del arranque (warm-up) |
+| `METRICS_POLLER_ENABLED` | `false` | Tiene que ser el literal `true`. Es lo único que enciende el poll, y lo corre el worker |
+| `METRICS_POLL_INTERVAL_MS` | `900000` (15 min) | Cadencia del poll. El primer tick corre ~5 s después del arranque (warm-up del worker) |
 | `METRICS_RETENTION_DAYS` | `30` | Días que se conservan los `MetricSample`; la purga corre en el mismo ciclo |
 | `METRICS_SAMPLE_OLT_DETAIL` | `false` | Con `true`, agrega un fan-out a `getOltDetail()` por OLT (más requests al NMS) |
 
@@ -89,10 +89,13 @@ SYSLOG_UDP_PORT=5514
 SYSLOG_DETECTION_INTERVAL_MS=60000
 ```
 
-> **El receptor queda inerte sin `SYSLOG_TENANT_ID`.** `startSyslogReceiver`
-> (`apps/web/lib/monitoring/syslog.ts`) sale temprano si falta cualquiera de las dos
-> variables: no abre socket, no persiste eventos y no corre detección. `SYSLOG_RECEIVER_ENABLED`
-> sola no alcanza — el tenant es obligatorio porque es el que atribuye cada evento.
+> **El receptor queda inerte sin `SYSLOG_TENANT_ID`.** El receptor del worker sale
+> temprano si falta cualquiera de las dos variables: no abre socket, no persiste eventos y
+> no corre detección. `SYSLOG_RECEIVER_ENABLED` sola no alcanza — el tenant es obligatorio
+> porque es el que atribuye cada evento.
+>
+> Las variables se leen en el **worker**, que es el que bindea el socket UDP: la web no
+> los abre.
 
 | Variable | Default | Efecto |
 |---|---|---|
@@ -185,8 +188,8 @@ en `MetricSample`. Lo más rápido para forzarlo en un entorno de prueba es baja
 ## Troubleshooting
 
 - **`SYSLOG_RECEIVER_ENABLED=true` pero no entra nada por UDP** → falta `SYSLOG_TENANT_ID`.
-  Sin tenant el receptor ni siquiera abre el socket (`startSyslogReceiver` sale antes del
-  `bind`).
+  Sin tenant el receptor ni siquiera abre el socket (sale antes del `bind`). Y revisá que
+  la variable esté en el entorno del **worker**: la web ya no bindea sockets.
 - **`services.syslog` dice `expected: false`** → el flag no es el literal `true`, o falta el
   tenant id.
 - **El puerto UDP ya está ocupado** → el error queda registrado en el registro de salud del

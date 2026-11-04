@@ -119,7 +119,7 @@ test("la web del staging arranca en modo worker", () => {
   assert.equal(
     serviceEnvironment(staging.services.app)['BACKEND_MODE'],
     'worker',
-    'en modo embedded la web arrancaría los loops y el worker los repetiría',
+    'la web no puede arrancar los loops: el worker es el único dueño',
   );
 });
 

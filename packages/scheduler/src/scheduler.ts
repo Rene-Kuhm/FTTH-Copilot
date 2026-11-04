@@ -18,8 +18,6 @@ import { buildConnectorFromConnection } from '@ftth-copilot/connectors-factory';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
-  markExpected as markSchedulerExpected,
-  markNotExpected as markSchedulerNotExpected,
 } from './health';
 
 const log = createLogger({ name: 'scheduler' });
@@ -81,8 +79,6 @@ function errorMessage(err: unknown): string {
  * in-flight state without racing the actual run.
  */
 const IN_FLIGHT = new Map<string, boolean>();
-const WARMUP_TIMEOUTS = new Map<string, ReturnType<typeof setTimeout>>();
-const INTERVALS = new Map<string, ReturnType<typeof setInterval>>();
 
 function isInFlight(name: string): boolean {
   return IN_FLIGHT.get(name) === true;
@@ -180,21 +176,17 @@ async function tryStart(name: string, runFn: () => Promise<unknown>): Promise<bo
 }
 
 /**
- * Testing-only helper: clears the in-flight and timer maps. Tests use
- * this in `beforeEach` to ensure each case starts from a clean slate.
+ * Testing-only helper: clears the in-flight map. Tests use this in
+ * `beforeEach` to ensure each case starts from a clean slate.
  */
 export function __clearSchedulerState(): void {
-  for (const t of INTERVALS.values()) clearInterval(t);
-  for (const t of WARMUP_TIMEOUTS.values()) clearTimeout(t);
   IN_FLIGHT.clear();
-  INTERVALS.clear();
-  WARMUP_TIMEOUTS.clear();
 }
 
 /**
  * Single-flight guard. Exported so tests can drive it directly
- * without pulling the entire `startPollingLoop` boot path (which
- * needs Prisma, the connector factory, and Telegram env vars).
+ * without pulling the entire boot path of the worker (which needs
+ * Prisma, the connector factory, and Telegram env vars).
  */
 export { tryStart };
 
@@ -317,72 +309,6 @@ export async function runScheduledFirmwareAudit() {
 }
 
 /**
- * Starts the background poller when METRICS_POLLER_ENABLED=true. Disabled by
- * default so tests, previews and one-off instances never poll the NMS.
- */
-export function startPollingLoop(): () => void {
-  if (process.env['METRICS_POLLER_ENABLED'] !== 'true') {
-    markSchedulerNotExpected('polling');
-    return () => {};
-  }
-  markSchedulerExpected('polling');
-
-  const intervalMs = positiveInt(process.env['METRICS_POLL_INTERVAL_MS'], 15 * 60 * 1000);
-  const interval = setInterval(() => {
-    void tryStart('polling', runScheduledPoll);
-  }, intervalMs);
-  INTERVALS.set('polling', interval);
-
-  // First run shortly after boot, without blocking startup.
-  const warmup = setTimeout(() => {
-    void tryStart('polling', runScheduledPoll);
-  }, 5000);
-  WARMUP_TIMEOUTS.set('polling', warmup);
-
-  return () => {
-    clearInterval(interval);
-    clearTimeout(warmup);
-    INTERVALS.delete('polling');
-    WARMUP_TIMEOUTS.delete('polling');
-  };
-}
-
-/**
- * Starts the firmware audit loop when FIRMWARE_AUDIT_ENABLED=true. The cadence
- * is intentionally much slower than the metrics poller because firmware
- * changes infrequently; the default is 24h.
- */
-export function startFirmwareAuditLoop(): () => void {
-  if (process.env['FIRMWARE_AUDIT_ENABLED'] !== 'true') {
-    markSchedulerNotExpected('firmware');
-    return () => {};
-  }
-  markSchedulerExpected('firmware');
-
-  const intervalMs = positiveInt(
-    process.env['FIRMWARE_AUDIT_INTERVAL_MS'],
-    24 * 60 * 60 * 1000,
-  );
-  const interval = setInterval(() => {
-    void tryStart('firmware', runScheduledFirmwareAudit);
-  }, intervalMs);
-  INTERVALS.set('firmware', interval);
-
-  // First run shortly after boot, without blocking startup.
-  const warmup = setTimeout(() => {
-    void tryStart('firmware', runScheduledFirmwareAudit);
-  }, 5000);
-  WARMUP_TIMEOUTS.set('firmware', warmup);
-
-  return () => {
-    clearInterval(interval);
-    clearTimeout(warmup);
-    INTERVALS.delete('firmware');
-    WARMUP_TIMEOUTS.delete('firmware');
-  };
-}
-
-/**
  * One scheduled FEC / optical telemetry tick.
  *
  * Bootstraps from env (`FEC_COLLECTION_ENABLED`, `FEC_COLLECTION_INTERVAL_MS`,
@@ -481,38 +407,4 @@ export async function runScheduledFecCollection(): Promise<void> {
       durationMs: Date.now() - t0,
     });
   }
-}
-
-/**
- * Starts the FEC collection loop when FEC_COLLECTION_ENABLED=true. Mirrors the
- * shape of `startFirmwareAuditLoop` / `startPollingLoop`: registers a
- * `setInterval` and a one-shot 5s warm-up `setTimeout` so the first tick
- * happens shortly after boot. The returned disposer clears the interval; in-
- * flight ticks run to completion (kill switch only prevents NEW ticks).
- */
-export function startFecCollectionLoop(): () => void {
-  if (process.env['FEC_COLLECTION_ENABLED'] !== 'true') {
-    markSchedulerNotExpected('fec');
-    return () => {};
-  }
-  markSchedulerExpected('fec');
-
-  const intervalMs = positiveInt(process.env['FEC_COLLECTION_INTERVAL_MS'], 3_600_000);
-  const interval = setInterval(() => {
-    void tryStart('fec', runScheduledFecCollection);
-  }, intervalMs);
-  INTERVALS.set('fec', interval);
-
-  // First run shortly after boot, without blocking startup.
-  const warmup = setTimeout(() => {
-    void tryStart('fec', runScheduledFecCollection);
-  }, 5000);
-  WARMUP_TIMEOUTS.set('fec', warmup);
-
-  return () => {
-    clearInterval(interval);
-    clearTimeout(warmup);
-    INTERVALS.delete('fec');
-    WARMUP_TIMEOUTS.delete('fec');
-  };
 }

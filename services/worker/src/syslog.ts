@@ -1,10 +1,9 @@
 /**
  * The syslog receiver of the worker.
  *
- * The worker owns the UDP socket now: it binds it, spools every datagram
- * into the durable spool and enqueues the job that drains the spool into
- * Postgres. The web does the same in embedded mode, through the same
- * package.
+ * The worker owns the UDP socket: it binds it, spools every datagram into
+ * the durable spool and enqueues the job that drains the spool into Postgres.
+ * It is the only process that does any of it.
  *
  * Two properties matter here:
  *
@@ -117,8 +116,6 @@ export function startWorkerSyslogReceiver(options: WorkerSyslogOptions = {}): Wo
   }
 
   const stop = startSyslogReceiver({
-    // The worker drains through the queue, never in process.
-    startInProcessDrainer: false,
     onEventSpooled: (ingestId) => {
       // `null` means the spool refused the event: it is not on disk, so
       // there is nothing to drain.

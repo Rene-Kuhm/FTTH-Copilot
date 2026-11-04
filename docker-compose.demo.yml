@@ -10,9 +10,11 @@
 #
 # What it starts:
 #   1. postgres  — persistent volume, survives restarts
-#   2. db-migrate — runs Prisma migrations, exits
-#   3. app      — Next.js on :3001 with DEMO_MODE_ENABLED=true
-#   4. db-seed  — seeds demo account + synthetic ONUs/alerts, exits
+#   2. redis    — durable job queue
+#   3. db-migrate — runs Prisma migrations, exits
+#   4. app      — Next.js on :3001 with DEMO_MODE_ENABLED=true
+#   5. worker   — the background work: polls, audits, collects, receives
+#   6. db-seed  — seeds demo account + synthetic ONUs/alerts, exits
 #
 # Demo credentials:
 #   URL:     http://localhost:3001
@@ -79,11 +81,12 @@ services:
       - ftth-demo
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Worker — background job runner (backend extraction).
+  # Worker — background job runner.
   #
-  # Behind a profile on purpose: while BACKEND_MODE=embedded (the default)
-  # the web still runs the loops, and running both would poll the NMS twice.
-  #   docker compose -f docker-compose.demo.yml --profile worker up
+  # Owns the polling, firmware audit, FEC collection, syslog/SNMP reception
+  # and the event drainer. It is part of the stack, not an option: the web
+  # only serves HTTP, so a worker that is not running means a demo that does
+  # not poll anything.
   #
   # It uses the host network so the syslog receiver sees the real source IP
   # of every datagram: Docker's userland proxy for UDP would rewrite it to
@@ -119,8 +122,6 @@ services:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
-    profiles:
-      - worker
 
   # ─────────────────────────────────────────────────────────────────────────
   # PgBouncer — connection pooling between app and postgres.
@@ -168,11 +169,21 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
+      # The worker is the owner of the background work: the web serves HTTP
+      # and the SSE stream, and nothing else. There is no `embedded` path
+      # left to fall back to.
+      BACKEND_MODE: worker
       # The durable queue. Redis is published on the loopback only and
       # requires a password; see the redis service below.
-      REDIS_URL: "redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT:-6379}"
-      # The web owns the `web` subdirectory of the spool volume: the worker
-      # owns `worker`, and two processes must never write the same spool.
+      #
+      # The web runs inside the compose network, so 127.0.0.1 would be the
+      # web container itself — it does not reach the host. It reaches Redis by
+      # service name. (The worker is the opposite: it runs on the host
+      # network, so it reaches Redis there.)
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+      # The web does not spool anything: the worker receives, writes and
+      # drains. The variable stays declared so the volume keeps the two
+      # subdirectories the layout expects.
       EVENT_SPOOL_DIR: /var/lib/ftth-copilot/spool/web
       DEMO_MODE_ENABLED: "true"
       VICTORIAMETRICS_URL: ${VICTORIAMETRICS_URL:-http://victoriametrics:8428}
@@ -213,9 +224,9 @@ services:
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
       # The worker scrape is a second job of the SAME scrape configuration
       # (the single-node binary reads a single file), and it is only added
-      # when this is set. Empty by default: the worker runs behind a
-      # profile, so a target that is always there would be a target that is
-      # always down. See docs/worker.md for the recipe.
+      # when this is set. Empty by default: a target that is always there
+      # and nothing scrapes it would be a target that is always down. See
+      # docs/worker.md for the recipe.
       VICTORIAMETRICS_WORKER_SCRAPE_TARGET: ${VICTORIAMETRICS_WORKER_SCRAPE_TARGET:-}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
       DEPLOY_ENV: ${DEPLOY_ENV:-development}

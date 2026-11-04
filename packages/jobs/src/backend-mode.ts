@@ -1,50 +1,44 @@
 /**
  * Which process owns the background work.
  *
- * `embedded` is the behavior of today: the loops live inside the Next.js
- * process. `worker` is the extracted behavior: the loops live in
- * `services/worker` and the web only enqueues.
+ * There is only one answer left: the worker. The in-process path (`embedded`)
+ * was removed in task T15, once the worker had run green in staging. The web
+ * serves HTTP and the SSE stream; every recurring loop, every UDP receiver and
+ * every background job belong to `services/worker`.
  *
- * The default is `embedded` on purpose. The extracted path is only safe to
- * enable after it ran green in staging, and the flag exists so the rollback
- * is a configuration change rather than a code revert.
+ * The flag survives as a guard, not as a selector. An environment that still
+ * says `BACKEND_MODE=embedded` is an environment that was never migrated, and
+ * that environment would keep serving HTTP while nobody polls anything: the
+ * failure would be silent, and the kind that surfaces weeks later. So the
+ * value is rejected with an explicit error at boot instead of being ignored.
  */
 
-import { createLogger } from '@ftth-copilot/shared';
-
-const log = createLogger({ name: 'backend-mode' });
-
 export const BACKEND_MODES = {
-  embedded: 'embedded',
   worker: 'worker',
 } as const;
 
 export type BackendMode = (typeof BACKEND_MODES)[keyof typeof BACKEND_MODES];
 
-/** The mode that keeps the current, in-process behavior. */
-export const DEFAULT_BACKEND_MODE: BackendMode = BACKEND_MODES.embedded;
+/** The mode that owns the background work. There is no other one. */
+export const DEFAULT_BACKEND_MODE: BackendMode = BACKEND_MODES.worker;
 
 /**
- * Reads `BACKEND_MODE`.
+ * Validates `BACKEND_MODE`.
  *
- * An unset value means `embedded`. An unrecognized value also means
- * `embedded`: falling back to the behavior that is already proven is safer
- * than guessing that the operator asked for the extracted path.
+ * An unset value means the worker: that is the default, and the only owner
+ * there is. Any other value — `embedded` from an environment that predates
+ * the cut-over, or a typo — throws.
+ *
+ * The error is meant to be read by whoever deploys: it says what the
+ * environment asked for and what to do instead.
  */
-export function backendMode(env: NodeJS.ProcessEnv = process.env): BackendMode {
+export function assertWorkerBackendMode(env: NodeJS.ProcessEnv = process.env): void {
   const raw = env['BACKEND_MODE']?.trim().toLowerCase();
-  if (!raw) return DEFAULT_BACKEND_MODE;
-  if (raw === BACKEND_MODES.worker) return BACKEND_MODES.worker;
-  if (raw === BACKEND_MODES.embedded) return BACKEND_MODES.embedded;
+  if (!raw || raw === BACKEND_MODES.worker) return;
 
-  log.warn('Unknown BACKEND_MODE, falling back to embedded', { value: raw });
-  return DEFAULT_BACKEND_MODE;
-}
-
-/**
- * True when the worker owns the background work, so the web must not start
- * any loop or bind any socket.
- */
-export function workerOwnsBackgroundWork(env: NodeJS.ProcessEnv = process.env): boolean {
-  return backendMode(env) === BACKEND_MODES.worker;
+  throw new Error(
+    `BACKEND_MODE="${raw}" ya no existe. El camino embedded (los loops y los receptores ` +
+      `dentro de la web) se eliminó: el worker es el único dueño del trabajo de fondo. ` +
+      `Desplegá el worker y usá BACKEND_MODE=${DEFAULT_BACKEND_MODE}, o quitá la variable.`,
+  );
 }

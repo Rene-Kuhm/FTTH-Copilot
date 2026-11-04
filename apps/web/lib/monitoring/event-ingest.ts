@@ -1,22 +1,14 @@
 /**
  * Delegation to `@ftth-copilot/ingest`.
  *
- * The durable ingest path (the shared spool, its writer and the in-process
- * drainer) left the Next.js process: the worker now owns the socket and
- * drains through the durable job queue, while the web keeps using the same
- * code in embedded mode.
+ * The durable ingest path left the Next.js process: the worker owns the
+ * socket, escribe en el spool y drena por la cola de jobs.
  *
- * This module keeps the web's public API: every export it had before is still
- * exported here, so every importer of `@/lib/monitoring/event-ingest` keeps
- * working unchanged.
+ * De la web queda sólo la lectura de los contadores: el health los usa para
+ * decir qué backlog hay y qué se perdió. Los contadores que importan son los
+ * del worker —los de la web están siempre en cero— y llegan en el snapshot
+ * que el worker publica.
  */
 
-export {
-  __setSpoolForTests,
-  eventIngestStats,
-  recordDroppedEvent,
-  spoolEvent,
-  startEventDrainer,
-  stopEventDrainer,
-} from '@ftth-copilot/ingest';
-export type { DeviceEventPayload, EventIngestStats } from '@ftth-copilot/ingest';
+export { eventIngestStats } from '@ftth-copilot/ingest';
+export type { EventIngestStats } from '@ftth-copilot/ingest';

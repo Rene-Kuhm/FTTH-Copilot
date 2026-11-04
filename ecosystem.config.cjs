@@ -35,6 +35,31 @@ module.exports = {
       },
     },
     {
+      name: 'ftth-copilot-worker',
+      script: '/bin/bash',
+      args: '/home/tecnodespegue/FTTH-Copilot-workdir/FTTH-Copilot/services/worker/start.sh',
+      // The worker owns the background work: polling, firmware audit, FEC
+      // collection, syslog/SNMP reception and the event drainer. The web
+      // only serves HTTP, so a deployment without this process is a
+      // deployment that polls nothing — and the health does not show it in
+      // red, because there are no loops left to expect.
+      //
+      // It reads the same environment file as the web: it is the same
+      // deployment, with the same database and the same queue.
+      env_file: './apps/web/.env',
+      env: {
+        NODE_ENV: 'production',
+        // The health and metrics server of the worker stays on the loopback:
+        // it is an unauthenticated endpoint unless METRICS_BEARER_TOKEN is
+        // set, and on a public server it would listen on every interface.
+        // The `env` block wins over `env_file`, so this is the place to
+        // change it if something outside the host has to reach it.
+        WORKER_HOST: '127.0.0.1',
+      },
+      restart_delay: 5000,
+      max_restarts: 10,
+    },
+    {
       name: 'cloudflared',
       script: '/home/tecnodespegue/bin/cloudflared',
       // TUNNEL_TOKEN env var is equivalent to `--token <value>`.

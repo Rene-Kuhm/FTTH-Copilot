@@ -4,10 +4,9 @@ import type { InvestigationResult } from '@ftth-copilot/shared';
 /**
  * Cierre de una investigación.
  *
- * Vive acá, y no en la ruta, porque hay **dos** ejecutores posibles de la misma
- * investigación: el proceso web (modo `embedded`) y el worker (modo `worker`).
- * Los dos tienen que cerrar el run igual, y duplicar ese cierre es la forma más
- * fácil de que uno de los dos se olvide de guardar el resultado.
+ * Vive acá, y no en la ruta, porque el cierre tiene que ser siempre el mismo
+ * y en un solo lugar: lo corre el worker, y duplicar ese cierre es la forma
+ * más fácil de que alguien se olvide de guardar el resultado.
  *
  * El control de concurrencia descansa en una idea: la fila `InvestigationRun`
  * es UNA por incidente y se reutiliza entre intentos. Por eso ni `requestedAt`

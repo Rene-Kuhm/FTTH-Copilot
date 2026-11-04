@@ -20,9 +20,9 @@
  *   - `dead-letter-replay.ts` — the operator command that hands the
  *     dead-lettered events back to the spool, keeping their `ingestId`.
  *
- * The code moved here verbatim from `apps/web/lib/monitoring/*`: the web
- * still uses it (embedded mode) and re-exports it, while the worker binds the
- * socket and drains the spool through the durable job queue.
+ * The code moved here verbatim from `apps/web/lib/monitoring/*`. The worker
+ * binds the socket and drains the spool through the durable job queue; the
+ * web no longer touches any of it.
  */
 
 export {
@@ -40,14 +40,13 @@ export {
 } from './drainer';
 
 export {
+  __closeSpoolForTests,
   __setSpoolForTests,
   DEFAULT_DRAIN_MAX_BATCHES,
   drainSpool,
   eventIngestStats,
   recordDroppedEvent,
   spoolEvent,
-  startEventDrainer,
-  stopEventDrainer,
   type DeviceEventPayload,
   type DrainSpoolOptions,
   type DrainSpoolResult,

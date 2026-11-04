@@ -111,6 +111,8 @@ headers de seguridad. Responde **503** cuando el proceso está degradado.
 | `uptime` | `number` | sí | — |
 | `memory` | `{rss: number, heapUsed: number}` | sí | — |
 | `version` | `string` | sí | — |
+| `owner` | `"worker"` | sí | De quién es el registro de los loops. El worker es el único dueño del trabajo de fondo, así que siempre vale `worker`. |
+| `scope` | `"system" \| "container"` | sí | `system` (el default) incluye al worker: responde 503 cuando el trabajo de fondo no tiene dueño. `container` mide sólo este proceso, que es lo que necesita el health check del contenedor. |
 | `database` | `object` | no | — |
 | `services` | `object` | no | — |
 | `hungLoops` | `object[]` | no | — |

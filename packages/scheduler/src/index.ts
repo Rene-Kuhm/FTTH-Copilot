@@ -10,7 +10,7 @@
  *
  *   - las unidades ejecutables (`runScheduledPoll`, `runScheduledFirmwareAudit`,
  *     `runScheduledFecCollection`), que el worker llama desde los handlers de
- *     la cola y que la web sigue exportando;
+ *     la cola;
  *   - los ayudantes de concurrencia (single-flight y lock consultivo de
  *     Postgres), que siguen siendo la garantía de que un tick no se
  *     solapa con otro;
@@ -28,9 +28,6 @@ export {
   runScheduledPoll,
   runScheduledFirmwareAudit,
   runScheduledFecCollection,
-  startPollingLoop,
-  startFirmwareAuditLoop,
-  startFecCollectionLoop,
 } from './scheduler';
 
 export {

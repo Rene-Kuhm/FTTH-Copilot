@@ -185,6 +185,8 @@ export type HealthReport = {
   [key: string]: unknown;
 };
   version: string;
+  owner: "worker";
+  scope: "system" | "container";
   database?: {
   [key: string]: unknown;
 };

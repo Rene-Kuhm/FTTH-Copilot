@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { sendSnmpTestTrap } from '@ftth-copilot/monitoring';
 import type { TelemetryEvent } from '@ftth-copilot/shared';
 import { mapTrapCategory, mapTrapSeverity, describeTrap, spoolSnmpTrap } from '../src/snmp-ingest';
-import { startEventDrainer, stopEventDrainer } from '../src/ingest';
+import { __closeSpoolForTests } from '../src/ingest';
 import { startSnmpReceiver } from '../src/snmp-receiver';
 
 function telemetryEvent(overrides: Partial<TelemetryEvent> = {}): TelemetryEvent {
@@ -40,7 +40,7 @@ interface QueuedEntry {
 function useTempSpoolDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'snmp-spool-'));
   process.env['EVENT_SPOOL_DIR'] = dir;
-  stopEventDrainer();
+  __closeSpoolForTests();
   return dir;
 }
 
@@ -122,7 +122,7 @@ describe('spoolSnmpTrap', () => {
   });
 
   afterEach(() => {
-    stopEventDrainer();
+    __closeSpoolForTests();
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -218,13 +218,12 @@ describe('SNMP trap from socket into the spool', () => {
     process.env['SNMP_RECEIVER_ENABLED'] = 'true';
     // `address` only sets the bind host; the port comes from the env var.
     process.env['SNMP_UDP_PORT'] = String(TEST_PORT);
-    startEventDrainer();
   });
 
   afterEach(async () => {
     await stop?.();
     stop = null;
-    stopEventDrainer();
+    __closeSpoolForTests();
     rmSync(dir, { recursive: true, force: true });
   });
 
