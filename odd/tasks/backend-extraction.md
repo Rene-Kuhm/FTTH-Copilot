@@ -1015,12 +1015,30 @@ debe romperse) y los tests de durabilidad de las fases 4.
     - **La revisión independiente**: el bloque es grande (un flag, la web, dos
       packages, tres compose y la documentación) y conviene que lo mire
       alguien antes de que se mergee.
-  - **Estado del staging al momento de esto**: `vps-casa` ya corre el `main`
-    con `#368` mergeado (el repo de la VPS volvió a `main`, `7ea2401`), con
-    la web en dos réplicas y el worker recreado desde esa imagen. El health
-    responde `status: ok` y `hungLoops: []` con `owner: worker`, el arranque
-    encola **un** warm-up tick por loop (`poll-connections`, `firmware-audit`,
-    `fec-collection`), las siete colas quedan vacías y no hay trabajo
-    duplicado: cero filas repetidas en `metric_samples` y un `ingestId` por
-    evento. La evidencia SNMP sigue guardada bajo `demo-tenant`. Falta
-    desplegar **este** bloque y repetir la misma comprobación.
+  - **T15 validado en el staging**: `vps-casa` corre el `main` con este
+    bloque (`5ce6677`, la release 0.7.0), con la web en dos réplicas y el
+    worker recreado desde esa imagen.
+    - **El health responde `status: ok` y `hungLoops: []`**, con
+      `owner: worker` y `scope: system`. Los seis servicios aparecen:
+      `polling`, `snmp`, `syslog` y `fec` en `ok`, y `syslog-detection` y
+      `firmware` en `warming` — no en `dead`: es el estado de un loop que
+      todavía no tuvo su tick.
+    - **Un warm-up tick por loop**: `poll-connections`, `firmware-audit` y
+      `fec-collection`, y el poll programa su primer tick a los cinco
+      segundos. Ninguno duplicado.
+    - **La web no corre trabajo de fondo**: su instrumentación registra
+      `Background loops and receivers run in the worker` con
+      `backendMode: worker`, y el spool tiene **sólo** el subdirectorio
+      `worker/` — la web no escribe ni un evento.
+    - **La ruta de investigación encola**: un POST autenticado devolvió
+      `201` con el resultado completo, y la fila de `investigation_runs`
+      tiene `attemptStartedAt` puesto por el handler del worker (diez
+      milisegundos antes del `requestedAt`): lo corrió el worker, no la
+      web. La cola `ftth-investigation` quedó vacía.
+    - **Las siete colas quedan vacías**, no hay trabajo duplicado (cero
+      filas repetidas en `metric_samples`, un `ingestId` por evento) y la
+      evidencia SNMP sigue guardada bajo `demo-tenant`.
+  - **La release 0.7.0 ya salió** con este bloque, y su changelog tiene la
+    sección `⚠ BREAKING CHANGES`: desde esta versión, toda instalación
+    necesita el worker y Redis, y `BACKEND_MODE=embedded` hace que la web
+    no arranque. La guía de producción dice qué hacer antes de actualizar.
