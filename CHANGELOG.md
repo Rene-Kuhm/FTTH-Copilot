@@ -12,6 +12,13 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.7.1](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Documentation
+
+* **odd:** T15 validado en el staging ([#371](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/371)) ([1844433](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/184443336ba2af2326da369aa46651afdb1d853a))
+
 ## [0.7.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.6.0...v0.7.0) (2026-11-04)
 
 
