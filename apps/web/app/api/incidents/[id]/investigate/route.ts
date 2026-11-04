@@ -1,17 +1,13 @@
 import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma, getLatestInvestigationVersion } from '@ftth-copilot/db';
-import { workerOwnsBackgroundWork } from '@ftth-copilot/jobs';
-import type { InvestigationResult } from '@ftth-copilot/shared';
 import { getCurrentUser } from '@/lib/auth/server';
 import { hasPermission } from '@/lib/auth/permissions';
 import { consumeInvestigationQuota } from '@/lib/investigations/quota';
 import {
   awaitAttemptOutcome,
   claimInvestigationAttempt,
-  completeInvestigation,
   failInvestigation,
-  runInvestigationPipeline,
 } from '@/lib/investigations/pipeline';
 import { enqueueInvestigationAttempt } from '@/lib/investigations/dispatch';
 import { enforceApiRateLimit } from '@/lib/rate-limit-store';
@@ -94,12 +90,10 @@ export async function GET(
  *  - `claimInvestigationAttempt` decides under a per-incident lock whether
  *    this request owns a new attempt, so simultaneous requests never start
  *    two;
- *  - in `worker` mode the route only enqueues the attempt and waits for its
- *    result up to the HTTP budget (201 if it finished, 202 if not);
- *  - in `embedded` mode the route runs the pipeline and attaches the closure
- *    to THAT promise: past the budget it answers 202 and the same promise
- *    still stores the result (or leaves the run `failed`) when it settles.
- *    It never starts the pipeline a second time.
+ *  - the route only enqueues the attempt and waits for its result up to the
+ *    HTTP budget (201 if it finished, 202 if not). The worker owns the
+ *    pipeline: it is the only process that runs it, and it is the one that
+ *    closes the attempt.
  */
 export async function POST(
   req: Request,
@@ -216,78 +210,29 @@ export async function POST(
       { status: 500 },
     );
 
-  // 4a. Worker mode: enqueue, then wait for the worker up to the budget.
-  if (workerOwnsBackgroundWork()) {
-    try {
-      await enqueueInvestigationAttempt(attempt);
-    } catch (err) {
-      // Without the job nobody would ever close this attempt: fail it now so
-      // the incident can be investigated again, and tell the caller.
-      const reason = `could not enqueue the investigation: ${err instanceof Error ? err.message : String(err)}`;
-      await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
-        requestLog.error('Could not fail an unqueued attempt', { tenantId: user.tenantId, error: closeErr });
-      });
-      return NextResponse.json(
-        { runId, versionId, status: 'failed', error: 'Investigation queue unavailable' },
-        { status: 503 },
-      );
-    }
-
-    const outcome = await awaitAttemptOutcome({
-      tenantId: user.tenantId,
-      runId,
-      versionId,
-      timeoutMs,
+  // 4. The worker owns the attempt: enqueue it and wait for its result.
+  try {
+    await enqueueInvestigationAttempt(attempt);
+  } catch (err) {
+    // Without the job nobody would ever close this attempt: fail it now so
+    // the incident can be investigated again, and tell the caller.
+    const reason = `could not enqueue the investigation: ${err instanceof Error ? err.message : String(err)}`;
+    await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
+      requestLog.error('Could not fail an unqueued attempt', { tenantId: user.tenantId, error: closeErr });
     });
-    if (outcome.kind === 'ready') return readyResponse(outcome.version, outcome.version.snapshot);
-    if (outcome.kind === 'failed') return failedResponse();
-    return pendingResponse();
+    return NextResponse.json(
+      { runId, versionId, status: 'failed', error: 'Investigation queue unavailable' },
+      { status: 503 },
+    );
   }
 
-  // 4b. Embedded mode: run here, and close THIS promise whatever its timing.
-  type Closed =
-    | { kind: 'ready'; version: { versionId: string; versionIndex: number }; result: InvestigationResult }
-    | { kind: 'failed' };
-
-  const closing: Promise<Closed> = runInvestigationPipeline({
+  const outcome = await awaitAttemptOutcome({
     tenantId: user.tenantId,
-    incidentId: incident.id,
     runId,
     versionId,
-    deviceId: incident.deviceId,
-    deviceKind: incident.deviceKind,
-    connectionId: incident.connectionId ?? null,
-    windowDays: body.windowDays,
-  })
-    .then(async (result): Promise<Closed> => {
-      const version = await completeInvestigation({ ...attempt, investigationResult: result });
-      return { kind: 'ready', version, result };
-    })
-    .catch(async (err: unknown): Promise<Closed> => {
-      const reason = err instanceof Error ? err.message : String(err);
-      await failInvestigation({ ...attempt, reason }).catch((closeErr: unknown) => {
-        requestLog.error('Could not record a failed attempt', { tenantId: user.tenantId, error: closeErr });
-      });
-      return { kind: 'failed' };
-    });
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    timeoutMs,
   });
-  const outcome = await Promise.race([closing, timeout]);
-  if (timer) clearTimeout(timer);
-
-  if (outcome === 'timeout') {
-    // The same promise keeps running and closes the attempt when it settles.
-    // `after` tells Next to keep the request's work alive past the response.
-    try {
-      after(() => closing);
-    } catch {
-      // Outside a request scope (unit tests): the promise runs on its own.
-    }
-    return pendingResponse();
-  }
+  if (outcome.kind === 'ready') return readyResponse(outcome.version, outcome.version.snapshot);
   if (outcome.kind === 'failed') return failedResponse();
-  return readyResponse(outcome.version, outcome.result);
+  return pendingResponse();
 }

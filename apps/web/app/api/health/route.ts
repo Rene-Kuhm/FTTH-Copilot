@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { workerOwnsBackgroundWork } from '@ftth-copilot/jobs';
 import {
   overallHealthy,
   snapshotHealth,
@@ -51,9 +50,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   const scope = new URL(request.url).searchParams.get('scope');
   const containerScope = scope === 'container';
 
-  const workerOwns = workerOwnsBackgroundWork();
+  // The worker is the only owner of the background work: there is no second
+  // path left in this process. What the endpoint reports is what the worker
+  // publishes in Redis.
   const localServices = snapshotHealth();
-  const readsWorker = workerOwns && !containerScope;
+  const readsWorker = !containerScope;
   const workerSnapshot = readsWorker ? await readWorkerHealth() : null;
   const registered = readsWorker ? (workerSnapshot?.services ?? {}) : localServices;
 
@@ -96,7 +97,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
       version: process.env['npm_package_version'] ?? '0.6.0',
       database,
-      owner: workerOwns ? 'worker' : 'embedded',
+      owner: 'worker',
       scope: containerScope ? 'container' : 'system',
       services,
       hungLoops,

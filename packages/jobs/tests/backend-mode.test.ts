@@ -1,47 +1,41 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { __setLogSinkForTests } from '@ftth-copilot/shared';
+import { describe, expect, it } from 'vitest';
 import {
   BACKEND_MODES,
   DEFAULT_BACKEND_MODE,
-  backendMode,
-  workerOwnsBackgroundWork,
+  assertWorkerBackendMode,
 } from '../src/backend-mode';
 
-afterEach(() => {
-  __setLogSinkForTests(null);
-});
-
-describe('backendMode', () => {
-  it('defaults to embedded, the behavior of today', () => {
-    expect(DEFAULT_BACKEND_MODE).toBe(BACKEND_MODES.embedded);
-    expect(backendMode({})).toBe(BACKEND_MODES.embedded);
+describe('el modo del backend', () => {
+  it('el modo por defecto es el worker', () => {
+    expect(DEFAULT_BACKEND_MODE).toBe(BACKEND_MODES.worker);
   });
 
-  it('reads the flag', () => {
-    expect(backendMode({ BACKEND_MODE: 'worker' })).toBe(BACKEND_MODES.worker);
-    expect(backendMode({ BACKEND_MODE: 'embedded' })).toBe(BACKEND_MODES.embedded);
+  it('el worker es el único modo: no queda un camino embedded', () => {
+    expect(Object.keys(BACKEND_MODES)).toEqual(['worker']);
   });
 
-  it('ignores case and surrounding whitespace', () => {
-    expect(backendMode({ BACKEND_MODE: '  WORKER ' })).toBe(BACKEND_MODES.worker);
+  it('un entorno sin el flag es válido: el worker es el dueño', () => {
+    expect(() => assertWorkerBackendMode({})).not.toThrow();
   });
 
-  it('falls back to embedded for an unknown value and says so', () => {
-    const lines: string[] = [];
-    __setLogSinkForTests((line) => lines.push(line));
-    expect(backendMode({ BACKEND_MODE: 'distributed' })).toBe(BACKEND_MODES.embedded);
-    expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'warn', name: 'backend-mode', value: 'distributed' });
-  });
-});
-
-describe('workerOwnsBackgroundWork', () => {
-  it('is false in embedded mode and true in worker mode', () => {
-    expect(workerOwnsBackgroundWork({ BACKEND_MODE: 'embedded' })).toBe(false);
-    expect(workerOwnsBackgroundWork({ BACKEND_MODE: 'worker' })).toBe(true);
+  it('acepta el flag en worker', () => {
+    expect(() => assertWorkerBackendMode({ BACKEND_MODE: 'worker' })).not.toThrow();
   });
 
-  it('is false when the flag is not set', () => {
-    expect(workerOwnsBackgroundWork({})).toBe(false);
+  it('ignora mayúsculas y espacios alrededor', () => {
+    expect(() => assertWorkerBackendMode({ BACKEND_MODE: '  WORKER ' })).not.toThrow();
+  });
+
+  it('rechaza el camino embedded: ya no existe', () => {
+    // Un entorno heredado que diga `embedded` es un entorno sin migrar. Si
+    // aceptáramos el valor, la web seguiría sirviendo HTTP y nadie polosaría:
+    // el fallo sería silencioso, y de los que se descubren semanas después.
+    expect(() => assertWorkerBackendMode({ BACKEND_MODE: 'embedded' })).toThrow(/embedded/);
+  });
+
+  it('rechaza un valor desconocido y dice cuál recibió', () => {
+    expect(() => assertWorkerBackendMode({ BACKEND_MODE: 'distributed' })).toThrow(
+      /BACKEND_MODE="distributed"/,
+    );
   });
 });

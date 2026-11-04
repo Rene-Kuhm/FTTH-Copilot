@@ -6,13 +6,10 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   hasPermission: vi.fn(),
   consumeInvestigationQuota: vi.fn(),
-  runInvestigationPipeline: vi.fn(),
   claimInvestigationAttempt: vi.fn(),
-  completeInvestigation: vi.fn(),
   failInvestigation: vi.fn(),
   awaitAttemptOutcome: vi.fn(),
   enqueueInvestigationAttempt: vi.fn(),
-  workerOwnsBackgroundWork: vi.fn(),
   persistInvestigationVersion: vi.fn(),
   getLatestInvestigationVersion: vi.fn(),
   prismaIncidentFindFirst: vi.fn(),
@@ -38,9 +35,7 @@ vi.mock('@/lib/investigations/quota', () => ({
 }));
 
 vi.mock('@/lib/investigations/pipeline', () => ({
-  runInvestigationPipeline: mocks.runInvestigationPipeline,
   claimInvestigationAttempt: mocks.claimInvestigationAttempt,
-  completeInvestigation: mocks.completeInvestigation,
   failInvestigation: mocks.failInvestigation,
   awaitAttemptOutcome: mocks.awaitAttemptOutcome,
 }));
@@ -49,13 +44,8 @@ vi.mock('@/lib/investigations/dispatch', () => ({
   enqueueInvestigationAttempt: mocks.enqueueInvestigationAttempt,
 }));
 
-vi.mock('@ftth-copilot/jobs', () => ({
-  workerOwnsBackgroundWork: mocks.workerOwnsBackgroundWork,
-}));
-
-/** Embedded mode, and every request owns a fresh attempt. */
+/** El worker es el dueño del intento, y cada pedido abre uno nuevo. */
 function primeAttemptMocks(): void {
-  mocks.workerOwnsBackgroundWork.mockReturnValue(false);
   mocks.claimInvestigationAttempt.mockImplementation(async () => ({
     kind: 'claimed',
     runId: 'r_gate3_1',
@@ -63,6 +53,7 @@ function primeAttemptMocks(): void {
     attemptStartedAt: new Date('2026-09-09T00:00:00.000Z'),
   }));
   mocks.failInvestigation.mockResolvedValue(true);
+  mocks.enqueueInvestigationAttempt.mockResolvedValue(undefined);
 }
 
 vi.mock('@ftth-copilot/db', () => ({
@@ -208,17 +199,19 @@ describe('Gate 3 — End-to-End Investigation Lifecycle Integration', () => {
     const mockV0 = createMockResult('v_gate3_0', 0);
     const mockV1 = createMockResult('v_gate3_1', 1);
 
-    mocks.runInvestigationPipeline.mockResolvedValueOnce(mockV0);
-    mocks.completeInvestigation.mockResolvedValueOnce({
-      versionId: 'v_gate3_0',
-      versionIndex: 0,
-      runId: 'r_gate3_1',
-      tenantId: 'tenant-a',
-      rulesetVersion: 'rules@1.0',
-      modelVersion: 'claude-3-5-sonnet',
-      snapshotAt: new Date('2026-09-09T00:05:00.000Z'),
-      snapshot: mockV0,
-    } as PersistedInvestigationVersion);
+    mocks.awaitAttemptOutcome.mockResolvedValueOnce({
+      kind: 'ready',
+      version: {
+        versionId: 'v_gate3_0',
+        versionIndex: 0,
+        runId: 'r_gate3_1',
+        tenantId: 'tenant-a',
+        rulesetVersion: 'rules@1.0',
+        modelVersion: 'claude-3-5-sonnet',
+        snapshotAt: new Date('2026-09-09T00:05:00.000Z'),
+        snapshot: mockV0,
+      } as PersistedInvestigationVersion,
+    });
 
     // 1. Initial investigation execution creates version 0
     const reqV0 = new Request('http://localhost/api/incidents/inc-gate3-1/investigate', {
@@ -279,15 +272,17 @@ describe('Gate 3 — End-to-End Investigation Lifecycle Integration', () => {
 
     // 3. Technician requests re-investigation with { refresh: true }. The
     //    claim (mocked) owns the run lookup now, under its per-incident lock.
-    mocks.runInvestigationPipeline.mockResolvedValueOnce(mockV1);
-    mocks.completeInvestigation.mockResolvedValueOnce({
-      versionId: 'v_gate3_1',
-      versionIndex: 1,
-      runId: 'r_gate3_1',
-      tenantId: 'tenant-a',
-      snapshotAt: new Date('2026-09-09T00:10:00.000Z'),
-      snapshot: mockV1,
-    } as PersistedInvestigationVersion);
+    mocks.awaitAttemptOutcome.mockResolvedValueOnce({
+      kind: 'ready',
+      version: {
+        versionId: 'v_gate3_1',
+        versionIndex: 1,
+        runId: 'r_gate3_1',
+        tenantId: 'tenant-a',
+        snapshotAt: new Date('2026-09-09T00:10:00.000Z'),
+        snapshot: mockV1,
+      } as PersistedInvestigationVersion,
+    });
 
     const refreshReq = new Request('http://localhost/api/incidents/inc-gate3-1/investigate', {
       method: 'POST',
@@ -363,14 +358,16 @@ describe('Gate 3 — LLM Provider Fault Resilience with Controlled Responses', (
       reason: 'Upstream Anthropic 502 Bad Gateway / Connection timeout',
     });
 
-    mocks.runInvestigationPipeline.mockResolvedValueOnce(fallbackResult);
-    mocks.completeInvestigation.mockResolvedValueOnce({
-      versionId: 'v_down_0',
-      versionIndex: 0,
-      runId: 'r_gate3_down',
-      tenantId: 'tenant-a',
-      snapshot: fallbackResult,
-    } as unknown as PersistedInvestigationVersion);
+    mocks.awaitAttemptOutcome.mockResolvedValueOnce({
+      kind: 'ready',
+      version: {
+        versionId: 'v_down_0',
+        versionIndex: 0,
+        runId: 'r_gate3_down',
+        tenantId: 'tenant-a',
+        snapshot: fallbackResult,
+      } as unknown as PersistedInvestigationVersion,
+    });
 
     const req = new Request('http://localhost/api/incidents/inc-gate3-1/investigate', {
       method: 'POST',
@@ -387,10 +384,8 @@ describe('Gate 3 — LLM Provider Fault Resilience with Controlled Responses', (
   });
 
   it('returns HTTP 202 Pending when HTTP timeout budget is exceeded', async () => {
-    // Pipeline execution takes longer than timeoutMs
-    mocks.runInvestigationPipeline.mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 200)),
-    );
+    // El worker no terminó dentro del presupuesto HTTP.
+    mocks.awaitAttemptOutcome.mockResolvedValueOnce({ kind: 'timeout' });
 
     const req = new Request('http://localhost/api/incidents/inc-gate3-1/investigate', {
       method: 'POST',

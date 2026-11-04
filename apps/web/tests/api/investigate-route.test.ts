@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   failInvestigation: vi.fn(),
   awaitAttemptOutcome: vi.fn(),
   enqueueInvestigationAttempt: vi.fn(),
-  workerOwnsBackgroundWork: vi.fn(),
   getLatestInvestigationVersion: vi.fn(),
   prismaIncidentFindFirst: vi.fn(),
   prismaInvestigationRunFindFirst: vi.fn(),
@@ -40,10 +39,6 @@ vi.mock('@/lib/investigations/pipeline', () => ({
 
 vi.mock('@/lib/investigations/dispatch', () => ({
   enqueueInvestigationAttempt: mocks.enqueueInvestigationAttempt,
-}));
-
-vi.mock('@ftth-copilot/jobs', () => ({
-  workerOwnsBackgroundWork: mocks.workerOwnsBackgroundWork,
 }));
 
 vi.mock('@ftth-copilot/db', () => ({
@@ -132,13 +127,15 @@ function resetMocks() {
   mocks.consumeInvestigationQuota.mockResolvedValue({ allowed: true, retryAfter: 0 });
   mocks.prismaIncidentFindFirst.mockResolvedValue(INCIDENT);
   mocks.prismaInvestigationRunFindFirst.mockResolvedValue(null);
-  mocks.workerOwnsBackgroundWork.mockReturnValue(false);
   mocks.claimInvestigationAttempt.mockResolvedValue(CLAIMED);
   mocks.runInvestigationPipeline.mockResolvedValue(validSnapshot);
   mocks.completeInvestigation.mockResolvedValue({ versionId: 'v_test', versionIndex: 0, applied: true });
   mocks.failInvestigation.mockResolvedValue(true);
   mocks.getLatestInvestigationVersion.mockResolvedValue(persistedVersionV0);
   mocks.enqueueInvestigationAttempt.mockResolvedValue(undefined);
+  // The route always waits for the worker. By default it did not finish in
+  // time: the tests that care about the outcome say so.
+  mocks.awaitAttemptOutcome.mockResolvedValue({ kind: 'timeout' });
 }
 
 beforeEach(() => {
@@ -169,11 +166,6 @@ async function callGet(id: string): Promise<Response> {
   return GET(req as unknown as Parameters<typeof GET>[0], {
     params: Promise.resolve({ id }),
   });
-}
-
-/** Lets the promises scheduled by a route settle. */
-function settle(ms = 0): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe('POST /api/incidents/:id/investigate — security & quotas', () => {
@@ -234,102 +226,7 @@ describe('POST /api/incidents/:id/investigate — duplicate protection', () => {
   });
 });
 
-describe('POST /api/incidents/:id/investigate — embedded mode', () => {
-  it('runs the pipeline once, closes it, and returns 201 with the diagnosis', async () => {
-    const res = await callPost('inc-1');
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as {
-      status: string;
-      versionIndex: number;
-      result: InvestigationResult;
-    };
-    expect(body.status).toBe('ready');
-    expect(body.versionIndex).toBe(0);
-    expect(body.result.schema).toBe('ftth.investigation-result.v1');
-    expect(mocks.runInvestigationPipeline).toHaveBeenCalledTimes(1);
-    expect(mocks.completeInvestigation).toHaveBeenCalledTimes(1);
-    expect(mocks.completeInvestigation).toHaveBeenCalledWith(
-      expect.objectContaining({ runId: 'r_test', versionId: 'v_test', investigationResult: validSnapshot }),
-    );
-    expect(mocks.enqueueInvestigationAttempt).not.toHaveBeenCalled();
-  });
-
-  it('returns 200 with idempotent: true when run is ready and refresh is not requested', async () => {
-    mocks.claimInvestigationAttempt.mockResolvedValue({ kind: 'ready', runId: 'r_ready' });
-
-    const res = await callPost('inc-1');
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { status: string; idempotent: boolean };
-    expect(body.status).toBe('ready');
-    expect(body.idempotent).toBe(true);
-    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
-  });
-
-  it('creates a new version when refresh: true is passed', async () => {
-    mocks.completeInvestigation.mockResolvedValue({ versionId: 'v_test', versionIndex: 1, applied: true });
-
-    const res = await callPost('inc-1', { refresh: true });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { status: string; versionIndex: number; idempotent: boolean };
-    expect(body.versionIndex).toBe(1);
-    expect(body.idempotent).toBe(false);
-    expect(mocks.runInvestigationPipeline).toHaveBeenCalledTimes(1);
-  });
-
-  it('past the budget answers 202 and still stores the result of THE SAME run', async () => {
-    mocks.runInvestigationPipeline.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(validSnapshot), 120)),
-    );
-
-    const res = await callPost('inc-1', { timeoutMs: 30 });
-    expect(res.status).toBe(202);
-    const body = (await res.json()) as { status: string; retryAfterMs: number; versionId: string };
-    expect(body.status).toBe('pending');
-    expect(body.retryAfterMs).toBe(3000);
-    expect(body.versionId).toBe('v_test');
-    expect(mocks.completeInvestigation).not.toHaveBeenCalled();
-
-    await settle(200);
-
-    // The late result is stored by the promise that was already running:
-    // the pipeline never starts a second time.
-    expect(mocks.runInvestigationPipeline).toHaveBeenCalledTimes(1);
-    expect(mocks.completeInvestigation).toHaveBeenCalledTimes(1);
-    expect(mocks.failInvestigation).not.toHaveBeenCalled();
-  });
-
-  it('a failing pipeline leaves the run failed and answers 500', async () => {
-    mocks.runInvestigationPipeline.mockRejectedValue(new Error('database exploded'));
-
-    const res = await callPost('inc-1');
-    expect(res.status).toBe(500);
-    expect(mocks.failInvestigation).toHaveBeenCalledWith(
-      expect.objectContaining({ runId: 'r_test', versionId: 'v_test', reason: 'database exploded' }),
-    );
-    expect(mocks.completeInvestigation).not.toHaveBeenCalled();
-  });
-
-  it('a pipeline that fails after the budget still leaves the run failed', async () => {
-    mocks.runInvestigationPipeline.mockImplementation(
-      () => new Promise((_resolve, reject) => setTimeout(() => reject(new Error('late failure')), 120)),
-    );
-
-    const res = await callPost('inc-1', { timeoutMs: 30 });
-    expect(res.status).toBe(202);
-
-    await settle(200);
-
-    expect(mocks.failInvestigation).toHaveBeenCalledTimes(1);
-    expect(mocks.failInvestigation).toHaveBeenCalledWith(expect.objectContaining({ reason: 'late failure' }));
-    expect(mocks.runInvestigationPipeline).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('POST /api/incidents/:id/investigate — worker mode', () => {
-  beforeEach(() => {
-    mocks.workerOwnsBackgroundWork.mockReturnValue(true);
-  });
-
+describe('POST /api/incidents/:id/investigate — el worker es el dueño del intento', () => {
   it('enqueues the attempt and never runs the pipeline in the request', async () => {
     mocks.awaitAttemptOutcome.mockResolvedValue({ kind: 'ready', version: persistedVersionV0 });
 
@@ -382,6 +279,18 @@ describe('POST /api/incidents/:id/investigate — worker mode', () => {
       expect.objectContaining({ runId: 'r_test', versionId: 'v_test' }),
     );
     expect(mocks.awaitAttemptOutcome).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with idempotent: true when run is ready and refresh is not requested', async () => {
+    mocks.claimInvestigationAttempt.mockResolvedValue({ kind: 'ready', runId: 'r_ready' });
+
+    const res = await callPost('inc-1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; idempotent: boolean };
+    expect(body.status).toBe('ready');
+    expect(body.idempotent).toBe(true);
+    expect(mocks.runInvestigationPipeline).not.toHaveBeenCalled();
+    expect(mocks.enqueueInvestigationAttempt).not.toHaveBeenCalled();
   });
 });
 
