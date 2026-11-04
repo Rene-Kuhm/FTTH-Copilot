@@ -176,6 +176,20 @@ describe('the worker SNMP receiver', () => {
     expect(mocks.spoolSnmpTrap).not.toHaveBeenCalled();
   });
 
+  it('reports in the health that the evidence could not be stored', async () => {
+    // The evidence has its own store and its own tenant. When that store
+    // refuses the row —a foreign key, a tenant that does not exist— the
+    // trap is still received and spooled, but the forensics are lost. The
+    // operator has to see it: silence here looks like a healthy receiver.
+    mocks.storeEvidence.mockRejectedValue(new Error('foreign key violation'));
+    startWorkerSnmpReceiver({ env: ENV_ENABLED });
+
+    receiverOptions().onEvidence?.({ evidenceId: 'ev-1' });
+    await flush();
+
+    expect(snapshotHealth()['snmp']?.lastError).toContain('evidence');
+  });
+
   it('reports the failure in the health registry when the queue is down', async () => {
     mocks.enqueueJob.mockRejectedValue(new Error('redis is down'));
     startWorkerSnmpReceiver({ env: ENV_ENABLED });

@@ -159,8 +159,13 @@ export function startWorkerSnmpReceiver(options: WorkerSnmpOptions = {}): Worker
     onEvidence: (envelope) => {
       // The raw evidence has its own store and its own retention policy: it
       // is for forensics, not for the dashboard.
-      void storeEvidence(evidenceTenantId, envelope).catch(() => {
-        // Never let evidence persistence disturb trap reception.
+      void storeEvidence(evidenceTenantId, envelope).catch((error: unknown) => {
+        // The trap was received and spooled either way — the reception is
+        // not disturbed by a store that refuses the row. But the forensics
+        // are lost, and silence there looks like a healthy receiver: the
+        // operator has to see it.
+        const detail = error instanceof Error ? error.message : String(error);
+        recordSchedulerError('snmp', `could not store the SNMP evidence: ${detail}`);
       });
     },
   });

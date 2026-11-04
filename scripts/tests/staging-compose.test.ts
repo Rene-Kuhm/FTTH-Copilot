@@ -299,8 +299,21 @@ test("el puerto del mock NMS es el mismo en todas las variables que lo mencionan
   );
 });
 
-test("el compose monta los ficheros del mock NMS", () => {
-  // Sin los bind mounts el contenedor no arranca: los ficheros del mock no
+test("la plantilla del staging declara el tenant de la evidencia SNMP", () => {
+  // The raw evidence of a trap is stored under its own tenant, and that
+  // tenant has to exist: without the variable the worker falls back to a
+  // tenant that the seed does not create, every trap loses its evidence and
+  // the failure is swallowed.
+  const values = envFileValues(stagingEnvExample());
+
+  assert.equal(
+    values.get('SNMP_TENANT_ID'),
+    'demo-tenant',
+    'la plantilla tiene que declarar el tenant de la evidencia SNMP: el del staging',
+  );
+});
+
+test("el compose monta los ficheros del mock NMS", () => {  // Sin los bind mounts el contenedor no arranca: los ficheros del mock no
   // están en la imagen `node:22-alpine`. El CI tiene que verlos.
   const staging = loadStagingCompose(REPO_ROOT);
   const raw = staging.services['mock-nms']?.['volumes'];
