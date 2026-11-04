@@ -18,8 +18,6 @@ import { buildConnectorFromConnection } from '@ftth-copilot/connectors-factory';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
-  markExpected as markSchedulerExpected,
-  markNotExpected as markSchedulerNotExpected,
 } from './health';
 
 const log = createLogger({ name: 'scheduler' });
