@@ -151,3 +151,29 @@ test('el compose le dice al web que el worker es el dueño', () => {
     );
   }
 });
+
+test('el paquete de ingest no tiene drainer en proceso', () => {
+  // El drainer en proceso era del camino embedded. El worker drena desde el
+  // job de la cola: dos drainers avanzarían el mismo offset del spool.
+  const indice = fs.readFileSync(path.join(REPO_ROOT, 'packages/ingest/src/index.ts'), 'utf8');
+  for (const simbolo of ['startEventDrainer', 'stopEventDrainer']) {
+    assert.equal(
+      indice.includes(simbolo),
+      false,
+      `el drainer en proceso se fue: ${simbolo} no se exporta más`,
+    );
+  }
+
+  // Y los receptores no lo pueden volver a encender.
+  for (const receptor of ['syslog-receiver.ts', 'snmp-receiver.ts']) {
+    const fuente = fs.readFileSync(
+      path.join(REPO_ROOT, 'packages/ingest/src', receptor),
+      'utf8',
+    );
+    assert.equal(
+      fuente.includes('startInProcessDrainer'),
+      false,
+      `${receptor}: el receptor no puede arrancar el drainer en proceso`,
+    );
+  }
+});

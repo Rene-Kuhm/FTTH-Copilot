@@ -351,8 +351,7 @@ describe('syslog receiver under a burst', () => {
     vi.doMock('../src/ingest', async () => ({
       spoolEvent: (p: unknown) => spoolEvent(p),
       recordDroppedEvent: () => {},
-      startEventDrainer: () => {},
-    }));
+          }));
 
     const { startSyslogReceiver } = await import('../src/syslog-receiver');
     stop = startSyslogReceiver();

@@ -71,10 +71,10 @@ describe('the worker syslog receiver', () => {
   it('does not start the in-process drainer: the worker drains through the queue', () => {
     startWorkerSyslogReceiver({ env: ENV_ENABLED });
 
-    const options = mocks.startSyslogReceiver.mock.calls[0]?.[0] as {
-      startInProcessDrainer?: boolean;
-    };
-    expect(options.startInProcessDrainer).toBe(false);
+    // El receptor del paquete ya no tiene drainer en proceso: no hay nada
+    // que apagar. El worker drena desde el job de la cola.
+    const options = mocks.startSyslogReceiver.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(options).not.toHaveProperty('startInProcessDrainer');
   });
 
   it('enqueues a drain job for every spooled event', async () => {

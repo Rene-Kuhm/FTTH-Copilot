@@ -107,7 +107,9 @@ describe('the worker SNMP receiver', () => {
   it('does not start the in-process drainer: the worker drains through the queue', () => {
     startWorkerSnmpReceiver({ env: ENV_ENABLED });
 
-    expect(receiverOptions().startInProcessDrainer).toBe(false);
+    // El receptor del paquete ya no tiene drainer en proceso: no hay nada
+    // que apagar. El worker drena desde el job de la cola.
+    expect(receiverOptions()).not.toHaveProperty('startInProcessDrainer');
   });
 
   it('spools every trap it receives before asking for a drain', () => {

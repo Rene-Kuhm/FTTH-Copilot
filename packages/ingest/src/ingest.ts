@@ -29,7 +29,6 @@ function spoolDir(): string {
 }
 
 let spool: DurableSpool<DeviceEventPayload> | null = null;
-let drainer: EventDrainer<DeviceEventPayload> | null = null;
 let drainFailures = 0;
 let rateLimited = 0;
 
@@ -57,21 +56,6 @@ export function spoolEvent(payload: DeviceEventPayload): string | null {
 function getSpool(): DurableSpool<DeviceEventPayload> {
   if (spool === null) spool = new DurableSpool<DeviceEventPayload>({ dir: spoolDir() });
   return spool;
-}
-
-/** Start the background drainer. Safe to call once per process. */
-export function startEventDrainer(): void {
-  if (drainer !== null) return;
-
-  drainer = new EventDrainer<DeviceEventPayload>({
-    spool: getSpool(),
-    write: writeBatch,
-    onBatchFailed: () => {
-      drainFailures++;
-    },
-  });
-
-  drainer.start();
 }
 
 /**
@@ -182,9 +166,8 @@ export async function drainSpool(options: DrainSpoolOptions = {}): Promise<Drain
   return result;
 }
 
-export function stopEventDrainer(): void {
-  drainer?.stop();
-  drainer = null;
+/** Test seam: closes the spool this process is using. */
+export function __closeSpoolForTests(): void {
   spool?.close();
   spool = null;
 }

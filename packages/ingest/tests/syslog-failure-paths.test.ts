@@ -29,8 +29,7 @@ vi.mock('../src/ingest', async () => {
     spoolEvent: (payload: unknown) => spoolWrite(payload),
     recordDroppedEvent: () => dropCounter(),
     // Not starting a real drainer: these tests are about the receive path.
-    startEventDrainer: () => {},
-  };
+      };
 });
 
 const { startSyslogReceiver } = await import('../src/syslog-receiver');

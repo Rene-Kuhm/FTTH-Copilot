@@ -12,7 +12,6 @@ import {
   markNotExpected as markSchedulerNotExpected,
   recordSnmpBound,
 } from '@ftth-copilot/scheduler';
-import { startEventDrainer } from './ingest';
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -34,7 +33,6 @@ export interface SnmpReceiverOptions {
    * starts the drainer explicitly. The worker drains through the durable job
    * queue instead, so it turns it off.
    */
-  startInProcessDrainer?: boolean;
 }
 
 export type SnmpStopFn = (() => Promise<void>) & {
@@ -146,10 +144,6 @@ export function startSnmpReceiver(opts: SnmpReceiverOptions = {}): SnmpStopFn {
   }) as SnmpStopFn;
 
   stopFn.ready = () => receiverHandle.ready();
-
-  // The in-process drainer belongs to the embedded web. The worker drains
-  // through the durable job queue instead.
-  if (opts.startInProcessDrainer === true) startEventDrainer();
 
   return stopFn;
 }

@@ -39,7 +39,7 @@ vi.mock('@/lib/monitoring/snmp', () => {
 
 vi.mock('@/lib/monitoring/event-ingest', () => {
   mocks.imported.add('event-ingest');
-  return { startEventDrainer: vi.fn() };
+  return {};
 });
 
 vi.mock('@/lib/investigations/sweep', () => {

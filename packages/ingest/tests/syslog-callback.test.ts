@@ -47,8 +47,8 @@ describe('syslog receiver reports what it spooled', () => {
   afterEach(async () => {
     stop?.();
     stop = null;
-    const { stopEventDrainer } = await import('../src/ingest');
-    stopEventDrainer();
+    const { __closeSpoolForTests } = await import('../src/ingest');
+    __closeSpoolForTests();
     rmSync(dir, { recursive: true, force: true });
   });
 

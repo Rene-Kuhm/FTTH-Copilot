@@ -81,7 +81,7 @@ vi.mock('@ftth-copilot/db', () => ({ prisma: db.prisma }));
 
 import type { DeviceEventPayload } from '../src/ingest';
 
-const { spoolEvent, startEventDrainer, stopEventDrainer } = await import('../src/ingest');
+const { spoolEvent, __closeSpoolForTests } = await import('../src/ingest');
 const { ingestEvents } = await import('@ftth-copilot/soc');
 
 /**
@@ -126,11 +126,11 @@ describe('ingest circuit: spool -> drainer -> Postgres', () => {
     db.rows.length = 0;
     db.prisma.deviceEvent.createMany.mockClear();
     db.comeUp();
-    stopEventDrainer();
+    __closeSpoolForTests();
   });
 
   afterEach(() => {
-    stopEventDrainer();
+    __closeSpoolForTests();
     rmSync(dir, { recursive: true, force: true });
   });
 

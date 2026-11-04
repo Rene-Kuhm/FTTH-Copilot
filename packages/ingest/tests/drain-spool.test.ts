@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { drainSpool, spoolEvent, stopEventDrainer } from '../src/ingest';
+import { drainSpool, spoolEvent, __closeSpoolForTests } from '../src/ingest';
 
 /**
  * The drain entry point of the package.
@@ -25,11 +25,11 @@ describe('drainSpool', () => {
     process.env['EVENT_SPOOL_DIR'] = dir;
     // The spool is a module singleton: reset it so it points at this test's
     // directory.
-    stopEventDrainer();
+    __closeSpoolForTests();
   });
 
   afterEach(() => {
-    stopEventDrainer();
+    __closeSpoolForTests();
     rmSync(dir, { recursive: true, force: true });
   });
 

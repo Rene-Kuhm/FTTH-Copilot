@@ -8,7 +8,7 @@ import {
   extractSourceIpFromMessage,
 } from '@ftth-copilot/security';
 import { runSecurityDetection } from '@ftth-copilot/soc';
-import { spoolEvent, recordDroppedEvent, startEventDrainer } from './ingest';
+import { spoolEvent, recordDroppedEvent } from './ingest';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
@@ -45,13 +45,6 @@ export interface SyslogReceiverOptions {
    * callback, so its behaviour is unchanged.
    */
   onEventSpooled?: (ingestId: string | null) => void;
-  /**
-   * Whether the receiver starts the in-process drainer when the socket binds.
-   *
-   * Defaults to true: the embedded web relies on it. The worker drains
-   * through the durable job queue instead, so it turns it off.
-   */
-  startInProcessDrainer?: boolean;
 }
 
 /**
@@ -172,9 +165,6 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
       recordSchedulerError('syslog', `could not enlarge recv buffer: ${detail}`);
     }
     recordSyslogBound(true);
-    // The in-process drainer belongs to the embedded web. The worker drains
-    // through the durable job queue instead.
-    if (options.startInProcessDrainer !== false) startEventDrainer();
   });
 
   const intervalMs = detectionIntervalMs;
