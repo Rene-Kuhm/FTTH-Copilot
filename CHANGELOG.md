@@ -12,6 +12,25 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.6.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.5.0...v0.6.0) (2026-11-04)
+
+
+### Added
+
+* **health:** el health de la web lista los loops del worker ([#364](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/364)) ([2ebc9bb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2ebc9bb7a41020f74d6237c2f5365664316032fb))
+* **learning:** las salvaguardas de la Fase 1 antes de aprender ([#362](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/362)) ([fd853df](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fd853dfd4ffd74115555690ce11aa3e99dc4bcd3))
+* **staging:** un staging reproducible que se levanta desde cero ([#367](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/367)) ([596b4a4](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/596b4a4dfb8d9fad647e5915eddfa56f1b063614))
+
+
+### Fixed
+
+* **health:** el buffer del syslog, los loops esperados y los receptores vigilados por su socket ([#365](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/365)) ([18b766d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/18b766d65389e65c8cd43e24aff074c531b5a5d3))
+* **health:** el health no se degrada tras un reinicio del worker ([#368](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/368)) ([baf6f7d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/baf6f7dfbb0da444c753e4e495211cc27b1a3d8c))
+* **release:** una sola tabla de version carriers ([#359](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/359)) ([af527f9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/af527f98ce831407248c5e65edbbb002185208f1))
+* **staging:** darle al db-migrate su DATABASE_URL ([#361](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/361)) ([19f7ceb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/19f7ceb6f04f5ece701b6236e6784002b5df0ff9))
+* **worker:** copiar el paquete de learning en la imagen del worker ([#363](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/363)) ([5e3946d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/5e3946d0b64ce42c7bdffc9cf84807b2dcbf8f1d))
+* **worker:** el health después de un reinicio y los errores que el poll se tragaba ([#366](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/366)) ([d594b8e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d594b8e7d2ed84b6468624d54c484f0871bb0e0e))
+
 ## [0.5.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.4.0...v0.5.0) (2026-11-03)
 
 

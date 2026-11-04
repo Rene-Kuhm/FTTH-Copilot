@@ -1,6 +1,6 @@
 [package]
 name = "ftth-copilot"
-version = "0.5.0"
+version = "0.6.0"
 description = "FTTH-Copilot — AI-powered FTTH network diagnostics"
 authors = ["FTTH-Copilot"]
 license = "UNLICENSED"
