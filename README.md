@@ -90,6 +90,7 @@ Responde la pregunta que un operador NOC tiene cada noche a las 2 AM: *¿Cuáles
 
 | | |
 |---|---|
+| **Estado de adopción** | Una empresa ya lo está probando |
 | **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT, Mikrowisp o MikroTik |
 | **Qué resuelve** | Identificación de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
 | **Qué NO hace** | No ejecuta cambios sobre la red · No es un reemplazo del NMS · No certifica todavía ninguna familia OLT en hardware real · No automatiza remediación |
@@ -237,7 +238,7 @@ flowchart LR
 
 ### TruthGate — Abstenerse es un resultado
 
-El TruthGate es el último filtro. Una afirmación que la evidencia no sostiene no se muestra, no se suaviza y no se completa con suposiciones: se absten. Cada diagnóstico expone de dónde salió cada hecho, qué tan fresco es y qué calidad tiene.
+El TruthGate es el último filtro. Una afirmación que la evidencia no sostiene no se muestra, no se suaviza y no se completa con suposiciones: el sistema se abstiene. Cada diagnóstico expone de dónde salió cada hecho, qué tan fresco es y qué calidad tiene.
 
 Es la diferencia entre un copiloto que convence y uno que se puede auditar. Un operador que no puede explicar por qué el sistema dijo lo que dijo no lo va a usar en un incidente real.
 
@@ -252,18 +253,18 @@ Las cifras salen del laboratorio y del conformance suite, no de una promesa.
 | Métrica | Valor | Condición | Umbral |
 |---|---|---|---|
 | **Tool call en modo `direct`** | **3 ms** | Fixture SmartOLT mock | 0 llamadas al LLM |
-| **Latencia p95 SNMP** | **1.328 ms** | UDP loopback, conformance lab | < 50 ms ✅ |
+| **Latencia p95 SNMP** | **1,33 ms** | UDP loopback, conformance lab | < 50 ms ✅ |
 | **Throughput SNMP sostenido** | **845 events/sec** | UDP loopback, conformance lab | > 100 events/sec ✅ |
 | **Drops bajo carga sostenida** | **0** | UDP loopback, conformance lab | 0 requeridos ✅ |
 | **Precisión del clasificador de intención** | **≥ 0.95** | 253 tests | ≥ 0.95 ✅ |
 | **Cobertura de detección** | **8/8** fault types | Tests pasando | 8/8 ✅ |
-| **Afirmaciones sostenidas por evidencia** | **≥ 90%** | Gate de piloto | umbral de piloto |
-| **Falsos positivos de alerta** | **< 5%** | Gate de piloto | umbral de piloto |
-| **Exactitud diagnóstica en campo** | **TBD** | Requiere piloto | — |
-| **Reducción de esfuerzo del operador** | **TBD** | Requiere piloto | — |
-| **Tiempo hasta la resolución** | **TBD** | Requiere piloto | — |
+| **Afirmaciones sostenidas por evidencia** | **Sin medir en campo** | Test de umbral con datos de prueba | ≥ 90% |
+| **Falsos positivos de alerta** | **Sin medir en campo** | Test de umbral con datos de prueba | < 5% |
+| **Exactitud diagnóstica en campo** | **TBD** | Sin medir todavía | — |
+| **Reducción de esfuerzo del operador** | **TBD** | Sin medir todavía | — |
+| **Tiempo hasta la resolución** | **TBD** | Sin medir todavía | — |
 
-Las tres últimas filas son las que más importan y todavía no tienen número. La exactitud diagnóstica en campo, la reducción de esfuerzo del operador y el tiempo hasta la resolución dependen de un piloto autorizado; el repo las marca como *TBD* en lugar de inventar una cifra. El harness adversarial corre todas las noches en CI con un gate de attack-pass-rate 100%.
+Las tres últimas filas son las que más importan y todavía no tienen número. Una empresa ya está probando la plataforma, pero esa prueba todavía no produjo estas mediciones; el repo las marca como *TBD* en lugar de inventar una cifra. El harness adversarial corre todas las noches en CI con un gate de attack-pass-rate 100%.
 
 **[Documento →](docs/benchmarks.md)**
 
