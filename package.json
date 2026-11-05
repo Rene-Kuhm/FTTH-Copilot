@@ -1,6 +1,6 @@
 {
   "name": "ftth-copilot",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "license": "UNLICENSED",
   "description": "Agente de IA sobre SmartOLT/Mikrowisp que da diagnóstico en lenguaje natural y reportes automáticos para ISPs.",
