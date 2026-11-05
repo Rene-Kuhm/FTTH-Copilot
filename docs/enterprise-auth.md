@@ -128,11 +128,7 @@ Requires any TOTP-compatible app (Google Authenticator, Authy, 1Password, etc.).
 
 ### Forcing MFA
 
-To require MFA for all users, set in `.env`:
-
-```env
-MFA_REQUIRED=true
-```
+Not available. There is no setting that requires MFA for all users: no code reads `MFA_REQUIRED`, so setting it has no effect. Each user enables TOTP individually.
 
 ---
 

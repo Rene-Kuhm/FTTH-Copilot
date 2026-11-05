@@ -514,7 +514,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Matriz de compatibilidad OLT](docs/compatibility-matrix.md) | Catálogo canónico de OIDs, perfiles por familia y niveles de conformidad. |
 | [ADRs](docs/adr/README.md) | Las decisiones de arquitectura y por qué se tomaron. |
 | [Contrato de API](docs/contract/openapi.yaml) | Especificación OpenAPI de los endpoints HTTP. |
-| [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; LDAP/AD, OIDC/SSO y los requisitos de MFA por entorno. |
+| [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; estado de LDAP/AD y OIDC/SSO; MFA no se puede exigir a todos los usuarios. |
 | [Despliegue en producción](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [Pruebas sin hardware](docs/testing-without-hardware.md) | Cómo inyectar traps SNMP y simular incidentes ópticos sin OLT físico. |
 | [Benchmarks](docs/benchmarks.md) | Latencia de diagnóstico, rendimiento SNMP y métricas de piloto. |
