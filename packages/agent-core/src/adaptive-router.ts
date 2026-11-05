@@ -122,7 +122,7 @@ export interface DiagnosticRoute {
   reason: string;
   /** Convenience: the intention label that fed into the mode decision. */
   label: IntentionLabel;
-  /** FTTH event classification from Expert System (94.4% accuracy). */
+  /** FTTH event classification from Expert System (quoted accuracy has no reproducible dataset). */
   eventClass?: EventClass;
   /** Confidence score from expert classifier. */
   eventConfidence?: number;
@@ -414,7 +414,7 @@ export function planRoute(opts: PlanRouteOptions): DiagnosticRoute {
   // adaptive mode. This is the AD-6 consistency guarantee.
   const tools = selectTools(mode, signals, opts.allTools);
 
-  // FTTH Event Classification using Expert System (94.4% accuracy)
+  // FTTH Event Classification using Expert System (quoted accuracy has no reproducible dataset)
   let eventClass: EventClass | undefined;
   let eventConfidence: number | undefined;
   try {

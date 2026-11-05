@@ -1,6 +1,12 @@
 # Enterprise Authentication Guide
 
-FTTH-Copilot supports three authentication methods:
+FTTH-Copilot supports one authentication method today. The other two exist as libraries only:
+
+| Method | Status | Best for | Setup complexity |
+|--------|--------|----------|-----------------|
+| Email + Password | **Implemented** | Development / single tenant | Low |
+| OIDC / SSO | **Not implemented** — the endpoint returns 501 | Corporate IdPs (Google Workspace, Azure AD, Okta, Keycloak) | — |
+| LDAP / Active Directory | **Client and connectivity diagnostic only** — not wired to the login flow | Enterprise with existing AD infrastructure | Medium |
 
 | Method | Best for | Setup complexity |
 |--------|----------|-----------------|
@@ -12,7 +18,7 @@ FTTH-Copilot supports three authentication methods:
 
 ## LDAP / Active Directory
 
-LDAP authentication integrates FTTH-Copilot with your corporate directory. Users log in with their corporate credentials, and group membership maps to FTTH roles.
+LDAP support ships as a **client library and a connectivity diagnostic**. It is **not wired to the login flow**: users do not sign in with their corporate credentials yet, even though group membership maps to FTTH roles. The login route accepts email and password only.
 
 ### How it works
 
@@ -93,6 +99,8 @@ On first LDAP login, FTTH-Copilot creates a local user record linked to the LDAP
 
 Configure NextAuth to use a generic OIDC provider:
 
+> [!WARNING]
+> **OIDC / SSO is not implemented.** `apps/web/app/api/auth/[...nextauth]/route.ts` returns **501** and no `next-auth` dependency is installed. The variables below are the ones a future implementation would read; setting them today does not enable SSO.
 ```env
 NEXTAUTH_URL=https://ftth.example.com
 NEXTAUTH_SECRET=<generate with: openssl rand -base64 32>
@@ -102,7 +110,7 @@ NEXTAUTH_OIDC_CLIENT_ID=<from your IdP>
 NEXTAUTH_OIDC_CLIENT_SECRET=<from your IdP>
 ```
 
-Supported IdPs:
+IdPs a future implementation would target:
 - Google Workspace
 - Azure Active Directory
 - Okta
@@ -130,7 +138,8 @@ MFA_REQUIRED=true
 
 ## Combined auth
 
-When multiple auth methods are enabled, users see a choice on the login page:
-- **LDAP** (if `LDAP_ENABLED=true`) — corporate credentials
-- **Email + Password** (always available) — local account
-- **SSO/OIDC** (if `NEXTAUTH_OIDC_ISSUER` is set) — federated identity
+Today the login page offers one method:
+- **Email + Password** — local account
+
+The other two are not selectable: LDAP is not connected to the login flow and OIDC/SSO is not implemented. Enabling `LDAP_ENABLED` or setting `NEXTAUTH_OIDC_ISSUER` does not add them to the login page.
+

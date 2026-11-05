@@ -185,7 +185,7 @@ services:
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)
-  # Expert System (94.4% accuracy) — no GPU required.
+  # Expert System (rule-based; the quoted accuracy has no reproducible dataset) — no GPU required.
   # Opt-in: docker compose --profile laya
   # ─────────────────────────────────────────────────────────────────────
   laya:

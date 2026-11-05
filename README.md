@@ -28,6 +28,8 @@
   <strong>
     <a href="#que-hace">Qué hace</a>
     &nbsp;·&nbsp;
+    <a href="#licencias-y-piloto">Licencias</a>
+    &nbsp;·&nbsp;
     <a href="#como-funciona">Cómo funciona</a>
     &nbsp;·&nbsp;
     <a href="#plataforma">La plataforma</a>
@@ -35,6 +37,8 @@
     <a href="#empezar">Empezar</a>
     &nbsp;·&nbsp;
     <a href="#documentacion">Documentación</a>
+    &nbsp;·&nbsp;
+    <a href="#english-summary">English</a>
   </strong>
 </p>
 
@@ -49,36 +53,19 @@
   Dos casos del Organic Diagnostic Router contra datos sintéticos: 37 segundos, sin credenciales reales.
   </p>
 
-  <video controls width="820" poster="docs/assets/ftth-copilot-hero.png" src="docs/assets/ftth-copilot-demo-16x9.mp4"></video>
+  <p>
+  <a href="docs/assets/ftth-copilot-demo-16x9.mp4"><img src="docs/assets/ftth-copilot-hero.png" width="820" alt="Captura del walkthrough de FTTH-Copilot: dos casos del Organic Diagnostic Router contra datos sintéticos. Hacé clic para reproducir el video (MP4, 37 s)."></a>
+  </p>
 
   <p>
-  <a href="docs/assets/ftth-copilot-demo-16x9.mp4">▶ Abrir el video (MP4)</a> &nbsp;·&nbsp;
+  <a href="docs/assets/ftth-copilot-demo-16x9.mp4">▶ Abrir el video (MP4, 37 s)</a> &nbsp;·&nbsp;
   <a href="docs/walkthrough.md">Leer el guion escrito</a>
   </p>
 </div>
 
 <p align="center"><strong>PLATAFORMA NOC/SOC</strong> &nbsp;·&nbsp; Evidencia primero &nbsp;·&nbsp; Multi-tenant &nbsp;·&nbsp; SNMP multi-vendor &nbsp;·&nbsp; Shadow mode</p>
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
-
-<p align="center">— ◆ —</p>
-
-<a id="novedades"></a>
-
-## ✨ Novedades en v0.7
-
-La [release v0.7.0](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.7.0) separa el trabajo de fondo del proceso web, y la v0.7.1 lo valida en staging:
-
-- **El worker es el único dueño del trabajo de fondo.** *Breaking change:* el modo `embedded` se eliminó. Todo despliegue necesita el worker y Redis; `BACKEND_MODE=embedded` impide que la web arranque. Un deploy de la web ya no corta el monitoreo, y el tier web escala en horizontal sin duplicar trabajo. [Runbook](docs/how-to/desplegar-en-produccion.md).
-- **El health de la web lista los loops del worker.** El endpoint de salud enumera los loops esperados y los receptores vigilados por su socket, y no se degrada tras un reinicio del worker.
-- **Salvaguardas de la Fase 1 antes de aprender.** El learning loop verifica suficiencia de muestra y split temporal *antes* de congelar un dataset por tenant.
-- **Un staging reproducible.** Levanta el entorno completo desde cero, con su base, sus migraciones y sus datos de prueba.
-- **Rate limiter global con Redis.** Cuota por usuario y por minuto, atómica y compartida entre instancias, con respaldo en memoria.
-- **Una sola tabla de version carriers.** La versión vive en un único lugar y los portadores se sincronizan desde ahí.
-
-> El historial completo está en [`CHANGELOG.md`](CHANGELOG.md). Las entradas se generan con [release-please](https://github.com/googleapis/release-please) a partir de los Conventional Commits de `main`.
-
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -98,19 +85,69 @@ Responde la pregunta que un operador NOC tiene cada noche a las 2 AM: *¿Cuáles
 
 | Capacidad | Valor operativo |
 |---|---|
-| **Laya Decision Layer** ([ADR-042](docs/engineering/ADR-042-laya-decision-layer.md)) | Expert System de clasificación de eventos FTTH: 9 clases, 94,4% de accuracy en `eventClass`, menos de 5 ms, sin GPU. Corre en shadow mode: registra su decisión antes de influir en el routing. |
+| **Laya Decision Layer** ([ADR-042](docs/engineering/ADR-042-laya-decision-layer.md)) | Expert System de clasificación de eventos FTTH: 9 clases por reglas y palabras clave, menos de 5 ms, sin GPU. Corre en shadow mode: registra su decisión antes de influir en el routing. Su tasa de acierto en campo todavía no está medida. |
 | **Organic Diagnostic Router** | Elige el camino mínimo viable —`direct`, `assisted` o `investigation`— según la intención, el alcance y la evidencia necesaria. Una consulta puntual paga 0 llamadas al LLM. |
 | **NOC y AIOps predictivo** | Detecta deriva óptica y térmica con detectores puros (mediana + MAD), estima el tiempo hasta degradación y correlaciona incidentes por topología y tiempo. |
 | **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante adaptadores por familia: 17 fabricantes catalogados, 94 familias de hardware, 92 fuentes documentadas y 152 hechos OID verificados. |
 | **SOC perimetral** | Analiza syslog RFC 3164/5424, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
 | **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; el TruthGate rechaza las afirmaciones que la evidencia no sostiene. Abstener es un resultado correcto. |
-| **Autenticación enterprise y MFA** | LDAP/Active Directory con mapeo de grupos a roles, OIDC documentado y TOTP por usuario. |
+| **Autenticación y MFA** | Login local con email y contraseña y segundo factor TOTP por usuario, implementados. LDAP/AD tiene cliente y diagnóstico, pero todavía no está conectado al flujo de login; OIDC/SSO está documentado y no implementado. |
 | **Alertas multicanal** | Webhooks, Telegram, Slack (Block Kit), WhatsApp y Ntfy push, con deduplicación, cooldown y escalado por severidad. |
 
 > [!NOTE]
-> El producto tiene tres planos —copiloto conversacional, NOC/AIOps y SOC perimetral— sobre una sola base multi-tenant. El primer mensaje público se enfoca en el diagnóstico offline-ONU porque es lo que un ISP puede evaluar de inmediato. El alcance técnico completo está en [`docs/product-wedge.md`](docs/product-wedge.md).
+> El producto tiene tres planos —copiloto conversacional, NOC/AIOps y SOC perimetral— sobre una sola base multi-tenant. El primer mensaje público se enfoca en el diagnóstico offline-ONU porque es lo que un ISP puede evaluar de inmediato. El alcance técnico completo está en [`docs/architecture.md`](docs/architecture.md); el [wedge original de v0.1.0](docs/product-wedge.md) describe el primer producto acotado y ya no refleja el estado actual.
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
+
+<p align="center">— ◆ —</p>
+
+<a id="licencias-y-piloto"></a>
+
+## 📄 Licencias y piloto
+
+FTTH-Copilot es software propietario. El acceso público es para revisión técnica; para ejecutarlo o usarlo en producción hace falta un permiso escrito del owner.
+
+| Quiero… | Qué necesito |
+|---|---|
+| **Evaluar el producto** | Escribinos por cualquiera de los tres canales de abajo y contanos qué querés validar. |
+| **Probar el demo** | Permiso escrito previo del owner. Mientras no esté definido en [`LICENSE`](LICENSE), hay que pedirlo. |
+| **Desplegar en producción** | Firmar una licencia de uso con el owner. Sin licencia escrita, el despliegue no está autorizado. |
+| **Evaluar un piloto en tu red** | Una licencia de evaluación para un tenant, con el alcance y la ventana acordados por escrito. |
+
+**Contacto:** [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com)
+
+Podés iniciar por cualquiera de los dos canales:
+
+1. **Por email** — a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com): contános qué querés validar y sobre qué tipo de red.
+2. **Por issue** — con la etiqueta `evaluation`.
+
+> [!CAUTION]
+> **Los issues son públicos.** No publiques datos de tu red: ni IPs, ni identificadores de cliente, ni credenciales, ni capturas sin sanitizar. Contános solo el tipo de red y qué querés validar.
+
+Te respondemos con el alcance de la evaluación y, si corresponde, con un permiso o una licencia de evaluación por escrito. Para producción, la licencia va firmada antes de usar la plataforma.
+
+> El estado actual es **una empresa ya lo está probando**. El alcance de cada piloto lo acordamos por escrito: qué tenant, qué señales, qué ventana y qué queda fuera.
+
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
+
+<p align="center">— ◆ —</p>
+
+<a id="novedades"></a>
+
+## ✨ Novedades en v0.7
+
+La [release v0.7.0](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.7.0) separa el trabajo de fondo del proceso web, y la v0.7.1 lo valida en staging:
+
+- **El worker es el único dueño del trabajo de fondo.** *Breaking change:* el modo `embedded` se eliminó. Todo despliegue necesita el worker y Redis; `BACKEND_MODE=embedded` impide que la web arranque. Un deploy de la web ya no corta el monitoreo, y el tier web escala en horizontal sin duplicar trabajo. [Runbook](docs/how-to/desplegar-en-produccion.md).
+- **El health de la web lista los loops del worker.** El endpoint de salud enumera los loops esperados y los receptores vigilados por su socket, y no se degrada tras un reinicio del worker.
+- **Salvaguardas de la Fase 1 antes de aprender.** El learning loop verifica suficiencia de muestra y split temporal *antes* de congelar un dataset por tenant.
+- **Un staging reproducible.** Levanta el entorno completo desde cero, con su base, sus migraciones y sus datos de prueba.
+- **Rate limiter global de requests con Redis.** Límite por tenant o por IP, compartido entre instancias cuando hay `REDIS_URL` y con respaldo en memoria por proceso cuando no la hay. La cuota de LLM por usuario es un mecanismo aparte, en PostgreSQL.
+- **Una sola tabla de version carriers.** La versión vive en un único lugar y los portadores se sincronizan desde ahí.
+
+> El historial completo está en [`CHANGELOG.md`](CHANGELOG.md). Las entradas se generan con [release-please](https://github.com/googleapis/release-please) a partir de los Conventional Commits de `main`.
+
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -164,34 +201,7 @@ El monorepo es un workspace de pnpm con Turborepo: `apps/*`, `packages/*`, `pack
 | **Acceso a datos** | `db` es el único que conoce Prisma y el KMS. El resto consume el cliente tipado. |
 | **Modelo de IA** | `agent-core` es el único que llama al LLM. Ningún endpoint de `apps/web` arma su propio prompt. |
 
-<details>
-<summary><kbd>Ver</kbd> <strong>Los 24 workspaces y su responsabilidad</strong></summary>
-
-<br>
-
-| Workspace | Capa | Responsabilidad |
-|---|---|---|
-| `apps/web` | L5 | Next.js App Router: chat con IA, tableros NOC/SOC, endpoints REST, middleware de sesión, E2E Playwright. |
-| `packages/eval` | L4 | Arnés de evaluación estricto (attack-pass-rate 100%) y corpus adversarial con tenants piloto. |
-| `packages/agent-core` | L3 | Motor cognitivo: Organic Diagnostic Router, motor de investigación, registro de herramientas (10 tools NMS), prompts, cliente LLM con cadena de fallback, trazas OTLP. |
-| `packages/soc` | L3 | Orquestación perimetral, correlación de accesos anómalos, auditoría de firmware con trazabilidad por tenant. |
-| `packages/monitoring` | L3 | Receptor binario SNMP, adaptadores OLT multi-fabricante, decodificación multi-vendor, catálogo OID, laboratorio de conformidad. |
-| `packages/analytics` | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). |
-| `packages/alerts` | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. |
-| `packages/db` | L1 | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) derivado de `KMS_MASTER_KEY`. |
-| `packages/evidence` | L1 | Normalización de evidencia cruda, sobres de investigación, procedencia y frescura. |
-| `packages/learning` | L1 | Núcleo puro del learning loop: resolución de etiquetas, agrupación en eventos, split temporal y suficiencia de muestra. |
-| `packages/connectors/smartolt` | L1 | Adaptador SmartOLT: cliente HTTP de producción y fixtures de laboratorio. |
-| `packages/connectors/mikrowisp` | L1 | Adaptador Mikrowisp: cliente HTTP de producción y fixtures de laboratorio. |
-| `packages/connectors/mikrotik` | L1 | Adaptador MikroTik RouterOS v7 (REST con fallback a API binaria 8728), credenciales cifradas en PostgreSQL. |
-| `packages/shared` | L0 | Contratos canónicos Zod, esquemas compartidos, tipos de telemetría, cliente Laya y Expert System. |
-| `packages/connectors/core` | L0 | Tipos canónicos de NMS y políticas estrictas de seguridad SSRF (allowlists, rangos privados, metadatos de nube). |
-| `packages/detection` | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. |
-| `packages/security` | L0 | Analizador RFC 3164/5424 de paquetes syslog y clasificadores de ataques. |
-
-Los workspaces restantes —`api-contract`, `ingest`, `investigations`, `jobs`, `scheduler`, `connectors/factory` y `services/worker`— completan el contrato de API, la ingesta durable, el motor de investigación, la cola de jobs, la planificación, la selección de adaptadores y el proceso de trabajo de fondo.
-
-</details>
+Los **24 workspaces** y qué hace cada uno están en [`ARCHITECTURE.md` §2](ARCHITECTURE.md#2-mapa-de-módulos).
 
 **[Documento →](ARCHITECTURE.md)**
 
@@ -246,9 +256,9 @@ Es la diferencia entre un copiloto que convence y uno que se puede auditar. Un o
 
 ---
 
-### Medido — Lo que los números dicen hoy
+### Medido — Lo que el laboratorio dice, y lo que falta
 
-Las cifras salen del laboratorio y del conformance suite, no de una promesa.
+**Medido en laboratorio** (conformance suite, sockets UDP de loopback y fixtures):
 
 | Métrica | Valor | Condición | Umbral |
 |---|---|---|---|
@@ -256,19 +266,25 @@ Las cifras salen del laboratorio y del conformance suite, no de una promesa.
 | **Latencia p95 SNMP** | **1,33 ms** | UDP loopback, conformance lab | < 50 ms ✅ |
 | **Throughput SNMP sostenido** | **845 events/sec** | UDP loopback, conformance lab | > 100 events/sec ✅ |
 | **Drops bajo carga sostenida** | **0** | UDP loopback, conformance lab | 0 requeridos ✅ |
-| **Precisión del clasificador de intención** | **≥ 0.95** | 253 tests | ≥ 0.95 ✅ |
 | **Cobertura de detección** | **8/8** fault types | Tests pasando | 8/8 ✅ |
-| **Afirmaciones sostenidas por evidencia** | **Sin medir en campo** | Test de umbral con datos de prueba | ≥ 90% |
-| **Falsos positivos de alerta** | **Sin medir en campo** | Test de umbral con datos de prueba | < 5% |
-| **Exactitud diagnóstica en campo** | **TBD** | Sin medir todavía | — |
-| **Reducción de esfuerzo del operador** | **TBD** | Sin medir todavía | — |
-| **Tiempo hasta la resolución** | **TBD** | Sin medir todavía | — |
 
-Las tres últimas filas son las que más importan y todavía no tienen número. Una empresa ya está probando la plataforma, pero esa prueba todavía no produjo estas mediciones; el repo las marca como *TBD* en lugar de inventar una cifra. El harness adversarial corre todas las noches en CI con un gate de attack-pass-rate 100%.
+**Sin medir todavía.** No hay cifra, y no se inventa:
+
+| Métrica | Umbral | Qué falta |
+|---|---|---|
+| **Afirmaciones sostenidas por evidencia** | ≥ 90% | Piloto con casos adjudicados por el operador. |
+| **Falsos positivos de alerta** | < 5% | Piloto con tráfico real. |
+| **Exactitud diagnóstica en campo** | — | Piloto con ground truth del operador. |
+| **Reducción de esfuerzo del operador** | — | Línea de base comparable. |
+| **Tiempo hasta la resolución** | — | Medición antes y después del piloto. |
+| **Acierto de Laya contra `operatorOutcome`** | — | Corpus evaluado y dataset versionado en el repo. |
+| **Precisión del clasificador de intención** | ≥ 0.95 (umbral, no medición) | Corpus con casos adjudicados por el operador. |
+
+Una empresa ya está probando la plataforma, pero ese piloto todavía no produjo estas mediciones: el repo las marca como *TBD* en lugar de inventar una cifra. El harness adversarial corre todas las noches en CI con un gate de attack-pass-rate 100%.
 
 **[Documento →](docs/benchmarks.md)**
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -325,7 +341,7 @@ Los decodificadores activos viven en `packages/monitoring/src/snmp/adapter/`: ad
 
 **[Documento →](docs/compatibility-matrix.md)**
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -344,7 +360,7 @@ La UI de métricas en `/dashboard/metrics` muestra solicitudes totales, rendimie
 
 **[Documento →](docs/reference/configuracion.md)**
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -358,7 +374,8 @@ FTTH-Copilot mantiene a la persona en el circuito: **investiga, explica y priori
 |---|---|
 | **Cifrado en reposo** | Claves de API y credenciales NMS con AES-256-GCM derivado de `KMS_MASTER_KEY`. En producción falla el arranque sin esa clave (`fail-closed`). |
 | **Autenticación revocable** | Sesiones JWT en cookies `HttpOnly`, con invalidación y revocación atómica en PostgreSQL. |
-| **Protección de costos LLM** | Rate limiter atómico en PostgreSQL por usuario y minuto, con cuota diaria estricta compartida entre instancias. |
+| **Protección de costos LLM** | Cuota por usuario y por minuto, y cuota diaria estricta, con el contador atómico en PostgreSQL. Es la cuota de LLM: vive en la base y no tiene respaldo en memoria. |
+| **Rate limiter de requests** | Límite global por tenant o por IP en Redis, compartido entre instancias cuando hay `REDIS_URL` y con respaldo en memoria por proceso cuando no la hay. Es un mecanismo aparte de la cuota de LLM. |
 | **Protección SSRF en NMS** | Validación previa de DNS contra IPs privadas y metadatos de nube. Las excepciones LAN requieren opt-in explícito. |
 | **Protección de base de datos** | El seed rechaza ejecutarse en producción salvo autorización explícita (`ALLOW_PRODUCTION_SEED=true` o flag `--force`). |
 | **Aislamiento por tenant** | `tenantId` obligatorio en consultas, eventos, claves de caché y referencias persistidas. |
@@ -366,19 +383,11 @@ FTTH-Copilot mantiene a la persona en el circuito: **investiga, explica y priori
 
 ### Lo que este repositorio no toca sin una decisión explícita
 
-| Superficie | Por qué está protegida | Cómo se verifica |
-|---|---|---|
-| `packages/db/prisma/migrations/` | Se aplican con `db:deploy` en producción y en CI. Editar una migración aplicada rompe el despliegue. | `pnpm db:deploy` |
-| `packages/db/src/generated/` | Cliente Prisma generado. No se edita a mano. | `pnpm db:generate` |
-| `research/olt/` | Fuentes MIB auditadas con procedencia y licencia. | `pnpm check:sources` · `pnpm check:conflicts` |
-| `docs/compatibility-matrix.md` | Generada desde las fuentes MIB. CI falla si deriva. | `pnpm generate:matrix:write` + `git diff --exit-code` |
-| `packages/eval/` | Gate adversarial con attack-pass-rate 100%. Relajar una aserción equivale a borrar el gate. | `pnpm --filter @ftth-copilot/eval run test` |
-| `packages/monitoring/tests/conformance/golden/` | Golden snapshots del laboratorio de conformidad. | `pnpm test:conformance` |
-| `LICENSE` | Términos propietarios. | Revisión legal |
+Las migraciones aplicadas, el cliente Prisma generado, las fuentes MIB auditadas, la matriz de compatibilidad, el gate adversarial y los golden snapshots tienen dueño, propósito o una verificación de CI que los protege. La lista completa y cómo se verifica cada superficie están en [`ARCHITECTURE.md` §9](ARCHITECTURE.md#9-qué-no-se-toca-sin-una-decisión-explícita).
 
-**[Documento →](SECURITY.md)**
+**[Documento →](ARCHITECTURE.md#9-qué-no-se-toca-sin-una-decisión-explícita)**
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -395,7 +404,7 @@ FTTH-Copilot mantiene a la persona en el circuito: **investiga, explica y priori
 | **Conectores SmartOLT, Mikrowisp y MikroTik** | Lectura de inventario y estado de ONUs desde el NMS que el ISP ya opera. |
 | **Alertas multicanal** | Webhooks, Telegram, Slack, WhatsApp y Ntfy con deduplicación, cooldown y escalado. |
 | **SOC perimetral** | Analizador syslog RFC 3164/5424, correlación de accesos anómalos y auditoría de firmware con CVEs. |
-| **Auth enterprise** | LDAP/AD con mapeo de grupos a roles, OIDC documentado y MFA TOTP por usuario. |
+| **Auth local con MFA** | Login con email y contraseña y segundo factor TOTP por usuario. LDAP/AD está implementado como cliente y diagnóstico, todavía no conectado al flujo de login. |
 | **Observabilidad** | Prometheus, VictoriaMetrics con reglas de alerta y trazas OTLP a Arize Phoenix. |
 | **Laboratorio de conformidad** | Golden snapshots y sockets UDP de loopback: el suite SNMP pasa sin equipo físico. |
 | **Harness adversarial** | Corpus con tenants piloto y gate de attack-pass-rate 100%, corrido nightly en CI. |
@@ -416,7 +425,7 @@ FTTH-Copilot mantiene a la persona en el circuito: **investiga, explica y priori
 
 Los binarios se publican en [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-Copilot/releases).
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -436,6 +445,9 @@ Los binarios se publican en [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-
 
 Levanta el stack completo con datos sintéticos. Requisitos: Docker y Docker Compose, y los puertos 5432 y 3001 libres.
 
+> [!NOTE]
+> Ejecutar el demo requiere el permiso escrito del owner: mientras no esté definido en [`LICENSE`](LICENSE), hay que pedirlo antes. [Ver cómo pedirlo →](#licencias-y-piloto)
+
 ```bash
 ./scripts/run-demo.sh
 ```
@@ -449,6 +461,9 @@ Para detener: `./scripts/run-demo.sh down`. Para reiniciar desde cero: `./script
 ### Opción B — Desarrollo local (3 comandos)
 
 **Requisitos:** Node.js 22+, pnpm 11+, PostgreSQL 16+ (o Docker para levantarlo automáticamente).
+
+> [!NOTE]
+> Levantar el entorno local también es ejecutar el software: requiere el permiso escrito del owner, como el demo. [Ver cómo pedirlo →](#licencias-y-piloto)
 
 ```bash
 pnpm install        # 1. dependencias del monorepo
@@ -464,6 +479,9 @@ Antes de abrir un PR: `pnpm typecheck && pnpm lint && pnpm test`.
 
 ### Opción C — Producción
 
+> [!WARNING]
+> **El uso en producción requiere una licencia escrita.** El instalador no la incluye ni la sustituye: sin un acuerdo firmado con el owner, el despliegue no está autorizado. [Pedila acá](#licencias-y-piloto).
+
 ```bash
 ./install.sh
 ```
@@ -472,9 +490,9 @@ Instalador interactivo: valida Docker, genera `.env.prod` con permisos `0600` y 
 
 El runbook completo —despliegue, backup, restore, observabilidad y emergencia— está en [`docs/production-deployment.md`](docs/production-deployment.md).
 
-**[Runbook →](docs/how-to/desplegar-en-produccion.md)**
+**[Guía de despliegue →](docs/how-to/desplegar-en-produccion.md)**
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -496,7 +514,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Matriz de compatibilidad OLT](docs/compatibility-matrix.md) | Catálogo canónico de OIDs, perfiles por familia y niveles de conformidad. |
 | [ADRs](docs/adr/README.md) | Las decisiones de arquitectura y por qué se tomaron. |
 | [Contrato de API](docs/contract/openapi.yaml) | Especificación OpenAPI de los endpoints HTTP. |
-| [Autenticación enterprise](docs/enterprise-auth.md) | LDAP/AD, OIDC, MFA TOTP y autenticación local. |
+| [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; LDAP/AD, OIDC/SSO y los requisitos de MFA por entorno. |
 | [Despliegue en producción](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [Pruebas sin hardware](docs/testing-without-hardware.md) | Cómo inyectar traps SNMP y simular incidentes ópticos sin OLT físico. |
 | [Benchmarks](docs/benchmarks.md) | Latencia de diagnóstico, rendimiento SNMP y métricas de piloto. |
@@ -504,7 +522,31 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Roadmap público](ROADMAP.md) | Qué está *Current*, qué necesita *Validation*, qué viene *Next* y qué queda *Later*. |
 | [Changelog](CHANGELOG.md) | Histórico de cambios, límites conocidos y notas de upgrade. |
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
+
+<p align="center">— ◆ —</p>
+
+<a id="english-summary"></a>
+
+## 🇬🇧 English summary
+
+**What it is.** FTTH-Copilot turns the telemetry an ISP already has — SmartOLT, Mikrowisp, MikroTik, SNMP traps and syslog — into a verifiable diagnosis for a NOC operator: which ONUs went offline, why, and what to do next. It investigates, explains and prioritises; it never writes to the network.
+
+**Current state.** A company is already trialling it. The platform ships three planes over one multi-tenant database (conversational copilot, NOC/AIOps, perimeter SOC), a multi-vendor SNMP receiver (17 vendors, 152 verified OID facts), a deterministic routing layer that decides how much the model reasons, and a truth gate that rejects any claim the evidence does not support. Field metrics are still `TBD`: no OLT family is certified on real hardware yet, and the trial has not published diagnostic-accuracy figures.
+
+**Try the demo.** It ships with synthetic data, so no real credentials are needed. Running it still needs the owner's prior written permission — see the license note below.
+
+```bash
+./scripts/run-demo.sh
+```
+
+Then open `http://localhost:3001` and sign in with `admin@ftth-copilot.local` / `demo12345`.
+
+**Request a license.** Production use requires a written license. Contact [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com), or open an issue with the `evaluation` label. **Issues are public** — do not post network data: IPs, customer identifiers, credentials, or unsanitized captures. See [Licencias y piloto](#licencias-y-piloto).
+
+**License.** Proprietary. Public access is for technical review: you may read the code and the published material. There is no right to fork, modify, redistribute, or run the software — the demo and the test suite included — without the owner's prior written permission. Until [`LICENSE`](LICENSE) defines that permission, request it in writing before running anything.
+
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -512,7 +554,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 
 ## 🤝 Comunidad
 
-Este proyecto se construye en público. Traé un workflow real, una pregunta difícil, un bug o una mejora que le sirva a la próxima persona.
+FTTH-Copilot no es un proyecto open source. Podés reportar un bug, hacer una pregunta difícil o señalar documentación confusa: eso siempre es bienvenido. Las contribuciones de código siguen un proceso con **aprobación escrita previa** del owner, según [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 <p align="center">
   <a href="https://github.com/Rene-Kuhm/FTTH-Copilot/issues"><img src="https://img.shields.io/badge/Issues-abrir%20un%20tema-1168BD?style=for-the-badge&labelColor=0B2239" alt="GitHub issues"></a>
@@ -521,10 +563,10 @@ Este proyecto se construye en público. Traé un workflow real, una pregunta dif
 </p>
 
 - Abrí un [issue](https://github.com/Rene-Kuhm/FTTH-Copilot/issues) con el contexto necesario para reproducir o entender la idea.
-- Leé [`CONTRIBUTING.md`](CONTRIBUTING.md) antes de mandar cambios: Conventional Commits 1.0.0, commits atómicos y PRs chicas.
+- Para proponer un cambio de código: abrí el issue, esperá el visto bueno por escrito y recién entonces mandá el PR. El formato es Conventional Commits 1.0.0, con commits atómicos y PRs chicas.
 - Reportá una vulnerabilidad por el proceso de divulgación privada de [`SECURITY.md`](SECURITY.md). No publiques información sensible en un issue.
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
@@ -540,12 +582,14 @@ La plataforma mantiene esa línea hasta el final: el sistema investiga, explica 
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-85BBF0?style=for-the-badge&labelColor=0B2239" alt="Licencia propietaria"></a>
 </p>
 
-<p align="right"><a href="#top">Back to top ↑</a></p>
+<p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
 
-<p align="center"><strong>Software propietario. El acceso público es para evaluación técnica.</strong></p>
+<p align="center"><strong>Software propietario. El acceso público es para revisión técnica.</strong></p>
 
-> **FTTH-Copilot es software propietario.** El acceso público es para evaluación técnica: leer el código, correr el demo y los tests, y solicitar una licencia escrita para uso en producción. No hay derecho a forkear, modificar ni redistribuir.
+> **FTTH-Copilot es software propietario.** El acceso público al repositorio es para revisión técnica: podés leer el código y el material publicado. No hay derecho a forkear, modificar, redistribuir ni a ejecutar el software sin permiso escrito previo del owner.
 >
-> El acceso público al repositorio no otorga ningún derecho sobre el software. Los términos completos están en [`LICENSE`](LICENSE). Para solicitar una licencia de uso, contactá al Owner.
+> Eso incluye correr el demo y los tests. Mientras [`LICENSE`](LICENSE) no defina ese permiso, **pedilo por escrito** antes de ejecutarlos; para usarlo en producción hace falta una licencia escrita.
+>
+> **Para pedir permiso o una licencia:** [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com)

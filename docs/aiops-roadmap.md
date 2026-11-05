@@ -128,7 +128,7 @@ Cada fase es **testeable, con CI verde y reversible** de forma independiente. Ni
 
 ### Fase 1b — Laya Decision Layer (ADR-042) — **Implementado**
 
-El layer cognitivo se complementa con **Laya Decision Layer** (ADR-042): un Expert System que clasifica eventos FTTH en <5ms con 94.4% de accuracy antes de invocar el LLM. Se activa en shadow mode por defecto y persiste decisiones en `decision_evaluations` para futura evaluación y fine-tuning.
+El layer cognitivo se complementa con **Laya Decision Layer** (ADR-042): un Expert System que clasifica eventos FTTH en <5ms antes de invocar el LLM. La accuracy del clasificador se cita como 94.4% en el ADR-042, pero es una cifra sin dataset reproducible en el repo. Se activa en shadow mode por defecto y persiste decisiones en `decision_evaluations` para futura evaluación y fine-tuning.
 
 > **Estado: implementado.** PRs #226, #227, #228, #229 en `main`. Consultar [`ADR-042`](docs/engineering/ADR-042-laya-decision-layer.md) para el detalle completo.
 >

@@ -116,7 +116,7 @@ services:
 
   # ─────────────────────────────────────────────────────────────────────
   # Laya Decision Layer — Fast Decision System (ADR-042)
-  # Expert System (94.4% accuracy) — runs as microservice fallback.
+  # Expert System (rule-based; the quoted accuracy has no reproducible dataset) — runs as microservice fallback.
   # Primary mode is module import from @ftth-copilot/shared.
   # Enable via: LAYA_ENABLED=true LAYA_MODE=shadow
   # ─────────────────────────────────────────────────────────────────────

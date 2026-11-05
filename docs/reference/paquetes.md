@@ -206,7 +206,7 @@ Deps: `alerts`, `connectors-core`, `db`, `security`, `ldapts`.
 |---|---|
 | `src/ingest.ts` | `ingestEvent`: syslog → `DeviceEvent` |
 | `src/audit.ts` | `audit`, `auditAuth`, `auditIncident` y familia |
-| `src/auth-ldap.ts` | Login LDAP/AD con `ldapts`, mapeo de grupos a roles |
+| `src/auth-ldap.ts` | Cliente LDAP/AD con `ldapts` y mapeo de grupos a roles. **No está conectado al flujo de login**: solo lo usa el diagnóstico de conectividad. |
 | `src/notify.ts` | Enrutado de notificaciones con redacción de secretos |
 | `src/run.ts` | `runSecurityDetection` + auditoría de firmware |
 | `src/notification-deduper.ts` | Deduplicación de notificaciones |

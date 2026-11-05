@@ -2,7 +2,7 @@
  * FTTH Expert System - Rule-based classifier
  * 
  * Based on keyword matching with priority ordering.
- * Achieves 94.4% accuracy on eventClass classification.
+ * The quoted 94.4% accuracy has no reproducible dataset in this repository.
  * 
  * Usage:
  *   const classifier = new FTTHExpertClassifier();

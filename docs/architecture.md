@@ -64,7 +64,7 @@ poll (cada N ms)
 
 ### 2.3 Pipeline del Copiloto — Laya Decision Layer (ADR-042)
 
-**Qué:** antes de invocar cualquier razonamiento LLM, Laya clasifica el evento de alarma en <5ms usando un Expert System basado en keywords con 94.4% de accuracy. El resultado informa el routing del Organic Diagnostic Router.
+**Qué:** antes de invocar cualquier razonamiento LLM, Laya clasifica el evento de alarma en <5ms usando un Expert System basado en keywords. El resultado informa el routing del Organic Diagnostic Router. La accuracy del clasificador se viene citando como 94.4%, pero **no tiene dataset reproducible en el repositorio**: tratala como una cifra sin respaldo medido, no como un resultado.
 
 **Por qué:** la mayoría de los eventos son casos obvios (corte de fibra, falla de alimentación). Clasificarlos cheaply libera al LLM para lo que realmente necesita investigación.
 
