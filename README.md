@@ -81,7 +81,7 @@ Responde la pregunta que un operador NOC tiene cada noche a las 2 AM: *¿Cuáles
 | **A quién va dirigido** | Ingeniero NOC o técnico de planta de un ISP FTTH que opera SmartOLT, Mikrowisp o MikroTik |
 | **Qué resuelve** | Identificación de ONUs offline, correlación de patrones de corte, predicción de fibra a punto de caer |
 | **Qué NO hace** | No ejecuta cambios sobre la red · No es un reemplazo del NMS · No certifica todavía ninguna familia OLT en hardware real · No automatiza remediación |
-| **Métrica de éxito** | Un evaluador configura el entorno demo y llega a un diagnóstico funcional en ≤ 5 minutos, sin credenciales reales |
+| **Métrica de éxito** | Con el permiso escrito para correr el demo, un evaluador configura el entorno y llega a un diagnóstico funcional en ≤ 5 minutos, sin credenciales reales |
 
 | Capacidad | Valor operativo |
 |---|---|
