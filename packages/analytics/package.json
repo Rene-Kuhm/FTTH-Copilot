@@ -1,6 +1,6 @@
 {
   "name": "@ftth-copilot/analytics",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Analítica del pipeline de telemetría FTTH: ingesta de muestras NMS, detección de anomalías, scoring de correlación y uptime/SLA.",
   "private": true,
   "main": "./src/index.ts",

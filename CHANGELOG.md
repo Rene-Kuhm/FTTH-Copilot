@@ -12,6 +12,16 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.7.2](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.1...v0.7.2) (2026-11-05)
+
+
+### Documentation
+
+* avisa del permiso para el demo y aclara el MFA obligatorio ([#378](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/378)) ([0131cf8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0131cf82cdb5135f8db7335435ec08458ebdc262))
+* **readme:** aclara licencias, cifras y el orden de las secciones ([#377](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/377)) ([1edea4f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1edea4f7dd9e8dbd74dd9e91024c16cd6bded154))
+* **readme:** indica que una empresa lo está probando y aclara las métricas ([#376](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/376)) ([d21d67e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d21d67e5d15a1e8820c75e0d994ffd083835eef2))
+* **readme:** reescribe el README con el estado real de v0.7.1 ([#374](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/374)) ([9a85402](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9a8540221118fbf15e4a7ce860b2a15c729d57a2))
+
 ## [0.7.1](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.0...v0.7.1) (2026-11-04)
 
 
