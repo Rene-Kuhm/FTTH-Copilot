@@ -124,6 +124,8 @@ Auto-detecta `docker` y luego `podman` (`run-conformance-lab.sh:12`). Corre
 
 ### `run-demo.sh` — demo de un comando
 
+> **Permiso:** correr el demo requiere hoy el permiso escrito previo del owner. Pedilo a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com); más detalle en [Licencias y piloto](../../README.md#licencias-y-piloto).
+
 ```bash
 ./scripts/run-demo.sh          # start (default)
 ./scripts/run-demo.sh down

@@ -4,6 +4,8 @@
 > Este documento es el plan de outreach para equipos de ingeniería y producto.
 > No es marketing público — es una guía para contacto técnicamente cualificado.
 
+> **Permiso:** correr el demo requiere hoy el permiso escrito previo del owner. Pedilo a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com); más detalle en [Licencias y piloto](../README.md#licencias-y-piloto).
+
 > **Estado de release:** `v0.2.2` es el patch release de distribución multiplataforma.
 > El código y la documentación están alineados; los instaladores están disponibles en
 > [GitHub Releases](https://github.com/Rene-Kuhm/FTTH-Copilot/releases/tag/v0.2.2).

@@ -9,6 +9,8 @@
 >
 > **Datos:** todos sintéticos. Banners `DEMO · DATOS SINTÉTICOS` visibles en la UI.
 
+> **Permiso:** correr el demo requiere hoy el permiso escrito previo del owner. Pedilo a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com); más detalle en [Licencias y piloto](../README.md#licencias-y-piloto).
+
 ---
 
 ## Escenario de referencia
