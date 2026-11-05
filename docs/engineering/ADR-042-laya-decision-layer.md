@@ -300,7 +300,7 @@ ftth_laya_shadow_disagreement_total
 | 0 | ADR + contratos + pruebas de concepto | ✅ Completado |
 | 1 | Módulo importable + client TypeScript | ✅ Completado (Expert System) |
 | 2 | Shadow mode: persistir DecisionEvaluation | ✅ Tabla + setLayaLogHandler wiring |
-| 3 | Dataset FTTH + benchmark | ✅ 94.4% accuracy |
+| 3 | Dataset FTTH + benchmark | ⚠️ 94.4% accuracy, sin dataset reproducible |
 | 4 | Assisted mode: inyectar señal en adaptive-router | ✅ Integrado |
 | 5 | Fine-tuning | ❌ Abandonado (requiere 5000+ ejemplos) |
 
@@ -309,7 +309,7 @@ ftth_laya_shadow_disagreement_total
 Después de extensive testing:
 - **Fine-tuning DeBERTa-v3**: 11% accuracy (NaN weights)
 - **Zero-shot BART**: 40% accuracy
-- **Expert System**: 94.4% accuracy
+- **Expert System**: 94.4% accuracy (cifra sin dataset reproducible en el repo)
 
 Fine-tuning requiere dataset mucho más grande y GPU dedicada. El Expert System
 con keywords es más efectivo para FTTH.
@@ -341,7 +341,7 @@ Después de extensive testing, el **FTTH Expert System** (rule-based) superó si
 |--------|----------|-------|
 | Fine-tuning DeBERTa-v3 | **11%** | GPU requerida, lento, resultados pobres |
 | Zero-shot BART | **40%** | GPU requerida |
-| Expert System (keywords) | **94.4%** | Sin GPU, instantáneo, maintenible |
+| Expert System (keywords) | ⚠️ **94.4%** (sin dataset reproducible) | Sin GPU, instantáneo, mantenible |
 
 ### Implementación
 
@@ -419,7 +419,7 @@ if (shouldLogDecision(config)) {
 
 ```
 packages/shared/src/
-├── laya-expert-system.ts    # Classifier principal (94.4% accuracy)
+├── laya-expert-system.ts    # Classifier principal (accuracy sin dataset reproducible)
 ├── laya-metrics.ts          # VictoriaMetrics / Prometheus-compatible
 ├── laya-shadow.ts           # Shadow mode + feature flags
 ├── laya-integration.ts      # Integration helpers

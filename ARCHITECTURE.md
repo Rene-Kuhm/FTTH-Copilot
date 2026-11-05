@@ -51,6 +51,18 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 
 > El servicio `services/laya` (FastAPI) es un despliegue opcional del Expert System para escenarios Docker y batch. La implementación de referencia es TypeScript, en `packages/shared/src/laya-expert-system.ts`.
 
+Siete workspaces no se ordenan en una capa propia porque cruzan el proceso web y el worker:
+
+| Workspace | Responsabilidad |
+|---|---|
+| `packages/api-contract` | Tipos y esquemas Zod del contrato HTTP, **generados** desde `docs/contract/openapi.yaml`. No se escriben a mano: `pnpm contract:generate`. |
+| `packages/ingest` | Ruta de ingesta durable fuera de la web: spool append-only, drainer con backoff, receptores UDP syslog y SNMP, evidencia cruda y replay de dead-letter. |
+| `packages/investigations` | Pipeline de investigación y su cierre, con su cuota por usuario. Vive en un package porque el worker no puede importar la app Next. |
+| `packages/jobs` | Entrada tipada a la cola durable: la web produce jobs, el worker los consume, y ambos comparten los mismos nombres y payloads. |
+| `packages/scheduler` | Trabajo de fondo recurrente fuera de la web: poller de métricas, auditoría de firmware y colección FEC, con single-flight y lock consultivo de Postgres. |
+| `packages/connectors/factory` | Fábrica de conectores tenant-aware, para que la web y el worker construyan los adaptadores igual. |
+| `services/worker` | El proceso de trabajo de fondo: consume las colas, publica salud y métricas, y apaga limpio. No contiene lógica de dominio. |
+
 ### 2.2 Límites entre módulos
 
 | Límite | Regla |
@@ -179,7 +191,8 @@ Resumen de los controles implementados. El detalle operativo está en [`SECURITY
 |---|---|
 | **Cifrado en reposo** | Claves de API y credenciales NMS con AES-256-GCM derivado de `KMS_MASTER_KEY`. En producción falla el arranque sin esa clave (`fail-closed`). |
 | **Autenticación revocable** | Sesiones JWT en cookies `HttpOnly`, con invalidación y revocación atómica en PostgreSQL. |
-| **Protección de costos LLM** | Rate limiter atómico en PostgreSQL por usuario y minuto, con cuota diaria estricta compartida entre instancias. |
+| **Protección de costos LLM** | Cuota por usuario y por minuto, y cuota diaria estricta, con el contador atómico en PostgreSQL. Es la cuota de LLM: vive en la base y no tiene respaldo en memoria. |
+| **Rate limiter de requests** | Límite global por tenant o por IP en Redis, compartido entre instancias cuando hay `REDIS_URL` y con respaldo en memoria por proceso cuando no la hay. Es un mecanismo aparte de la cuota de LLM. |
 | **Protección SSRF en NMS** | Validación previa de DNS contra IPs privadas y metadatos de nube. Las excepciones LAN requieren opt-in explícito. |
 | **Protección de base de datos** | El seed rechaza ejecutarse en producción salvo autorización explícita (`ALLOW_PRODUCTION_SEED=true` o flag `--force`). |
 | **Aislamiento por tenant** | `tenantId` obligatorio en consultas, eventos, claves de caché y referencias persistidas. |
@@ -201,7 +214,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Estos son
 | **Inferencia LLM** | `LLM_PROVIDER`, `LLM_FALLBACK`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y cadena de respaldo. |
 | **Laya** | `LAYA_ENABLED`, `LAYA_MODE`, `LAYA_URL`, `LAYA_FAIL_OPEN`, `LAYA_CONFIDENCE_THRESHOLD_HIGH`, `LAYA_CONFIDENCE_THRESHOLD_LOW` | Modo del Expert System y umbrales de confianza. |
 | **Seguridad de sesiones** | `JWT_SECRET`, `KMS_MASTER_KEY`, `SESSION_COOKIE_SECURE`, `SEED_ADMIN_PASSWORD` | Material de claves y cookies. |
-| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP` | Autenticación LDAP/AD con mapeo de grupos a roles. |
+| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP` | Cliente LDAP/AD y diagnóstico de conectividad, con mapeo de grupos a roles. **No está conectado al flujo de login.** OIDC/SSO no está implementado. |
 | **Backup DB** | `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE` | Automatización de backups PostgreSQL con retención y upload remoto. |
 
 ---
@@ -233,7 +246,7 @@ Estas superficies tienen dueño, propósito o una verificación de CI que las pr
 | [`docs/quickstart.md`](docs/quickstart.md) | Los tres entornos de ejecución, paso a paso. |
 | [`docs/production-deployment.md`](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) | Catálogo canónico de OIDs y niveles de conformidad. |
-| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | LDAP/AD, OIDC, MFA TOTP y autenticación local. |
+| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; LDAP/AD como cliente y diagnóstico, sin conectar al login; OIDC/SSO documentado y no implementado. |
 | [`docs/security-audit.md`](docs/security-audit.md) | Registro técnico de la auditoría de seguridad. |
 | [`docs/testing-without-hardware.md`](docs/testing-without-hardware.md) | Inyección de trampas SNMP y simulación de incidentes sin OLT. |
 | [`docs/engineering/ADR-042-laya-decision-layer.md`](docs/engineering/ADR-042-laya-decision-layer.md) | Decisión de arquitectura del Expert System. |

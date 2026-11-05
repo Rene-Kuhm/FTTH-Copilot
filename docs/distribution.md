@@ -35,7 +35,7 @@ Descubrimiento
     Demo completada
     │
     ├── Abre issue con etiqueta `evaluation`
-    └── Envia email a renekuhm2@gmail.com
+    └── Envia email a contacto@tecnodespegue.com
                                                           ▼
     Sesión técnica guiada
     │
@@ -54,7 +54,7 @@ Descubrimiento
 | Descubrimiento | Visitas a la landing page | Analytics del sitio (tecnodespegue.com) |
 | Demo | `git clone` o `run-demo.sh` starts | GitHub stars/watch, no tracking fino |
 | Interés | Issues con etiqueta `evaluation` | GitHub Issues |
-| Interés | Emails a renekuhm2@gmail.com | Email threads |
+| Interés | Emails a contacto@tecnodespegue.com | Email threads |
 | Conversión | Sesión técnica agendada | CRM o tracking manual |
 | Conversión | Piloto autorizado | Contrato / Issue con etiqueta `pilot` |
 
@@ -237,7 +237,7 @@ Al contactar ISPs directamente, incluir:
 3. **Link al video**: 37 segundos, no requiere registro
 4. **Link al case study**: `docs/case-study-synthetic.md`
 5. **Propuesta de valor**: "Diagnóstico offline-ONU sin equipamiento extra, sin SNMP, sin complejidad"
-6. **CTA claro**: "Querés una sesión técnica de 30 minutos?" → `renekuhm2@gmail.com`
+6. **CTA claro**: "Querés una sesión técnica de 30 minutos?" → `contacto@tecnodespegue.com`
 
 ---
 
@@ -262,7 +262,7 @@ Al contactar ISPs directamente, incluir:
 | Video demo | 37 segundos, 16:9 | Embed en posts |
 | GitHub repo | github.com/Rene-Kuhm/FTTH-Copilot | Evaluadores técnicos |
 | Demo repo | (mismo repo) | `docker-compose.demo.yml` |
-| Email contacto | renekuhm2@gmail.com | Sesiones técnicas |
+| Email contacto | contacto@tecnodespegue.com | Sesiones técnicas |
 
 ---
 

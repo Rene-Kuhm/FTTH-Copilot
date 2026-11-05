@@ -31,8 +31,8 @@ body:
     id: country
     attributes:
       label: Country / Region
-      description: "e.g. Argentina, Colombia, México, Spain"
-      placeholder: Argentina
+      description: "e.g. the country or region where your network operates"
+      placeholder: Country / Region
     validations:
       required: true
 
