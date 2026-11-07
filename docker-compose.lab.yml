@@ -1,0 +1,153 @@
+# FTTH-Copilot — Virtual test bench
+#
+# A hardwareless bench with three real protocol endpoints, all published on the
+# loopback:
+#
+#   bbsim    BroadBand Simulator (ONF/VOLTHA, Apache-2.0): one emulated OLT with
+#            4 XGS-PON ports and 2 ONUs per port, an OpenOLT gRPC endpoint and a
+#            REST API (GET /v1/olt, GET /v1/olt/onus, POST .../alarms/<type>/<status>).
+#   snmpsim  lextudio snmpsim serving REAL device captures from LibreNMS
+#            (GPL-3.0, downloaded at bench start, never committed). One capture
+#            per SNMP community: the data file name is the community.
+#   chr      MikroTik CHR: real RouterOS in QEMU/KVM, with /rest and SNMP
+#            enabled, using lab-only credentials.
+#
+# Usage (from the repo root):
+#   pnpm lab:up      # fetch captures, start the bench, provision the CHR
+#   pnpm lab:check   # PASS/FAIL smoke test of all three
+#   pnpm lab:down    # stop it
+#
+# Ports: 15060 (BBSim gRPC) and 15071 (BBSim REST), 16100/udp (snmpsim),
+# 15080 (CHR REST) and 16101/udp (CHR SNMP). None of them collide with the demo
+# stack (3001, 15514/15515 syslog). Every mapping is bound to 127.0.0.1: the
+# bench is a lab, not a service.
+#
+# The CHR VM needs /dev/kvm. Without it QEMU falls back to emulation and the
+# guest takes many minutes to answer, which is reported as a health-check
+# failure rather than a silent hang.
+name: ftth-lab
+
+services:
+  # ───────────────────────────────────────────────────────────────────────────
+  # BBSim — one emulated OLT, its PON ports and its ONUs.
+  #
+  # The image ships `/app/bbsim` as CMD and no ENTRYPOINT, so the entrypoint is
+  # overridden to keep `command:` as plain flags.
+  #
+  # Limits: BBSim models OMCI/OpenOLT control plane state, not optics. It has no
+  # optical power in dBm, so RX-power or bias-current detection cannot be driven
+  # from here; `snmpsim` serves the optical counters and `POST /alarms` drives
+  # the control-plane alarms (LOS, DYING_GASP, ...) once the OLT is activated.
+  # ───────────────────────────────────────────────────────────────────────────
+  bbsim:
+    image: voltha/bbsim:2.16.0@sha256:d158d42a2cfdd83877042c79875627a7f2c79616ce9402fb76a0aa7ecedb23d6
+    container_name: ftth_lab_bbsim
+    restart: unless-stopped
+    entrypoint: ["/app/bbsim"]
+    command:
+      - "-pon"
+      - "4"
+      - "-onu"
+      - "2"
+      - "-logLevel"
+      - "info"
+    ports:
+      # OpenOLT gRPC — the endpoint an OLT adapter dials.
+      - "127.0.0.1:15060:50060"
+      # REST API used by `pnpm lab:check` and by scenario scripts.
+      - "127.0.0.1:15071:50071"
+    healthcheck:
+      # The image has bash and no HTTP client, so the probe speaks HTTP over
+      # /dev/tcp and requires a real 200 from the REST API — a listening socket
+      # that cannot answer /v1/olt is not a ready bench.
+      test:
+        - CMD-SHELL
+        - bash -c "exec 3<>/dev/tcp/127.0.0.1/50071 && printf 'GET /v1/olt HTTP/1.0\r\n\r\n' >&3 && timeout 3 head -1 <&3 | grep -q ' 200 '"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # snmpsim — real device captures, one SNMP community each.
+  #
+  # The captures are downloaded by `pnpm lab:up` into docker/lab/captures/,
+  # which .gitignore excludes (they are GPL-3.0; see docker/lab/README.md).
+  # The directory is mounted read-only: the simulator must never write into it.
+  #
+  # Limits: a capture is a static walk. Values only change when a variation
+  # module is loaded, so this bench proves that the poller reads real vendor
+  # OIDs, not that it follows a device over time.
+  # ───────────────────────────────────────────────────────────────────────────
+  snmpsim:
+    build:
+      context: docker/lab/snmpsim
+    container_name: ftth_lab_snmpsim
+    restart: unless-stopped
+    volumes:
+      - ./docker/lab/captures:/snmpsim/data:ro
+    ports:
+      - "127.0.0.1:16100:1161/udp"
+    healthcheck:
+      # Any capture in the data directory must answer its own community: that is
+      # the same path `pnpm lab:check` walks. With no captures the probe fails,
+      # which is correct — an empty snmpsim serves nothing.
+      test:
+        - CMD-SHELL
+        - c=$(basename $(ls /snmpsim/data/*.snmprec | head -1) .snmprec) && snmpget -v2c -c "$$c" -t 2 -r 1 -Oqv 127.0.0.1:1161 1.3.6.1.2.1.1.1.0 >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # MikroTik CHR — real RouterOS in QEMU on KVM.
+  #
+  # `pnpm lab:up` provisions it after the container starts (admin password, SNMP
+  # agent and community) with scripts/lab/chr-bootstrap.ts. The health check
+  # authenticates against /rest with the lab password, so it only turns healthy
+  # once provisioning worked.
+  #
+  # Limits: this is a single standalone router. It has no OLT, no PPPoE
+  # subscribers and no traffic, so it proves the connector's REST/SNMP surface
+  # and the SOC brute-force path, not a real access topology.
+  #
+  # Credentials are lab-only and documented in docker/lab/README.md. They are
+  # never the application's credentials and never leave the loopback.
+  # ───────────────────────────────────────────────────────────────────────────
+  chr:
+    build:
+      context: docker/lab/chr
+    container_name: ftth_lab_chr
+    restart: unless-stopped
+    devices:
+      - /dev/kvm
+    cap_add:
+      - NET_ADMIN
+    environment:
+      ROUTEROS_DATA_DIR: /data
+      CHR_ADMIN_USER: ${LAB_CHR_ADMIN_USER:-admin}
+      CHR_ADMIN_PASSWORD: ${LAB_CHR_ADMIN_PASSWORD:-ftth-lab-not-prod}
+    ports:
+      # REST API over HTTP (the bench does not need www-ssl: it never leaves the
+      # loopback and the guest has no certificate).
+      - "127.0.0.1:15080:80"
+      # SNMP, forwarded through QEMU user-net by docker/lab/chr/Dockerfile.
+      - "127.0.0.1:16101:161/udp"
+    volumes:
+      # QEMU disk2 and the generated NIC MAC. The RouterOS disk itself lives in
+      # the container image layer, so `pnpm lab:down` gives a fresh guest and
+      # `pnpm lab:up` provisions it again from scratch.
+      - chr_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS -u "$$CHR_ADMIN_USER:$$CHR_ADMIN_PASSWORD" http://127.0.0.1/rest/system/resource >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # The guest boots in ~45s under KVM and takes longer on a loaded machine.
+      start_period: 180s
+
+volumes:
+  chr_data:

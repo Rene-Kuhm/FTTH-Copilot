@@ -134,8 +134,92 @@ pnpm test:mock-nms
 
 El tablero (`/dashboard`) mostrará los **paneles de Incidentes, Predicciones, SLA y Accesos** con datos sintéticos sin un solo OLT/ONU físico.
 
-## 5. Troubleshooting
+## 5. Banco virtual en Docker Compose (`lab:up` / `lab:check` / `lab:down`)
+
+Los comandos de la sección 3 son sintéticos: el receptor recibe datagramas que
+armamos nosotros. Este banco es distinto — habla **protocolos reales** contra tres
+implementaciones que no escribimos acá:
+
+```bash
+pnpm lab:up      # descarga las capturas, levanta el banco y provisiona el CHR
+pnpm lab:check   # PASS/FAIL de los tres servicios
+pnpm lab:down    # lo baja
+```
+
+`lab:up` es un solo comando: baja las capturas que falten, levanta el Compose,
+provisiona el invitado de RouterOS y recién ahí espera los health checks.
+`lab:check` no confía en que los contenedores estén arriba: consulta cada
+protocolo y sale con código distinto de cero si algo no contesta.
+
+| Servicio | Qué es | Puerto en 127.0.0.1 | Qué prueba |
+|---|---|---|---|
+| `bbsim` | BroadBand Simulator (ONF/VOLTHA, Apache-2.0) | `15060/tcp` gRPC OpenOLT · `15071/tcp` REST | Un OLT emulado con 4 puertos PON y 8 ONUs: el plano de control OpenOLT/OMCI y sus alarmas |
+| `snmpsim` | snmpsim 1.2.2 sirviendo capturas reales de LibreNMS | `16100/udp` | Que el poller lea OIDs reales de Huawei, ZTE, FiberHome y V-SOL |
+| `chr` | MikroTik CHR: RouterOS 7.24.6 real en QEMU/KVM | `15080/tcp` REST · `16101/udp` SNMP | Que el conector MikroTik hable `/rest` y SNMP contra un RouterOS de verdad |
+
+Ningún puerto se solapa con el stack de demo (`3001`, syslog `15514`/`15515`) y
+todos se publican solo en el loopback. El detalle de imágenes, digests,
+credenciales y capturas está en [`docker/lab/README.md`](../docker/lab/README.md).
+
+### BBSim: un OLT con puertos PON y ONUs
+
+```bash
+curl -s http://127.0.0.1:15071/v1/olt | jq '{SerialNumber, pon: (.PONPorts | length)}'
+curl -s http://127.0.0.1:15071/v1/olt/onus | jq '.items | length'
+```
+
+El REST también acepta alarmas por ONU
+(`POST /v1/olt/onus/<serial>/alarms/<tipo>/<on|off>`, con tipos como `DYING_GASP`
+o `ONU_ALARM_LOFI`). Ojo: la alarma se envía por el canal OMCI, así que con un OLT
+que nunca se activó el pedido queda esperando — activalo por OpenOLT primero
+(es lo que hace el escenario de fallas de la fase siguiente).
+
+### snmpsim: capturas reales, una comunidad por equipo
+
+Las capturas son caminatas de equipos reales del repositorio de LibreNMS
+(`tests/snmpsim/*.snmprec`), fijadas a un commit. **Son GPL-3.0**, así que no se
+copian al repo: `lab:up` las descarga en `docker/lab/captures/`, que está en
+`.gitignore`. La comunidad SNMP es el nombre del archivo sin `.snmprec`:
+
+```bash
+docker compose -f docker-compose.lab.yml exec snmpsim \
+  snmpget -v2c -c zxa10_c600 -Oqv 127.0.0.1:1161 1.3.6.1.2.1.1.1.0
+```
+
+Hay capturas de Huawei SmartAX (`smartax`, `smartax-mdu`), ZTE ZXA10 (`zxa10`,
+`zxa10_c320`, `zxa10_c600`), FiberHome AN5516 (`fiberhome_an5516-01`, `-04`,
+`-04b`, `-06`) y V-SOL (`vsolution_v1600d`). `lab:check` compara el `sysDescr` que
+sirve snmpsim contra el que dice el archivo, no contra un valor escrito a mano.
+
+### MikroTik CHR: un RouterOS de verdad
+
+```bash
+curl -s -u admin:ftth-lab-not-prod http://127.0.0.1:15080/rest/system/resource \
+  | jq '{version, "board-name"}'
+docker compose -f docker-compose.lab.yml exec snmpsim \
+  snmpget -v2c -c ftthlab -Oqv chr:161 1.3.6.1.2.1.1.1.0
+```
+
+Las credenciales son de laboratorio (`admin` / `ftth-lab-not-prod`, comunidad
+`ftthlab`), nunca productivas. El CHR necesita `/dev/kvm`; sin KVM, QEMU cae a
+emulación y el invitado tarda minutos.
+
+### Qué NO prueba este banco
+
+- **Potencia óptica en dBm.** BBSim modela el plano de control, no la óptica: no
+  hay RX power ni bias current que degradar. Para eso están las capturas SNMP y
+  los fixtures de los detectores.
+- **Una captura es estática.** Reproduce lo que el equipo contestó una vez; los
+  valores solo cambian si se carga un módulo de variación de snmpsim.
+- **No es L3.** Es "L2+ con capturas reales reproducidas": el L3 (equipo físico en
+  staging) sigue siendo otra cosa, ver
+  [`docs/compatibility-matrix.md`](compatibility-matrix.md).
+
+## 6. Troubleshooting
 
 - **`pnpm test:scenario` falla con `Can't reach database`** → arrancá el Postgres (`docker run ... postgres:16`) y exportá `DATABASE_URL`.
 - **`pnpm test:syslog` no muestra nada en el panel de Accesos** → verificá que `SYSLOG_TENANT_ID` esté setado y coincida con un tenant existente (o usá el tenant que crea el seed-scenario).
 - **El conector "live" no llega al mock NMS** → revisá que el `baseUrl` de la conexión termine exactamente en `/smartolt` o `/mikrowisp` (sin barra final, con el path raíz del proveedor como prefijo).
+- **`pnpm lab:check` marca `snmpsim-captures` en FAIL** → faltan las capturas: corré `pnpm lab:up` (las descarga desde el commit fijado) y volvé a chequear.
+- **`pnpm lab:up` se queda esperando al `chr`** → el health check autentica contra `/rest`, así que el invitado no llegó a arrancar o falló la provisión: mirá `docker compose -f docker-compose.lab.yml logs chr` y confirmá que `/dev/kvm` exista.
+- **`docker compose -f docker-compose.lab.yml up` falla con "port is already allocated"** → otro proceso tomó uno de los puertos del banco (`15060`, `15071`, `15080`, `16100/udp`, `16101/udp`); liberalo o cambialo en el Compose y en `scripts/lab/lib/lab-config.ts`.
