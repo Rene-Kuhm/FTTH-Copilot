@@ -20,6 +20,7 @@
     "@ftth-copilot/analytics": "workspace:*",
     "@ftth-copilot/connectors-core": "workspace:*",
     "@ftth-copilot/connectors-factory": "workspace:*",
+    "@ftth-copilot/connectors-smartolt": "workspace:*",
     "@ftth-copilot/db": "workspace:*",
     "@ftth-copilot/monitoring": "workspace:*",
     "@ftth-copilot/shared": "workspace:*",

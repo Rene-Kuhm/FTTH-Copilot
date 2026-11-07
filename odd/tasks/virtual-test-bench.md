@@ -1,6 +1,6 @@
 # Virtual Test Bench
 
-**Status**: In Progress (T1–T2 hechos; T3 en curso; T4 es una entrega separada)
+**Status**: In Progress (T1–T3 hechos; T4 es una entrega separada; T5–T6 pendientes)
 **Created**: 2026-11-07
 **Branch**: `feat/virtual-test-bench`
 Banco de pruebas virtual para probar FTTH-Copilot contra protocolos y datos reales
@@ -32,16 +32,16 @@ sin hardware físico, y el conector de SmartOLT al día con la API de octubre 20
 
 | ID | Specs | Ruta | Commit |
 |---|---|---|---|
-| T1 — Banco virtual en Compose (`pnpm lab:up`, `lab:check`, `lab:down`) + docs | S1, S2 | worker | 7d2287f |
-| T2 — Cliente SmartOLT: límite configurable (1000/h), 429 + `Retry-After`, paginación con `updated_since`; tests de contrato SmartOLT y Mikrowisp | S3, S4 | worker | a78952e, ffa2e42 |
-| T3 — Eventos SSE de SmartOLT y presupuesto FEC que prioriza ONUs degradadas | S3, S5 | worker (después de T2) | — |
+| T1 — Banco virtual en Compose (`pnpm lab:up`, `lab:check`, `lab:down`) + docs | S1, S2 | worker | fe87af9 |
+| T2 — Cliente SmartOLT: límite configurable (1000/h), 429 + `Retry-After`, paginación con `updated_since`; tests de contrato SmartOLT y Mikrowisp | S3, S4 | worker | 2ed296f, 2235472 |
+| T3 — Eventos SSE de SmartOLT y presupuesto FEC que prioriza ONUs degradadas | S3, S5 | worker | ver L8 |
 | T4 — Conector OpenOLT contra BBSim (entrega/PR separada) | S6 | pendiente | — |
 | T5 — Escenarios con verdad conocida que llenan `labels.csv` | S7 | pendiente (después de T1 y T4) | — |
 | T6 — Nivel L2+ y definición única de L3 | S8 | pendiente | — |
 
 - [x] T1
 - [x] T2
-- [ ] T3
+- [x] T3
 - [ ] T4
 - [ ] T5
 - [ ] T6
@@ -64,8 +64,8 @@ sin hardware físico, y el conector de SmartOLT al día con la API de octubre 20
 - **L4** (entorno): Docker 29.9.2 y `/dev/kvm` disponibles en la máquina de desarrollo
   (CHR necesita KVM).
 - **L5** (entrega): el corte supera las ~400 líneas por PR. Estrategia: PRs
-  encadenadas. PR 1 = T1 (banco, 7d2287f). PR 2 = T2 (SmartOLT a78952e + Mikrowisp
-  ffa2e42 + correcciones de la verificación). PR 3 = T3. PR 4 = T4 (OpenOLT).
+  encadenadas. PR 1 = T1 (banco, fe87af9). PR 2 = T2 (SmartOLT 2ed296f + Mikrowisp
+  2235472, con las correcciones de la verificación integradas). PR 3 = T3. PR 4 = T4 (OpenOLT).
 - **L6** (verificación independiente de T1–T2): S1–S4 PASS. Hallazgos corregidos:
   `lab:up` fallaba 1 de 3 veces porque el chequeo del password nuevo de CHR no
   reintentaba (`scripts/lab/chr-bootstrap.ts`); una página vacía antes de
@@ -76,3 +76,22 @@ sin hardware físico, y el conector de SmartOLT al día con la API de octubre 20
   bloquea `.env*`. Las variables están en `packages/connectors/smartolt/AGENTS.md`.
   Las respuestas se validan con parsers propios y no con Zod, porque agregar `zod`
   a los conectores requiere `pnpm install`.
+- **L8** (T3): cliente SSE de SmartOLT (`get_event_stream`, `Last-Event-ID`, `resync`,
+  `expired`, `disabled`, 503/403 → polling), presupuesto compartido por cuenta (clave =
+  URL base + hash de la API key) y el loop `smartolt-events` en el worker, apagado por
+  defecto (`SMARTOLT_EVENTS_ENABLED=false`). Persiste por `persistSamples`, el mismo
+  camino que el poll. FEC: `FEC_RATE_LIMIT_PER_HOUR` por defecto 600; sin
+  `FEC_FAN_OUT_PER_CYCLE` el corte del tick es la parte del presupuesto que le toca
+  (600 por tick de 1 h). Este defecto lo encontró el parent (RED: el default seguía en
+  8 por tick). Las ONUs degradadas por eventos van primero. Commits: los dos que
+  siguen a 2235472.
+- **L9** (pendiente): native review bloqueada por `lens_context_budget_exceeded`
+  (6.391 líneas). Hay que revisar por slice (un worktree por commit) o desactivarla
+  para este clon. Decisión del usuario.
+- **L10** (verificación independiente de T3): S5 PASS (4.000 ONUs en 7 ticks de 1 h,
+  degradadas primero, sin mezcla entre tenants). S3 PARTIAL por dos bloqueantes,
+  corregidos con RED/GREEN: el cuerpo SSE anterior no se cancelaba al reconectar (fuga
+  de sockets) y `stop()` no cortaba el backoff ni el pedido de la URL. También: liveness
+  por conexión que corta y reconecta un stream mudo; sin conexiones vivas el loop figura
+  `inactive` y no `hung`; `disabled` sigue siendo terminal y rotar la key pide reiniciar
+  el worker (documentado).
