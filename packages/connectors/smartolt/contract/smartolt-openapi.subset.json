@@ -1,0 +1,1033 @@
+{
+  "$comment": "SUBCONJUNTO de la especificación oficial de SmartOLT: sólo los endpoints que llama @ftth-copilot/connectors-smartolt. No editar a mano: regenerar con `node --experimental-strip-types scripts/sync-contract.ts`.",
+  "provenance": {
+    "sourceUrl": "https://www.smartolt.com/openapi.json",
+    "retrievedAt": "2026-11-07",
+    "openapi": "3.0.3",
+    "documentTitle": "SmartOLT API",
+    "documentVersion": "1.0",
+    "subset": true,
+    "pathPatterns": [
+      "/^\\/api\\/system\\/get_olts$/",
+      "/^\\/api\\/onu\\/get_all_onus_details$/",
+      "/^\\/api\\/olt\\/get_olt_uptime_and_env_temperature\\/\\{olt_id\\}$/",
+      "/^\\/api\\/system\\/get_zones$/"
+    ],
+    "note": "Los tests de contrato corren offline contra este archivo. Si el proveedor cambia la forma de un endpoint que el conector usa, el CI falla."
+  },
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SmartOLT API",
+    "version": "1.0",
+    "description": "Full documentation: https://api.smartolt.com/\n\nSmartOLT API\n\n**Machine-readable version (OpenAPI, for tools and AI assistants):** https://www.smartolt.com/openapi.json\n\n🔴 The API changed. Please read this page again.\n\nUpdated October 2026. Check your integration against these changes:\n\n- **🆕 Real-time events.** Get ONU status changes, ONU changes, signal changes and PON outages when they occur. Use an event stream (SSE) or a webhook. You do not need to poll the API. See **Real-time events** below.\n\n- **⚡ Asynchronous calls for high-volume actions.** Send `async=1` to enable or disable ONUs, change CATV or change speed profiles. The request does not wait for the OLT. See **Asynchronous calls** below.\n\n- **📦 Bulk actions.** One bulk call can contain up to **10,000 ONU IDs** with `async=1`. Do not send one call for each ONU. See **Recommended API usage** below.\n\n- **🆕 ONU status history.** Get how long an ONU was Online, LOS, Power fail or Offline, for up to 365 days. See **Get ONU status history by ONU unique external ID**.\n\n- **🆕 MAC addresses.** Get the MAC addresses behind an ONU, or find the ONU of a MAC address. See **Get ONU MAC addresses by ONU unique external ID** and **Search ONU by MAC address**.\n\n⚠️ If your system polls Get all ONUs statuses or Get all ONUs signals, change it to use real-time events.\n\nHow to call the API\n\n- Send each request to `https://<your-subdomain>.smartolt.com/api/...`.\n\n- Send your API key in the `X-Token` header.\n\n- Every response has `status`. When `status` is `false`, read `error` for the message and `error_code` for the reason, when it is present. A call over the API call rate limit is the exception. See **Limits**.\n\nLimits\n\nAPI access is a privilege. Use it responsibly.\n\n- The default budget is **1,000 API calls per hour**. For very large installations, we can review and extend the budget if the operational requirements justify it.\n\n- Asynchronous calls have their own budget, by default **5,000 calls per hour**.\n\n- The default limit is **15 calls per second**. If you send more, all your calls are blocked for 10 seconds.\n\n- Some endpoints have their own hourly limit. The description of the endpoint gives it.\n\n- When you are over the per-hour, per-10-minute or per-second limit, the API returns HTTP **429** and a `Retry-After` header. Wait that number of seconds before you call again.\n\n- The body of that 429 has `response_code` set to `rate_limit_exceeded` and the message in `response`. It also has `violation_type` (`per_hour`, `per_10min` or `per_second`) and `retry_after`, the same number of seconds.\n\n- When you are over the limit of one endpoint, the 429 has `error` and `error_code`, like other errors.\n\n- Each response has `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` headers. `X-RateLimit-Reset` is the number of seconds until the budget resets.\n\nIf you use the API too much, SmartOLT can limit your calls or revoke your API access.\n\n**Keep a local copy of your data** and update it from events.\n\n**Add a random delay to scheduled requests.** For example, do not send a request exactly every 5 minutes at fixed times. Add a small random delay to each call, so that many systems do not call the API at the same time.\n\nReal-time events (new)\n\n**Receive changes as they happen.** SmartOLT can now notify your integration when something changes: an ONU goes offline, its signal drops, a new ONU appears unconfigured, or a PON port fails. Use webhooks or the event stream instead of asking for the status of every ONU every few minutes.\n\n- **Event stream (SSE):** your system keeps one connection open, and the events arrive on it.\n\n- **Webhook:** SmartOLT sends each batch of events as an HTTPS POST to your URL. Set it up in **General > API key > Edit > Webhook**.\n\nEvent types: `onu.status_changed`, `onu.authorized`, `onu.updated`, `onu.deleted`, `onu.signal_changed`, `onu.signal_reading`, `onu.rx1490_reading`, `pon.outage_started`, `pon.outage_ended`, `olt.status_stale`, `olt.status_fresh`, `onu.unconfigured_detected`. See the **Real-time events** folder.\n\nAsynchronous calls (recommended for high-volume actions)\n\n**For high-volume actions, use asynchronous calls.** Use them to enable ONUs, disable ONUs, change CATV or change speed profiles on many ONUs. Send `async=1` with the request. SmartOLT checks the request, puts the work in a queue and returns immediately. The request does not wait for the OLT.\n\nThese endpoints accept `async=1`:\n\n- Single ONU: [`enable`](https://api.smartolt.com/#393d530b-5d69-4d25-9a2b-130282097b23), [`disable`](https://api.smartolt.com/#22e14a03-1c8c-4335-8439-41ef87b0bc41), [`enable_catv`](https://api.smartolt.com/#b7a4be0a-daf3-4d7d-b819-99cb1515a1e7), [`disable_catv`](https://api.smartolt.com/#21201bf3-37a6-455e-8703-96af40b0ee9e), [`update_onu_speed_profiles`](https://api.smartolt.com/#6b753440-3567-8644-bfed-045dbfe3f248)\n- Multiple ONUs: [`bulk_enable`](https://api.smartolt.com/#c8208da1-5f58-40b7-a86b-838babbddff6), [`bulk_disable`](https://api.smartolt.com/#05f55ab8-6dbe-42b0-9f75-bcbeb170f0fd), [`bulk_enable_catv`](https://api.smartolt.com/#3a5bd9ce-a30c-49ab-9012-98d763b58c9e), [`bulk_disable_catv`](https://api.smartolt.com/#4f3b2fab-ad08-4735-b64b-5dfbd06ba9b7), [`bulk_update_speed_profiles`](https://api.smartolt.com/#536e8e0e-82bb-4ce8-a1bf-ee8a845045ee)\n\n[`bulk_apply_configuration_preset`](https://api.smartolt.com/#54eb4b99-51a4-4374-bc04-594f7490462c) and [`bulk_remove_configuration_preset`](https://api.smartolt.com/#e367973e-13ce-4d0c-a1f8-a7d121d90adc) are always asynchronous. They also use the asynchronous budget.\n\n**Why use asynchronous calls:**\n\n- The request returns immediately. A normal request waits until the OLT finishes the command.\n\n- A bulk call accepts up to **10,000 ONU IDs** with `async=1`, and only up to **50 ONU IDs** without `async=1`.\n\n- Asynchronous calls use their own hourly budget, not the normal budget.\n\n- SmartOLT runs all actions for one ONU in the order it received them.\n\n**How to use asynchronous calls:**\n\n- Send the request with `async=1`.\n\n- Read the `queued` field in the response. It shows which ONUs SmartOLT queued.\n\n- Some minutes later, call [`check_bulk_task_status`](https://api.smartolt.com/#6088e6c4-89ba-4c44-989b-d894fe6f13c9) to see the result for each ONU. Do not call it in a tight loop. Each status check counts in the normal hourly budget.\n\n**Important:** `\"queued\": true` means that SmartOLT accepted the action. It does not mean that the OLT did it. A request without `async=1` can also return `\"queued\": true` when the ONU already has queued actions. Do not mark the action as done until [`check_bulk_task_status`](https://api.smartolt.com/#6088e6c4-89ba-4c44-989b-d894fe6f13c9) shows `succeeded`.\n\nRecommended API usage\n\n- **ONU statuses**\n\n- Use the `onu.status_changed` real-time event.\n\n- If you cannot use events, call [Get all ONUs statuses](https://api.smartolt.com/#dd7eff97-6229-497c-9cde-6acd0ad09aee) every **5-7 minutes**, and store the response between calls.\n\n- **ONU signal levels**\n\n- Use the `onu.signal_reading` or `onu.signal_changed` real-time events for the 1310 value, and the `onu.rx1490_reading` event for the 1490 value.\n\n- Call [Get all ONUs signals](https://api.smartolt.com/#43e3094c-0db5-46ea-821e-1ae9c4038006) at start-up or after a `resync` event. If you cannot use events, call it every **15-30 minutes**, and store the response between calls.\n\n- **High-volume actions** (enable, disable, CATV, speed profiles on many ONUs)\n\n- Use one bulk call with `async=1` for up to **10,000 ONU IDs**. Without `async=1`, a bulk call can only contain up to 50 ONU IDs.\n\n- Do not send one call for each ONU.\n\n**Important:** Do not poll individual ONUs again and again when a bulk endpoint or a real-time event gives the same data. Your integration must store data, use reasonable polling intervals and use bulk calls. If your integration uses the API too much, SmartOLT can limit its calls to protect the platform for all users."
+  },
+  "paths": {
+    "/api/system/get_olts": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get OLTs list",
+        "operationId": "get_olts_list",
+        "description": "To maintain platform stability and fair resource usage for all users, heavy usage may be subject to rate limiting or even **revocation of all access to the SmartOLT API**.\n\nIt has been observed that multiple API integrations are using this endpoint eroneusly as a heartbeat check of the API.\n**Do NOT use this endpoint as a heartbeat between API calls.**\n\nGets a list of all OLTs names, IPs, telnet ports, SNMP ports and unique IDs.",
+        "responses": {
+          "200": {
+            "description": "200 - OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": true,
+                  "response": [
+                    {
+                      "id": "1",
+                      "name": "Huawei",
+                      "olt_hardware_version": "Huawei-MA5680T",
+                      "ip": "1.2.3.4",
+                      "telnet_port": "2333",
+                      "snmp_port": "2161"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 - Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid API Key."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/olt/get_olt_uptime_and_env_temperature/{olt_id}": {
+      "get": {
+        "tags": [
+          "olt"
+        ],
+        "summary": "Get OLT uptime and environment temperature",
+        "operationId": "get_olt_uptime_and_environment_temperature",
+        "description": "Gets the uptime, the environment temperature and the input voltage of one OLT, by OLT ID.\n\nThe voltage comes from the SmartOLT database. This endpoint does not read the voltage from the OLT.\n\n**Fields**\n\n- `uptime`: how long the OLT has been running since its last restart, as text. It is `N/A` when the OLT does not answer.\n- `env_temp`: the environment temperature of the OLT, in degrees Celsius, as text with the unit (for example `38°C`). It is an empty string when the OLT does not answer.\n- `color_class`: `text-danger` when `env_temp` is over the OLT temperature level \"critical\", `text-warning` when it is over the OLT temperature level \"warning\", and an empty string otherwise. Both levels are set in the OLT settings, on the Advanced tab. It is an empty string when the OLT does not answer.\n- `voltage`: the last input voltage reading of the OLT, in volts (V), as a number. For an OLT with an AC input it is the AC voltage. It is `null` when the OLT does not report its input voltage, when the last reading is not a valid DC or AC input voltage, when the last reading is more than 30 minutes old, and when the OLT does not answer (`uptime` is `N/A`).\n- `voltage_read_at`: the date and time of that reading, as `YYYY-MM-DD HH:MM:SS` in the time zone of your SmartOLT account. It is `null` when `voltage` is `null`.\n- `power_state`: the power state of the OLT, from its voltage readings. The usual voltage is the voltage of the OLT on mains in the last 24 hours. It is `null` when `voltage` is `null`.\n\n- `normal`: the input voltage is at the usual voltage of the OLT. An OLT with an AC input is always `normal`.\n- `on_battery`: the input voltage dropped under the usual voltage of the OLT. The OLT is probably running on battery.\n- `battery_low`: the OLT is on battery and the input voltage is under 46 V and at least 3 V under its usual voltage. The battery is probably almost empty.\n\nIt returns a 400 error code when no OLT was found for the provided OLT ID (error code `specify_valid_olt_id`).\n\nIt returns a 403 error code when the OLT is outside the restriction group of your API key, and when the subscription of the OLT is not valid.",
+        "parameters": [
+          {
+            "name": "olt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 - OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "example_1": {
+                    "value": {
+                      "uptime": "576 days, 21:05",
+                      "env_temp": "24°C",
+                      "color_class": "",
+                      "voltage": 53.6,
+                      "voltage_read_at": "2026-11-02 10:45:12",
+                      "power_state": "normal",
+                      "status": true,
+                      "response_code": "success"
+                    }
+                  },
+                  "example_2": {
+                    "summary": "200 - OK, on battery",
+                    "value": {
+                      "uptime": "93 days, 10:48",
+                      "env_temp": "47°C",
+                      "color_class": "text-warning",
+                      "voltage": 51.2,
+                      "voltage_read_at": "2026-11-02 10:46:03",
+                      "power_state": "on_battery",
+                      "status": true,
+                      "response_code": "success"
+                    }
+                  },
+                  "example_3": {
+                    "summary": "200 - OK, no voltage reading",
+                    "value": {
+                      "uptime": "431 days, 02:32",
+                      "env_temp": "33°C",
+                      "color_class": "",
+                      "voltage": null,
+                      "voltage_read_at": null,
+                      "power_state": null,
+                      "status": true,
+                      "response_code": "success"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 - Invalid OLT ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid parameters: Please specify a valid OLT ID",
+                  "error_code": "specify_valid_olt_id"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 - Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid API Key."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/get_zones": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get zones list",
+        "operationId": "get_zones_list",
+        "description": "Gets a list of all zones as defined in SmartOLT Zones section.\n\nEach zone consists of:\n\n- unique ID\n- name",
+        "responses": {
+          "200": {
+            "description": "200 - OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": true,
+                  "response": [
+                    {
+                      "id": "1",
+                      "name": "Zone 1"
+                    },
+                    {
+                      "id": "2",
+                      "name": "Zone 2"
+                    },
+                    {
+                      "id": "3",
+                      "name": "Zone 3"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 - Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid API Key."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onu/get_all_onus_details": {
+      "get": {
+        "tags": [
+          "onu"
+        ],
+        "summary": "Get all ONUs details",
+        "operationId": "get_all_onus_details",
+        "description": "Gets all the ONUs details for a specified OLT ID, board, PON port or zone. If no OLT ID, board, PON port or zone is specified, then all the ONUs details on all OLTs will be returned.\n\nThe \"Get all ONUs details\" method is equivalent to an export of the entire database of ONU details and therefore it is not recommended to be used repeatedly, as the contained information does not change so often.\n\nMaximum recommended calls for \"Get all ONUs details\": 15 per hour (calls are blocked after the limit is reached).\n\n**Pagination (recommended)**\n\nPass `page` to receive results in pages. `page_size` accepts 1-100 (default 100). Paginated calls do **not** consume the 15/hours budget of the full export - they count toward the general API budget.\n\nThe paginated response is:\n\n`{ \"status\": true, \"page\": 1, \"page_size\": 100, \"total_items\": 4111, \"total_pages\": 42, \"onus\": [...] }`\n\n`total_items`/`total_pages` are included on page 1.\n\nKeeping in sync (recommended pattern)\n\nPage through the full inventory once, store it, then poll with `updated_since=` (e.g. `2026-07-08 12:00:00`) to receive only ONUs whose configuration changed since. A typical incremental sync is 1–2 calls instead of re-paging everything. Status/signal changes do not touch `updated_since` — use the dedicated statuses/signals endpoints for those.\n\nFields\n\n- `seal_number`: the seal number of the ONU's drop cable at the splitter port, as text. It is `null` when the ONU has no seal number. Several ONUs can have the same seal number. It is returned with `fields=seal_number`.\n\nFilters\n\nAll optional and combinable — see the query parameters table. Text filters (`sn`, `external_id`, `name`, `address`) match partially; enum filters return 400 on invalid values.\n\nFull export\n\nCalling without `page` returns every ONU in one response (`{ \"status\": true, \"onus\": [...] }`). This is equivalent to an export of the entire database: maximum 15 calls per hour, blocked at the limit. Prefer pagination + `updated_since`.\n\nErrors\n\n- 400 — unknown OLT ID / zone / splitter, board/port without the required OLT ID, or an invalid filter value (unparseable date, unknown status token)\n- Unsupported query parameters are deprecated: they currently return a `Deprecation` warning header and will be rejected with 410 Gone\n- 429 — rate limit exceeded; the response carries `Retry-After` (seconds until the counting window resets). Back off and retry after that interval",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(Int) Page number. Enables pagination (recommended)."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(Int) Items per page, 1–100. Default 100."
+          },
+          {
+            "name": "updated_since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) Only ONUs whose configuration changed since this date. Use for incremental sync after one full pull."
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) Comma-separated list of response fields to return. Include service_ports/ethernet_ports/wifi_ports/voip_ports only when needed — skipping them is faster."
+          },
+          {
+            "name": "olt_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(Int) The ID of the OLT for which to get the ONUs details. Leave empty if you want ONUs details from all OLTs"
+          },
+          {
+            "name": "board",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(Int) OLT board where the ONUs are placed. Leave it empty if you want ONUs details from all boards on the provided OLT ID"
+          },
+          {
+            "name": "port",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(Int) OLT PON port where ONUs are placed. Leave it empty if you want ONUs details from all PON ports on the provided board"
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) The zone where the ONUs are located. The Zone can contain only alphanumeric characters, spaces, underscore and the dash (-) character. Leave it empty if you want ONUs details from all the zones"
+          },
+          {
+            "name": "odb",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) Splitter. The Splitter can contain only alphanumeric characters, spaces, underscore and the dash (-) character"
+          },
+          {
+            "name": "sn",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU SN"
+          },
+          {
+            "name": "external_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU unique external ID"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU name"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU address"
+          },
+          {
+            "name": "onu_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU type ID (comma-separable)"
+          },
+          {
+            "name": "vlan",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU VLAN"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU mode. Allowed values: Bridging or Routing."
+          },
+          {
+            "name": "wan_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU router mode. Allowed values: Setup via ONU webpage, DHCP, Static or PPPoE."
+          },
+          {
+            "name": "administrative_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU admin status: Allowed values: enabled, disabled."
+          },
+          {
+            "name": "tr069",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU TR069 status: Allowed values: enabled, disabled."
+          },
+          {
+            "name": "catv",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU CATV status: Allowed values: enabled, disabled."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU status: Allowed values: online, pwrfail, los, offline. A comma separated list of these values is also allowed."
+          },
+          {
+            "name": "signal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU signal: Allowed values: very_good, warning, critical."
+          },
+          {
+            "name": "authorized_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String)ONU authorized on/after this date."
+          },
+          {
+            "name": "authorized_before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) ONU authorized on/before this date."
+          },
+          {
+            "name": "status_changed_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) Returns only the ONUs whose status changed at or after this date. Use ISO 8601 with a time zone, for example 2026-09-29T10:00:00+00:00. A date without a time zone is read in the time zone of your SmartOLT account."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 - OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "example_1": {
+                    "value": {
+                      "status": true,
+                      "onus": [
+                        {
+                          "unique_external_id": "HWTC12341234",
+                          "pon_type": "gpon",
+                          "gpon_channel": "gpon",
+                          "sn": "HWTC12341234",
+                          "olt_id": "53",
+                          "olt_name": "Huawei",
+                          "board": "1",
+                          "port": "1",
+                          "onu": "0",
+                          "onu_type_id": "308",
+                          "onu_type_name": "ONU-type-eth-4-pots-2-catv-0",
+                          "zone_id": "182",
+                          "zone_name": "Zone",
+                          "name": "test",
+                          "address": "",
+                          "odb_name": "",
+                          "odb_port": "",
+                          "seal_number": "L-004512",
+                          "mode": "Routing",
+                          "wan_mode": "Setup via ONU webpage",
+                          "ip_address": null,
+                          "subnet_mask": null,
+                          "default_gateway": null,
+                          "dns1": null,
+                          "dns2": null,
+                          "username": null,
+                          "password": null,
+                          "mgmt_ip_mode": "Inactive",
+                          "mgmt_ip_address": null,
+                          "mgmt_ip_subnet_mask": null,
+                          "mgmt_ip_default_gateway": null,
+                          "mgmt_ip_dns1": null,
+                          "mgmt_ip_dns2": null,
+                          "mgmt_ip_service_port": null,
+                          "mgmt_ip_vlan": null,
+                          "mgmt_ip_cvlan": null,
+                          "mgmt_ip_svlan": null,
+                          "mgmt_ip_tag_transform_mode": null,
+                          "voip_service": "Disabled",
+                          "voip_ip_mode": null,
+                          "voip_ip_address": null,
+                          "voip_ip_subnet_mask": null,
+                          "voip_ip_default_gateway": null,
+                          "voip_ip_dns1": null,
+                          "voip_ip_dns2": null,
+                          "voip_ip_service_port": null,
+                          "voip_ip_vlan": null,
+                          "voip_ip_cvlan": null,
+                          "voip_ip_svlan": null,
+                          "voip_ip_tag_transform_mode": null,
+                          "iptv": "Disabled",
+                          "iptv_service_port": null,
+                          "iptv_vlan": null,
+                          "iptv_cvlan": null,
+                          "iptv_svlan": null,
+                          "iptv_tag_transform_mode": null,
+                          "iptv_upload_speed": null,
+                          "iptv_download_speed": null,
+                          "iptv_allowed_macs": null,
+                          "iptv_filtered_macs": null,
+                          "custom_template_name": null,
+                          "tr069": "Disabled",
+                          "tr069_profile": null,
+                          "tr069_device_id": null,
+                          "catv": "Not supported by ONU-Type",
+                          "administrative_status": "Enabled",
+                          "authorization_date": "2023-06-04 00:00:00",
+                          "is_synced_after_import": "0",
+                          "is_failed_resync_config": "0",
+                          "status": null,
+                          "last_status_change": null,
+                          "signal": null,
+                          "signal_1310": null,
+                          "signal_1490": null,
+                          "latitude": null,
+                          "longitude": null,
+                          "contact": "",
+                          "service_ports": [
+                            {
+                              "service_port": "348",
+                              "vlan": "20",
+                              "cvlan": "",
+                              "svlan": "",
+                              "tag_transform_mode": "translate",
+                              "upload_speed": "1G",
+                              "download_speed": "1G"
+                            }
+                          ],
+                          "ethernet_ports": [
+                            {
+                              "port": "eth_0/1",
+                              "admin_state": "Enabled",
+                              "mode": "Access",
+                              "dhcp": "No control",
+                              "vlan": "20",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/2",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/3",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/4",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            }
+                          ],
+                          "wifi_ports": [],
+                          "voip_ports": [],
+                          "applied_configuration_preset": {
+                            "preset_id": 5,
+                            "preset_name": "test preset",
+                            "is_reversible": true,
+                            "applied_at": "2026-07-23 06:51:54",
+                            "status": "active"
+                          }
+                        },
+                        {
+                          "unique_external_id": "test2",
+                          "pon_type": "gpon",
+                          "gpon_channel": "gpon",
+                          "sn": "ZTEGC171A71A",
+                          "name": "Test name2",
+                          "olt_id": "53",
+                          "olt_name": "OLT 1",
+                          "board": "1",
+                          "port": "4",
+                          "onu": "4",
+                          "onu_type_id": "2",
+                          "onu_type_name": "ZTE-F600",
+                          "zone_id": "1",
+                          "zone_name": "City Center",
+                          "address": null,
+                          "odb_name": "ODB 2",
+                          "odb_port": "",
+                          "seal_number": null,
+                          "mode": "Routing",
+                          "wan_mode": "Setup via ONU webpage",
+                          "ip_address": null,
+                          "subnet_mask": null,
+                          "default_gateway": null,
+                          "dns1": null,
+                          "dns2": null,
+                          "username": null,
+                          "password": null,
+                          "mgmt_ip_mode": "Inactive",
+                          "mgmt_ip_address": null,
+                          "mgmt_ip_subnet_mask": null,
+                          "mgmt_ip_default_gateway": null,
+                          "mgmt_ip_dns1": null,
+                          "mgmt_ip_dns2": null,
+                          "mgmt_ip_service_port": null,
+                          "mgmt_ip_vlan": null,
+                          "mgmt_ip_cvlan": null,
+                          "mgmt_ip_svlan": null,
+                          "mgmt_ip_tag_transform_mode": null,
+                          "voip_service": "Disabled",
+                          "voip_ip_mode": "DHCP",
+                          "voip_ip_address": null,
+                          "voip_ip_subnet_mask": null,
+                          "voip_ip_default_gateway": null,
+                          "voip_ip_dns1": null,
+                          "voip_ip_dns2": null,
+                          "voip_ip_service_port": null,
+                          "voip_ip_vlan": null,
+                          "voip_ip_cvlan": null,
+                          "voip_ip_svlan": null,
+                          "voip_ip_tag_transform_mode": null,
+                          "iptv": "OLT IPTV module disabled",
+                          "iptv_service_port": null,
+                          "iptv_vlan": null,
+                          "iptv_cvlan": null,
+                          "iptv_svlan": null,
+                          "iptv_tag_transform_mode": null,
+                          "iptv_upload_speed": null,
+                          "iptv_download_speed": null,
+                          "iptv_allowed_macs": null,
+                          "iptv_filtered_macs": null,
+                          "custom_template_name": null,
+                          "tr069": "Disabled",
+                          "tr069_profile": null,
+                          "tr069_device_id": null,
+                          "catv": "Enabled",
+                          "administrative_status": "Enabled",
+                          "authorization_date": "2021-08-30 00:00:00",
+                          "is_synced_after_import": 1,
+                          "is_failed_resync_config": 0,
+                          "status": null,
+                          "last_status_change": "2025-12-30 12:00:00",
+                          "signal": null,
+                          "signal_1310": null,
+                          "signal_1490": null,
+                          "latitude": null,
+                          "longitude": null,
+                          "contact": "",
+                          "service_ports": [
+                            {
+                              "service_port": "100",
+                              "vlan": "150",
+                              "cvlan": "",
+                              "svlan": "",
+                              "tag_transform_mode": "",
+                              "upload_speed": "1G",
+                              "download_speed": "1G"
+                            }
+                          ],
+                          "ethernet_ports": [
+                            {
+                              "port": "eth_0/1",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/2",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/3",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/4",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            }
+                          ],
+                          "wifi_ports": [],
+                          "voip_ports": [],
+                          "applied_configuration_preset": null
+                        }
+                      ]
+                    }
+                  },
+                  "example_2": {
+                    "summary": "200 - OK (paginated)",
+                    "value": {
+                      "status": true,
+                      "page": 1,
+                      "page_size": 100,
+                      "total_items": 4111,
+                      "total_pages": 42,
+                      "onus": [
+                        {
+                          "unique_external_id": "HWTC12341234",
+                          "pon_type": "gpon",
+                          "gpon_channel": "gpon",
+                          "sn": "HWTC12341234",
+                          "olt_id": "53",
+                          "olt_name": "Huawei",
+                          "board": "1",
+                          "port": "1",
+                          "onu": "0",
+                          "onu_type_id": "308",
+                          "onu_type_name": "ONU-type-eth-4-pots-2-catv-0",
+                          "zone_id": "182",
+                          "zone_name": "Zone",
+                          "name": "test",
+                          "address": "",
+                          "odb_name": "",
+                          "odb_port": "",
+                          "seal_number": "L-004512",
+                          "mode": "Routing",
+                          "wan_mode": "Setup via ONU webpage",
+                          "ip_address": null,
+                          "subnet_mask": null,
+                          "default_gateway": null,
+                          "dns1": null,
+                          "dns2": null,
+                          "username": null,
+                          "password": null,
+                          "mgmt_ip_mode": "Inactive",
+                          "mgmt_ip_address": null,
+                          "mgmt_ip_subnet_mask": null,
+                          "mgmt_ip_default_gateway": null,
+                          "mgmt_ip_dns1": null,
+                          "mgmt_ip_dns2": null,
+                          "mgmt_ip_service_port": null,
+                          "mgmt_ip_vlan": null,
+                          "mgmt_ip_cvlan": null,
+                          "mgmt_ip_svlan": null,
+                          "mgmt_ip_tag_transform_mode": null,
+                          "voip_service": "Disabled",
+                          "voip_ip_mode": null,
+                          "voip_ip_address": null,
+                          "voip_ip_subnet_mask": null,
+                          "voip_ip_default_gateway": null,
+                          "voip_ip_dns1": null,
+                          "voip_ip_dns2": null,
+                          "voip_ip_service_port": null,
+                          "voip_ip_vlan": null,
+                          "voip_ip_cvlan": null,
+                          "voip_ip_svlan": null,
+                          "voip_ip_tag_transform_mode": null,
+                          "iptv": "Disabled",
+                          "iptv_service_port": null,
+                          "iptv_vlan": null,
+                          "iptv_cvlan": null,
+                          "iptv_svlan": null,
+                          "iptv_tag_transform_mode": null,
+                          "iptv_upload_speed": null,
+                          "iptv_download_speed": null,
+                          "iptv_allowed_macs": null,
+                          "iptv_filtered_macs": null,
+                          "custom_template_name": null,
+                          "tr069": "Disabled",
+                          "tr069_profile": null,
+                          "tr069_device_id": null,
+                          "catv": "Not supported by ONU-Type",
+                          "administrative_status": "Enabled",
+                          "authorization_date": "2023-06-04 00:00:00",
+                          "is_synced_after_import": "0",
+                          "is_failed_resync_config": "0",
+                          "status": null,
+                          "last_status_change": null,
+                          "signal": null,
+                          "signal_1310": null,
+                          "signal_1490": null,
+                          "latitude": null,
+                          "longitude": null,
+                          "contact": "",
+                          "service_ports": [
+                            {
+                              "service_port": "348",
+                              "vlan": "20",
+                              "cvlan": "",
+                              "svlan": "",
+                              "tag_transform_mode": "translate",
+                              "upload_speed": "1G",
+                              "download_speed": "1G"
+                            }
+                          ],
+                          "ethernet_ports": [
+                            {
+                              "port": "eth_0/1",
+                              "admin_state": "Enabled",
+                              "mode": "Access",
+                              "dhcp": "No control",
+                              "vlan": "20",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/2",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/3",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/4",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            }
+                          ],
+                          "wifi_ports": [],
+                          "voip_ports": [],
+                          "applied_configuration_preset": {
+                            "preset_id": 5,
+                            "preset_name": "test preset",
+                            "is_reversible": true,
+                            "applied_at": "2026-07-23 06:51:54",
+                            "status": "active"
+                          }
+                        },
+                        {
+                          "unique_external_id": "test2",
+                          "pon_type": "gpon",
+                          "gpon_channel": "gpon",
+                          "sn": "ZTEGC171A71A",
+                          "name": "Test name2",
+                          "olt_id": "53",
+                          "olt_name": "OLT 1",
+                          "board": "1",
+                          "port": "4",
+                          "onu": "4",
+                          "onu_type_id": "2",
+                          "onu_type_name": "ZTE-F600",
+                          "zone_id": "1",
+                          "zone_name": "City Center",
+                          "address": null,
+                          "odb_name": "ODB 2",
+                          "odb_port": "",
+                          "seal_number": null,
+                          "mode": "Routing",
+                          "wan_mode": "Setup via ONU webpage",
+                          "ip_address": null,
+                          "subnet_mask": null,
+                          "default_gateway": null,
+                          "dns1": null,
+                          "dns2": null,
+                          "username": null,
+                          "password": null,
+                          "mgmt_ip_mode": "Inactive",
+                          "mgmt_ip_address": null,
+                          "mgmt_ip_subnet_mask": null,
+                          "mgmt_ip_default_gateway": null,
+                          "mgmt_ip_dns1": null,
+                          "mgmt_ip_dns2": null,
+                          "mgmt_ip_service_port": null,
+                          "mgmt_ip_vlan": null,
+                          "mgmt_ip_cvlan": null,
+                          "mgmt_ip_svlan": null,
+                          "mgmt_ip_tag_transform_mode": null,
+                          "voip_service": "Disabled",
+                          "voip_ip_mode": "DHCP",
+                          "voip_ip_address": null,
+                          "voip_ip_subnet_mask": null,
+                          "voip_ip_default_gateway": null,
+                          "voip_ip_dns1": null,
+                          "voip_ip_dns2": null,
+                          "voip_ip_service_port": null,
+                          "voip_ip_vlan": null,
+                          "voip_ip_cvlan": null,
+                          "voip_ip_svlan": null,
+                          "voip_ip_tag_transform_mode": null,
+                          "iptv": "OLT IPTV module disabled",
+                          "iptv_service_port": null,
+                          "iptv_vlan": null,
+                          "iptv_cvlan": null,
+                          "iptv_svlan": null,
+                          "iptv_tag_transform_mode": null,
+                          "iptv_upload_speed": null,
+                          "iptv_download_speed": null,
+                          "iptv_allowed_macs": null,
+                          "iptv_filtered_macs": null,
+                          "custom_template_name": null,
+                          "tr069": "Disabled",
+                          "tr069_profile": null,
+                          "tr069_device_id": null,
+                          "catv": "Enabled",
+                          "administrative_status": "Enabled",
+                          "authorization_date": "2021-08-30 00:00:00",
+                          "is_synced_after_import": 1,
+                          "is_failed_resync_config": 0,
+                          "status": null,
+                          "last_status_change": "2025-12-30 12:00:00",
+                          "signal": null,
+                          "signal_1310": null,
+                          "signal_1490": null,
+                          "latitude": null,
+                          "longitude": null,
+                          "contact": "",
+                          "service_ports": [
+                            {
+                              "service_port": "100",
+                              "vlan": "150",
+                              "cvlan": "",
+                              "svlan": "",
+                              "tag_transform_mode": "",
+                              "upload_speed": "1G",
+                              "download_speed": "1G"
+                            }
+                          ],
+                          "ethernet_ports": [
+                            {
+                              "port": "eth_0/1",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/2",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/3",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            },
+                            {
+                              "port": "eth_0/4",
+                              "admin_state": "Enabled",
+                              "mode": "LAN",
+                              "dhcp": "No control",
+                              "vlan": "",
+                              "allowed_vlans": ""
+                            }
+                          ],
+                          "wifi_ports": [],
+                          "voip_ports": [],
+                          "applied_configuration_preset": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403 - Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid API Key."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -18,15 +18,94 @@ import {
   FIXTURE_ONU_DETAILS,
   computeOverview,
 } from './fixtures';
+import {
+  SmartoltPaginationLimitError,
+  SmartoltRateLimitError,
+  SmartoltResponseShapeError,
+} from './errors';
+import {
+  SMARTOLT_DEFAULT_RATE_LIMIT,
+  SmartoltRateGovernor,
+  readRateLimitBody,
+  readRetryAfterSeconds,
+  resolveSmartoltRateLimitConfig,
+  type SmartoltRateLimitConfig,
+  type SmartoltRateLimitOverrides,
+} from './rate-limit';
+import {
+  parseOltUptimeResponse,
+  parseOltsResponse,
+  parseOnusPageResponse,
+  parseStatusEnvelope,
+} from './schemas';
 
 export interface SmartOltClientOptions {
   useMock: boolean;
   apiKey?: string;
   apiBaseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** Pisa el presupuesto de llamadas que sale del entorno. */
+  rateLimit?: SmartoltRateLimitOverrides;
+  /** Tope de páginas por llamada de inventario. Default `SMARTOLT_MAX_PAGES` (50). */
+  maxPages?: number;
+  /** Reloj y `sleep` inyectables: los tests no duermen de verdad. */
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  /** Fuente de entorno para el presupuesto y el tope de páginas. */
+  env?: NodeJS.ProcessEnv;
 }
 
-export const SMARTOLT_RATE_LIMIT_PER_HOUR = 15; // per project guide
+/** Lo que se le puede pedir a un listado paginado de ONUs. */
+export interface SmartoltListOnusOptions {
+  /**
+   * Trae sólo las ONUs cuya configuración cambió desde esa fecha
+   * (`YYYY-MM-DD HH:MM:SS`, ver `formatUpdatedSince`). Es el modo incremental:
+   * una o dos llamadas en vez de paginar el inventario entero.
+   */
+  updatedSince?: string;
+  /** Ítems por página, 1-100 (default 100, el máximo que acepta la API). */
+  pageSize?: number;
+  /** Tope de páginas para esta llamada. */
+  maxPages?: number;
+}
+
+/**
+ * El presupuesto de llamadas por defecto, en llamadas por hora.
+ *
+ * @deprecated La cuenta tiene 1.000 llamadas por hora por defecto (no 15: ese
+ * es el tope del export completo de ONUs). Usá `rateLimit.perHour` del cliente
+ * o la variable `SMARTOLT_RATE_LIMIT_PER_HOUR`. Se mantiene exportada para no
+ * romper a quien la importe.
+ */
+export const SMARTOLT_RATE_LIMIT_PER_HOUR = SMARTOLT_DEFAULT_RATE_LIMIT.perHour;
+
+/** El tope de páginas por llamada cuando nada dice otra cosa. */
+export const DEFAULT_SMARTOLT_MAX_PAGES = 50;
+
+/** El tamaño de página que pide el conector (el máximo que acepta la API). */
+const ONUS_PAGE_SIZE = 100;
+
+/** Espera por defecto de un 429 que no dice cuánto esperar. */
+const DEFAULT_RETRY_DELAY_MS = 1_000;
+
+/**
+ * El tope de páginas de una llamada de inventario, del entorno si está.
+ *
+ * Un presupuesto que no sea un entero positivo se ignora: el conector prefiere
+ * paginar de más antes que quedarse sin leer el inventario.
+ */
+export function resolveSmartoltMaxPages(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = (env['SMARTOLT_MAX_PAGES'] ?? '').trim();
+  if (!/^\d+$/.test(raw)) return DEFAULT_SMARTOLT_MAX_PAGES;
+  const parsed = Number.parseInt(raw, 10);
+  return parsed > 0 ? parsed : DEFAULT_SMARTOLT_MAX_PAGES;
+}
+
+/** `2026-07-08T12:00:00Z` → `2026-07-08 12:00:00`, el formato de `updated_since`. */
+export function formatUpdatedSince(when: Date): string {
+  const iso = when.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
+}
 
 /**
  * SmartOltClient — adapter de SmartOLT.
@@ -35,22 +114,26 @@ export const SMARTOLT_RATE_LIMIT_PER_HOUR = 15; // per project guide
  * pasá `useMock: false` con apiKey + apiBaseUrl para hablar HTTP real
  * con https://{{subdomain}}.smartolt.com.
  *
- * Formato real esperado por SmartOLT API:
+ * Formato real esperado por SmartOLT API (octubre 2026):
  *   Headers: X-Token: <api_key>
- *   Endpoints típicos:
- *     POST /api/auth/login → { api_key, ... }
+ *   Endpoints que usa el conector:
+ *     GET  /api/system/get_zones                  ← ping (get_olts NO es un heartbeat)
  *     GET  /api/system/get_olts
- *     GET  /api/system/get_olt_detail/{id}
- *     GET  /api/onu/get_all_onus_details
- *     GET  /api/onu/get_onu_detail/{id}         ← para FEC/óptica/firmware
- *     GET  /api/onu/get_onus_statuses
- *     GET  /api/system/get_olt_pon_ports_details/{id}
- *     GET  /api/system/get_outage_pons/{id}
+ *     GET  /api/olt/get_olt_uptime_and_env_temperature/{olt_id}
+ *     GET  /api/onu/get_all_onus_details?page=N&page_size=100[&updated_since=...]
+ *
+ * Presupuesto: 1.000 llamadas por hora y 15 por segundo, configurables con
+ * `SMARTOLT_RATE_LIMIT_PER_HOUR` / `SMARTOLT_RATE_LIMIT_PER_SECOND`. Un 429 se
+ * respeta con `Retry-After` hasta `SMARTOLT_MAX_RETRY_AFTER_MS`; pasado ese
+ * tope, el cliente falla con `SmartoltRateLimitError` en vez de dormir.
+ *
+ * El endpoint bulk sin `page` es un export completo del inventario: 15
+ * llamadas por hora y bloqueo al llegar al límite. Por eso el conector pagina
+ * siempre.
  *
  * El endpoint bulk no siempre expone los contadores FEC ni la versión de
- * firmware. Para obtenerlos hay que fan-outear a `get_onu_detail/{id}`,
- * gobernado por `includeOnuDetail` en las opciones (off por defecto para
- * respetar el rate limit de 15 req/h).
+ * firmware. Para obtenerlos hay que fan-outear a `get_onu_details/{id}`, que
+ * hoy no se usa: cada llamada sale del mismo presupuesto.
  */
 export class SmartOltClient implements INmsConnector {
   readonly providerName = 'smartolt';
@@ -60,6 +143,10 @@ export class SmartOltClient implements INmsConnector {
   private readonly apiBaseUrl?: string;
   private readonly fetchImpl: typeof fetch;
   private readonly skipDnsValidation: boolean;
+  private readonly rateLimitConfig: SmartoltRateLimitConfig;
+  private readonly governor: SmartoltRateGovernor;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly maxPages: number;
 
   constructor(opts: SmartOltClientOptions) {
     this.useMock = opts.useMock;
@@ -67,38 +154,111 @@ export class SmartOltClient implements INmsConnector {
     this.apiBaseUrl = opts.apiBaseUrl;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.skipDnsValidation = opts.fetchImpl !== undefined;
+
+    this.rateLimitConfig = resolveSmartoltRateLimitConfig(opts.env, opts.rateLimit);
+    this.sleep =
+      opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+    this.governor = new SmartoltRateGovernor(this.rateLimitConfig, {
+      ...(opts.now === undefined ? {} : { now: opts.now }),
+      sleep: this.sleep,
+    });
+    this.maxPages = opts.maxPages ?? resolveSmartoltMaxPages(opts.env);
   }
 
-  private async realFetch<T>(path: string): Promise<T> {
+  /**
+   * Una llamada HTTP, con presupuesto, `Retry-After` respetado y parseo del
+   * borde.
+   *
+   * Nunca incluye el `X-Token` en el error: el token viaja sólo en el header.
+   */
+  private async realFetch<T extends { status: boolean }>(
+    path: string,
+    parse: (data: unknown, endpoint: string) => T,
+  ): Promise<T> {
     if (!this.apiBaseUrl || !this.apiKey) {
       throw new Error('SmartOLT API requires apiBaseUrl and apiKey');
     }
     const url = await assertSafeNmsRequestUrl(this.apiBaseUrl, path, {
       resolveDns: !this.skipDnsValidation,
     });
-    const res = await this.fetchImpl(url, {
-      headers: {
-        'X-Token': this.apiKey,
-        'Accept': 'application/json',
-      },
-      redirect: 'error',
-      signal: AbortSignal.timeout(NMS_REQUEST_TIMEOUT_MS),
+    const endpoint = path.split('?')[0] ?? path;
+    const maxAttempts = this.rateLimitConfig.maxRetries + 1;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await this.governor.beforeRequest(endpoint);
+      const res = await this.fetchImpl(url, {
+        headers: {
+          'X-Token': this.apiKey,
+          'Accept': 'application/json',
+        },
+        redirect: 'error',
+        signal: AbortSignal.timeout(NMS_REQUEST_TIMEOUT_MS),
+      });
+      this.governor.observeResponse(res.headers, endpoint);
+
+      if (res.status === 429) {
+        const headerSeconds = readRetryAfterSeconds(res.headers);
+        const body = readRateLimitBody(await readJsonOrUndefined(res));
+        const retryAfterSeconds = headerSeconds ?? body.retryAfterSeconds;
+        const violationType = body.violationType;
+        const waitMs =
+          retryAfterSeconds === undefined ? DEFAULT_RETRY_DELAY_MS : retryAfterSeconds * 1_000;
+
+        if (waitMs > this.rateLimitConfig.maxRetryAfterMs) {
+          throw new SmartoltRateLimitError(
+            `SmartOLT pidió esperar ${Math.ceil(waitMs / 1_000)}s en ${endpoint} y el tope de ` +
+              `espera es ${Math.round(this.rateLimitConfig.maxRetryAfterMs / 1_000)}s.`,
+            {
+              ...(violationType === undefined ? {} : { violationType }),
+              ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+              endpoint,
+              attempts: attempt - 1,
+            },
+          );
+        }
+        if (attempt >= maxAttempts) {
+          throw new SmartoltRateLimitError(
+            `SmartOLT siguió limitando las llamadas a ${endpoint} después de ${attempt} intentos` +
+              (retryAfterSeconds === undefined ? '.' : ` (Retry-After: ${retryAfterSeconds}s).`),
+            {
+              ...(violationType === undefined ? {} : { violationType }),
+              ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+              endpoint,
+              attempts: attempt,
+            },
+          );
+        }
+
+        await this.sleep(waitMs);
+        continue;
+      }
+
+      if (!res.ok) {
+        throw new Error(`SmartOLT API ${res.status}: ${res.statusText} (${endpoint})`);
+      }
+
+      const parsed = parse(await readJsonOrUndefined(res), endpoint);
+      if (parsed.status === false) {
+        throw new Error(`SmartOLT API returned status: false (${endpoint})`);
+      }
+      return parsed;
+    }
+
+    // Inalcanzable: el bucle devuelve o tira en cada rama.
+    throw new SmartoltRateLimitError(`SmartOLT no respondió a ${endpoint}`, {
+      endpoint,
+      attempts: maxAttempts,
     });
-    if (!res.ok) {
-      throw new Error(`SmartOLT API ${res.status}: ${res.statusText}`);
-    }
-    const data = await res.json();
-    if (data && typeof data === 'object' && 'status' in data && data.status === false) {
-      throw new Error(`SmartOLT API returned status: false`);
-    }
-    return data as T;
   }
 
   async ping(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
     if (this.useMock) return { ok: true, latencyMs: 12 };
     const t0 = Date.now();
     try {
-      await this.realFetch('/api/system/get_olts');
+      // `get_olts` está prohibido como heartbeat por la propia API: hay
+      // integraciones que lo martillan y el proveedor lo detecta. `get_zones`
+      // es una lista chica y barata.
+      await this.realFetch('/api/system/get_zones', parseStatusEnvelope);
       return { ok: true, latencyMs: Date.now() - t0 };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown' };
@@ -109,15 +269,16 @@ export class SmartOltClient implements INmsConnector {
     if (this.useMock) return [...FIXTURE_OLTS];
     // Real response shape from SmartOLT docs:
     // { status: true, response: [{ id, name, olt_hardware_version, ip, telnet_port, snmp_port }] }
-    const data = await this.realFetch<{ status: boolean; response: Array<Record<string, unknown>> }>(
-      '/api/system/get_olts',
-    );
-    return data.response.map((o) => ({
-      id: String(o.id),
-      name: String(o.name ?? ''),
-      ip: String(o.ip ?? ''),
+    const data = await this.realFetch('/api/system/get_olts', parseOltsResponse);
+    return data.olts.map((o) => ({
+      id: String(o['id']),
+      name: String(o['name'] ?? ''),
+      ip: String(o['ip'] ?? ''),
       status: 'online' as const,
-      // Real SmartOLT doesn't return uptime/temp here; that's in get_olt_detail
+      // Real SmartOLT doesn't return uptime/temp here; that's in the uptime
+      // endpoint. The hardware version does come here.
+      model:
+        typeof o['olt_hardware_version'] === 'string' ? o['olt_hardware_version'] : undefined,
     }));
   }
 
@@ -154,24 +315,26 @@ export class SmartOltClient implements INmsConnector {
       return oltDetail;
     }
 
-    // Real: combine the list (which has ip/name) with get_olt_detail for uptime/temp
-    const detail = await this.realFetch<{ status: boolean; response: Record<string, unknown> }>(
-      `/api/system/get_olt_detail/${oltId}`,
+    // Real: la temperatura y el uptime viven en su propio endpoint; el nombre,
+    // la IP y el modelo, en la lista de OLTs.
+    const uptime = await this.realFetch(
+      `/api/olt/get_olt_uptime_and_env_temperature/${encodeURIComponent(oltId)}`,
+      parseOltUptimeResponse,
     );
-    const olt = detail.response;
+    const olts = await this.listOlts();
+    const identity = olts.find((olt) => olt.id === oltId);
     const onus = await this.listOnus({ oltId });
     const onlineOnus = onus.filter((o) => o.status === 'online').length;
 
     return {
       id: oltId,
-      name: String(olt.name ?? oltId),
-      ip: String(olt.ip ?? ''),
+      name: identity?.name ?? oltId,
+      ip: identity?.ip ?? '',
       status: 'online' as const,
-      uptimeSeconds: typeof olt.uptime === 'number' ? olt.uptime : undefined,
-      temperatureCelsius: typeof olt.temperature === 'number' ? olt.temperature : undefined,
-      model: typeof olt.model === 'string' ? olt.model : undefined,
+      uptimeSeconds: uptime.uptimeSeconds,
+      temperatureCelsius: uptime.temperatureCelsius,
+      ...(identity?.model === undefined ? {} : { model: identity.model }),
       subscribersConnected: onlineOnus,
-      ponPortsActive: typeof olt.pon_ports === 'number' ? olt.pon_ports : undefined,
     };
   }
 
@@ -236,25 +399,93 @@ export class SmartOltClient implements INmsConnector {
       onusOnline: onlineOnus,
       onusOffline: offlineOnus,
       averageUptimeSeconds: Math.round(avgUptime),
-      oltsWithHighTemperature: 0, // would need to call get_olt_detail for each
+      oltsWithHighTemperature: 0, // would need to call the uptime endpoint for each
     };
   }
 
-  async listOnus(filter?: { oltId?: string; status?: OnuSummary['status'] }): Promise<OnuSummary[]> {
+  async listOnus(
+    filter?: { oltId?: string; status?: OnuSummary['status'] },
+    options: SmartoltListOnusOptions = {},
+  ): Promise<OnuSummary[]> {
     if (this.useMock) {
       let result = [...FIXTURE_ONUS];
       if (filter?.oltId) result = result.filter((o) => o.oltId === filter.oltId);
       if (filter?.status) result = result.filter((o) => o.status === filter.status);
       return result;
     }
-    // Real: SmartOLT returns a paginated list
-    const data = await this.realFetch<{ status: boolean; onus: Array<Record<string, unknown>> }>(
-      '/api/onu/get_all_onus_details',
-    );
-    let onus = data.onus.map((o) => this.mapOnuSummary(o));
-    if (filter?.oltId) onus = onus.filter((o) => o.oltId === filter.oltId);
+
+    const rows = await this.fetchOnuRows({
+      ...options,
+      ...(filter?.oltId === undefined ? {} : { oltId: filter.oltId }),
+    });
+    let onus = rows.map((o) => this.mapOnuSummary(o));
     if (filter?.status) onus = onus.filter((o) => o.status === filter.status);
     return onus;
+  }
+
+  /**
+   * Recorre el inventario de ONUs página por página.
+   *
+   * `page` es obligatorio en cada llamada: sin él, el endpoint es el export
+   * completo (15/hora, bloqueo al llegar). Se corta cuando se cubrió
+   * `total_items`, cuando la página vino incompleta o cuando se llegó al tope
+   * de páginas (que falla, no trunca).
+   */
+  private async fetchOnuRows(
+    options: SmartoltListOnusOptions & {
+      oltId?: string;
+      externalId?: string;
+      sn?: string;
+      name?: string;
+    } = {},
+  ): Promise<Array<Record<string, unknown>>> {
+    const endpoint = '/api/onu/get_all_onus_details';
+    const requestedPageSize = options.pageSize ?? ONUS_PAGE_SIZE;
+    const pageSize = Math.min(
+      ONUS_PAGE_SIZE,
+      Math.max(1, Math.trunc(requestedPageSize)),
+    );
+    const maxPages = options.maxPages ?? this.maxPages;
+    const rows: Array<Record<string, unknown>> = [];
+    let totalItems: number | undefined;
+
+    for (let page = 1; ; page++) {
+      const query = new URLSearchParams({
+        page: String(page),
+        page_size: String(pageSize),
+      });
+      if (options.updatedSince !== undefined) query.set('updated_since', options.updatedSince);
+      if (options.oltId !== undefined) query.set('olt_id', options.oltId);
+      if (options.externalId !== undefined) query.set('external_id', options.externalId);
+      if (options.sn !== undefined) query.set('sn', options.sn);
+      if (options.name !== undefined) query.set('name', options.name);
+
+      const parsed = await this.realFetch(`${endpoint}?${query.toString()}`, parseOnusPageResponse);
+      totalItems ??= parsed.totalItems;
+      rows.push(...parsed.onus);
+
+      if (parsed.onus.length === 0) {
+        // An empty page before total_items is covered would silently truncate
+        // the inventory; fail instead so the caller never sees a partial list.
+        if (totalItems !== undefined && rows.length < totalItems) {
+          throw new SmartoltResponseShapeError(endpoint, [
+            `page ${page} came back empty with ${rows.length} de ${totalItems} ONUs`,
+          ]);
+        }
+        break;
+      }
+      if (totalItems === undefined) {
+        if (parsed.onus.length < pageSize) break;
+      } else if (rows.length >= totalItems) {
+        break;
+      }
+      if (parsed.totalPages !== undefined && page >= parsed.totalPages) break;
+      if (page >= maxPages) {
+        throw new SmartoltPaginationLimitError(endpoint, page, maxPages, totalItems);
+      }
+    }
+
+    return rows;
   }
 
   async getOnuDetail(identifier: string): Promise<OnuDetail | null> {
@@ -268,16 +499,20 @@ export class SmartOltClient implements INmsConnector {
       );
       return summary ?? null;
     }
-    // Real: get_onus_statuses returns status + id; get_all_onus_details returns full.
-    // For simplicity, fan out to get_all_onus_details and find by id or sn.
-    const data = await this.realFetch<{ status: boolean; onus: Array<Record<string, unknown>> }>(
-      '/api/onu/get_all_onus_details',
+
+    // El identificador puede ser el id externo o el serial: se busca con el
+    // filtro del endpoint (una página) en vez de bajar el inventario entero.
+    const byExternalId = await this.fetchOnuRows({ externalId: identifier });
+    const externalMatch = byExternalId.find(
+      (o) => String(o['unique_external_id']) === identifier || String(o['sn']) === identifier,
     );
-    const match = data.onus.find(
-      (o) => String(o.unique_external_id) === identifier || String(o.sn) === identifier,
+    if (externalMatch) return this.mapOnuDetail(externalMatch);
+
+    const bySerial = await this.fetchOnuRows({ sn: identifier });
+    const serialMatch = bySerial.find(
+      (o) => String(o['sn']) === identifier || String(o['unique_external_id']) === identifier,
     );
-    if (!match) return null;
-    return this.mapOnuDetail(match);
+    return serialMatch ? this.mapOnuDetail(serialMatch) : null;
   }
 
   async getOnusWithLowSignal(thresholdDbm: number): Promise<OnuSummary[]> {
@@ -286,7 +521,7 @@ export class SmartOltClient implements INmsConnector {
         (o) => (o.rxPowerDbm ?? 0) < thresholdDbm && o.rxPowerDbm !== undefined,
       );
     }
-    // Real: filter the get_all_onus_details response
+    // Real: filter the paginated inventory response
     const onus = await this.listOnus();
     return onus.filter((o) => (o.rxPowerDbm ?? 0) < thresholdDbm && o.rxPowerDbm !== undefined);
   }
@@ -296,7 +531,9 @@ export class SmartOltClient implements INmsConnector {
       const lower = name.toLowerCase();
       return FIXTURE_ONUS.filter(o => o.customerName?.toLowerCase().includes(lower));
     }
-    return this.realFetch<OnuSummary[]>('/onus?customer_name=' + encodeURIComponent(name));
+    // `name` es un filtro de texto parcial del propio endpoint de inventario.
+    const rows = await this.fetchOnuRows({ name });
+    return rows.map((o) => this.mapOnuSummary(o));
   }
 
   async listOnusByOlt(oltId: string): Promise<OnuDetail[]> {
@@ -308,17 +545,17 @@ export class SmartOltClient implements INmsConnector {
   // ── Helpers for mapping real SmartOLT responses to INmsConnector types ──
 
   private mapOnuSummary(o: Record<string, unknown>): OnuSummary {
-    const status = this.mapStatus(o.status as string | null | undefined);
+    const status = this.mapStatus(o['status'] as string | null | undefined);
     return {
-      id: String(o.unique_external_id ?? o.sn ?? ''),
-      serial: String(o.sn ?? ''),
-      oltId: String(o.olt_id ?? ''),
-      customerName: typeof o.name === 'string' ? o.name : undefined,
+      id: String(o['unique_external_id'] ?? o['sn'] ?? ''),
+      serial: String(o['sn'] ?? ''),
+      oltId: String(o['olt_id'] ?? ''),
+      customerName: typeof o['name'] === 'string' ? o['name'] : undefined,
       status,
-      rxPowerDbm: this.parseFloat(o.signal),
-      txPowerDbm: this.parseFloat(o.signal_1490),
+      rxPowerDbm: this.parseFloat(o['signal']),
+      txPowerDbm: this.parseFloat(o['signal_1490']),
       uptimeSeconds: undefined,
-      lastSeenAt: typeof o.last_status_change === 'string' ? o.last_status_change : undefined,
+      lastSeenAt: typeof o['last_status_change'] === 'string' ? o['last_status_change'] : undefined,
       // Some SmartOLT endpoints expose optical-health fields in the bulk
       // response. The fan-out path covers the rest (see listOnus). Try the
       // common naming variants without inventing a single canonical form.
@@ -348,11 +585,15 @@ export class SmartOltClient implements INmsConnector {
 
   private mapOnuDetail(o: Record<string, unknown>): OnuDetail {
     const summary = this.mapOnuSummary(o);
+    const onuTypeName = typeof o['onu_type_name'] === 'string' ? o['onu_type_name'] : undefined;
     return {
       ...summary,
-      model: typeof o.onu_type_name === 'string' ? o.onu_type_name.split('-').pop() : undefined,
-      vendor: typeof o.onu_type_name === 'string' ? o.onu_type_name.split('-')[0] : undefined,
-      oltPort: o.board !== undefined && o.port !== undefined ? `${o.board}/${o.port}/${o.onu}` : undefined,
+      model: onuTypeName?.split('-').pop(),
+      vendor: onuTypeName?.split('-')[0],
+      oltPort:
+        o['board'] !== undefined && o['port'] !== undefined && o['onu'] !== undefined
+          ? `${String(o['board'])}/${String(o['port'])}/${String(o['onu'])}`
+          : undefined,
       firmwareVersion: pickString(o, [
         'onu_firmware_version',
         'firmware_version',
@@ -380,6 +621,15 @@ export class SmartOltClient implements INmsConnector {
 }
 
 // ── Module-level helpers ──
+
+/** Lee el cuerpo JSON de una respuesta, o `undefined` si no es JSON. */
+async function readJsonOrUndefined(res: Response): Promise<unknown> {
+  try {
+    return (await res.json()) as unknown;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Returns the first numeric value from `record` whose key matches one of
