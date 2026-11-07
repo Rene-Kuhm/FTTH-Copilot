@@ -291,3 +291,71 @@ function normalizeViolationType(raw: unknown): SmartoltViolationType | undefined
       return undefined;
   }
 }
+
+/**
+ * El presupuesto de un endpoint con su propio tope por hora.
+ *
+ * La API de octubre 2026 pone topes por endpoint además del de la cuenta: el
+ * stream de eventos se puede pedir 60 veces por hora. Contarlos con el guardia
+ * de la cuenta no alcanza —ese guardia mide 1.000—, así que este contador
+ * aparte lleva la ventana del endpoint y falla con el mismo error tipado.
+ *
+ * No duerme: quien llama decide si espera o vuelve más tarde, que es lo único
+ * que sabe el orquestador.
+ */
+export class SmartoltHourlyBudget {
+  private readonly perHour: number;
+  private readonly clock: SmartoltGovernorClock;
+  private windowStartMs: number;
+  private calls = 0;
+
+  constructor(perHour: number, clock: Partial<SmartoltGovernorClock> = {}) {
+    this.perHour = perHour;
+    this.clock = {
+      now: clock.now ?? (() => Date.now()),
+      sleep:
+        clock.sleep ??
+        ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
+    };
+    this.windowStartMs = this.clock.now();
+  }
+
+  /** Llamadas gastadas en la ventana vigente. */
+  get used(): number {
+    this.roll();
+    return this.calls;
+  }
+
+  /** Cuántas llamadas quedan en la ventana vigente. */
+  get remaining(): number {
+    return Math.max(0, this.perHour - this.used);
+  }
+
+  /**
+   * Consume una llamada, o falla con `SmartoltRateLimitError`.
+   *
+   * `per_endpoint` es el motivo: es el tope del endpoint, no el de la cuenta.
+   */
+  consume(endpoint: string): void {
+    this.roll();
+    if (this.calls >= this.perHour) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((this.windowStartMs + HOUR_MS - this.clock.now()) / SECOND_MS),
+      );
+      throw new SmartoltRateLimitError(
+        `SmartOLT: se gastó el presupuesto de ${this.perHour} llamadas por hora de ${endpoint}`,
+        { violationType: 'per_endpoint', retryAfterSeconds, endpoint, attempts: 0 },
+      );
+    }
+    this.calls += 1;
+  }
+
+  private roll(): void {
+    const now = this.clock.now();
+    if (now - this.windowStartMs >= HOUR_MS) {
+      this.windowStartMs = now;
+      this.calls = 0;
+    }
+  }
+}

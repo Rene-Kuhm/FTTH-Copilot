@@ -11,7 +11,22 @@
       "/^\\/api\\/system\\/get_olts$/",
       "/^\\/api\\/onu\\/get_all_onus_details$/",
       "/^\\/api\\/olt\\/get_olt_uptime_and_env_temperature\\/\\{olt_id\\}$/",
-      "/^\\/api\\/system\\/get_zones$/"
+      "/^\\/api\\/system\\/get_zones$/",
+      "/^\\/api\\/onu\\/get_event_stream$/"
+    ],
+    "eventTypes": [
+      "onu.status_changed",
+      "onu.authorized",
+      "onu.updated",
+      "onu.deleted",
+      "onu.signal_changed",
+      "onu.signal_reading",
+      "onu.rx1490_reading",
+      "onu.unconfigured_detected",
+      "pon.outage_started",
+      "pon.outage_ended",
+      "olt.status_stale",
+      "olt.status_fresh"
     ],
     "note": "Los tests de contrato corren offline contra este archivo. Si el proveedor cambia la forma de un endpoint que el conector usa, el CI falla."
   },
@@ -22,6 +37,76 @@
     "description": "Full documentation: https://api.smartolt.com/\n\nSmartOLT API\n\n**Machine-readable version (OpenAPI, for tools and AI assistants):** https://www.smartolt.com/openapi.json\n\n🔴 The API changed. Please read this page again.\n\nUpdated October 2026. Check your integration against these changes:\n\n- **🆕 Real-time events.** Get ONU status changes, ONU changes, signal changes and PON outages when they occur. Use an event stream (SSE) or a webhook. You do not need to poll the API. See **Real-time events** below.\n\n- **⚡ Asynchronous calls for high-volume actions.** Send `async=1` to enable or disable ONUs, change CATV or change speed profiles. The request does not wait for the OLT. See **Asynchronous calls** below.\n\n- **📦 Bulk actions.** One bulk call can contain up to **10,000 ONU IDs** with `async=1`. Do not send one call for each ONU. See **Recommended API usage** below.\n\n- **🆕 ONU status history.** Get how long an ONU was Online, LOS, Power fail or Offline, for up to 365 days. See **Get ONU status history by ONU unique external ID**.\n\n- **🆕 MAC addresses.** Get the MAC addresses behind an ONU, or find the ONU of a MAC address. See **Get ONU MAC addresses by ONU unique external ID** and **Search ONU by MAC address**.\n\n⚠️ If your system polls Get all ONUs statuses or Get all ONUs signals, change it to use real-time events.\n\nHow to call the API\n\n- Send each request to `https://<your-subdomain>.smartolt.com/api/...`.\n\n- Send your API key in the `X-Token` header.\n\n- Every response has `status`. When `status` is `false`, read `error` for the message and `error_code` for the reason, when it is present. A call over the API call rate limit is the exception. See **Limits**.\n\nLimits\n\nAPI access is a privilege. Use it responsibly.\n\n- The default budget is **1,000 API calls per hour**. For very large installations, we can review and extend the budget if the operational requirements justify it.\n\n- Asynchronous calls have their own budget, by default **5,000 calls per hour**.\n\n- The default limit is **15 calls per second**. If you send more, all your calls are blocked for 10 seconds.\n\n- Some endpoints have their own hourly limit. The description of the endpoint gives it.\n\n- When you are over the per-hour, per-10-minute or per-second limit, the API returns HTTP **429** and a `Retry-After` header. Wait that number of seconds before you call again.\n\n- The body of that 429 has `response_code` set to `rate_limit_exceeded` and the message in `response`. It also has `violation_type` (`per_hour`, `per_10min` or `per_second`) and `retry_after`, the same number of seconds.\n\n- When you are over the limit of one endpoint, the 429 has `error` and `error_code`, like other errors.\n\n- Each response has `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` headers. `X-RateLimit-Reset` is the number of seconds until the budget resets.\n\nIf you use the API too much, SmartOLT can limit your calls or revoke your API access.\n\n**Keep a local copy of your data** and update it from events.\n\n**Add a random delay to scheduled requests.** For example, do not send a request exactly every 5 minutes at fixed times. Add a small random delay to each call, so that many systems do not call the API at the same time.\n\nReal-time events (new)\n\n**Receive changes as they happen.** SmartOLT can now notify your integration when something changes: an ONU goes offline, its signal drops, a new ONU appears unconfigured, or a PON port fails. Use webhooks or the event stream instead of asking for the status of every ONU every few minutes.\n\n- **Event stream (SSE):** your system keeps one connection open, and the events arrive on it.\n\n- **Webhook:** SmartOLT sends each batch of events as an HTTPS POST to your URL. Set it up in **General > API key > Edit > Webhook**.\n\nEvent types: `onu.status_changed`, `onu.authorized`, `onu.updated`, `onu.deleted`, `onu.signal_changed`, `onu.signal_reading`, `onu.rx1490_reading`, `pon.outage_started`, `pon.outage_ended`, `olt.status_stale`, `olt.status_fresh`, `onu.unconfigured_detected`. See the **Real-time events** folder.\n\nAsynchronous calls (recommended for high-volume actions)\n\n**For high-volume actions, use asynchronous calls.** Use them to enable ONUs, disable ONUs, change CATV or change speed profiles on many ONUs. Send `async=1` with the request. SmartOLT checks the request, puts the work in a queue and returns immediately. The request does not wait for the OLT.\n\nThese endpoints accept `async=1`:\n\n- Single ONU: [`enable`](https://api.smartolt.com/#393d530b-5d69-4d25-9a2b-130282097b23), [`disable`](https://api.smartolt.com/#22e14a03-1c8c-4335-8439-41ef87b0bc41), [`enable_catv`](https://api.smartolt.com/#b7a4be0a-daf3-4d7d-b819-99cb1515a1e7), [`disable_catv`](https://api.smartolt.com/#21201bf3-37a6-455e-8703-96af40b0ee9e), [`update_onu_speed_profiles`](https://api.smartolt.com/#6b753440-3567-8644-bfed-045dbfe3f248)\n- Multiple ONUs: [`bulk_enable`](https://api.smartolt.com/#c8208da1-5f58-40b7-a86b-838babbddff6), [`bulk_disable`](https://api.smartolt.com/#05f55ab8-6dbe-42b0-9f75-bcbeb170f0fd), [`bulk_enable_catv`](https://api.smartolt.com/#3a5bd9ce-a30c-49ab-9012-98d763b58c9e), [`bulk_disable_catv`](https://api.smartolt.com/#4f3b2fab-ad08-4735-b64b-5dfbd06ba9b7), [`bulk_update_speed_profiles`](https://api.smartolt.com/#536e8e0e-82bb-4ce8-a1bf-ee8a845045ee)\n\n[`bulk_apply_configuration_preset`](https://api.smartolt.com/#54eb4b99-51a4-4374-bc04-594f7490462c) and [`bulk_remove_configuration_preset`](https://api.smartolt.com/#e367973e-13ce-4d0c-a1f8-a7d121d90adc) are always asynchronous. They also use the asynchronous budget.\n\n**Why use asynchronous calls:**\n\n- The request returns immediately. A normal request waits until the OLT finishes the command.\n\n- A bulk call accepts up to **10,000 ONU IDs** with `async=1`, and only up to **50 ONU IDs** without `async=1`.\n\n- Asynchronous calls use their own hourly budget, not the normal budget.\n\n- SmartOLT runs all actions for one ONU in the order it received them.\n\n**How to use asynchronous calls:**\n\n- Send the request with `async=1`.\n\n- Read the `queued` field in the response. It shows which ONUs SmartOLT queued.\n\n- Some minutes later, call [`check_bulk_task_status`](https://api.smartolt.com/#6088e6c4-89ba-4c44-989b-d894fe6f13c9) to see the result for each ONU. Do not call it in a tight loop. Each status check counts in the normal hourly budget.\n\n**Important:** `\"queued\": true` means that SmartOLT accepted the action. It does not mean that the OLT did it. A request without `async=1` can also return `\"queued\": true` when the ONU already has queued actions. Do not mark the action as done until [`check_bulk_task_status`](https://api.smartolt.com/#6088e6c4-89ba-4c44-989b-d894fe6f13c9) shows `succeeded`.\n\nRecommended API usage\n\n- **ONU statuses**\n\n- Use the `onu.status_changed` real-time event.\n\n- If you cannot use events, call [Get all ONUs statuses](https://api.smartolt.com/#dd7eff97-6229-497c-9cde-6acd0ad09aee) every **5-7 minutes**, and store the response between calls.\n\n- **ONU signal levels**\n\n- Use the `onu.signal_reading` or `onu.signal_changed` real-time events for the 1310 value, and the `onu.rx1490_reading` event for the 1490 value.\n\n- Call [Get all ONUs signals](https://api.smartolt.com/#43e3094c-0db5-46ea-821e-1ae9c4038006) at start-up or after a `resync` event. If you cannot use events, call it every **15-30 minutes**, and store the response between calls.\n\n- **High-volume actions** (enable, disable, CATV, speed profiles on many ONUs)\n\n- Use one bulk call with `async=1` for up to **10,000 ONU IDs**. Without `async=1`, a bulk call can only contain up to 50 ONU IDs.\n\n- Do not send one call for each ONU.\n\n**Important:** Do not poll individual ONUs again and again when a bulk endpoint or a real-time event gives the same data. Your integration must store data, use reasonable polling intervals and use bulk calls. If your integration uses the API too much, SmartOLT can limit its calls to protect the platform for all users."
   },
   "paths": {
+    "/api/onu/get_event_stream": {
+      "get": {
+        "tags": [
+          "onu",
+          "Real-time events"
+        ],
+        "summary": "Get event stream URL",
+        "operationId": "get_event_stream_url",
+        "description": "Gets a URL for a live event stream (Server-Sent Events). Open the URL with any SSE client, for example `EventSource` or `curl -N`.\n\n**How to use it**\n\n- Call this endpoint. Select the event types with `events`.\n\n- Open the returned `url` within `expires_in` seconds (15 minutes).\n\n- Read the events. Each event has an `id`, an `event` (the event type) and a `data` line with the event body.\n\n- The stream closes after about 1 hour. Then call this endpoint again and open the new URL. Send the last `id` you got in the `Last-Event-ID` header. You then get the events that you missed.\n\n**Control events**\n\n- `resync`: you missed events. Load the current data again, for example with *Get all ONUs statuses*.\n\n- `expired`: the stream is closed. Get a new URL.\n\n- `disabled`: the stream is closed because the API key was disabled or changed. Get a new URL.\n\n- A `: ping` comment comes every 25 seconds to keep the connection open.\n\n**Limits**\n\n- You can call this endpoint up to 60 times per hour.\n\n- Each account can have up to 15 open streams for API keys.\n\nIt returns a 400 error code when `events` contains an unknown event type.\n\nIt returns a 403 error code when the API key is not a client API key.\n\nIt returns a 503 error code when the event stream is not available. Use *Get all ONUs statuses* until it is available again.",
+        "parameters": [
+          {
+            "name": "events",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "(String) The event types to get, separated by commas. Leave it empty to get only `onu.status_changed`. Known types: onu.status_changed, onu.unconfigured_detected, onu.authorized, onu.updated, onu.deleted, pon.outage_started, pon.outage_ended, olt.status_stale, olt.status_fresh, onu.signal_changed, onu.signal_reading, onu.rx1490_reading"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 - OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": true,
+                  "response": {
+                    "url": "https://example.smartolt.com:8443/onu-status/stream?token=eyJkYiI6...",
+                    "expires_in": 900
+                  },
+                  "response_code": "success"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 - Unknown event type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "Invalid parameters: Invalid events. Known event types: onu.status_changed, onu.unconfigured_detected, onu.authorized, onu.updated, onu.deleted, pon.outage_started, pon.outage_ended, olt.status_stale, olt.status_fresh, onu.signal_changed, onu.signal_reading, onu.rx1490_reading"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503 - Not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": false,
+                  "error": "ONU status push is not available right now. Poll get_onus_statuses instead."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/system/get_olts": {
       "get": {
         "tags": [
@@ -1027,6 +1112,314 @@
             }
           }
         }
+      }
+    }
+  },
+  "eventExamples": {
+    "onu.status_changed": {
+      "type": "onu.status_changed",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "zone_id": "5",
+            "name": "John Doe",
+            "address": "Main St 1",
+            "contact": "+1555",
+            "odb_id": null,
+            "status": "LOS",
+            "last_status_change": "2026-10-08 10:00:00.123456",
+            "status_observed_at": "2026-10-08 10:01:00"
+          }
+        ]
+      }
+    },
+    "onu.authorized": {
+      "type": "onu.authorized",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "pon_type": "gpon",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "olt_name": "OLT-A",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "onu_type_id": "3",
+            "onu_type_name": "HG8546M",
+            "zone_id": "5",
+            "zone_name": "Zone 5",
+            "name": "John Doe",
+            "address": "Main St 1",
+            "odb_name": "",
+            "mode": "Routing",
+            "wan_mode": "DHCP",
+            "ip_address": null,
+            "catv": "Disabled",
+            "administrative_status": "Enabled",
+            "authorization_date": "2026-10-08 09:00:00",
+            "contact": "+1555"
+          }
+        ]
+      }
+    },
+    "onu.updated": {
+      "type": "onu.updated",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "pon_type": "gpon",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "olt_name": "OLT-A",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "onu_type_id": "3",
+            "onu_type_name": "HG8546M",
+            "zone_id": "5",
+            "zone_name": "Zone 7",
+            "name": "John Doe",
+            "address": "Main St 1",
+            "odb_name": "",
+            "mode": "Routing",
+            "wan_mode": "DHCP",
+            "ip_address": null,
+            "catv": "Disabled",
+            "administrative_status": "Enabled",
+            "authorization_date": "2026-10-08 09:00:00",
+            "contact": "+1555"
+          }
+        ]
+      }
+    },
+    "onu.deleted": {
+      "type": "onu.deleted",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "deleted_at": "2026-10-08 10:05:00"
+          }
+        ]
+      }
+    },
+    "onu.signal_changed": {
+      "type": "onu.signal_changed",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "name": "John Doe",
+            "rx1310": -25.1,
+            "prev_rx1310": -22.9,
+            "band": "Warning",
+            "prev_band": "Very good",
+            "delta": -2.2,
+            "reading_at": "2026-10-08 10:00:00"
+          }
+        ]
+      }
+    },
+    "onu.signal_reading": {
+      "type": "onu.signal_reading",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "name": "John Doe",
+            "rx1310": -21,
+            "band": "Very good",
+            "reading_at": "2026-10-08 10:00:00"
+          }
+        ]
+      }
+    },
+    "onu.rx1490_reading": {
+      "type": "onu.rx1490_reading",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "onus": [
+          {
+            "unique_external_id": "ext-1001",
+            "sn": "HWTC00000015",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "15",
+            "name": "John Doe",
+            "rx1490": -18.42,
+            "reading_at": "2026-10-08 10:00:00"
+          },
+          {
+            "unique_external_id": "ext-1002",
+            "sn": "HWTC7D4A91C2",
+            "olt_id": "1",
+            "board": "0",
+            "port": "5",
+            "onu": "16",
+            "name": "Jane Smith",
+            "rx1490": -21.07,
+            "reading_at": "2026-10-08 10:00:00"
+          }
+        ]
+      }
+    },
+    "onu.unconfigured_detected": {
+      "type": "onu.unconfigured_detected",
+      "timestamp": "2026-10-10T08:15:02Z",
+      "data": {
+        "onus": [
+          {
+            "id": 0,
+            "pon_type": "gpon",
+            "board": "2",
+            "port": "3",
+            "pon_description": "",
+            "onu": "1",
+            "sn": "ZTEGC7E230E4",
+            "onu_type_name": "ZTE-F660V6.0",
+            "onu_type_id": "75",
+            "olt_id": "1",
+            "is_disabled": 0,
+            "old_location": null,
+            "new_location": null,
+            "external_id": null,
+            "first_seen_at": "2026-10-10 11:14:40",
+            "last_seen_at": "2026-10-10 11:14:40",
+            "actions": [
+              "authorize"
+            ]
+          }
+        ]
+      }
+    },
+    "pon.outage_started": {
+      "type": "pon.outage_started",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "pons": [
+          {
+            "alert_kind": "full_outage",
+            "partial_started_at": null,
+            "partial_last_seen_at": null,
+            "olt_id": "11",
+            "olt_name": "OLT 11",
+            "olt_version": "2.0",
+            "board": "2",
+            "port": "3",
+            "total_onus": "8",
+            "has_gps": "0",
+            "los_count": "8",
+            "power_count": "0",
+            "offline_count": "0",
+            "location_id": "3",
+            "zone_name": "Zone 3",
+            "odb_id": null,
+            "odb_name": null,
+            "pon_description": "Feeder 3",
+            "is_active": "1",
+            "latest_status_change": "2026-10-08 10:00:00",
+            "affected_onus": null,
+            "affected_percent": null,
+            "odb_names": "",
+            "odb_count": 0,
+            "cause": "los"
+          }
+        ]
+      }
+    },
+    "pon.outage_ended": {
+      "type": "pon.outage_ended",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "pons": [
+          {
+            "alert_kind": "full_outage",
+            "partial_started_at": null,
+            "partial_last_seen_at": null,
+            "olt_id": "11",
+            "olt_name": "OLT 11",
+            "olt_version": "2.0",
+            "board": "2",
+            "port": "3",
+            "total_onus": "8",
+            "has_gps": "0",
+            "los_count": "8",
+            "power_count": "0",
+            "offline_count": "0",
+            "location_id": "3",
+            "zone_name": "Zone 3",
+            "odb_id": null,
+            "odb_name": null,
+            "pon_description": "Feeder 3",
+            "is_active": "1",
+            "latest_status_change": "2026-10-08 10:00:00",
+            "affected_onus": null,
+            "affected_percent": null,
+            "odb_names": "",
+            "odb_count": 0,
+            "cause": "los",
+            "started_at": "2026-10-08 10:00:00",
+            "ended_at": "2026-10-08 10:20:00"
+          }
+        ]
+      }
+    },
+    "olt.status_stale": {
+      "type": "olt.status_stale",
+      "timestamp": "2026-10-08T10:00:01Z",
+      "data": {
+        "olts": [
+          {
+            "olt_id": 11,
+            "olt_name": "OLT 11",
+            "status_observed_at": "2026-10-08 09:44:30"
+          }
+        ]
+      }
+    },
+    "olt.status_fresh": {
+      "type": "olt.status_fresh",
+      "timestamp": "2026-10-08T10:20:31Z",
+      "data": {
+        "olts": [
+          {
+            "olt_id": 11,
+            "olt_name": "OLT 11",
+            "status_observed_at": "2026-10-08 10:20:00",
+            "stale_since": "2026-10-08 10:00:01"
+          }
+        ]
       }
     }
   }

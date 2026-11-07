@@ -33,6 +33,10 @@ import {
   type SmartoltRateLimitOverrides,
 } from './rate-limit';
 import {
+  getAccountRateGovernor,
+  smartoltAccountKey,
+} from './rate-limit-registry';
+import {
   parseOltUptimeResponse,
   parseOltsResponse,
   parseOnusPageResponse,
@@ -48,9 +52,17 @@ export interface SmartOltClientOptions {
   rateLimit?: SmartoltRateLimitOverrides;
   /** Tope de páginas por llamada de inventario. Default `SMARTOLT_MAX_PAGES` (50). */
   maxPages?: number;
-  /** Reloj y `sleep` inyectables: los tests no duermen de verdad. */
+  /**
+   * Reloj y `sleep` inyectables: los tests no duermen de verdad.
+   *
+   * Un cliente con reloj propio no comparte el presupuesto de la cuenta: el
+   * contador pertenece al reloj con el que se mide, y un test con tiempo falso
+   * no puede mover la ventana del proceso.
+   */
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** Guardia ya construido, para compartirlo explícitamente. */
+  governor?: SmartoltRateGovernor;
   /** Fuente de entorno para el presupuesto y el tope de páginas. */
   env?: NodeJS.ProcessEnv;
 }
@@ -158,10 +170,28 @@ export class SmartOltClient implements INmsConnector {
     this.rateLimitConfig = resolveSmartoltRateLimitConfig(opts.env, opts.rateLimit);
     this.sleep =
       opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-    this.governor = new SmartoltRateGovernor(this.rateLimitConfig, {
-      ...(opts.now === undefined ? {} : { now: opts.now }),
-      sleep: this.sleep,
-    });
+
+    // El presupuesto es de la cuenta, no de la instancia: el scheduler arma un
+    // cliente nuevo en cada tick y un guardia local reiniciaba el contador en
+    // cada arranque. Con el registro, dos instancias de la misma cuenta gastan
+    // la misma ventana. Un cliente con reloj inyectado queda fuera del registro
+    // porque su ventana la mueve un reloj que no es el del proceso.
+    const clock =
+      opts.now === undefined && opts.sleep === undefined
+        ? {}
+        : {
+            ...(opts.now === undefined ? {} : { now: opts.now }),
+            sleep: this.sleep,
+          };
+    this.governor =
+      opts.governor ??
+      (opts.now === undefined && opts.sleep === undefined && this.apiKey && this.apiBaseUrl
+        ? getAccountRateGovernor(
+            smartoltAccountKey({ apiBaseUrl: this.apiBaseUrl, apiKey: this.apiKey }),
+            this.rateLimitConfig,
+            clock,
+          )
+        : new SmartoltRateGovernor(this.rateLimitConfig, clock));
     this.maxPages = opts.maxPages ?? resolveSmartoltMaxPages(opts.env);
   }
 

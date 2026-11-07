@@ -14,11 +14,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { SmartOltClient } from '../src/client';
+import { SmartoltEventStream } from '../src/events';
 import { smartoltMockResponse } from '../src/mock-nms';
 import {
+  SMARTOLT_EVENT_TYPES,
+  parseEventStreamResponse,
   parseOltUptimeResponse,
   parseOltsResponse,
   parseOnusPageResponse,
+  parseSmartoltEventBatch,
   parseStatusEnvelope,
 } from '../src/schemas';
 
@@ -42,9 +46,11 @@ interface Subset {
     subset: boolean;
     openapi: string | null;
     pathPatterns: string[];
+    eventTypes?: string[];
     note: string;
   };
   paths: Record<string, { get?: SubsetOperation }>;
+  eventExamples?: Record<string, unknown>;
 }
 
 function loadSubset(): Subset {
@@ -57,6 +63,7 @@ const CLIENT_ENDPOINTS = [
   '/api/system/get_olts',
   '/api/onu/get_all_onus_details',
   '/api/olt/get_olt_uptime_and_env_temperature/{olt_id}',
+  '/api/onu/get_event_stream',
 ] as const;
 
 /** Compara un pathname contra un path de la especificación (`{param}` incluidos). */
@@ -232,7 +239,6 @@ describe('lo que el cliente pide', () => {
 
 describe('lo que el cliente espera recibir', () => {
   const subset = loadSubset();
-
   it('parsea el ejemplo de get_olts', () => {
     const example = examplesOf(subset.paths['/api/system/get_olts']?.get)[0];
 
@@ -305,5 +311,63 @@ describe('lo que el cliente espera recibir', () => {
 
     expect(body['page']).toBeUndefined();
     expect(parseOnusPageResponse(body).onus).toHaveLength(1);
+  });
+});
+
+describe('el stream de eventos del contrato', () => {
+  const subset = loadSubset();
+
+  it('pide la URL del stream con una ruta y un query que la especificación declara', async () => {
+    const { fetchImpl, requests } = specFetch(subset);
+
+    const acquired = await new SmartoltEventStream({
+      apiKey: 'sk-contract-test',
+      // El ejemplo oficial sirve el stream desde el subdominio del ejemplo; la
+      // regla del conector es que el host del stream sea el de la API.
+      apiBaseUrl: 'https://example.smartolt.com',
+      fetchImpl,
+      now: () => 1_000,
+      sleep: async () => {},
+    }).requestStreamUrl();
+
+    // `specFetch` falla si la ruta o el query no están en el contrato: llegar
+    // hasta acá ya es la aserción; igual se deja explícito el pedido.
+    const url = new URL(requests[0] ?? '');
+    expect(url.pathname).toBe('/api/onu/get_event_stream');
+    expect([...url.searchParams.keys()]).toEqual(['events']);
+    expect(url.searchParams.get('events')?.split(',')).toEqual([...SMARTOLT_EVENT_TYPES]);
+
+    // El ejemplo oficial del sobre trae la URL del stream y su vencimiento.
+    expect(acquired.url).toContain('/onu-status/stream?token=');
+    expect(acquired.expiresInSeconds).toBe(900);
+  });
+
+  it('parsea el ejemplo oficial de get_event_stream', () => {
+    const example = examplesOf(subset.paths['/api/onu/get_event_stream']?.get)[0];
+
+    const parsed = parseEventStreamResponse(example);
+
+    expect(parsed.status).toBe(true);
+    expect(parsed.url).toMatch(/^https:\/\//);
+    expect(parsed.expiresInSeconds).toBe(900);
+  });
+
+  it('versiona el ejemplo de todos los eventos que el conector entiende', () => {
+    const examples = subset.eventExamples ?? {};
+
+    expect(Object.keys(examples).sort()).toEqual([...SMARTOLT_EVENT_TYPES].sort());
+    expect([...(subset.provenance.eventTypes ?? [])].sort()).toEqual(
+      [...SMARTOLT_EVENT_TYPES].sort(),
+    );
+  });
+
+  it('cada ejemplo oficial de evento parsea con el parser del conector', () => {
+    for (const [type, example] of Object.entries(subset.eventExamples ?? {})) {
+      const batch = parseSmartoltEventBatch(example);
+
+      expect(batch.type).toBe(type);
+      expect(batch.rows.length).toBeGreaterThan(0);
+      expect(['onus', 'pons', 'olts']).toContain(batch.family);
+    }
   });
 });

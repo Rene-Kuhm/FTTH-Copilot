@@ -219,3 +219,223 @@ export function parseTemperatureText(raw: string | undefined): number | undefine
   const value = Number.parseFloat(match[1].replace(',', '.'));
   return Number.isFinite(value) ? value : undefined;
 }
+
+/** El endpoint del stream de eventos, el que reporta el error de forma. */
+export const EVENT_STREAM_ENDPOINT = '/api/onu/get_event_stream';
+
+/**
+ * Los tipos de evento que publica la especificación de octubre 2026.
+ *
+ * Son los mismos para el stream (SSE) y para el webhook: cambia el transporte,
+ * no el cuerpo. Un tipo que no esté en esta lista es un error del pedido (400),
+ * así que la lista funciona también como validación del borde.
+ */
+export const SMARTOLT_EVENT_TYPES = [
+  'onu.status_changed',
+  'onu.authorized',
+  'onu.updated',
+  'onu.deleted',
+  'onu.signal_changed',
+  'onu.signal_reading',
+  'onu.rx1490_reading',
+  'onu.unconfigured_detected',
+  'pon.outage_started',
+  'pon.outage_ended',
+  'olt.status_stale',
+  'olt.status_fresh',
+] as const;
+
+export type SmartoltEventType = (typeof SMARTOLT_EVENT_TYPES)[number];
+
+/** Dónde vienen las filas del evento: `data.onus`, `data.pons` o `data.olts`. */
+export type SmartoltEventFamily = 'onus' | 'pons' | 'olts';
+
+/** El tope de filas por lote que publica el proveedor. */
+export const SMARTOLT_MAX_EVENT_ROWS = 1_000;
+
+/** El vencimiento por defecto de la URL del stream, en segundos. */
+export const DEFAULT_EVENT_STREAM_EXPIRES_IN_SECONDS = 900;
+
+/** El sobre de `GET /api/onu/get_event_stream`. */
+export interface SmartoltEventStreamUrl {
+  status: boolean;
+  url: string;
+  expiresInSeconds: number;
+}
+
+/** Un lote de eventos ya validado. */
+export interface SmartoltEventBatch {
+  type: SmartoltEventType;
+  timestamp?: string;
+  family: SmartoltEventFamily;
+  rows: Array<Record<string, unknown>>;
+}
+
+/**
+ * Lo que cada tipo de evento tiene que traer para que el conector lo consuma.
+ *
+ * La API describe las respuestas como objetos libres, así que el contrato real
+ * es el ejemplo publicado. Estas son exactamente las columnas que el conector
+ * lee: un cambio de nombre en el proveedor falla acá, en el borde, y no en un
+ * cálculo de red.
+ */
+const EVENT_ROW_SPEC: Record<
+  SmartoltEventType,
+  { family: SmartoltEventFamily; required: readonly string[]; numeric?: readonly string[] }
+> = {
+  'onu.status_changed': { family: 'onus', required: ['status'] },
+  'onu.authorized': { family: 'onus', required: ['sn'] },
+  'onu.updated': { family: 'onus', required: ['sn'] },
+  'onu.deleted': { family: 'onus', required: ['sn'] },
+  'onu.signal_changed': { family: 'onus', required: ['rx1310'], numeric: ['rx1310'] },
+  'onu.signal_reading': {
+    family: 'onus',
+    required: ['rx1310', 'reading_at'],
+    numeric: ['rx1310'],
+  },
+  'onu.rx1490_reading': {
+    family: 'onus',
+    required: ['rx1490', 'reading_at'],
+    numeric: ['rx1490'],
+  },
+  'onu.unconfigured_detected': { family: 'onus', required: ['sn', 'olt_id'] },
+  'pon.outage_started': { family: 'pons', required: ['olt_id', 'board', 'port'] },
+  'pon.outage_ended': { family: 'pons', required: ['olt_id', 'board', 'port'] },
+  'olt.status_stale': { family: 'olts', required: ['olt_id'] },
+  'olt.status_fresh': { family: 'olts', required: ['olt_id'] },
+};
+
+/** Si el valor es un tipo de evento que la especificación publica. */
+export function isSmartoltEventType(value: unknown): value is SmartoltEventType {
+  return typeof value === 'string' && (SMARTOLT_EVENT_TYPES as readonly string[]).includes(value);
+}
+
+/** Un número finito, aceptando el string numérico que manda algún firmware. */
+function readNumber(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && /^-?\d+(?:[.,]\d+)?$/.test(raw.trim())) {
+    const parsed = Number.parseFloat(raw.trim().replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * `{ status: true, response: { url, expires_in } }` del pedido del stream.
+ *
+ * Sin `expires_in` se asume el minuto y medio que publica el ejemplo: abrir la
+ * URL vencida es peor que pedir otra un rato antes.
+ */
+export function parseEventStreamResponse(
+  data: unknown,
+  endpoint: string = EVENT_STREAM_ENDPOINT,
+): SmartoltEventStreamUrl {
+  const issues: string[] = [];
+  const record = asRecord(data, issues, 'la respuesta');
+  const status = readStatus(record, issues);
+  const response = asRecord(record['response'], issues, '`response`');
+  const url = response['url'];
+  if (typeof url !== 'string' || url.length === 0) {
+    issues.push('`response.url` falta o no es texto');
+  }
+  const expiresIn = readOptionalInt(response, 'expires_in', issues);
+  fail(issues, endpoint);
+
+  return {
+    status,
+    url: typeof url === 'string' ? url : '',
+    expiresInSeconds:
+      expiresIn !== undefined && expiresIn > 0
+        ? expiresIn
+        : DEFAULT_EVENT_STREAM_EXPIRES_IN_SECONDS,
+  };
+}
+
+/**
+ * El cuerpo de un evento, desde el `data` crudo del frame SSE.
+ *
+ * El `data` de un frame SSE puede venir partido en varias líneas `data:` (el
+ * parser las une con `\n`), así que acá se parsea JSON y se valida la forma.
+ */
+export function parseSmartoltEventData(
+  raw: string,
+  endpoint: string = EVENT_STREAM_ENDPOINT,
+): SmartoltEventBatch {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    throw new SmartoltResponseShapeError(endpoint, ['`data` no es JSON']);
+  }
+  return parseSmartoltEventBatch(payload, endpoint);
+}
+
+/**
+ * Valida el cuerpo de un evento: el tipo, la familia de filas y las columnas
+ * que el conector consume de cada fila.
+ */
+export function parseSmartoltEventBatch(
+  payload: unknown,
+  endpoint: string = EVENT_STREAM_ENDPOINT,
+): SmartoltEventBatch {
+  const issues: string[] = [];
+  const record = asRecord(payload, issues, 'el evento');
+
+  const rawType = record['type'];
+  if (typeof rawType !== 'string') {
+    issues.push('`type` no es texto');
+  } else if (!isSmartoltEventType(rawType)) {
+    issues.push(
+      `el tipo de evento "${rawType}" no es uno que la especificación publique`,
+    );
+  }
+
+  const rawTimestamp = record['timestamp'];
+  if (rawTimestamp !== undefined && typeof rawTimestamp !== 'string') {
+    issues.push('`timestamp` no es texto');
+  }
+
+  if (record['data'] === undefined || record['data'] === null) {
+    issues.push('`data` falta');
+  }
+
+  // El tipo y la familia son la base de todo lo demás: sin ellos no hay nada
+  // que validar fila por fila.
+  fail(issues, endpoint);
+
+  const type = rawType as SmartoltEventType;
+  const spec = EVENT_ROW_SPEC[type];
+  const data = asRecord(record['data'], issues, '`data`');
+  const rows = readRows(data, spec.family, issues);
+
+  if (rows.length > SMARTOLT_MAX_EVENT_ROWS) {
+    issues.push(
+      `\`${spec.family}\` trae ${rows.length} filas y el tope del proveedor es ${SMARTOLT_MAX_EVENT_ROWS}`,
+    );
+  }
+
+  for (const [index, row] of rows.entries()) {
+    for (const field of spec.required) {
+      const value = row[field];
+      if (value === undefined || value === null || value === '') {
+        issues.push(`\`${spec.family}[${index}].${field}\` falta`);
+      }
+    }
+    for (const field of spec.numeric ?? []) {
+      const value = row[field];
+      if (value === undefined || value === null) continue;
+      if (readNumber(value) === undefined) {
+        issues.push(`\`${spec.family}[${index}].${field}\` no es un número`);
+      }
+    }
+  }
+
+  fail(issues, endpoint);
+
+  return {
+    type,
+    ...(typeof rawTimestamp === 'string' ? { timestamp: rawTimestamp } : {}),
+    family: spec.family,
+    rows,
+  };
+}

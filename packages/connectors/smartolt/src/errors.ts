@@ -90,3 +90,37 @@ export class SmartoltResponseShapeError extends Error {
     this.issues = issues;
   }
 }
+
+/** Por qué falló el stream de eventos. */
+export type SmartoltEventStreamReason =
+  | 'unknown_event_type'
+  | 'forbidden'
+  | 'unavailable'
+  | 'shape';
+
+/**
+ * El stream de eventos no se pudo usar.
+ *
+ * El `status` viaja para que quien orquesta decida: 503 y 403 se resuelven
+ * cayendo al poll programado (el proveedor lo dice en el cuerpo: «Poll
+ * get_onus_statuses instead»), mientras que un 400 es un pedido inválido —un
+ * tipo de evento que la API no conoce— y no se arregla reintentando.
+ *
+ * El mensaje nunca incluye el token del stream ni el `X-Token`: la URL del
+ * stream lleva su propio token en el query y no tiene por qué quedar en un log.
+ */
+export class SmartoltEventStreamError extends Error {
+  readonly code = 'EVENT_STREAM' as const;
+  readonly status: number;
+  readonly reason: SmartoltEventStreamReason;
+
+  constructor(
+    message: string,
+    options: { status: number; reason: SmartoltEventStreamReason },
+  ) {
+    super(message);
+    this.name = 'SmartoltEventStreamError';
+    this.status = options.status;
+    this.reason = options.reason;
+  }
+}
