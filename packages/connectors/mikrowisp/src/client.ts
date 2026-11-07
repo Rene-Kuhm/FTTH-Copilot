@@ -20,6 +20,25 @@ import {
   computeOverview,
 } from './fixtures';
 import type { MikrowispCliente, MikrowispOdb, MikrowispRouter } from './fixtures';
+import {
+  parseMikrowispClientes,
+  parseMikrowispMonitoreo,
+  parseMikrowispOdbs,
+  parseMikrowispRouters,
+  type MikrowispEnvelope,
+} from './schemas';
+
+/**
+ * El `id` que pide "todos" en `GetRouters` y `GetMonitoreo`.
+ *
+ * Los dos endpoints documentan `id` como obligatorio y su descripción dice
+ * que `-1` lista todos: es el valor que corresponde a `listOlts()` y
+ * `listOnus()`.
+ */
+const ALL_DEVICES_ID = -1;
+
+/** Los estados de cliente que documenta la API. */
+const CLIENTE_ESTADOS = ['ACTIVO', 'SUSPENDIDO', 'RETIRADO'] as const;
 
 export interface MikrowispClientOptions {
   useMock: boolean;
@@ -45,7 +64,17 @@ export class MikrowispClient implements INmsConnector {
     this.skipDnsValidation = opts.fetchImpl !== undefined;
   }
 
-  private async realFetch<T>(path: string, extraBody?: Record<string, unknown>): Promise<T> {
+  /**
+   * Una llamada HTTP, con el cuerpo validado en el borde.
+   *
+   * El token viaja en el cuerpo (es lo que documenta la API) y nunca aparece
+   * en un mensaje de error.
+   */
+  private async realFetch<T extends MikrowispEnvelope>(
+    path: string,
+    parse: (data: unknown, endpoint: string) => T,
+    extraBody?: Record<string, unknown>,
+  ): Promise<T> {
     if (!this.apiBaseUrl || !this.token) {
       throw new Error('Mikrowisp API requires apiBaseUrl and token');
     }
@@ -61,19 +90,16 @@ export class MikrowispClient implements INmsConnector {
       signal: AbortSignal.timeout(NMS_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
-      throw new Error(`Mikrowisp API ${res.status}: ${res.statusText}`);
+      throw new Error(`Mikrowisp API ${res.status}: ${res.statusText} (${path})`);
     }
-    const data = await res.json();
-    if (data && typeof data === 'object') {
-      if ('estado' in data && data.estado !== 'exito') {
-        const msg = 'mensaje' in data ? String(data.mensaje) : String(data.estado);
-        throw new Error(`Mikrowisp API error: ${msg}`);
-      }
-      if ('code' in data && data.code !== '200') {
-        throw new Error(`Mikrowisp API error code ${String(data.code)}: ${String(data.mensaje ?? '')}`);
-      }
+    const parsed = parse((await res.json()) as unknown, path);
+    if (parsed.estado !== undefined && parsed.estado !== 'exito') {
+      throw new Error(`Mikrowisp API error: ${parsed.mensaje ?? parsed.estado}`);
     }
-    return data as T;
+    if (parsed.code !== undefined && parsed.code !== '200') {
+      throw new Error(`Mikrowisp API error code ${parsed.code}: ${parsed.mensaje ?? ''}`);
+    }
+    return parsed;
   }
 
   // ── INmsConnector implementation ──
@@ -82,7 +108,7 @@ export class MikrowispClient implements INmsConnector {
     if (this.useMock) return { ok: true, latencyMs: 18 };
     const t0 = Date.now();
     try {
-      await this.realFetch('/GetRouters');
+      await this.realFetch('/GetRouters', parseMikrowispRouters, { id: ALL_DEVICES_ID });
       return { ok: true, latencyMs: Date.now() - t0 };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown' };
@@ -93,10 +119,10 @@ export class MikrowispClient implements INmsConnector {
     if (this.useMock) {
       return FIXTURE_ROUTERS.map((r) => this.mapRouterToOlt(r));
     }
-    const data = await this.realFetch<{ routers: Array<Record<string, unknown>> }>(
-      '/GetRouters',
-    );
-    return (data.routers ?? []).map((r) => this.mapRouterToOltRaw(r));
+    const data = await this.realFetch('/GetRouters', parseMikrowispRouters, {
+      id: ALL_DEVICES_ID,
+    });
+    return data.routers.map((r) => this.mapRouterToOltRaw(r));
   }
 
   async getOltDetail(oltId: string): Promise<OltDetail> {
@@ -114,10 +140,10 @@ export class MikrowispClient implements INmsConnector {
         maxSubscribers: 256,
       };
     }
-    const data = await this.realFetch<{ routers: Array<Record<string, unknown>> }>(
-      '/GetRouters',
-    );
-    const match = (data.routers ?? []).find((r) => String(r.id) === oltId);
+    const data = await this.realFetch('/GetRouters', parseMikrowispRouters, {
+      id: ALL_DEVICES_ID,
+    });
+    const match = data.routers.find((r) => String(r['id']) === oltId);
     if (!match) throw new Error(`Router/OLT ${oltId} not found`);
     const olt = this.mapRouterToOltRaw(match);
     const onus = await this.listOnus();
@@ -153,10 +179,10 @@ export class MikrowispClient implements INmsConnector {
       if (filter?.status) result = result.filter((o) => o.status === filter.status);
       return result;
     }
-    const data = await this.realFetch<{ equipos: Array<Record<string, unknown>> }>(
-      '/GetMonitoreo',
-    );
-    let onus = (data.equipos ?? []).map((e) => this.mapEquipoToOnu(e));
+    const data = await this.realFetch('/GetMonitoreo', parseMikrowispMonitoreo, {
+      id: ALL_DEVICES_ID,
+    });
+    let onus = data.equipos.map((e) => this.mapEquipoToOnu(e));
     if (filter?.oltId) onus = onus.filter((o) => o.oltId === filter.oltId);
     if (filter?.status) onus = onus.filter((o) => o.status === filter.status);
     return onus;
@@ -174,12 +200,10 @@ export class MikrowispClient implements INmsConnector {
       if (!summary) return null;
       return { ...summary };
     }
-    const data = await this.realFetch<{ equipos: Array<Record<string, unknown>> }>(
-      '/GetMonitoreo',
-    );
-    const match = (data.equipos ?? []).find(
-      (e) => String(e.id) === identifier,
-    );
+    const data = await this.realFetch('/GetMonitoreo', parseMikrowispMonitoreo, {
+      id: ALL_DEVICES_ID,
+    });
+    const match = data.equipos.find((e) => String(e['id']) === identifier);
     if (!match) return null;
     return { ...this.mapEquipoToOnu(match) };
   }
@@ -213,8 +237,10 @@ export class MikrowispClient implements INmsConnector {
 
   async listRouters(): Promise<MikrowispRouter[]> {
     if (this.useMock) return [...FIXTURE_ROUTERS];
-    const data = await this.realFetch<{ routers: MikrowispRouter[] }>('/GetRouters');
-    return data.routers ?? [];
+    const data = await this.realFetch('/GetRouters', parseMikrowispRouters, {
+      id: ALL_DEVICES_ID,
+    });
+    return data.routers.map((r) => this.mapRouterRow(r));
   }
 
   async listClients(filter?: { status?: MikrowispCliente['estado'] }): Promise<MikrowispCliente[]> {
@@ -223,16 +249,16 @@ export class MikrowispClient implements INmsConnector {
       if (filter?.status) result = result.filter((c) => c.estado === filter.status);
       return result;
     }
-    const data = await this.realFetch<{ clientes: MikrowispCliente[] }>('/GetAllClients');
-    let clientes = data.clientes ?? [];
+    const data = await this.realFetch('/GetAllClients', parseMikrowispClientes);
+    let clientes = data.clientes.map((c) => this.mapClienteRow(c));
     if (filter?.status) clientes = clientes.filter((c) => c.estado === filter.status);
     return clientes;
   }
 
   async getOdbList(): Promise<MikrowispOdb[]> {
     if (this.useMock) return [...FIXTURE_ODBS];
-    const data = await this.realFetch<{ odbs: MikrowispOdb[] }>('/SmartOltGetODB');
-    return data.odbs ?? [];
+    const data = await this.realFetch('/SmartOltGetODB', parseMikrowispOdbs);
+    return data.odbs.map((o) => this.mapOdbRow(o));
   }
 
   /**
@@ -272,6 +298,58 @@ export class MikrowispClient implements INmsConnector {
 
   // ── Mapping helpers ──
 
+  /**
+   * Una fila de `GetRouters` a `MikrowispRouter`.
+   *
+   * El sobre ya lo validó el parser; acá se copian los campos que el tipo
+   * declara, con el mismo criterio de siempre: lo que falta queda vacío en vez
+   * de inventarse.
+   */
+  private mapRouterRow(r: Record<string, unknown>): MikrowispRouter {
+    return {
+      id: String(r['id'] ?? ''),
+      nombre: String(r['nombre'] ?? ''),
+      ip: String(r['ip'] ?? ''),
+      coordenadas: String(r['coordenadas'] ?? ''),
+      version: String(r['version'] ?? ''),
+      estado: String(r['estado'] ?? ''),
+      modelo: String(r['modelo'] ?? ''),
+      serial: String(r['serial'] ?? ''),
+    };
+  }
+
+  private mapClienteRow(c: Record<string, unknown>): MikrowispCliente {
+    const estado = String(c['estado'] ?? '');
+    const known = (CLIENTE_ESTADOS as readonly string[]).includes(estado);
+    return {
+      id: String(c['id'] ?? ''),
+      nombre: String(c['nombre'] ?? ''),
+      // Un estado que la API no documenta no se presenta como activo: cae en
+      // el mismo balde que un cliente retirado, que es el lado seguro.
+      estado: known ? (estado as MikrowispCliente['estado']) : 'RETIRADO',
+      correo: String(c['correo'] ?? ''),
+      telefono: String(c['telefono'] ?? ''),
+      movil: String(c['movil'] ?? ''),
+      cedula: String(c['cedula'] ?? ''),
+      direccion_principal: String(c['direccion_principal'] ?? ''),
+      servicios: String(c['servicios'] ?? ''),
+    };
+  }
+
+  private mapOdbRow(o: Record<string, unknown>): MikrowispOdb {
+    const splitRatio = pickFiniteNumber(o['split_ratio']);
+    const attenuation = pickFiniteNumber(o['atenuacion_db']);
+    return {
+      id: String(o['id'] ?? ''),
+      nombre_odb: String(o['nombre_odb'] ?? ''),
+      ...(o['olt_id'] === undefined || o['olt_id'] === null
+        ? {}
+        : { olt_id: String(o['olt_id']) }),
+      ...(splitRatio === undefined ? {} : { split_ratio: splitRatio }),
+      ...(attenuation === undefined ? {} : { atenuacion_db: attenuation }),
+    };
+  }
+
   private mapRouterToOlt(r: MikrowispRouter): OltSummary {
     return {
       id: r.id,
@@ -284,14 +362,7 @@ export class MikrowispClient implements INmsConnector {
   }
 
   private mapRouterToOltRaw(r: Record<string, unknown>): OltSummary {
-    return {
-      id: String(r.id ?? ''),
-      name: String(r.nombre ?? ''),
-      ip: String(r.ip ?? ''),
-      status: String(r.estado ?? '') === 'activo' ? 'online' : 'offline',
-      uptimeSeconds: undefined,
-      temperatureCelsius: undefined,
-    };
+    return this.mapRouterToOlt(this.mapRouterRow(r));
   }
 
   private mapEquipoToOnu(e: Record<string, unknown>): OnuSummary {
@@ -309,4 +380,17 @@ export class MikrowispClient implements INmsConnector {
       lastSeenAt: undefined,
     };
   }
+}
+
+/**
+ * Un número finito de una fila, aceptando el texto numérico que a veces manda
+ * la API. Cualquier otra cosa queda `undefined`.
+ */
+function pickFiniteNumber(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number.parseFloat(raw.trim());
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
