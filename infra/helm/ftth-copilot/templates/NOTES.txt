@@ -1,0 +1,18 @@
+FTTH-Copilot fue desplegado en Kubernetes ({{ .Release.Name }} / namespace {{ .Release.Namespace }}).
+
+1. Web UI / API:
+{{- if .Values.web.ingress.enabled }}
+{{- range .Values.web.ingress.hosts }}
+  http{{ if $.Values.web.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ftth-copilot.fullname" . }}-web 3001:{{ .Values.web.service.port }}
+  Luego abri http://127.0.0.1:3001
+{{- end }}
+
+2. Worker (SNMP {{ .Values.worker.service.snmpPort }}/udp, Syslog {{ .Values.worker.service.syslogPort }}/udp):
+{{- if .Values.worker.service.enabled }}
+  Servicio: {{ include "ftth-copilot.fullname" . }}-worker ({{ .Values.worker.service.type }})
+{{- end }}
+  Nota: Para preservar la IP de origen UDP en produccion usa LoadBalancer/NodePort con
+  worker.service.externalTrafficPolicy=Local o worker.hostNetwork=true segun tu CNI.

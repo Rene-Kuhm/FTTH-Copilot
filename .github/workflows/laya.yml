@@ -1,0 +1,38 @@
+name: Laya Python Service Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/laya/**"
+      - ".github/workflows/laya.yml"
+  pull_request:
+    paths:
+      - "services/laya/**"
+      - ".github/workflows/laya.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: laya-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: Pytest (services/laya)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Python test dependencies and run pytest
+        working-directory: services/laya
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements-dev.txt
+          .venv/bin/python -m py_compile app.py
+          .venv/bin/pytest -v
