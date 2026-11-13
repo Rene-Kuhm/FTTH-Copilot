@@ -84,7 +84,7 @@ Para un entorno `staging` efímero se eligió **1 NAT Gateway compartido** (`ena
    aws ecr get-login-password --region "$AWS_REGION" | \
      docker login --username AWS --password-stdin "${WEB_REPO%/*}"
 
-   docker build -f apps/web/Dockerfile -t "$WEB_REPO:v0.7.1" .
+   docker build -f Dockerfile -t "$WEB_REPO:v0.7.1" .
    docker push "$WEB_REPO:v0.7.1"
 
    docker build -f services/worker/Dockerfile -t "$WORKER_REPO:v0.7.1" .
