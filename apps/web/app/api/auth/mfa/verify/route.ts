@@ -186,7 +186,7 @@ async function handleMfaContinue(
   // Verify tempToken and extract user info
   const { verifyToken } = await import('@ftth-copilot/db');
   const claims = verifyToken(tempToken);
-  if (!claims) {
+  if (!claims || !claims.isTemp) {
     return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
   }
 

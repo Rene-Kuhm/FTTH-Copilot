@@ -71,7 +71,7 @@ describe('tenant MFA policy API & disable guard', () => {
     await expect(res.json()).resolves.toEqual({ requireMfa: true });
   });
 
-  it('POST /api/auth/mfa/disable blocks disabling MFA when tenant requires it', async () => {
+  it('POST /api/auth/mfa/disable blocks disabling MFA when tenant requires it and scopes to session tenantId', async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({
       id: 'u1',
       tenantId: 'ten-1',
@@ -82,10 +82,33 @@ describe('tenant MFA policy API & disable guard', () => {
     const req = new NextRequest('http://localhost/api/auth/mfa/disable', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: '123456' }),
+      body: JSON.stringify({ code: '123456', tenantId: 'ten-other' }),
     });
     const res = await mfaDisableRoute.POST(req);
     expect(res.status).toBe(403);
+    expect(mocks.isTenantMfaRequired).toHaveBeenCalledWith('ten-1');
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('middleware verifyToken rejects MFA tempToken so it cannot access protected routes', async () => {
+    const { SignJWT } = await import('jose');
+    const prevSecret = process.env['JWT_SECRET'];
+    process.env['JWT_SECRET'] = 'test-secret-for-temp-token-scope-check-32b';
+    try {
+      const secret = new TextEncoder().encode(process.env['JWT_SECRET']);
+      const tempJwt = await new SignJWT({ sub: 'u1', tenantId: 'ten-1', role: 'OWNER', isTemp: true })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setExpirationTime('5m')
+        .sign(secret);
+
+      const { verifyToken } = await import('@/middleware/jwt-verify');
+      await expect(verifyToken(tempJwt)).resolves.toBeNull();
+    } finally {
+      if (prevSecret === undefined) {
+        delete process.env['JWT_SECRET'];
+      } else {
+        process.env['JWT_SECRET'] = prevSecret;
+      }
+    }
   });
 });

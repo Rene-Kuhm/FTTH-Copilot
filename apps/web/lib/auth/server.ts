@@ -390,7 +390,7 @@ export async function handleMe(req: Request): Promise<NextResponse> {
 
 async function getUserForSessionToken(token: string): Promise<CurrentUser | null> {
   const claims = verifyToken(token);
-  if (!claims) return null;
+  if (!claims || claims.isTemp) return null;
 
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
