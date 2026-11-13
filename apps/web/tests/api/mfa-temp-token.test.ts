@@ -280,4 +280,49 @@ describe('MFA tempToken lifecycle & restrictions', () => {
       vi.useRealTimers();
     }
   });
+
+  it('POST /api/auth/mfa/verify evaluates at most 5 TOTP codes per tempToken under concurrent requests', async () => {
+    const { issueToken } = await import('@ftth-copilot/db');
+    const mfaVerifyRoute = await import('@/app/api/auth/mfa/verify/route');
+    const { token: tempToken } = issueToken('u1', 'ten-1', 'OPERATOR', true);
+
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'User',
+      role: 'OPERATOR',
+      tenantId: 'ten-1',
+      mfaEnabled: true,
+      totpSecret: { encryptedKey: 'enc' },
+    });
+    mocks.decryptApiKey.mockReturnValue('JBSWY3DPEHPK3PXP');
+    mocks.verifyTOTP.mockReturnValue(false);
+
+    const concurrentRequests = Array.from({ length: 20 }, (_, i) =>
+      mfaVerifyRoute.POST(
+        new NextRequest('http://localhost/api/auth/mfa/verify', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ tempToken, code: String(i).padStart(6, '0') }),
+        }),
+      ),
+    );
+    const responses = await Promise.all(concurrentRequests);
+    for (const res of responses) {
+      expect(res.status).toBe(401);
+    }
+    expect(mocks.verifyTOTP.mock.calls.length).toBeLessThanOrEqual(5);
+
+    mocks.verifyTOTP.mockReturnValue(true);
+    const laterRes = await mfaVerifyRoute.POST(
+      new NextRequest('http://localhost/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tempToken, code: '123456' }),
+      }),
+    );
+    expect(laterRes.status).toBe(401);
+    await expect(laterRes.json()).resolves.toEqual({ error: 'Invalid or expired temp token' });
+    expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+  });
 });
