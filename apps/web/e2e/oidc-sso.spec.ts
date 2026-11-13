@@ -19,6 +19,7 @@ import { test, expect } from '@playwright/test';
 const OIDC_E2E = process.env['OIDC_E2E_ENABLED'] === 'true';
 
 test.describe('OIDC / SSO flow (Keycloak)', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
   test.skip(!OIDC_E2E, 'Set OIDC_E2E_ENABLED=true with Keycloak profile running to execute');
 
   test('login via SSO -> callback -> /app dashboard -> logout', async ({ page }) => {
@@ -41,7 +42,9 @@ test.describe('OIDC / SSO flow (Keycloak)', () => {
     const logoutBtn = page.getByRole('button', { name: /Salir/i });
     await expect(logoutBtn).toBeVisible();
     await logoutBtn.click();
-    await page.waitForURL(/\/login|\/$/);
+    await expect(logoutBtn).not.toBeVisible();
+    await page.reload();
+    await page.waitForURL(/\/login/);
   });
 
   test('rejects SSO login when email domain is not in OIDC_ALLOWED_EMAIL_DOMAINS', async ({ page }) => {
@@ -54,6 +57,6 @@ test.describe('OIDC / SSO flow (Keycloak)', () => {
     await page.click('#kc-login');
 
     await page.waitForURL(/\/login\?error=oidc_domain_not_allowed/);
-    await expect(page.getByRole('alert')).toContainText(/dominio/i);
+    await expect(page.getByRole('alert').filter({ hasText: /dominio/i })).toBeVisible();
   });
 });
