@@ -46,9 +46,7 @@ jobs:
           tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform
           rm -f /tmp/kubeconform.tar.gz
 
-          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
-          tar -xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
-          rm -f /tmp/trivy.tar.gz
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
 
           helm plugin install https://github.com/helm-unittest/helm-unittest.git --version 0.7.2
 
