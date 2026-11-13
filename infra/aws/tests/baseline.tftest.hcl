@@ -1,5 +1,65 @@
-mock_provider "aws" {}
-mock_provider "random" {}
+mock_provider "aws" {
+  override_during = plan
+
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/test"
+    }
+  }
+
+  mock_resource "aws_iam_policy" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:policy/test"
+    }
+  }
+
+  mock_resource "aws_lb" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/test/abc123"
+    }
+  }
+
+  mock_resource "aws_lb_target_group" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/test/abc123"
+    }
+  }
+
+  mock_resource "aws_ecr_repository" {
+    defaults = {
+      repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/ftth-copilot"
+    }
+  }
+
+  mock_resource "aws_secretsmanager_secret" {
+    defaults = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ftth-copilot/test-AbCdEf"
+    }
+  }
+
+  mock_resource "aws_db_instance" {
+    defaults = {
+      address  = "ftth-copilot-test.abcdef123456.us-east-1.rds.amazonaws.com"
+      endpoint = "ftth-copilot-test.abcdef123456.us-east-1.rds.amazonaws.com:5432"
+    }
+  }
+
+  mock_resource "aws_elasticache_replication_group" {
+    defaults = {
+      primary_endpoint_address = "master.ftth-copilot-test.use1.cache.amazonaws.com"
+    }
+  }
+}
+
+mock_provider "random" {
+  override_during = plan
+
+  mock_resource "random_password" {
+    defaults = {
+      result = "test-auth-token-0123"
+    }
+  }
+}
 
 override_data {
   target = data.aws_availability_zones.available
@@ -35,7 +95,7 @@ run "rds_private_and_encrypted" {
 }
 
 run "elasticache_tls_and_auth" {
-  command = apply
+  command = plan
 
   assert {
     condition     = aws_elasticache_replication_group.redis[0].transit_encryption_enabled == true
