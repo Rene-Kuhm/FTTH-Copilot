@@ -16,10 +16,12 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "redirectUris": [
-        "http://localhost:3001/api/auth/oidc/callback"
+        "http://localhost:3001/api/auth/oidc/callback",
+        "http://localhost:3011/api/auth/oidc/callback"
       ],
       "webOrigins": [
-        "http://localhost:3001"
+        "http://localhost:3001",
+        "http://localhost:3011"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
