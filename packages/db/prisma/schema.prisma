@@ -642,6 +642,7 @@ model TenantPolicy {
   // Qué versión de cada artefacto aprendido usa el tenant. El rollback es
   // volver el pin a la versión anterior, o dejar el modo en `off`.
   learningArtifactPins Json?
+  requireMfa         Boolean        @default(false) @map("require_mfa")
   lastEvaluatedAt    DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
