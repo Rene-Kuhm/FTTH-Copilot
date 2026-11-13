@@ -246,7 +246,7 @@ Estas superficies tienen dueño, propósito o una verificación de CI que las pr
 | [`docs/quickstart.md`](docs/quickstart.md) | Los tres entornos de ejecución, paso a paso. |
 | [`docs/production-deployment.md`](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) | Catálogo canónico de OIDs y niveles de conformidad. |
-| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (PKCE) y MFA TOTP implementados; LDAP/AD como cliente y diagnóstico sin conectar al login. |
+| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (PKCE), LDAP/AD conectado al login (`POST /api/auth/ldap/login` y fallback en `/api/auth/login` con `LDAP_ENABLED=true`) con mapeo de grupos a roles, y MFA TOTP obligatoria por tenant (`TenantPolicy.requireMfa`, `/api/security/mfa-policy`). |
 | [`docs/security-audit.md`](docs/security-audit.md) | Registro técnico de la auditoría de seguridad. |
 | [`docs/testing-without-hardware.md`](docs/testing-without-hardware.md) | Inyección de trampas SNMP y simulación de incidentes sin OLT. |
 | [`docs/engineering/ADR-042-laya-decision-layer.md`](docs/engineering/ADR-042-laya-decision-layer.md) | Decisión de arquitectura del Expert System. |
