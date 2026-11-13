@@ -127,8 +127,8 @@ export function parseOidcConfig(env: Record<string, string | undefined> = proces
   const allowInsecureLoopbackIssuer = allowInsecureFlag && isLoopbackHttp;
   if (allowInsecureLoopbackIssuer) {
     log.warn(
-      { issuer: data.OIDC_ISSUER },
       'OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true is enabled; use only in development/E2E, never in production',
+      { issuer: data.OIDC_ISSUER },
     );
   }
 
