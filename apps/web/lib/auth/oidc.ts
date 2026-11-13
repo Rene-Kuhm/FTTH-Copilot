@@ -11,12 +11,14 @@ import { SignJWT, jwtVerify } from 'jose';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
-  mapGroupsToRole,
-  parseRoleMap,
   createLogger,
   correlationIdFrom,
-  type AppRole,
 } from '@ftth-copilot/shared';
+import {
+  mapGroupsToRole,
+  parseRoleMap,
+  type AppRole,
+} from '@ftth-copilot/security';
 import {
   prisma,
   hashPassword,

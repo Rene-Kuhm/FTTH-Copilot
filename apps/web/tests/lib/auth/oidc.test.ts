@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRoleMap } from '@ftth-copilot/shared';
+import { parseRoleMap } from '@ftth-copilot/security';
 import {
   extractGroupsFromClaims,
   isEmailDomainAllowed,

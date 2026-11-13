@@ -348,7 +348,6 @@ paths:
 
   /api/auth/oidc/callback:
     get:
->>>>>>> b578be5 (docs(auth): document OIDC/SSO configuration and update OpenAPI contract)
       tags: [Autenticación]
       summary: Callback OIDC / SSO tras la autenticación en el IdP.
       description: |
