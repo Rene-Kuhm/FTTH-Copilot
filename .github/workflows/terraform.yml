@@ -143,15 +143,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/aws-emulator-pkg
-          gh release view --repo aws/aws-emulator --json assets --jq '.assets[].name' > /tmp/aws-emulator-assets.txt
-          echo "Assets in the latest aws/aws-emulator release:"
-          cat /tmp/aws-emulator-assets.txt
-          ASSET="$(grep -Ei '(amd64|x86_64|x64).*\.deb$' /tmp/aws-emulator-assets.txt | head -n 1 || true)"
+          TAG=""
+          ASSET=""
+          for t in $(gh release list --repo aws/aws-emulator --limit 20 --json tagName --jq '.[].tagName'); do
+            names="$(gh release view "$t" --repo aws/aws-emulator --json assets --jq '.assets[].name')"
+            echo "release $t: $(echo "$names" | tr '\n' ' ')"
+            ASSET="$(echo "$names" | grep -Ei '(amd64|x86_64|x64).*\.deb$' | head -n 1 || true)"
+            if [ -n "$ASSET" ]; then
+              TAG="$t"
+              break
+            fi
+          done
           if [ -z "$ASSET" ]; then
-            echo "::error::the latest aws/aws-emulator release has no amd64 .deb package (see the list above)"
+            echo "::error::no amd64 .deb package in the last 20 aws/aws-emulator releases (see the list above)"
             exit 1
           fi
-          gh release download --repo aws/aws-emulator --pattern "$ASSET" --dir /tmp/aws-emulator-pkg
+          echo "Installing $ASSET from release $TAG"
+          gh release download "$TAG" --repo aws/aws-emulator --pattern "$ASSET" --dir /tmp/aws-emulator-pkg
           sudo apt-get install -y "/tmp/aws-emulator-pkg/$ASSET"
           command -v aws-emulator
 
