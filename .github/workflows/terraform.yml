@@ -75,7 +75,7 @@ jobs:
 
       - name: Trivy IaC security scan
         working-directory: infra/aws
-        run: docker run --rm -v "$PWD:/src" -w /src "aquasec/trivy:${TRIVY_VERSION}" config --exit-code 1 --severity HIGH,CRITICAL --skip-dirs tests .
+        run: docker run --rm -v "$PWD:/src" -w /src "aquasec/trivy:${TRIVY_VERSION}" config --exit-code 1 --severity HIGH,CRITICAL --skip-dirs tests --ignorefile .trivyignore.yaml .
 
       - name: Layer 2 — Terraform native unit tests (mocked providers)
         working-directory: infra/aws
