@@ -1,0 +1,82 @@
+{
+  "realm": "ftth-demo",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "clients": [
+    {
+      "clientId": "ftth-copilot-web",
+      "name": "FTTH-Copilot Web (Synthetic Dev)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "ftth-dev-oidc-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3001/api/auth/oidc/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3001"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    { "name": "noc-admins" },
+    { "name": "noc-ops" },
+    { "name": "noc-members" }
+  ],
+  "users": [
+    {
+      "username": "operator",
+      "email": "operator@ftth-demo.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev-operator-password",
+          "temporary": false
+        }
+      ],
+      "groups": ["noc-ops"]
+    },
+    {
+      "username": "outsider",
+      "email": "outsider@untrusted.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Untrusted",
+      "lastName": "Domain",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev-outsider-password",
+          "temporary": false
+        }
+      ],
+      "groups": ["noc-members"]
+    }
+  ]
+}
