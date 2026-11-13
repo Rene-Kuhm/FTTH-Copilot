@@ -202,7 +202,7 @@ redis:
   enabled: true
   image: redis:8.10.2-alpine
   port: 6379
-  auth:
+  auth: {}
     # password: left unset on purpose. A random password is generated at install
     # time when empty (templates/secret.yaml). Set secrets.existingSecret in production.
   persistence:
