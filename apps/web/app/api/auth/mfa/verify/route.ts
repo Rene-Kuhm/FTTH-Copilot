@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma, issueToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
+import { prisma, issueToken, hashToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 import { auditAuth } from '@ftth-copilot/soc';
 
@@ -207,6 +207,23 @@ async function handleMfaContinue(
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
     return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
+  }
+
+  // Consume tempToken atomically so it cannot be replayed after MFA verification completes.
+  try {
+    await prisma.authRateLimit.create({
+      data: {
+        key: `mfa_temp_used:${hashToken(tempToken)}`,
+        windowStart: new Date(0),
+        expiresAt: new Date(claims.exp * 1000),
+        count: 1,
+      },
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code === 'P2002') {
+      return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+    }
+    throw err;
   }
 
   // Complete first-time mandatory enrollment if user was pending MFA setup
