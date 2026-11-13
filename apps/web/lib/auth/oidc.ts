@@ -37,6 +37,7 @@ const OIDC_TX_TTL_SECONDS = 300; // 5 minutes
 export interface EnabledOidcConfig {
   enabled: true;
   issuer: string;
+  allowInsecureLoopbackIssuer: boolean;
   clientId: string;
   clientSecret: string;
   redirectUri: string;
@@ -59,6 +60,7 @@ const enabledOidcEnvSchema = z.object({
   OIDC_AUTO_PROVISION: z.enum(['true', 'false']).optional(),
   OIDC_ROLE_CLAIM: z.string().min(1).optional(),
   OIDC_ROLE_MAP: z.string().optional(),
+  OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: z.enum(['true', 'false']).optional(),
 });
 
 function parseAllowedDomains(raw: string | undefined): string[] {
@@ -88,6 +90,7 @@ export function parseOidcConfig(env: Record<string, string | undefined> = proces
     OIDC_AUTO_PROVISION: env['OIDC_AUTO_PROVISION'],
     OIDC_ROLE_CLAIM: env['OIDC_ROLE_CLAIM'],
     OIDC_ROLE_MAP: env['OIDC_ROLE_MAP'],
+    OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: env['OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER'],
   });
 
   if (!parsed.success) {
@@ -98,9 +101,41 @@ export function parseOidcConfig(env: Record<string, string | undefined> = proces
   }
 
   const data = parsed.data;
+  const allowInsecureFlag = data.OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER === 'true';
+  const isLoopbackHttp = isLoopbackHttpIssuer(data.OIDC_ISSUER);
+  const issuerProtocol = new URL(data.OIDC_ISSUER).protocol;
+
+  if (allowInsecureFlag && !isLoopbackHttp) {
+    throw new Error(
+      'Invalid OIDC configuration when OIDC_ENABLED=true: OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true requires an http:// loopback OIDC_ISSUER (localhost, 127.0.0.1, or [::1])',
+    );
+  }
+
+  if (issuerProtocol !== 'https:') {
+    if (!isLoopbackHttp) {
+      throw new Error(
+        'Invalid OIDC configuration when OIDC_ENABLED=true: OIDC_ISSUER must use https:// (non-loopback http:// issuers are never allowed)',
+      );
+    }
+    if (!allowInsecureFlag) {
+      throw new Error(
+        'Invalid OIDC configuration when OIDC_ENABLED=true: http:// loopback OIDC_ISSUER requires OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true (dev/E2E only)',
+      );
+    }
+  }
+
+  const allowInsecureLoopbackIssuer = allowInsecureFlag && isLoopbackHttp;
+  if (allowInsecureLoopbackIssuer) {
+    log.warn(
+      { issuer: data.OIDC_ISSUER },
+      'OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true is enabled; use only in development/E2E, never in production',
+    );
+  }
+
   return {
     enabled: true,
     issuer: data.OIDC_ISSUER,
+    allowInsecureLoopbackIssuer,
     clientId: data.OIDC_CLIENT_ID,
     clientSecret: data.OIDC_CLIENT_SECRET,
     redirectUri: data.OIDC_REDIRECT_URI,
@@ -388,9 +423,7 @@ function isLoopbackHttpIssuer(issuer: string): boolean {
 }
 
 async function discoverOidcConfiguration(cfg: EnabledOidcConfig): Promise<client.Configuration> {
-  const allowInsecure =
-    (process.env['NODE_ENV'] !== 'production' && cfg.issuer.startsWith('http://')) ||
-    isLoopbackHttpIssuer(cfg.issuer);
+  const allowInsecure = cfg.allowInsecureLoopbackIssuer && isLoopbackHttpIssuer(cfg.issuer);
   return client.discovery(
     new URL(cfg.issuer),
     cfg.clientId,

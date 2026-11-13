@@ -167,6 +167,8 @@ When `OIDC_ENABLED=true`, all required variables are validated with Zod at serve
    OIDC_AUTO_PROVISION=true
    OIDC_ROLE_CLAIM=groups
    OIDC_ROLE_MAP=noc-admins:ADMIN,noc-ops:OPERATOR
+   # Only for development/E2E with a local http:// loopback IdP; NEVER enable in production.
+   OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true
    ```
 
 ### Planned work (v2)

@@ -56,6 +56,68 @@ describe('oidc lib', () => {
         parseOidcConfig({ ...VALID_ENV, OIDC_REDIRECT_URI: 'not-a-url' }),
       ).toThrow(/OIDC_REDIRECT_URI/);
     });
+
+    it('accepts https:// OIDC_ISSUER without OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER', () => {
+      const cfg = parseOidcConfig(VALID_ENV);
+      expect(cfg.enabled).toBe(true);
+      if (!cfg.enabled) throw new Error('expected enabled');
+      expect(cfg.allowInsecureLoopbackIssuer).toBe(false);
+    });
+
+    it('rejects http:// loopback OIDC_ISSUER when OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER is not true', () => {
+      expect(() =>
+        parseOidcConfig({ ...VALID_ENV, OIDC_ISSUER: 'http://localhost:8085/realms/ftth' }),
+      ).toThrow(/OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true/);
+      expect(() =>
+        parseOidcConfig({
+          ...VALID_ENV,
+          OIDC_ISSUER: 'http://127.0.0.1:8085/realms/ftth',
+          OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: 'false',
+        }),
+      ).toThrow(/OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true/);
+    });
+
+    it('accepts http:// loopback OIDC_ISSUER only when OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true', () => {
+      const cfg = parseOidcConfig({
+        ...VALID_ENV,
+        OIDC_ISSUER: 'http://localhost:8085/realms/ftth',
+        OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: 'true',
+      });
+      expect(cfg.enabled).toBe(true);
+      if (!cfg.enabled) throw new Error('expected enabled');
+      expect(cfg.allowInsecureLoopbackIssuer).toBe(true);
+    });
+
+    it('rejects non-loopback http:// OIDC_ISSUER with or without flag and in any NODE_ENV', () => {
+      const prevNodeEnv = process.env['NODE_ENV'];
+      try {
+        for (const nodeEnv of ['development', 'test', 'production'] as const) {
+          (process.env as Record<string, string | undefined>)['NODE_ENV'] = nodeEnv;
+          expect(() =>
+            parseOidcConfig({ ...VALID_ENV, OIDC_ISSUER: 'http://idp.example.com/realms/ftth' }),
+          ).toThrow(/non-loopback http:\/\/ issuers are never allowed/);
+          expect(() =>
+            parseOidcConfig({
+              ...VALID_ENV,
+              OIDC_ISSUER: 'http://idp.example.com/realms/ftth',
+              OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: 'true',
+            }),
+          ).toThrow(/requires an http:\/\/ loopback OIDC_ISSUER/);
+        }
+      } finally {
+        (process.env as Record<string, string | undefined>)['NODE_ENV'] = prevNodeEnv;
+      }
+    });
+
+    it('throws a config error when OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true with a non-loopback https:// issuer', () => {
+      expect(() =>
+        parseOidcConfig({
+          ...VALID_ENV,
+          OIDC_ISSUER: 'https://idp.example.com/realms/ftth',
+          OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER: 'true',
+        }),
+      ).toThrow(/requires an http:\/\/ loopback OIDC_ISSUER/);
+    });
   });
 
   describe('isEmailDomainAllowed', () => {
