@@ -209,6 +209,14 @@ async function handleMfaContinue(
     return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
   }
 
+  // Complete first-time mandatory enrollment if user was pending MFA setup
+  if (!user.mfaEnabled) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { mfaEnabled: true },
+    });
+  }
+
   // Issue real session
   const ip = extractClientIp(req.headers.get('x-forwarded-for'));
   const { token, tokenHash, expiresAt } = issueToken(user.id, user.tenantId, user.role);

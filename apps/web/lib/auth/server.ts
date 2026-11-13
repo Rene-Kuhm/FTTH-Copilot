@@ -28,6 +28,8 @@ import {
   createCsrfCookie,
   clearCsrfCookie,
 } from './csrf';
+import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
+import { authenticateAndIssueLdapSession } from './ldap-login';
 import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
 
@@ -258,8 +260,12 @@ export async function handleLogin(req: Request) {
   }
 
   try {
+    const code = (body as { code?: string } | null)?.code;
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
+      if (process.env['LDAP_ENABLED'] === 'true') {
+        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+      }
       await recordFailedLogins(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined }, email, false);
@@ -267,35 +273,37 @@ export async function handleLogin(req: Request) {
     }
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
+      if (process.env['LDAP_ENABLED'] === 'true') {
+        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+      }
       await recordFailedLogins(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined }, user.id, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Check if MFA is enabled
-    if (user.mfaEnabled && user.totpSecret) {
-      // Generate temp token for MFA verification step
-      const { verifyTOTP } = await import('@/lib/auth/totp');
-      const secret = decryptApiKey(user.totpSecret);
-
-      // Read the code from the body already parsed above. Re-reading it here
-      // threw "Body is unusable", which the catch swallowed into an empty
-      // object, so the code was never seen and MFA login could never finish.
-      const code = (body as { code?: string } | null)?.code;
-
-      if (code) {
-        if (!verifyTOTP(secret, code)) {
-          return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
-        }
-      } else {
-        // Return mfaRequired to prompt for MFA verification
-        const { token: tempToken } = issueToken(user.id, user.tenantId, user.role, true);
-        return jsonResponse(
-          { mfaRequired: true, tempToken },
-          { status: 200 },
-        );
-      }
+    // Enforce user-level TOTP and tenant-level mandatory MFA policy
+    const tenantRequiresMfa = await isTenantMfaRequired(user.tenantId);
+    const mfaGate = evaluateMfaGate(user, tenantRequiresMfa, code);
+    if (mfaGate.action === 'invalid_code') {
+      return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
+    }
+    if (mfaGate.action === 'mfa_required') {
+      return jsonResponse(
+        { mfaRequired: true, tempToken: mfaGate.tempToken },
+        { status: 200 },
+      );
+    }
+    if (mfaGate.action === 'mfa_setup_required') {
+      return jsonResponse(
+        {
+          error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
+          code: 'MFA_SETUP_REQUIRED',
+          mfaSetupRequired: true,
+          tempToken: mfaGate.tempToken,
+        },
+        { status: 403 },
+      );
     }
 
     const { token, tokenHash, expiresAt } = issueToken(user.id, user.tenantId, user.role);
