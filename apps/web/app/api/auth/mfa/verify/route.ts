@@ -180,6 +180,23 @@ async function handleSetupVerification(
 
 const MAX_TEMP_TOKEN_TOTP_ATTEMPTS = 5;
 
+async function lockTempToken(usedKey: string, expiresAt: Date): Promise<void> {
+  try {
+    await prisma.authRateLimit.create({
+      data: {
+        key: usedKey,
+        windowStart: new Date(0),
+        expiresAt,
+        count: 1,
+      },
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code !== 'P2002') {
+      throw err;
+    }
+  }
+}
+
 async function handleMfaContinue(
   req: NextRequest,
   tempToken: string,
@@ -194,7 +211,7 @@ async function handleMfaContinue(
 
   const tempTokenHash = hashToken(tempToken);
   const usedKey = `mfa_temp_used:${tempTokenHash}`;
-  const failKey = `mfa_temp_fail:${tempTokenHash}`;
+  const attemptKey = `mfa_temp_attempt:${tempTokenHash}`;
   const tokenExpiresAt = new Date(claims.exp * 1000);
 
   const alreadyUsedOrLocked = await prisma.authRateLimit.findUnique({
@@ -219,40 +236,33 @@ async function handleMfaContinue(
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
+  // Reserve an attempt atomically BEFORE verifying TOTP so concurrent requests
+  // cannot bypass the 5-attempt cap.
+  const attemptRecord = await prisma.authRateLimit.upsert({
+    where: { key_windowStart: { key: attemptKey, windowStart: new Date(0) } },
+    create: {
+      key: attemptKey,
+      windowStart: new Date(0),
+      expiresAt: tokenExpiresAt,
+      count: 1,
+    },
+    update: {
+      count: { increment: 1 },
+    },
+    select: { count: true },
+  });
+
+  if (attemptRecord.count > MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
+    await lockTempToken(usedKey, tokenExpiresAt);
+    return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+  }
+
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
-    const failRecord = await prisma.authRateLimit.upsert({
-      where: { key_windowStart: { key: failKey, windowStart: new Date(0) } },
-      create: {
-        key: failKey,
-        windowStart: new Date(0),
-        expiresAt: tokenExpiresAt,
-        count: 1,
-      },
-      update: {
-        count: { increment: 1 },
-      },
-      select: { count: true },
-    });
-
-    if (failRecord.count >= MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
-      try {
-        await prisma.authRateLimit.create({
-          data: {
-            key: usedKey,
-            windowStart: new Date(0),
-            expiresAt: tokenExpiresAt,
-            count: 1,
-          },
-        });
-      } catch (err) {
-        if ((err as { code?: string })?.code !== 'P2002') {
-          throw err;
-        }
-      }
+    if (attemptRecord.count === MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
+      await lockTempToken(usedKey, tokenExpiresAt);
       return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
     }
-
     return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
   }
 
