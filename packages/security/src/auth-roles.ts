@@ -1,28 +1,46 @@
 export type RbacRole = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
+export type AppRole = RbacRole;
 
-export const RBAC_ROLE_RANK: Record<RbacRole, number> = {
+export const RBAC_ROLE_RANK: Readonly<Record<RbacRole, number>> = {
   OWNER: 3,
   ADMIN: 2,
   OPERATOR: 1,
   MEMBER: 0,
 };
 
-const DEFAULT_ROLE_MAP_SPEC = 'CN=NOC-Admins:ADMIN,CN=NOC-Ops:OPERATOR,CN=NOC-Members:MEMBER';
+export const DEFAULT_ROLE_MAP_ENTRIES: readonly string[] = [
+  'CN=NOC-Admins:ADMIN',
+  'CN=NOC-Ops:OPERATOR',
+  'CN=NOC-Members:MEMBER',
+];
+
+function isRbacRole(value: string): value is RbacRole {
+  return Object.hasOwn(RBAC_ROLE_RANK, value);
+}
 
 /**
  * Parse a comma-separated `group:ROLE` mapping string into a lowercase-keyed Map.
+ * Splits on the last `:` so group names or URNs containing colons are preserved.
  * Invalid roles or empty entries are ignored; when a group appears twice, the last entry wins.
  */
-export function parseRoleMap(roleMapStr?: string): Map<string, RbacRole> {
+export function parseRoleMap(
+  roleMapStr?: string,
+  defaultEntries: readonly string[] = DEFAULT_ROLE_MAP_ENTRIES,
+): Map<string, RbacRole> {
   const roleMap = new Map<string, RbacRole>();
-  const source = roleMapStr !== undefined && roleMapStr.trim() !== '' ? roleMapStr : DEFAULT_ROLE_MAP_SPEC;
+  const source =
+    roleMapStr !== undefined && roleMapStr.trim() !== ''
+      ? roleMapStr
+      : defaultEntries.join(',');
 
-  for (const entry of source.split(',')) {
-    const colonIdx = entry.indexOf(':');
-    if (colonIdx <= 0) continue;
-    const group = entry.slice(0, colonIdx).trim();
-    const role = entry.slice(colonIdx + 1).trim().toUpperCase() as RbacRole;
-    if (group && role in RBAC_ROLE_RANK) {
+  for (const rawEntry of source.split(',')) {
+    const entry = rawEntry.trim();
+    if (!entry) continue;
+    const sepIdx = entry.lastIndexOf(':');
+    if (sepIdx <= 0) continue;
+    const group = entry.slice(0, sepIdx).trim();
+    const role = entry.slice(sepIdx + 1).trim().toUpperCase();
+    if (group && isRbacRole(role)) {
       roleMap.set(group.toLowerCase(), role);
     }
   }
@@ -32,7 +50,8 @@ export function parseRoleMap(roleMapStr?: string): Map<string, RbacRole> {
 
 /**
  * Map a list of directory/IdP group names to the highest-privilege FTTH role.
- * Falls back to `defaultRole` (MEMBER) when no group matches.
+ * Comparison is case-insensitive. Falls back to `defaultRole` (`MEMBER`)
+ * when no group matches.
  */
 export function mapGroupsToRole(
   groups: readonly string[],
