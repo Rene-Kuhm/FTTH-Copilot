@@ -178,6 +178,8 @@ async function handleSetupVerification(
   });
 }
 
+const MAX_TEMP_TOKEN_TOTP_ATTEMPTS = 5;
+
 async function handleMfaContinue(
   req: NextRequest,
   tempToken: string,
@@ -187,6 +189,19 @@ async function handleMfaContinue(
   const { verifyToken } = await import('@ftth-copilot/db');
   const claims = verifyToken(tempToken);
   if (!claims || !claims.isTemp) {
+    return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+  }
+
+  const tempTokenHash = hashToken(tempToken);
+  const usedKey = `mfa_temp_used:${tempTokenHash}`;
+  const failKey = `mfa_temp_fail:${tempTokenHash}`;
+  const tokenExpiresAt = new Date(claims.exp * 1000);
+
+  const alreadyUsedOrLocked = await prisma.authRateLimit.findUnique({
+    where: { key_windowStart: { key: usedKey, windowStart: new Date(0) } },
+    select: { id: true },
+  });
+  if (alreadyUsedOrLocked) {
     return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
   }
 
@@ -206,6 +221,38 @@ async function handleMfaContinue(
 
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
+    const failRecord = await prisma.authRateLimit.upsert({
+      where: { key_windowStart: { key: failKey, windowStart: new Date(0) } },
+      create: {
+        key: failKey,
+        windowStart: new Date(0),
+        expiresAt: tokenExpiresAt,
+        count: 1,
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      select: { count: true },
+    });
+
+    if (failRecord.count >= MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
+      try {
+        await prisma.authRateLimit.create({
+          data: {
+            key: usedKey,
+            windowStart: new Date(0),
+            expiresAt: tokenExpiresAt,
+            count: 1,
+          },
+        });
+      } catch (err) {
+        if ((err as { code?: string })?.code !== 'P2002') {
+          throw err;
+        }
+      }
+      return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+    }
+
     return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
   }
 
@@ -213,9 +260,9 @@ async function handleMfaContinue(
   try {
     await prisma.authRateLimit.create({
       data: {
-        key: `mfa_temp_used:${hashToken(tempToken)}`,
+        key: usedKey,
         windowStart: new Date(0),
-        expiresAt: new Date(claims.exp * 1000),
+        expiresAt: tokenExpiresAt,
         count: 1,
       },
     });
