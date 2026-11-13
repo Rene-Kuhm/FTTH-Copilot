@@ -44,11 +44,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
-          unzip -q /tmp/terraform.zip -d /usr/local/bin
+          unzip -qo /tmp/terraform.zip -d /usr/local/bin
           rm -f /tmp/terraform.zip
 
           curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_amd64.zip" -o /tmp/tflint.zip
-          unzip -q /tmp/tflint.zip -d /usr/local/bin
+          unzip -qo /tmp/tflint.zip -d /usr/local/bin
           rm -f /tmp/tflint.zip
 
           curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
@@ -112,7 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
-          unzip -q /tmp/terraform.zip -d /usr/local/bin
+          unzip -qo /tmp/terraform.zip -d /usr/local/bin
           rm -f /tmp/terraform.zip
 
           sudo apt-get update -qq
