@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ftth-copilot
+description: Helm chart for FTTH-Copilot (NOC/SOC platform for FTTH ISPs — Next.js web, BullMQ/SNMP/syslog worker, and optional dev PostgreSQL/Redis)
+type: application
+version: 0.7.1
+appVersion: "0.7.1"
+keywords:
+  - ftth
+  - noc
+  - soc
+  - snmp
+  - syslog
+  - nextjs
+maintainers:
+  - name: FTTH-Copilot Maintainers

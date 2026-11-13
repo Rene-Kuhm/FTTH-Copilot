@@ -55,7 +55,7 @@ echo "[backup] Created: ${BACKUP_PATH} (${BACKUP_SIZE})"
 
 # ── Symlink to latest ────────────────────────────────────────────────────────
 
-ln -sf "${BACKUP_PATH}" "${BACKUP_DIR}/latest.sql.gz"
+ln -sf "${BACKUP_NAME}" "${BACKUP_DIR}/latest.sql.gz"
 echo "[backup] Updated: ${BACKUP_DIR}/latest.sql.gz → ${BACKUP_NAME}"
 
 # ── Retention: daily ─────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ if [ "${IS_WEEKLY}" = "true" ]; then
   WEEKLY_NAME="ftth_weekly_${TIMESTAMP}.sql.gz"
   WEEKLY_PATH="${BACKUP_DIR}/${WEEKLY_NAME}"
   cp "${BACKUP_PATH}" "${WEEKLY_PATH}"
-  ln -sf "${WEEKLY_PATH}" "${BACKUP_DIR}/latest_weekly.sql.gz"
+  ln -sf "${WEEKLY_NAME}" "${BACKUP_DIR}/latest_weekly.sql.gz"
   echo "[backup] Created weekly backup: ${WEEKLY_PATH}"
 
   DELETED=0

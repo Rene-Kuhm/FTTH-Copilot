@@ -36,6 +36,34 @@ describe('workerRedisConnectionOptions', () => {
   it('disables the retry limit, which BullMQ requires for workers', () => {
     const options = workerRedisConnectionOptions({ REDIS_URL: 'redis://cache:6379' });
     expect(options.url).toBe('redis://cache:6379');
+    expect(options.host).toBe('cache');
+    expect(options.port).toBe(6379);
+    expect(options.tls).toBeUndefined();
+    expect(options.maxRetriesPerRequest).toBeNull();
+  });
+
+  it('parses rediss:// URLs with auth token and TLS for ElastiCache', () => {
+    const options = workerRedisConnectionOptions({
+      REDIS_URL: 'rediss://:auth-token@master.ftth.use1.cache.amazonaws.com:6379/2',
+    });
+    expect(options.host).toBe('master.ftth.use1.cache.amazonaws.com');
+    expect(options.port).toBe(6379);
+    expect(options.password).toBe('auth-token');
+    expect(options.db).toBe(2);
+    expect(options.tls).toEqual({});
+    expect(options.maxRetriesPerRequest).toBeNull();
+  });
+
+  it('parses rediss:// URLs without auth token and enables TLS', () => {
+    const options = workerRedisConnectionOptions({
+      REDIS_URL: 'rediss://redis.example.com:6380',
+    });
+    expect(options.host).toBe('redis.example.com');
+    expect(options.port).toBe(6380);
+    expect(options.username).toBeUndefined();
+    expect(options.password).toBeUndefined();
+    expect(options.db).toBeUndefined();
+    expect(options.tls).toEqual({});
     expect(options.maxRetriesPerRequest).toBeNull();
   });
 });
