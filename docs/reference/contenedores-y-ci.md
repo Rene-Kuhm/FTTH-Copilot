@@ -145,8 +145,14 @@ timer systemd comentada (`:47-50`). Es el único `*.service` del repo.
 | `build-android.yml` | invocable (`workflow_call`) | `build` (`:36`) — Node 22, pnpm 11.22.0, JDK 21, Android SDK (platform-tools, android-34, build-tools 34.0.0), `cap sync`, `gradlew assembleDebug` + `assembleRelease`; `attach-to-release` (`:244`) — en modo release |
 | `tauri-desktop.yml` | push a `main`/`tauri-desktop`, PR sobre `apps/web/**`, `apps/web/src-tauri/**` | `build-linux` (`:46`) y `build-windows` (`:88`) — usan la acción compuesta `desktop-build` en modo validación (sin atestación) |
 | `android-apk.yml` | push a `main`/`design-system-v1`/`capacitor-android`, PR sobre `apps/web/**`, `apps/web/android/**` | `build` (`:45`) — usa la acción compuesta `android-build` en modo validación (sin atestación) |
+| `terraform.yml` | push a `main` y PR sobre `infra/aws/**`, `scripts/db-backup.sh`, `scripts/db-restore.sh`, `.github/workflows/terraform.yml`, `workflow_dispatch` (`:3-17`) | `static-and-mock-tests` (`:33`) — Layer 1-2 (`terraform fmt`, `validate`, `tflint`, Trivy y `terraform test` con providers mockeados); `emulator-integration` (`:84`) — Layer 3-4 contra AWS Emulator + Postgres 16 (apply, idempotencia y backup/restore S3) |
+| `helm.yml` | push a `main` y PR sobre `infra/helm/**`, `.github/workflows/helm.yml`, `workflow_dispatch` (`:3-13`) | `lint-validate-and-test` (`:27`) — `helm lint`, `helm template` + `kubeconform`, `helm-unittest` y escaneo Trivy sobre `infra/helm/ftth-copilot` |
+| `laya.yml` | push a `main` y PR sobre `services/laya/**`, `.github/workflows/laya.yml`, `workflow_dispatch` (`:3-13`) | `pytest` (`:22`) — crea `.venv` con `python3 -m venv .venv`, instala `requirements-dev.txt`, valida `py_compile app.py` y ejecuta `.venv/bin/pytest -v` |
 | `.github/actions/android-build` | acción compuesta | `mise` + JDK 21 + Android SDK + `cap sync` + `gradlew assembleDebug`/`assembleRelease` |
 | `.github/actions/desktop-build` | acción compuesta | `mise` + Rust estable + webkit2gtk (Linux) + `pnpm build` + `pnpm tauri:prepare` + `tauri build --bundles <bundles>` |
+
+> [!NOTE]
+> En `terraform.yml`, el job `emulator-integration` (Layer 3-4) acota el `terraform apply` a storage, backups, ECR y Secrets Manager (sin los recursos que crean `aws_security_group`) porque `aws-emulator` v1.0.345 rechaza la llamada `RevokeSecurityGroupEgress` (`FromPort=0, ToPort=0`) que el provider AWS ejecuta por defecto al crear security groups en una VPC (`.github/workflows/terraform.yml:184-185`).
 
 Entorno de CI: `mise` con versiones exactas (`MISE_VERSION=2026.10.12`, `mise.toml` + `mise.lock`). Ver
 [§ entorno hermético](../engineering/hermetic-environment.md).
