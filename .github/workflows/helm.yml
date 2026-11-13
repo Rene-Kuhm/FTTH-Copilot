@@ -1,0 +1,86 @@
+name: Helm Chart Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/helm/**"
+      - ".github/workflows/helm.yml"
+  pull_request:
+    paths:
+      - "infra/helm/**"
+      - ".github/workflows/helm.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: helm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HELM_VERSION: "3.17.3"
+  KUBECONFORM_VERSION: "0.6.7"
+  TRIVY_VERSION: "0.60.0"
+
+jobs:
+  lint-validate-and-test:
+    name: Helm Lint, Kubeconform, Unittest & Trivy
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Helm, Kubeconform, Trivy, and helm-unittest
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform
+          rm -f /tmp/kubeconform.tar.gz
+
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          tar -xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm -f /tmp/trivy.tar.gz
+
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version 0.7.2
+
+      - name: Helm lint (default & production values)
+        run: |
+          helm lint infra/helm/ftth-copilot
+          helm lint infra/helm/ftth-copilot \
+            --set postgresql.enabled=false \
+            --set redis.enabled=false \
+            --set secrets.existingSecret=ftth-prod-secrets \
+            --set web.ingress.enabled=true \
+            --set web.autoscaling.enabled=true \
+            --set worker.service.type=LoadBalancer \
+            --set worker.service.externalTrafficPolicy=Local
+
+      - name: Render manifests and validate with Kubeconform
+        run: |
+          mkdir -p /tmp/rendered
+          helm template ftth infra/helm/ftth-copilot > /tmp/rendered/default.yaml
+          helm template ftth infra/helm/ftth-copilot \
+            --set postgresql.enabled=false \
+            --set redis.enabled=false \
+            --set secrets.existingSecret=ftth-prod-secrets \
+            --set web.ingress.enabled=true \
+            --set web.autoscaling.enabled=true \
+            --set worker.service.type=LoadBalancer \
+            --set worker.service.externalTrafficPolicy=Local \
+            > /tmp/rendered/prod.yaml
+          kubeconform -strict -summary /tmp/rendered/default.yaml /tmp/rendered/prod.yaml
+
+      - name: Run helm-unittest
+        run: helm unittest infra/helm/ftth-copilot
+
+      - name: Trivy Kubernetes manifest scan
+        run: trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered/prod.yaml
