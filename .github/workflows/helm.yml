@@ -48,7 +48,7 @@ jobs:
 
           docker pull "aquasec/trivy:${TRIVY_VERSION}"
 
-          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version 0.7.2
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version 0.7.2 --verify=false
 
       - name: Helm lint (default & production values)
         run: |
