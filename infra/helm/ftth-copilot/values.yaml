@@ -178,7 +178,8 @@ postgresql:
   port: 5432
   auth:
     username: ftth
-    password: ""
+    # password: left unset on purpose. When empty, a random password is generated
+    # at install time (templates/secret.yaml). Set secrets.existingSecret in production.
     database: ftth_copilot
   persistence:
     enabled: false
@@ -202,7 +203,8 @@ redis:
   image: redis:8.10.2-alpine
   port: 6379
   auth:
-    password: ""
+    # password: left unset on purpose. A random password is generated at install
+    # time when empty (templates/secret.yaml). Set secrets.existingSecret in production.
   persistence:
     enabled: false
     size: 2Gi
