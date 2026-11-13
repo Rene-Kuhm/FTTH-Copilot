@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma, verifyToken, encryptApiKey } from '@ftth-copilot/db';
+import { prisma, verifyToken, hashToken, encryptApiKey } from '@ftth-copilot/db';
 import { generateSecret, generateOtpAuthUri } from '@/lib/auth/totp';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const authHeader = req.headers.get('authorization');
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
     const claims = bearer ? verifyToken(bearer) : null;
-    if (claims?.isTemp) {
+    if (claims?.isTemp && bearer) {
+      const used = await prisma.authRateLimit.findUnique({
+        where: { key_windowStart: { key: `mfa_temp_used:${hashToken(bearer)}`, windowStart: new Date(0) } },
+        select: { id: true },
+      });
+      if (used) {
+        return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+      }
       userId = claims.sub;
     }
   }

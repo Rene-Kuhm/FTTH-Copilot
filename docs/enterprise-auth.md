@@ -198,6 +198,7 @@ Content-Type: application/json
 
 When `requireMfa` is `true` for a tenant:
 - Users who have not enrolled TOTP receive `403` with `code: "MFA_SETUP_REQUIRED"` and a short-lived `tempToken` (usable with `POST /api/auth/mfa/setup` via `Authorization: Bearer <tempToken>` and `POST /api/auth/mfa/verify`).
+- Each `tempToken` is single-use once MFA verification succeeds and is locked after **5 invalid TOTP attempts** on `POST /api/auth/mfa/verify` (tracked per token in `auth_rate_limits` until token expiry; subsequent attempts with that `tempToken` return `401`, even with a valid code).
 - `POST /api/auth/mfa/disable` rejects requests with `403` so users cannot disable MFA while the tenant policy requires it.
 
 ---
