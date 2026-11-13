@@ -46,7 +46,7 @@ jobs:
           tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform
           rm -f /tmp/kubeconform.tar.gz
 
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+          docker pull "aquasec/trivy:${TRIVY_VERSION}"
 
           helm plugin install https://github.com/helm-unittest/helm-unittest.git --version 0.7.2
 
@@ -81,4 +81,4 @@ jobs:
         run: helm unittest infra/helm/ftth-copilot
 
       - name: Trivy Kubernetes manifest scan
-        run: trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered/prod.yaml
+        run: docker run --rm -v /tmp:/tmp "aquasec/trivy:${TRIVY_VERSION}" config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered/prod.yaml
