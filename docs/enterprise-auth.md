@@ -6,7 +6,7 @@ FTTH-Copilot supports one authentication method today. The other two exist as li
 |--------|--------|----------|-----------------|
 | Email + Password | **Implemented** | Development / single tenant | Low |
 | OIDC / SSO | **Not implemented** — the endpoint returns 501 | Corporate IdPs (Google Workspace, Azure AD, Okta, Keycloak) | — |
-| LDAP / Active Directory | **Client and connectivity diagnostic only** — not wired to the login flow | Enterprise with existing AD infrastructure | Medium |
+| LDAP / Active Directory | **Implemented** — wired to `/api/auth/login` and `/api/auth/ldap/login` | Enterprise with existing AD infrastructure | Medium |
 
 | Method | Best for | Setup complexity |
 |--------|----------|-----------------|
@@ -18,7 +18,7 @@ FTTH-Copilot supports one authentication method today. The other two exist as li
 
 ## LDAP / Active Directory
 
-LDAP support ships as a **client library and a connectivity diagnostic**. It is **not wired to the login flow**: users do not sign in with their corporate credentials yet, even though group membership maps to FTTH roles. The login route accepts email and password only.
+LDAP authentication is wired to `POST /api/auth/ldap/login` (using corporate `username` + `password`) and as a fallback in `POST /api/auth/login` when `LDAP_ENABLED=true`. Directory groups are mapped to FTTH-Copilot roles via shared `mapGroupsToRole()` (`@ftth-copilot/security`), and users are provisioned or updated in the tenant configured by `LDAP_TENANT_SLUG`.
 
 ### How it works
 
@@ -35,6 +35,7 @@ Set these environment variables:
 ```env
 # Enable LDAP
 LDAP_ENABLED=true
+LDAP_TENANT_SLUG=demo-isp
 
 # Server
 LDAP_URL=ldap://ldap.example.com:389
@@ -126,16 +127,28 @@ After login, users can enable TOTP-based MFA in **Configuración → Seguridad**
 
 Requires any TOTP-compatible app (Google Authenticator, Authy, 1Password, etc.).
 
-### Forcing MFA
+### Mandatory MFA per tenant
 
-Not available. There is no setting that requires MFA for all users: no code reads `MFA_REQUIRED`, so setting it has no effect. Each user enables TOTP individually.
+`OWNER` or `ADMIN` users can enforce TOTP MFA for every user in their tenant via `TenantPolicy.requireMfa`:
+
+```http
+GET /api/security/mfa-policy
+PUT /api/security/mfa-policy
+Content-Type: application/json
+
+{ "requireMfa": true }
+```
+
+When `requireMfa` is `true` for a tenant:
+- Users who have not enrolled TOTP receive `403` with `code: "MFA_SETUP_REQUIRED"` and a short-lived `tempToken` (usable with `POST /api/auth/mfa/setup` via `Authorization: Bearer <tempToken>` and `POST /api/auth/mfa/verify`).
+- Each `tempToken` is single-use once MFA verification succeeds and is locked after **5 invalid TOTP attempts** on `POST /api/auth/mfa/verify` (tracked per token in `auth_rate_limits` until token expiry; subsequent attempts with that `tempToken` return `401`, even with a valid code).
+- `POST /api/auth/mfa/disable` rejects requests with `403` so users cannot disable MFA while the tenant policy requires it.
 
 ---
 
 ## Combined auth
 
-Today the login page offers one method:
-- **Email + Password** — local account
-
-The other two are not selectable: LDAP is not connected to the login flow and OIDC/SSO is not implemented. Enabling `LDAP_ENABLED` or setting `NEXTAUTH_OIDC_ISSUER` does not add them to the login page.
+- **Email + Password (`POST /api/auth/login`):** authenticates local accounts and falls back to LDAP when `LDAP_ENABLED=true`.
+- **LDAP / Active Directory (`POST /api/auth/ldap/login`):** authenticates corporate `username` + `password` against `LDAP_URL`, provisions/syncs the user in `LDAP_TENANT_SLUG`, and enforces user and tenant MFA policies.
+- **OIDC / SSO:** not implemented on this branch (see Phase 1).
 

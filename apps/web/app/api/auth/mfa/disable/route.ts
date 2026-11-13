@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
+import { isTenantMfaRequired } from '@/lib/auth/mfa-policy';
 import { prisma, decryptApiKey } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 
@@ -21,6 +22,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  if (await isTenantMfaRequired(user.tenantId)) {
+    return NextResponse.json(
+      { error: 'MFA es obligatorio por política del tenant y no puede deshabilitarse' },
+      { status: 403 },
+    );
   }
 
   const body = await req.json().catch(() => null);

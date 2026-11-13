@@ -52,6 +52,7 @@ export async function verifyToken(
     // The payload uses `sub` for the user id; expose `userId` because that is
     // what the middleware reads when setting the identity headers.
     const claims = payload as unknown as Record<string, unknown>;
+    if (claims['isTemp'] === true) return null;
     return {
       userId: (claims['sub'] as string) ?? (claims['userId'] as string) ?? '',
       tenantId: (claims['tenantId'] as string) ?? '',
