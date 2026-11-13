@@ -15,7 +15,7 @@ import { generateSecret, generateOtpAuthUri } from '@/lib/auth/totp';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req?: NextRequest): Promise<NextResponse> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   let userId: string | null = null;
   let userEmail: string | null = null;
 
@@ -23,7 +23,7 @@ export async function POST(req?: NextRequest): Promise<NextResponse> {
   if (sessionUser) {
     userId = sessionUser.id;
     userEmail = sessionUser.email;
-  } else if (req) {
+  } else {
     const authHeader = req.headers.get('authorization');
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
     const claims = bearer ? verifyToken(bearer) : null;
