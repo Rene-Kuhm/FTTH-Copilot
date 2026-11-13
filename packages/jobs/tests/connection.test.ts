@@ -53,4 +53,17 @@ describe('workerRedisConnectionOptions', () => {
     expect(options.tls).toEqual({});
     expect(options.maxRetriesPerRequest).toBeNull();
   });
+
+  it('parses rediss:// URLs without auth token and enables TLS', () => {
+    const options = workerRedisConnectionOptions({
+      REDIS_URL: 'rediss://redis.example.com:6380',
+    });
+    expect(options.host).toBe('redis.example.com');
+    expect(options.port).toBe(6380);
+    expect(options.username).toBeUndefined();
+    expect(options.password).toBeUndefined();
+    expect(options.db).toBeUndefined();
+    expect(options.tls).toEqual({});
+    expect(options.maxRetriesPerRequest).toBeNull();
+  });
 });
