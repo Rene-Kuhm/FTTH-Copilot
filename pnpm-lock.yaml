@@ -922,9 +922,6 @@ importers:
       '@ftth-copilot/security':
         specifier: workspace:*
         version: link:../security
-      '@ftth-copilot/shared':
-        specifier: workspace:*
-        version: link:../shared
       ldapts:
         specifier: ^9.2.0
         version: 9.2.0
