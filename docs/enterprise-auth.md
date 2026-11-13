@@ -1,18 +1,12 @@
 # Enterprise Authentication Guide
 
-FTTH-Copilot supports one authentication method today. The other two exist as libraries only:
+FTTH-Copilot supports three authentication methods today:
 
 | Method | Status | Best for | Setup complexity |
 |--------|--------|----------|-----------------|
 | Email + Password | **Implemented** | Development / single tenant | Low |
-| OIDC / SSO | **Not implemented** — the endpoint returns 501 | Corporate IdPs (Google Workspace, Azure AD, Okta, Keycloak) | — |
+| OIDC / SSO | **Implemented** (Authorization Code + PKCE S256) | Corporate IdPs (Google Workspace, Azure AD / Entra ID, Keycloak, Okta) | Medium |
 | LDAP / Active Directory | **Implemented** — wired to `/api/auth/login` and `/api/auth/ldap/login` | Enterprise with existing AD infrastructure | Medium |
-
-| Method | Best for | Setup complexity |
-|--------|----------|-----------------|
-| Email + Password | Development / single tenant | Low |
-| OIDC / SSO | Corporate IdPs (Google Workspace, Azure AD, Okta, Keycloak) | Medium |
-| LDAP / Active Directory | Enterprise with existing AD infrastructure | Medium |
 
 ---
 
@@ -98,26 +92,89 @@ On first LDAP login, FTTH-Copilot creates a local user record linked to the LDAP
 
 ## OIDC / SSO
 
-Configure NextAuth to use a generic OIDC provider:
+FTTH-Copilot implements **OAuth 2.0 Authorization Code + PKCE (S256)** via `openid-client`, issuing the same revocable `ftth_session` cookie and CSRF token as local login.
 
-> [!WARNING]
-> **OIDC / SSO is not implemented.** `apps/web/app/api/auth/[...nextauth]/route.ts` returns **501** and no `next-auth` dependency is installed. The variables below are the ones a future implementation would read; setting them today does not enable SSO.
+- **Start flow:** `GET /api/auth/oidc/login`
+- **Callback:** `GET /api/auth/oidc/callback`
+- **Scope v1:** single IdP per installation bound to one tenant (`OIDC_TENANT_SLUG`).
+- **Identity resolution:** matches `(issuer, subject)` in `UserIdentity`; on first login, links to an existing tenant user only when `email_verified === true` and the domain is in `OIDC_ALLOWED_EMAIL_DOMAINS`, or auto-provisions if `OIDC_AUTO_PROVISION=true`.
+- **MFA:** if the user has TOTP enabled locally, TOTP verification is still required after the OIDC callback.
+
+### Environment variables
+
 ```env
-NEXTAUTH_URL=https://ftth.example.com
-NEXTAUTH_SECRET=<generate with: openssl rand -base64 32>
-
-NEXTAUTH_OIDC_ISSUER=https://accounts.google.com
-NEXTAUTH_OIDC_CLIENT_ID=<from your IdP>
-NEXTAUTH_OIDC_CLIENT_SECRET=<from your IdP>
+OIDC_ENABLED=true
+OIDC_ISSUER=https://idp.example.com/realms/ftth
+OIDC_CLIENT_ID=<from your IdP>
+OIDC_CLIENT_SECRET=<from your IdP>
+OIDC_REDIRECT_URI=https://ftth.example.com/api/auth/oidc/callback
+OIDC_TENANT_SLUG=demo-isp
+OIDC_ALLOWED_EMAIL_DOMAINS=example.com
+OIDC_AUTO_PROVISION=false
+OIDC_ROLE_CLAIM=groups
+OIDC_ROLE_MAP=noc-admins:ADMIN,noc-ops:OPERATOR
 ```
 
-IdPs a future implementation would target:
-- Google Workspace
-- Azure Active Directory
-- Okta
-- Keycloak
-- Auth0
-- Any OIDC-compliant provider
+When `OIDC_ENABLED=true`, all required variables are validated with Zod at server startup; missing or invalid values fail fast.
+
+### Provider setup
+
+#### Google Workspace
+
+1. In Google Cloud Console → **APIs & Services → Credentials**, create an **OAuth 2.0 Client ID** (Web application).
+2. Add Authorized redirect URI: `https://ftth.example.com/api/auth/oidc/callback`.
+3. Configure:
+   ```env
+   OIDC_ENABLED=true
+   OIDC_ISSUER=https://accounts.google.com
+   OIDC_CLIENT_ID=<google-client-id>
+   OIDC_CLIENT_SECRET=<google-client-secret>
+   OIDC_REDIRECT_URI=https://ftth.example.com/api/auth/oidc/callback
+   OIDC_TENANT_SLUG=your-tenant-slug
+   OIDC_ALLOWED_EMAIL_DOMAINS=yourcompany.com
+   OIDC_AUTO_PROVISION=false
+   ```
+
+#### Microsoft Entra ID (Azure AD)
+
+1. In **Microsoft Entra ID → App registrations → New registration**, set redirect URI (Web) to `https://ftth.example.com/api/auth/oidc/callback`.
+2. Under **Token configuration**, add the **groups** claim (if mapping roles via `OIDC_ROLE_MAP`).
+3. Configure:
+   ```env
+   OIDC_ENABLED=true
+   OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+   OIDC_CLIENT_ID=<application-client-id>
+   OIDC_CLIENT_SECRET=<client-secret-value>
+   OIDC_REDIRECT_URI=https://ftth.example.com/api/auth/oidc/callback
+   OIDC_TENANT_SLUG=your-tenant-slug
+   OIDC_ALLOWED_EMAIL_DOMAINS=yourcompany.com
+   OIDC_ROLE_CLAIM=groups
+   OIDC_ROLE_MAP=<group-object-id>:ADMIN,<ops-group-id>:OPERATOR
+   ```
+
+#### Keycloak (including local dev profile)
+
+1. Start the synthetic dev Keycloak with `docker compose --profile oidc up -d keycloak` (imports `docker/keycloak/ftth-realm.json` on port `8085`).
+2. Configure:
+   ```env
+   OIDC_ENABLED=true
+   OIDC_ISSUER=http://localhost:8085/realms/ftth-demo
+   OIDC_CLIENT_ID=ftth-copilot-web
+   OIDC_CLIENT_SECRET=ftth-dev-oidc-secret
+   OIDC_REDIRECT_URI=http://localhost:3001/api/auth/oidc/callback
+   OIDC_TENANT_SLUG=demo
+   OIDC_ALLOWED_EMAIL_DOMAINS=ftth-demo.example
+   OIDC_AUTO_PROVISION=true
+   OIDC_ROLE_CLAIM=groups
+   OIDC_ROLE_MAP=noc-admins:ADMIN,noc-ops:OPERATOR
+   # Only for development/E2E with a local http:// loopback IdP; NEVER enable in production.
+   OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER=true
+   ```
+
+### Planned work (v2)
+
+- **Per-tenant OIDC configuration:** storing IdP settings in PostgreSQL with `clientSecret` encrypted via the `@ftth-copilot/db` KMS (instead of installation-wide env vars).
+- **IdP MFA trust (`amr` claim):** optionally trusting the `amr` (`mfa`) claim from the IdP to skip the local TOTP prompt.
 
 ---
 
@@ -150,5 +207,5 @@ When `requireMfa` is `true` for a tenant:
 
 - **Email + Password (`POST /api/auth/login`):** authenticates local accounts and falls back to LDAP when `LDAP_ENABLED=true`.
 - **LDAP / Active Directory (`POST /api/auth/ldap/login`):** authenticates corporate `username` + `password` against `LDAP_URL`, provisions/syncs the user in `LDAP_TENANT_SLUG`, and enforces user and tenant MFA policies.
-- **OIDC / SSO:** not implemented on this branch (see Phase 1).
+- **OIDC / SSO (`GET /api/auth/oidc/login` + `GET /api/auth/oidc/callback`):** when `OIDC_ENABLED=true`, the login page also offers **Ingresar con SSO** using Authorization Code + PKCE S256.
 

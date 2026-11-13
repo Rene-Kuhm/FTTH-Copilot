@@ -21,7 +21,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ftth} -d ${POSTGRES_DB:-ftth_copilot}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-ftth} -d ${POSTGRES_DB:-ftth_copilot}",
+        ]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -61,7 +65,11 @@ services:
     healthcheck:
       # It authenticates: a bare `redis-cli ping` gets NOAUTH and still
       # exits 0, so it would report a healthy Redis that nobody can use.
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -140,7 +148,26 @@ services:
       start_period: 10s
       retries: 3
     profiles:
-      - laya  # docker compose --profile laya
+      - laya # docker compose --profile laya
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Keycloak OIDC IdP (dev/e2e only)
+  # Enable via: docker compose --profile oidc up -d keycloak
+  # ─────────────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: ftth_copilot_keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: dev-keycloak-admin
+      KC_HTTP_PORT: "8085"
+    ports:
+      - "${KEYCLOAK_PORT:-8085}:8085"
+    volumes:
+      - ./docker/keycloak/ftth-realm.json:/opt/keycloak/data/import/ftth-realm.json:ro
+    profiles:
+      - oidc
 
 volumes:
   postgres_data:

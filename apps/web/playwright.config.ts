@@ -32,5 +32,10 @@ export default defineConfig({
     port,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...(process.env as Record<string, string>),
+      OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER:
+        process.env.OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER ?? "true",
+    },
   },
 });

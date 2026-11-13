@@ -16,16 +16,49 @@ import {
 
 interface AuthBarProps {
   initialMode?: 'login' | 'signup' | null;
+  oidcEnabled?: boolean;
+  initialOidcError?: string | null;
+  initialMfaTempToken?: string | null;
 }
 
-export function AuthBar({ initialMode = null }: AuthBarProps) {
+const OIDC_ERROR_MESSAGES: Record<string, string> = {
+  oidc_missing_state: 'La sesión SSO expiró o falta el estado de verificación. Probá de nuevo.',
+  oidc_invalid_state: 'El estado de verificación SSO es inválido o expiró. Probá de nuevo.',
+  oidc_callback_failed: 'No se pudo completar la autenticación con el proveedor SSO.',
+  oidc_discovery_failed: 'No se pudo contactar al proveedor SSO.',
+  oidc_missing_id_token: 'El proveedor SSO no devolvió un token de identidad.',
+  oidc_invalid_issuer: 'El emisor del token SSO no coincide con la configuración.',
+  oidc_invalid_audience: 'La audiencia del token SSO no coincide con la aplicación.',
+  oidc_token_expired: 'El token SSO expiró. Probá de nuevo.',
+  oidc_invalid_nonce: 'Falló la validación de seguridad (nonce) del token SSO.',
+  oidc_tenant_not_found: 'No se encontró el tenant configurado para SSO.',
+  oidc_tenant_mismatch: 'Tu identidad SSO pertenece a otro tenant.',
+  oidc_missing_email: 'Tu proveedor SSO no devolvió un email.',
+  oidc_email_not_verified: 'Tu email en el proveedor SSO no está verificado.',
+  oidc_domain_not_allowed: 'El dominio de tu email no está autorizado para ingresar por SSO.',
+  oidc_user_not_found: 'No existe un usuario habilitado para este email en el tenant.',
+  oidc_provision_conflict: 'No se pudo aprovisionar el usuario por conflicto con otro tenant.',
+};
+
+export function AuthBar({
+  initialMode = null,
+  oidcEnabled = false,
+  initialOidcError = null,
+  initialMfaTempToken = null,
+}: AuthBarProps) {
   const auth = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | null>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [tenantName, setTenantName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [mfaTempToken, setMfaTempToken] = useState<string | null>(initialMfaTempToken);
+  const [mfaCode, setMfaCode] = useState('');
+  const [error, setError] = useState<string | null>(
+    initialOidcError
+      ? (OIDC_ERROR_MESSAGES[initialOidcError] ?? 'No se pudo iniciar sesión con SSO.')
+      : null,
+  );
   const [submitting, setSubmitting] = useState(false);
 
   if (auth.loading) {
@@ -160,6 +193,85 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
     }
   }
 
+  async function submitMfa(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mfaTempToken) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ tempToken: mfaTempToken, code: mfaCode }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body.error === 'string' ? body.error : 'Código MFA inválido.');
+      }
+      setMfaTempToken(null);
+      setMfaCode('');
+      await auth.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (mfaTempToken) {
+    return (
+      <form
+        onSubmit={(e) => void submitMfa(e)}
+        className="card space-y-5 p-5 sm:p-6"
+        style={{ color: 'var(--color-text)' }}
+      >
+        <div>
+          <h2
+            className="text-lg font-semibold tracking-[-0.02em]"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+          >
+            Verificación en dos pasos
+          </h2>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+            Ingresá el código de 6 dígitos de tu app autenticadora.
+          </p>
+        </div>
+        <Field icon={<KeyIcon className="h-4 w-4" />} label="Código TOTP">
+          <input
+            type="text"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value)}
+            required
+            className="input"
+          />
+        </Field>
+        {error && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-lg px-3 py-2 text-sm"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+              background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)',
+              color: 'var(--color-danger)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        <button type="submit" disabled={submitting} className="btn-primary min-h-11 w-full">
+          <KeyIcon className="h-4 w-4" />
+          {submitting ? 'Verificando…' : 'Verificar'}
+        </button>
+      </form>
+    );
+  }
+
   const isLogin = mode === 'login';
 
   return (
@@ -277,6 +389,18 @@ export function AuthBar({ initialMode = null }: AuthBarProps) {
         <KeyIcon className="h-4 w-4" />
         {submitting ? 'Enviando…' : isLogin ? 'Entrar' : 'Crear cuenta'}
       </button>
+
+      {isLogin && oidcEnabled && (
+        <div className="pt-1">
+          <a
+            href="/api/auth/oidc/login"
+            className="btn-outline inline-flex min-h-11 w-full items-center justify-center gap-2"
+          >
+            <ArrowLeftOnRectangleIcon className="h-4 w-4" />
+            Ingresar con SSO
+          </a>
+        </div>
+      )}
     </form>
   );
 }
