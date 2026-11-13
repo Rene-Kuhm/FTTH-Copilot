@@ -214,7 +214,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Estos son
 | **Inferencia LLM** | `LLM_PROVIDER`, `LLM_FALLBACK`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y cadena de respaldo. |
 | **Laya** | `LAYA_ENABLED`, `LAYA_MODE`, `LAYA_URL`, `LAYA_FAIL_OPEN`, `LAYA_CONFIDENCE_THRESHOLD_HIGH`, `LAYA_CONFIDENCE_THRESHOLD_LOW` | Modo del Expert System y umbrales de confianza. |
 | **Seguridad de sesiones** | `JWT_SECRET`, `KMS_MASTER_KEY`, `SESSION_COOKIE_SECURE`, `SEED_ADMIN_PASSWORD` | Material de claves y cookies. |
-| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP` | Cliente LDAP/AD y diagnóstico de conectividad, con mapeo de grupos a roles. **No está conectado al flujo de login.** OIDC/SSO no está implementado. |
+| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP`, `OIDC_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_TENANT_SLUG` | OIDC/SSO (Authorization Code + PKCE) implementado sobre el mismo sistema de sesiones; cliente LDAP/AD y diagnóstico de conectividad (**no conectado al flujo de login**). |
 | **Backup DB** | `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE` | Automatización de backups PostgreSQL con retención y upload remoto. |
 
 ---
@@ -246,7 +246,7 @@ Estas superficies tienen dueño, propósito o una verificación de CI que las pr
 | [`docs/quickstart.md`](docs/quickstart.md) | Los tres entornos de ejecución, paso a paso. |
 | [`docs/production-deployment.md`](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) | Catálogo canónico de OIDs y niveles de conformidad. |
-| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; LDAP/AD como cliente y diagnóstico, sin conectar al login; OIDC/SSO documentado y no implementado. |
+| [`docs/enterprise-auth.md`](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (PKCE) y MFA TOTP implementados; LDAP/AD como cliente y diagnóstico sin conectar al login. |
 | [`docs/security-audit.md`](docs/security-audit.md) | Registro técnico de la auditoría de seguridad. |
 | [`docs/testing-without-hardware.md`](docs/testing-without-hardware.md) | Inyección de trampas SNMP y simulación de incidentes sin OLT. |
 | [`docs/engineering/ADR-042-laya-decision-layer.md`](docs/engineering/ADR-042-laya-decision-layer.md) | Decisión de arquitectura del Expert System. |

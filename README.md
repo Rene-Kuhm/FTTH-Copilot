@@ -91,7 +91,7 @@ Responde la pregunta que un operador NOC tiene cada noche a las 2 AM: *¿Cuáles
 | **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante adaptadores por familia: 17 fabricantes catalogados, 94 familias de hardware, 92 fuentes documentadas y 152 hechos OID verificados. |
 | **SOC perimetral** | Analiza syslog RFC 3164/5424, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
 | **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; el TruthGate rechaza las afirmaciones que la evidencia no sostiene. Abstener es un resultado correcto. |
-| **Autenticación y MFA** | Login local con email y contraseña y segundo factor TOTP por usuario, implementados. LDAP/AD tiene cliente y diagnóstico, pero todavía no está conectado al flujo de login; OIDC/SSO está documentado y no implementado. |
+| **Autenticación y MFA** | Login local con email y contraseña, OIDC/SSO (Authorization Code + PKCE) y segundo factor TOTP por usuario, implementados. LDAP/AD tiene cliente y diagnóstico, pero todavía no está conectado al flujo de login. |
 | **Alertas multicanal** | Webhooks, Telegram, Slack (Block Kit), WhatsApp y Ntfy push, con deduplicación, cooldown y escalado por severidad. |
 
 > [!NOTE]

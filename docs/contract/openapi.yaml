@@ -321,31 +321,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/OkResponse"
 
-  /api/auth/{...nextauth}:
+  /api/auth/oidc/login:
     get:
       tags: [Autenticación]
-      summary: Stub de NextAuth (no implementado).
+      summary: Inicia el flujo OIDC / SSO (Authorization Code + PKCE).
       description: |
-        Placeholder del route handler de NextAuth. **No** está implementado: responde
-        **501** siempre.
-      operationId: nextAuthStub
+        Genera `code_verifier` (PKCE S256), `state` y `nonce` firmados en una cookie
+        `HttpOnly` (`ftth_oidc_tx`) y redirige al endpoint de autorización del IdP.
+      operationId: oidcLogin
       security: []
       responses:
-        "501":
-          description: NextAuth no está configurado.
+        "302":
+          description: Redirección al proveedor OIDC (o a `/login?error=...` si falla discovery).
+        "404":
+          description: OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    post:
+        "500":
+          description: Configuración OIDC inválida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/oidc/callback:
+    get:
+>>>>>>> b578be5 (docs(auth): document OIDC/SSO configuration and update OpenAPI contract)
       tags: [Autenticación]
-      summary: Stub de NextAuth (no implementado).
-      description: Placeholder del route handler de NextAuth. Responde **501** siempre.
-      operationId: nextAuthStubPost
+      summary: Callback OIDC / SSO tras la autenticación en el IdP.
+      description: |
+        Valida `state`, `nonce`, `iss`, `aud`, `exp` e intercambia el código por tokens
+        mediante PKCE. Resuelve la identidad por `(issuer, sub)` o vincula/aprovisiona
+        en el tenant configurado y emite la sesión estándar `ftth_session`.
+      operationId: oidcCallback
       security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          description: NextAuth no está configurado.
+        "302":
+          description: Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, o a `/login?error=...` ante rechazo.
+        "404":
+          description: OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Configuración OIDC inválida.
           content:
             application/json:
               schema:
@@ -448,7 +481,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
   /api/auth/ldap/login:
     post:
       tags: [Autenticación]
@@ -1028,7 +1060,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
   /api/security/mfa-policy:
     get:
       tags: [Autenticación]
