@@ -87,6 +87,20 @@ jobs:
     needs: static-and-mock-tests
     permissions:
       contents: read
+    env:
+      # Local emulator only. Dummy credentials; no AWS account is ever used here.
+      AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      AWS_REGION: "us-east-1"
+      AWS_DEFAULT_REGION: "us-east-1"
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_CA_BUNDLE: "/tmp/aws-emulator-ca.pem"
+      TF_VAR_emulator_mode: "true"
+      TF_VAR_s3_use_path_style: "true"
+      TF_VAR_enable_emulated_unsupported_resources: "false"
+      TF_VAR_allowed_account_ids: '["000000000000"]'
+      TF_VAR_allowed_udp_cidrs: '["198.51.100.0/24"]'
     services:
       postgres:
         image: postgres:16-alpine
@@ -105,7 +119,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Terraform, AWS CLI, PostgreSQL client, and AWS Emulator
+      - name: Install Terraform, AWS CLI v2, and PostgreSQL client
         shell: bash
         run: |
           set -euo pipefail
@@ -113,50 +127,50 @@ jobs:
           unzip -qo /tmp/terraform.zip -d /usr/local/bin
           rm -f /tmp/terraform.zip
 
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          sudo /tmp/aws/install --update
+          rm -rf /tmp/awscliv2.zip /tmp/aws
+          aws --version
+
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client awscli
+          sudo apt-get install -y -qq postgresql-client
 
-          npm install -g @aws/aws-emulator || python3 -m pip install --break-system-packages aws-emulator || true
+      - name: Install AWS Emulator from the official release package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/aws-emulator-pkg
+          gh release download --repo aws/aws-emulator --pattern '*amd64*.deb' --dir /tmp/aws-emulator-pkg
+          sudo apt-get install -y /tmp/aws-emulator-pkg/*.deb
+          command -v aws-emulator
 
-      - name: Start AWS Emulator (telemetry disabled)
+      - name: Start AWS Emulator (telemetry disabled) and trust its certificate
         shell: bash
         env:
           EMULATOR_TELEMETRY: "off"
         run: |
           set -euo pipefail
-          if ! command -v aws-emulator >/dev/null 2>&1; then
-            echo "::error::aws-emulator binary not found after install"
-            exit 1
-          fi
-          nohup aws-emulator --port 9297 --telemetry off > /tmp/aws-emulator.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -skf https://127.0.0.1:9297/ >/dev/null 2>&1 || [ -f "$HOME/.aws/emulator/9297/ca.pem" ]; then
+          nohup aws-emulator --telemetry off > /tmp/aws-emulator.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sk https://127.0.0.1:9297/ -o /dev/null; then
               break
             fi
             sleep 1
           done
-          ls -la "$HOME/.aws/emulator/9297" || true
+          openssl s_client -connect 127.0.0.1:9297 -servername 127.0.0.1 </dev/null 2>/dev/null \
+            | openssl x509 -outform PEM > /tmp/aws-emulator-ca.pem
+          test -s /tmp/aws-emulator-ca.pem || { echo "::error::could not read the emulator certificate"; exit 1; }
+          sudo cp /tmp/aws-emulator-ca.pem /usr/local/share/ca-certificates/aws-emulator.crt
+          sudo update-ca-certificates
 
-      - name: Layer 3 — Terraform apply, idempotency check, and destroy against AWS Emulator
+      - name: Layer 3 — Terraform apply, idempotency check, against AWS Emulator
         working-directory: infra/aws
-        env:
-          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
-          AWS_SHARED_CREDENTIALS_FILE: "${{ runner.workspace }}/../../.aws/emulator/9297/emulator_credentials"
-          AWS_CONFIG_FILE: "${{ runner.workspace }}/../../.aws/emulator/9297/config"
-          AWS_CA_BUNDLE: "${{ runner.workspace }}/../../.aws/emulator/9297/ca.pem"
-          AWS_EC2_METADATA_DISABLED: "true"
-          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
-          AWS_REGION: "us-east-1"
-          TF_VAR_emulator_mode: "true"
-          TF_VAR_enable_emulated_unsupported_resources: "false"
-          TF_VAR_allowed_account_ids: '["000000000000"]'
-          TF_VAR_allowed_udp_cidrs: '["198.51.100.0/24"]'
+        shell: bash
         run: |
           set -euo pipefail
-          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
-          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
-          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
-
           terraform init -backend=false
           terraform plan -out=tfplan
           terraform apply -auto-approve tfplan
@@ -166,17 +180,11 @@ jobs:
           echo "BACKUP_BUCKET=${BACKUP_BUCKET}" >> "$GITHUB_ENV"
 
       - name: Layer 4 — Test db-backup.sh and db-restore.sh against emulated S3 + Postgres
+        shell: bash
         env:
-          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
-          AWS_EC2_METADATA_DISABLED: "true"
-          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
-          AWS_REGION: "us-east-1"
           DATABASE_URL: "postgresql://ftth:ftth_emulator_password@127.0.0.1:5432/ftth_copilot"
         run: |
           set -euo pipefail
-          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
-          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
-          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
 
           psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS backup_smoke_test (id INT PRIMARY KEY, label TEXT);"
           psql "$DATABASE_URL" -c "INSERT INTO backup_smoke_test (id, label) VALUES (1, 'synthetic-ok') ON CONFLICT (id) DO NOTHING;"
@@ -196,24 +204,14 @@ jobs:
       - name: Terraform destroy against AWS Emulator
         if: always()
         working-directory: infra/aws
-        env:
-          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
-          AWS_EC2_METADATA_DISABLED: "true"
-          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
-          AWS_REGION: "us-east-1"
-          TF_VAR_emulator_mode: "true"
-          TF_VAR_enable_emulated_unsupported_resources: "false"
-          TF_VAR_allowed_account_ids: '["000000000000"]'
-          TF_VAR_allowed_udp_cidrs: '["198.51.100.0/24"]'
+        shell: bash
         run: |
           set -euo pipefail
-          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
-          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
-          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
           terraform destroy -auto-approve
 
       - name: Dump AWS Emulator logs on failure
         if: failure()
+        shell: bash
         run: |
           echo "=== AWS Emulator Log ==="
           tail -n 200 /tmp/aws-emulator.log || true
