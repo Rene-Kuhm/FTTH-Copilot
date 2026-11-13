@@ -12,6 +12,114 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.8.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.1...v0.8.0) (2026-11-13)
+
+
+### Added
+
+* **auth:** LDAP authentication and tenant-enforced MFA policy ([2eaf866](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2eaf86671e1ab60f1705dd29fbcd6c9922cb4751))
+* **auth:** OIDC / SSO login (Authorization Code + PKCE S256) ([62edb1a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/62edb1a246358c3576c61e603df83a8745eae953))
+* **auth:** wire LDAP authentication to login and enforce per-tenant mandatory MFA ([d1d5b00](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d1d5b008204fec09658420b9394f6d2fcde0d339))
+* **db:** add requireMfa field to TenantPolicy and expose isTemp on SessionClaims ([36855cd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/36855cdf0cc44f1c7be187c5b9abc6017b2d1124))
+* **db:** add UserIdentity model and migration for OIDC/SSO ([92e72a2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/92e72a25db180b606e76c6e03a3aa94780ae1af0))
+* **infra:** add AWS ECS/RDS/ElastiCache Terraform reference deployment and tests ([acf0bbb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/acf0bbb01ede888b4a03b7f6298823d570435d74))
+* **infra:** add Kubernetes Helm chart for FTTH-Copilot and unit tests ([0bcd0bd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0bcd0bdc10cb1807a62779a96091272791b61e1e))
+* **infra:** AWS reference deployment with Terraform (draft) ([c6626e0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c6626e0e2d808b0d90743369ebdf3be708840c8f))
+* **infra:** encrypt backups with a customer-managed KMS key and document accepted Trivy findings ([88b5a88](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/88b5a88743560b76dc6676806fb8d024e50309be))
+* **infra:** Kubernetes Helm chart (draft) ([4c307a8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4c307a8e53483615f5e330698156fe4fb316db40))
+* **web:** implement OIDC/SSO Authorization Code + PKCE login and callback ([6232463](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/62324639b887940fe87b83197b843cc9bd92f519))
+
+
+### Fixed
+
+* **auth:** allow loopback http OIDC issuer during local next start ([953aced](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/953aced1ee3e71e2cb6b58e4bda0f5eee85ec066))
+* **auth:** invalidate MFA tempToken after verification and add lifecycle tests ([54579da](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/54579da313a75830fd1764173906d182dfe5d14c))
+* **auth:** lock MFA temp token after repeated invalid codes ([335157c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/335157cec906441896818e8db24c1d7749bd31db))
+* **auth:** pass message before context to log.warn in parseOidcConfig ([73f90a9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/73f90a929b8468b317224dcad48f80b0a661a1d5))
+* **auth:** reject MFA tempToken on session routes and middleware ([4663636](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/46636361477dc4a2a182578b05bb3e2f649d97d5))
+* **auth:** require explicit opt-in for insecure loopback OIDC issuers ([c2ec77a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c2ec77a54f53163bee20324729e37e89d6909b11))
+* **auth:** require NextRequest param in mfa setup route for next build ([4f9245b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4f9245b1d8cadce105f1938f015d4517bc39b157))
+* **auth:** reserve MFA attempts before verifying the TOTP code ([5a72ee6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/5a72ee684bffb17cf6b850833341e6070c129afe))
+* **db:** order UserIdentity migration after tenant MFA policy ([ff02748](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/ff027489263a0c0616a031b389631e9976a4de3f))
+* **e2e:** do not reuse a foreign server outside CI ([e59cb34](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e59cb3424382913afe33130f5fd93ac1feee74cb))
+* **infra:** drop empty password defaults from Helm values ([fd48e69](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/fd48e694ef46c0104e9c2cdda2612c15148013e6))
+* **infra:** keep redis.auth as an empty map so templates render ([9e7f22b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9e7f22b232454b7c606347d50dedb51b62b68972))
+* **infra:** run Helm workloads with a read-only root filesystem ([9e02017](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9e02017240dcb32b5d010047b6ce6ddca88afa77))
+* **jobs:** parse rediss URLs into host, port, auth, and TLS options for BullMQ ([f8befaf](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f8befaf01497a06346e612cbb8097d0a4cd6316c))
+* **web:** import mapGroupsToRole from @ftth-copilot/security and sync OpenAPI contract ([841f111](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/841f11124507c5148e7892f32fa31000c1485432))
+
+
+### Documentation
+
+* **auth:** document LDAP login, tenant MFA policy, and updated API contract ([29674e6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/29674e651b912d328f4cd1cdd2855be4f305b6c6))
+* **auth:** document OIDC/SSO configuration and update OpenAPI contract ([61e7445](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/61e7445fc25afff38de9d8522f43fd0350ec86f2))
+* avisa del permiso para el demo y aclara el MFA obligatorio ([#378](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/378)) ([0131cf8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0131cf82cdb5135f8db7335435ec08458ebdc262))
+* **aws:** add Spanish AWS deployment how-to guide ([ab085f1](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/ab085f1a1b5b94d8936e4a27bf0a3bc01a2abf45))
+* **aws:** fix Dockerfile path in deployment guide ([eb04c65](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/eb04c65b166a48d670d20a8b6ec2fee6e13fc33f))
+* **k8s:** add Spanish Kubernetes Helm deployment guide ([3aaa2f2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/3aaa2f212fed0b0f7fdf0eb7be9c9e2e47ac0fc6))
+* **readme:** aclara licencias, cifras y el orden de las secciones ([#377](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/377)) ([1edea4f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1edea4f7dd9e8dbd74dd9e91024c16cd6bded154))
+* **readme:** indica que una empresa lo está probando y aclara las métricas ([#376](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/376)) ([d21d67e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d21d67e5d15a1e8820c75e0d994ffd083835eef2))
+* **readme:** reescribe el README con el estado real de v0.7.1 ([#374](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/374)) ([9a85402](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9a8540221118fbf15e4a7ce860b2a15c729d57a2))
+* sync README, architecture and references with v0.8 auth and deployment features ([27c1c34](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/27c1c34598fb6ca0c22316e2718b4b7b6a91e007))
+* sync README, architecture and references with v0.8 auth and deployment features ([1befb2d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/1befb2ddd650d28dd8b7dbd9e5adbda77b2cea9e))
+
+
+### Refactoring
+
+* **security:** extract shared parseRoleMap and mapGroupsToRole for LDAP and SSO ([addbe24](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/addbe244455c592669f93d0240dbe831ab73739e))
+* **security:** support colons and custom fallbacks in shared auth-roles ([24aaa03](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/24aaa0398b98d9905337c095ee58988d50a6b3e7))
+
+
+### Tests
+
+* **e2e:** isolate OIDC storageState and fix logout/alert assertions ([628e38f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/628e38f8431e79ed4c6442f6c20a3c9c36e115a7))
+* **infra:** fix elasticache assertions for mocked provider ([b12780c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b12780c432800d7f618150f5785f77fc48177458))
+* **infra:** mock ARNs, random password and ECS dependencies for baseline tests ([143a0dc](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/143a0dcaffefd7426bd451aca77cde2cec230a32))
+* **infra:** mock availability zones and assume role policy ([f8cb018](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f8cb018f42d1043b41040717ccf2f581a75d9163))
+* **jobs:** cover rediss URLs without auth credentials ([363984e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/363984ec1b204047a75e12542227e8f8c7cc2255))
+* **laya:** add pytest suite and CI workflow for services/laya ([2268642](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/22686421f7fb4bf7ee512c4f95166f05c7237a59))
+* **laya:** add pytest unit and FastAPI endpoint test suite ([bfc2871](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/bfc287102d962df58453e65a86385e44f57e8414))
+* **oidc:** allow port 3011 redirect URI in Keycloak dev realm ([9c51c72](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9c51c7216dd5e44461adf7ec08542b5255de1ffc))
+* **web:** add Keycloak dev profile and OIDC E2E spec ([509398c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/509398c38380a566dff0cad720159998efe7bf1c))
+
+
+### Build
+
+* **deps:** bump the npm-lockfile group across 1 directory with 7 updates ([6ab1f3f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6ab1f3f628f7ef779eabed2768ec57d624d7dab8))
+* **deps:** bump the npm-lockfile group across 1 directory with 7 updates ([cc7181d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/cc7181db68bf3ee3eb45f4daccc2187683eba495))
+* **deps:** sync pnpm-lock.yaml after removing shared from soc ([a82ec31](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a82ec311e279f79909b5bf8348ab5609744c6dc9))
+* **tools:** pin terraform, tflint, helm and kubeconform in mise.toml ([d7f0e08](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d7f0e0844ce37f1c1700b2e264acf6b01d878563))
+* **tools:** pin terraform, tflint, helm and kubeconform in mise.toml ([07e93e4](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/07e93e4aa90ff10c9520915118672ca061b5bbe2))
+
+
+### CI
+
+* **infra:** add Helm lint, kubeconform, unittest, and Trivy workflow ([e8df634](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e8df6344cc9fc3b04a490168e77a2a1165bb37dc))
+* **infra:** add Terraform static, mocked, and AWS Emulator workflow ([224984d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/224984d330aedbc262fbd9c5972bf0395aa87ddd))
+* **infra:** align Helm and Kubeconform versions with mise.toml ([0f62120](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0f6212086dbd6a410dfa7756b6b61cf719ff8b50))
+* **infra:** align Terraform and TFLint versions with mise.toml ([92e6138](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/92e6138e3e0f5cd01b4fd95023c09653441bdde5))
+* **infra:** install AWS Emulator from downloads.aws.com and use its run credentials ([0df69ff](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0df69ffa8d7b79fe268a3aa7b8d4a0e4cbf68f1a))
+* **infra:** install Trivy with the upstream install script ([22dbc34](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/22dbc34baf5da35033b2e9d3e6fbd801d03a9385))
+* **infra:** install Trivy with the upstream install script ([8ad6670](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8ad667031f5c37f6053c999323a2f66c664d64e9))
+* **infra:** overwrite unzip output in Terraform install step ([4b83836](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4b83836bcc282f831da67e6b102f1cfc93562a4c))
+* **infra:** pick the emulator .deb from the release assets and destroy only after a successful apply ([68a009a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/68a009a4667903ccefb663b71b33aaeefc89fd44))
+* **infra:** point Trivy at the accepted-findings file ([bdf02f8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/bdf02f8c8b7dc361ba279d47f5ac66f99af51048))
+* **infra:** remove the AWS Emulator job until a verifiable emulator exists ([374d396](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/374d3963b02f7dbd95fc862dd57ca3bad9c582a0))
+* **infra:** run the Layer 3-4 emulator job with the official aws/aws-emulator package ([d835824](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d8358240c6737f02b7464269d7a65273f77c4848))
+* **infra:** run Trivy from the official container image ([de52f69](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/de52f69750d1911804f0c9f65a96a542f096cf32))
+* **infra:** run Trivy from the official container image ([309baff](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/309baffee223d05b362dc2d1ddd69f6fe6f6978b))
+* **infra:** scope emulator apply to storage and backups until the SG egress gap is fixed ([63a8139](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/63a81391f6d315c87f01c95ae0146914c18d7fa1))
+* **infra:** search recent aws/aws-emulator releases for the amd64 package ([c0e74f8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c0e74f843b6758cb02b2c85da780b490263afdce))
+* **infra:** skip plugin signature check for helm-unittest ([eff3a80](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/eff3a80c9155994d4b1b349aea5f54cdcb0b7267))
+* **infra:** use helm-unittest 1.0.3, compatible with Helm 4 ([e47a685](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e47a6856049af5b0a1ba35b6cd21e8fb6f737e60))
+* **laya:** add GitHub Actions pytest workflow for services/laya ([56ff0a5](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/56ff0a5447863f6a97eedba2f88b5c955424ad80))
+
+
+### Maintenance
+
+* **deps:** bump the github-actions group with 4 updates ([3215522](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/321552272bde47119d2591564dcdb9afec3ae697))
+* **deps:** bump the github-actions group with 4 updates ([ec12eaf](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/ec12eaf7ac77e2080eba2bb5f13a65ca14fc015a))
+
 ## [0.7.1](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.0...v0.7.1) (2026-11-04)
 
 
