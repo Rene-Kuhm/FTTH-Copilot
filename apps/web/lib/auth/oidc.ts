@@ -375,9 +375,22 @@ function readCookieFromHeader(cookieHeader: string, name: string): string | unde
   return match?.[1];
 }
 
+function isLoopbackHttpIssuer(issuer: string): boolean {
+  try {
+    const url = new URL(issuer);
+    return (
+      url.protocol === 'http:' &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function discoverOidcConfiguration(cfg: EnabledOidcConfig): Promise<client.Configuration> {
   const allowInsecure =
-    process.env['NODE_ENV'] !== 'production' && cfg.issuer.startsWith('http://');
+    (process.env['NODE_ENV'] !== 'production' && cfg.issuer.startsWith('http://')) ||
+    isLoopbackHttpIssuer(cfg.issuer);
   return client.discovery(
     new URL(cfg.issuer),
     cfg.clientId,
