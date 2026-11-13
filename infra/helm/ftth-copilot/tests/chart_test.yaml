@@ -1,0 +1,82 @@
+suite: ftth-copilot chart tests
+templates:
+  - web-deployment.yaml
+  - worker-deployment.yaml
+  - worker-service.yaml
+  - migrations-job.yaml
+  - secret.yaml
+  - web-hpa.yaml
+tests:
+  - it: runs web and worker as non-root uid 1001 with dropped capabilities
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+        template: web-deployment.yaml
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1001
+        template: web-deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+        template: web-deployment.yaml
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+        template: worker-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+        template: worker-deployment.yaml
+
+  - it: runs migrations as a pre-install,pre-upgrade Helm hook using pnpm db:deploy
+    template: migrations-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - pnpm
+            - db:deploy
+
+  - it: omits generated Secret when secrets.existingSecret is provided
+    template: secret.yaml
+    set:
+      secrets.existingSecret: ftth-prod-secrets
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: preserves UDP source IP via externalTrafficPolicy Local when worker service is LoadBalancer
+    template: worker-service.yaml
+    set:
+      worker.service.type: LoadBalancer
+      worker.service.externalTrafficPolicy: Local
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: spec.externalTrafficPolicy
+          value: Local
+
+  - it: creates HPA for web when autoscaling is enabled
+    template: web-hpa.yaml
+    set:
+      web.autoscaling.enabled: true
+      web.autoscaling.minReplicas: 2
+      web.autoscaling.maxReplicas: 6
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6

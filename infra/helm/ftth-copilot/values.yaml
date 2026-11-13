@@ -1,0 +1,222 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+secrets:
+  # Name of an existing Secret containing DATABASE_URL, REDIS_URL, JWT_SECRET, KMS_MASTER_KEY.
+  # Recommended for production (e.g., External Secrets Operator or Sealed Secrets).
+  existingSecret: ""
+  jwtSecret: ""
+  kmsMasterKey: ""
+
+web:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/ftth-copilot/web
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3001
+    annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: ftth-copilot.example.invalid
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  livenessProbe:
+    httpGet:
+      path: /api/health?scope=container
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/health?scope=container
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+worker:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/ftth-copilot/worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Set hostNetwork=true only when your CNI/LoadBalancer cannot preserve UDP client source IPs.
+  hostNetwork: false
+  service:
+    enabled: true
+    type: ClusterIP
+    # Set externalTrafficPolicy: Local when type is LoadBalancer or NodePort to preserve UDP source IP.
+    externalTrafficPolicy: ""
+    snmpPort: 1162
+    syslogPort: 5514
+    healthPort: 8081
+    annotations: {}
+  persistence:
+    enabled: false
+    size: 2Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    mountPath: /var/lib/ftth-copilot/spool
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: health
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+migrations:
+  enabled: true
+  image:
+    repository: ghcr.io/ftth-copilot/web
+    tag: ""
+    pullPolicy: IfNotPresent
+  command:
+    - pnpm
+    - db:deploy
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Optional in-cluster PostgreSQL for dev/staging only.
+# For production, set postgresql.enabled=false and provide externalDatabase.url or secrets.existingSecret.
+postgresql:
+  enabled: true
+  image: postgres:16-alpine
+  port: 5432
+  auth:
+    username: ftth
+    password: ""
+    database: ftth_copilot
+  persistence:
+    enabled: false
+    size: 10Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+externalDatabase:
+  url: ""
+
+# Optional in-cluster Redis for dev/staging only.
+# For production, set redis.enabled=false and provide externalRedis.url (supports rediss://) or secrets.existingSecret.
+redis:
+  enabled: true
+  image: redis:8.10.2-alpine
+  port: 6379
+  auth:
+    password: ""
+  persistence:
+    enabled: false
+    size: 2Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+externalRedis:
+  url: ""
+
+networkPolicy:
+  enabled: false
