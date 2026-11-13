@@ -35,7 +35,7 @@ run "rds_private_and_encrypted" {
 }
 
 run "elasticache_tls_and_auth" {
-  command = plan
+  command = apply
 
   assert {
     condition     = aws_elasticache_replication_group.redis[0].transit_encryption_enabled == true
@@ -43,7 +43,7 @@ run "elasticache_tls_and_auth" {
   }
 
   assert {
-    condition     = aws_elasticache_replication_group.redis[0].at_rest_encryption_enabled == true
+    condition     = tobool(aws_elasticache_replication_group.redis[0].at_rest_encryption_enabled) == true
     error_message = "ElastiCache Redis must enforce encryption at rest."
   }
 
