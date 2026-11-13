@@ -51,11 +51,11 @@ jobs:
           unzip -qo /tmp/tflint.zip -d /usr/local/bin
           rm -f /tmp/tflint.zip
 
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+          docker pull "aquasec/trivy:${TRIVY_VERSION}"
 
           terraform version
           tflint --version
-          trivy --version
+          docker run --rm "aquasec/trivy:${TRIVY_VERSION}" --version
 
       - name: Terraform fmt check
         working-directory: infra/aws
@@ -75,7 +75,7 @@ jobs:
 
       - name: Trivy IaC security scan
         working-directory: infra/aws
-        run: trivy config --exit-code 1 --severity HIGH,CRITICAL --skip-dirs tests .
+        run: docker run --rm -v "$PWD:/src" -w /src "aquasec/trivy:${TRIVY_VERSION}" config --exit-code 1 --severity HIGH,CRITICAL --skip-dirs tests .
 
       - name: Layer 2 — Terraform native unit tests (mocked providers)
         working-directory: infra/aws
