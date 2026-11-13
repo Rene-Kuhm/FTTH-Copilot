@@ -29,6 +29,9 @@ export async function register(): Promise<void> {
     const { assertWorkerBackendMode } = await import('@ftth-copilot/jobs');
     assertWorkerBackendMode();
 
+    const { assertValidOidcConfig } = await import('@/lib/auth/oidc');
+    assertValidOidcConfig(process.env);
+
     const { createLogger } = await import('@ftth-copilot/shared');
     const log = createLogger({ name: 'instrumentation' });
 

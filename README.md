@@ -91,7 +91,7 @@ Responde la pregunta que un operador NOC tiene cada noche a las 2 AM: *¿Cuáles
 | **Telemetría OLT multi-vendor** | Normaliza traps SNMP v1/v2c/v3 mediante adaptadores por familia: 17 fabricantes catalogados, 94 familias de hardware, 92 fuentes documentadas y 152 hechos OID verificados. |
 | **SOC perimetral** | Analiza syslog RFC 3164/5424, correlaciona accesos anómalos y registra vulnerabilidades de firmware con trazabilidad por tenant. |
 | **Evidence-first diagnostics** | Conserva procedencia, frescura y calidad de cada señal; el TruthGate rechaza las afirmaciones que la evidencia no sostiene. Abstener es un resultado correcto. |
-| **Autenticación y MFA** | Login local con email y contraseña y segundo factor TOTP por usuario, implementados. LDAP/AD tiene cliente y diagnóstico, pero todavía no está conectado al flujo de login; OIDC/SSO está documentado y no implementado. |
+| **Autenticación y MFA** | Login local con email y contraseña, OIDC/SSO (Authorization Code + PKCE), LDAP/AD conectado al login (`POST /api/auth/ldap/login` y fallback en `POST /api/auth/login` con `LDAP_ENABLED=true`, con mapeo de grupos a roles) y MFA TOTP por usuario y obligatoria por tenant (`TenantPolicy.requireMfa`, `/api/security/mfa-policy`). |
 | **Alertas multicanal** | Webhooks, Telegram, Slack (Block Kit), WhatsApp y Ntfy push, con deduplicación, cooldown y escalado por severidad. |
 
 > [!NOTE]
@@ -404,7 +404,7 @@ Las migraciones aplicadas, el cliente Prisma generado, las fuentes MIB auditadas
 | **Conectores SmartOLT, Mikrowisp y MikroTik** | Lectura de inventario y estado de ONUs desde el NMS que el ISP ya opera. |
 | **Alertas multicanal** | Webhooks, Telegram, Slack, WhatsApp y Ntfy con deduplicación, cooldown y escalado. |
 | **SOC perimetral** | Analizador syslog RFC 3164/5424, correlación de accesos anómalos y auditoría de firmware con CVEs. |
-| **Auth local con MFA** | Login con email y contraseña y segundo factor TOTP por usuario. LDAP/AD está implementado como cliente y diagnóstico, todavía no conectado al flujo de login. |
+| **Auth local, LDAP/AD, OIDC y MFA** | Login con email y contraseña, OIDC/SSO (PKCE), LDAP/AD conectado al flujo de login (`POST /api/auth/ldap/login` y fallback en `/api/auth/login` con `LDAP_ENABLED=true`, con mapeo de grupos a roles) y MFA TOTP por usuario y obligatoria por tenant (`TenantPolicy.requireMfa`). |
 | **Observabilidad** | Prometheus, VictoriaMetrics con reglas de alerta y trazas OTLP a Arize Phoenix. |
 | **Laboratorio de conformidad** | Golden snapshots y sockets UDP de loopback: el suite SNMP pasa sin equipo físico. |
 | **Harness adversarial** | Corpus con tenants piloto y gate de attack-pass-rate 100%, corrido nightly en CI. |
@@ -492,6 +492,8 @@ El runbook completo —despliegue, backup, restore, observabilidad y emergencia�
 
 **[Guía de despliegue →](docs/how-to/desplegar-en-produccion.md)**
 
+Como alternativas a Docker Compose para infraestructura cloud o clúster, están disponibles las guías de **[AWS (Terraform)](docs/how-to/desplegar-en-aws.md)** y **[Kubernetes (Helm)](docs/how-to/desplegar-en-kubernetes.md)**.
+
 <p align="right"><a href="#top">Volver arriba ↑</a></p>
 
 <p align="center">— ◆ —</p>
@@ -514,7 +516,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Matriz de compatibilidad OLT](docs/compatibility-matrix.md) | Catálogo canónico de OIDs, perfiles por familia y niveles de conformidad. |
 | [ADRs](docs/adr/README.md) | Las decisiones de arquitectura y por qué se tomaron. |
 | [Contrato de API](docs/contract/openapi.yaml) | Especificación OpenAPI de los endpoints HTTP. |
-| [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local y MFA TOTP implementados; estado de LDAP/AD y OIDC/SSO; MFA no se puede exigir a todos los usuarios. |
+| [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (Authorization Code + PKCE), LDAP/AD conectado al login con mapeo de grupos a roles, y MFA TOTP obligatoria por tenant (`TenantPolicy.requireMfa`, `/api/security/mfa-policy`). |
 | [Despliegue en producción](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [Pruebas sin hardware](docs/testing-without-hardware.md) | Cómo inyectar traps SNMP y simular incidentes ópticos sin OLT físico. |
 | [Benchmarks](docs/benchmarks.md) | Latencia de diagnóstico, rendimiento SNMP y métricas de piloto. |

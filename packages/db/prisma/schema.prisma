@@ -211,6 +211,7 @@ model Tenant {
 
   // Enterprise: On-Call Scheduling
   onCallSchedules       OnCallSchedule[]
+  userIdentities        UserIdentity[]
 
   @@map("tenants")
 }
@@ -231,6 +232,7 @@ model User {
   mfaEnabled  Boolean  @default(false) @map("mfa_enabled")
 
   sessions               Session[]
+  identities             UserIdentity[]
   conversations          Conversation[]
   rateLimitBuckets       RateLimitBucket[]
   confirmedIncidents     ConfirmedIncident[]
@@ -258,6 +260,24 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model UserIdentity {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String
+  issuer    String
+  subject   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([issuer, subject])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("user_identities")
 }
 
 model NmsConnection {
@@ -642,6 +662,7 @@ model TenantPolicy {
   // Qué versión de cada artefacto aprendido usa el tenant. El rollback es
   // volver el pin a la versión anterior, o dejar el modo en `off`.
   learningArtifactPins Json?
+  requireMfa         Boolean        @default(false) @map("require_mfa")
   lastEvaluatedAt    DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt

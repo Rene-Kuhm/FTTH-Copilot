@@ -135,6 +135,19 @@ superficie de configuración. `LAYA_SUGGEST_ROUTE=false` (default) significa que
 Y la familia del router: `ftth_copilot_router_dispatches_total`, que cuenta los despachos
 por modo. El dashboard `/dashboard/laya` las grafica.
 
+## Tests del microservicio (`services/laya`)
+
+Para ejecutar la suite de `services/laya` en local:
+
+```bash
+cd services/laya
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -v
+```
+
+En CI, estos tests corren automáticamente mediante [`.github/workflows/laya.yml`](../../.github/workflows/laya.yml) cuando cambian archivos bajo `services/laya/**`.
+
 ## En una línea
 
 El router decide cuánto pensar; Laya decide qué clase de evento es, en menos de 5 ms, sin

@@ -1,0 +1,30 @@
+{{- if .Values.worker.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ftth-copilot.fullname" . }}-worker
+  labels:
+    {{- include "ftth-copilot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+  {{- with .Values.worker.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.worker.service.type }}
+  {{- if and .Values.worker.service.externalTrafficPolicy (or (eq .Values.worker.service.type "LoadBalancer") (eq .Values.worker.service.type "NodePort")) }}
+  externalTrafficPolicy: {{ .Values.worker.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    - name: snmp
+      port: {{ .Values.worker.service.snmpPort }}
+      targetPort: snmp
+      protocol: UDP
+    - name: syslog
+      port: {{ .Values.worker.service.syslogPort }}
+      targetPort: syslog
+      protocol: UDP
+  selector:
+    {{- include "ftth-copilot.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+{{- end }}

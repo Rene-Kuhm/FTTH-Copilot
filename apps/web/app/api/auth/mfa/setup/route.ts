@@ -7,25 +7,46 @@
  * Returns the otpauth:// URI and base32 secret for QR code generation.
  * The secret is NOT yet enabled until the user verifies a code via /api/auth/mfa/verify.
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma } from '@ftth-copilot/db';
+import { prisma, verifyToken, hashToken, encryptApiKey } from '@ftth-copilot/db';
 import { generateSecret, generateOtpAuthUri } from '@/lib/auth/totp';
-import { encryptApiKey } from '@ftth-copilot/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(): Promise<NextResponse> {
-  const user = await getCurrentUser();
-  if (!user) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  let userId: string | null = null;
+  let userEmail: string | null = null;
+
+  const sessionUser = await getCurrentUser();
+  if (sessionUser) {
+    userId = sessionUser.id;
+    userEmail = sessionUser.email;
+  } else {
+    const authHeader = req.headers.get('authorization');
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    const claims = bearer ? verifyToken(bearer) : null;
+    if (claims?.isTemp && bearer) {
+      const used = await prisma.authRateLimit.findUnique({
+        where: { key_windowStart: { key: `mfa_temp_used:${hashToken(bearer)}`, windowStart: new Date(0) } },
+        select: { id: true },
+      });
+      if (used) {
+        return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+      }
+      userId = claims.sub;
+    }
+  }
+
+  if (!userId) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
   // Check if MFA is already enabled
   const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { mfaEnabled: true, totpSecret: true },
+    where: { id: userId },
+    select: { email: true, mfaEnabled: true, totpSecret: true },
   });
 
   if (!dbUser) {
@@ -43,14 +64,14 @@ export async function POST(): Promise<NextResponse> {
   // Generate new TOTP secret
   const secret = generateSecret();
   const issuer = 'FTTH-Copilot';
-  const account = user.email;
+  const account = userEmail ?? dbUser.email;
 
   // Encrypt secret for storage (same as API keys)
   const { encryptedKey: encryptedTotpSecret } = encryptApiKey(secret);
 
   // Store pending secret (not enabled yet)
   await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userId },
     data: { totpSecret: encryptedTotpSecret },
   });
 

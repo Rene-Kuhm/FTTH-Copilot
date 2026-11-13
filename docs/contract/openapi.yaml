@@ -107,18 +107,18 @@ paths:
       operationId: getHealth
       security: []
       responses:
-        '200':
+        "200":
           description: El proceso está sano.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthReport'
-        '503':
+                $ref: "#/components/schemas/HealthReport"
+        "503":
           description: El proceso está degradado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthReport'
+                $ref: "#/components/schemas/HealthReport"
 
   /api/metrics:
     get:
@@ -131,18 +131,18 @@ paths:
       operationId: getMetrics
       security: []
       responses:
-        '200':
+        "200":
           description: Métricas en formato de exposición Prometheus.
           content:
             text/plain:
               schema:
                 type: string
-        '401':
+        "401":
           description: Falta o no coincide el `METRICS_BEARER_TOKEN`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/vm/query:
     get:
@@ -158,25 +158,25 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Respuesta cruda de VictoriaMetrics.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Falta el parámetro `query`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '502':
+                $ref: "#/components/schemas/Error"
+        "502":
           description: VictoriaMetrics no respondió.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorDetail'
+                $ref: "#/components/schemas/ErrorDetail"
 
   /api/vm/instant:
     get:
@@ -192,25 +192,25 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Respuesta cruda de VictoriaMetrics.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Falta el parámetro `query`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '502':
+                $ref: "#/components/schemas/Error"
+        "502":
           description: VictoriaMetrics no respondió.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorDetail'
+                $ref: "#/components/schemas/ErrorDetail"
 
   /api/auth/login:
     post:
@@ -226,34 +226,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
       responses:
-        '200':
+        "200":
           description: Sesión iniciada.
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/LoginResponse'
-                  - $ref: '#/components/schemas/MfaRequiredResponse'
-        '400':
+                  - $ref: "#/components/schemas/LoginResponse"
+                  - $ref: "#/components/schemas/MfaRequiredResponse"
+        "400":
           description: JSON inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Credenciales inválidas.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '429':
+                $ref: "#/components/schemas/Error"
+        "429":
           description: Cuota de intentos excedida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RateLimitedError'
+                $ref: "#/components/schemas/RateLimitedError"
 
   /api/auth/signup:
     post:
@@ -266,32 +266,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SignupRequest'
+              $ref: "#/components/schemas/SignupRequest"
       responses:
-        '201':
+        "201":
           description: Usuario creado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SignupResponse'
-        '400':
+                $ref: "#/components/schemas/SignupResponse"
+        "400":
           description: JSON inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: El email ya está registrado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '429':
+                $ref: "#/components/schemas/Error"
+        "429":
           description: Cuota por IP excedida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RateLimitedError'
+                $ref: "#/components/schemas/RateLimitedError"
 
   /api/auth/me:
     get:
@@ -301,12 +301,12 @@ paths:
         Degrada a `200 {user:null}` cuando no hay sesión válida: no es un error.
       operationId: getCurrentSession
       responses:
-        '200':
+        "200":
           description: Estado de la sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CurrentUserResponse'
+                $ref: "#/components/schemas/CurrentUserResponse"
 
   /api/auth/logout:
     post:
@@ -314,42 +314,74 @@ paths:
       summary: Cierra la sesión y expira las cookies.
       operationId: logout
       responses:
-        '200':
+        "200":
           description: Sesión cerrada.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OkResponse'
+                $ref: "#/components/schemas/OkResponse"
 
-  /api/auth/{...nextauth}:
+  /api/auth/oidc/login:
     get:
       tags: [Autenticación]
-      summary: Stub de NextAuth (no implementado).
+      summary: Inicia el flujo OIDC / SSO (Authorization Code + PKCE).
       description: |
-        Placeholder del route handler de NextAuth. **No** está implementado: responde
-        **501** siempre.
-      operationId: nextAuthStub
+        Genera `code_verifier` (PKCE S256), `state` y `nonce` firmados en una cookie
+        `HttpOnly` (`ftth_oidc_tx`) y redirige al endpoint de autorización del IdP.
+      operationId: oidcLogin
       security: []
       responses:
-        '501':
-          description: NextAuth no está configurado.
+        "302":
+          description: Redirección al proveedor OIDC (o a `/login?error=...` si falla discovery).
+        "404":
+          description: OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-    post:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Configuración OIDC inválida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/oidc/callback:
+    get:
       tags: [Autenticación]
-      summary: Stub de NextAuth (no implementado).
-      description: Placeholder del route handler de NextAuth. Responde **501** siempre.
-      operationId: nextAuthStubPost
+      summary: Callback OIDC / SSO tras la autenticación en el IdP.
+      description: |
+        Valida `state`, `nonce`, `iss`, `aud`, `exp` e intercambia el código por tokens
+        mediante PKCE. Resuelve la identidad por `(issuer, sub)` o vincula/aprovisiona
+        en el tenant configurado y emite la sesión estándar `ftth_session`.
+      operationId: oidcCallback
       security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        '501':
-          description: NextAuth no está configurado.
+        "302":
+          description: Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, o a `/login?error=...` ante rechazo.
+        "404":
+          description: OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Configuración OIDC inválida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/auth/ldap-test:
     get:
@@ -358,25 +390,25 @@ paths:
       operationId: testLdap
       x-roles: [OWNER, ADMIN]
       responses:
-        '200':
+        "200":
           description: Resultado del diagnóstico.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: El rol no es `OWNER` ni `ADMIN`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/auth/mfa/setup:
     get:
@@ -384,41 +416,41 @@ paths:
       summary: Estado de MFA del usuario actual.
       operationId: getMfaSetupStatus
       responses:
-        '200':
+        "200":
           description: Estado de MFA.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MfaEnabledResponse'
-        '401':
+                $ref: "#/components/schemas/MfaEnabledResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Autenticación]
       summary: Genera el secreto TOTP y la URI `otpauth`.
       operationId: setupMfa
       responses:
-        '200':
+        "200":
           description: Secreto y URI para enrolar el autenticador.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MfaSetupResponse'
-        '401':
+                $ref: "#/components/schemas/MfaSetupResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: MFA ya está activo.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Autenticación]
       summary: Desactiva MFA (exige un código TOTP vigente).
@@ -428,26 +460,53 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TotpRequest'
+              $ref: "#/components/schemas/TotpRequest"
       responses:
-        '200':
+        "200":
           description: MFA desactivado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MfaEnabledResponse'
-        '400':
+                $ref: "#/components/schemas/MfaEnabledResponse"
+        "400":
           description: Código inválido o ausente.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
+  /api/auth/ldap/login:
+    post:
+      tags: [Autenticación]
+      summary: Autentica un usuario contra LDAP/Active Directory y emite sesión.
+      operationId: loginWithLdap
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Sesión LDAP iniciada o desafío MFA pendiente.
+        "401":
+          description: Credenciales o código MFA inválidos.
+        "403":
+          description: Política del tenant exige configurar MFA antes de iniciar sesión.
 
   /api/auth/mfa/disable:
     post:
@@ -459,26 +518,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TotpRequest'
+              $ref: "#/components/schemas/TotpRequest"
       responses:
-        '200':
+        "200":
           description: MFA desactivado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OkResponse'
-        '400':
+                $ref: "#/components/schemas/OkResponse"
+        "400":
           description: Código inválido o ausente.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/auth/mfa/verify:
     post:
@@ -495,27 +554,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MfaVerifyRequest'
+              $ref: "#/components/schemas/MfaVerifyRequest"
       responses:
-        '200':
+        "200":
           description: Segundo_factor verificado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Credencial, código o token inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/chat:
     post:
@@ -531,50 +590,50 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatRequest'
+              $ref: "#/components/schemas/ChatRequest"
       responses:
-        '200':
+        "200":
           description: Diagnóstico del agente.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
-        '400':
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `chat`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: La conversación o la conexión no existe.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Conflicto de estado en la conversación.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '429':
+                $ref: "#/components/schemas/Error"
+        "429":
           description: Cuota de chat o de investigación excedida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RateLimitedError'
+                $ref: "#/components/schemas/RateLimitedError"
 
   /api/conversations:
     get:
@@ -591,12 +650,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Conversaciones del usuario.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConversationList'
+                $ref: "#/components/schemas/ConversationList"
 
   /api/conversations/{id}:
     get:
@@ -608,26 +667,26 @@ paths:
       operationId: getConversation
       x-permission: view_all_conversations
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Conversación y mensajes.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConversationDetail'
-        '401':
+                $ref: "#/components/schemas/ConversationDetail"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o no es visible para el usuario.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/conversations/{id}/export:
     get:
@@ -639,7 +698,7 @@ paths:
       operationId: exportConversation
       x-permission: view_all_conversations
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
         - name: format
           in: query
           required: false
@@ -649,27 +708,27 @@ paths:
             enum: [json, text]
             default: json
       responses:
-        '200':
+        "200":
           description: Conversación exportada.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConversationDetail'
+                $ref: "#/components/schemas/ConversationDetail"
             text/plain:
               schema:
                 type: string
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o no es visible para el usuario.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/connectors:
     get:
@@ -680,12 +739,12 @@ paths:
         `{connectors:[]}`.
       operationId: listConnectors
       responses:
-        '200':
+        "200":
           description: Conectores del tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnectorList'
+                $ref: "#/components/schemas/ConnectorList"
 
   /api/connectors/create:
     post:
@@ -701,9 +760,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateConnectorRequest'
+              $ref: "#/components/schemas/CreateConnectorRequest"
       responses:
-        '201':
+        "201":
           description: Conector creado.
           content:
             application/json:
@@ -711,32 +770,32 @@ paths:
                 type: object
                 properties:
                   connector:
-                    $ref: '#/components/schemas/Connector'
+                    $ref: "#/components/schemas/Connector"
                 required: [connector]
-        '400':
+        "400":
           description: Cuerpo inválido o URL no segura.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_connectors`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '422':
+                $ref: "#/components/schemas/Error"
+        "422":
           description: El proveedor todavía no está implementado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/connectors/{id}:
     delete:
@@ -748,33 +807,33 @@ paths:
       operationId: deleteConnector
       x-permission: manage_connectors
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Conector borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_connectors`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o no está autorizado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/connectors/{id}/test:
     post:
@@ -783,32 +842,32 @@ paths:
       operationId: testConnector
       x-permission: manage_connectors
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: La conexión respondió.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnectorTestResponse'
-        '401':
+                $ref: "#/components/schemas/ConnectorTestResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_connectors`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '502':
+                $ref: "#/components/schemas/Error"
+        "502":
           description: El NMS no respondió.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnectorTestResponse'
+                $ref: "#/components/schemas/ConnectorTestResponse"
 
   /api/dashboard:
     get:
@@ -825,24 +884,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resumen de la red.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardResponse'
-        '401':
+                $ref: "#/components/schemas/DashboardResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/alerts:
     get:
@@ -859,24 +918,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Alertas del tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlertsResponse'
-        '401':
+                $ref: "#/components/schemas/AlertsResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/sla:
     get:
@@ -898,24 +957,24 @@ paths:
             maximum: 90
             default: 30
       responses:
-        '200':
+        "200":
           description: SLA de la ventana pedida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SlaResponse'
-        '401':
+                $ref: "#/components/schemas/SlaResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/audit:
     get:
@@ -982,24 +1041,51 @@ paths:
             type: string
             format: date-time
       responses:
-        '200':
+        "200":
           description: Página de eventos de auditoría.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuditResponse'
-        '401':
+                $ref: "#/components/schemas/AuditResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
+  /api/security/mfa-policy:
+    get:
+      tags: [Autenticación]
+      summary: Consulta si el tenant exige MFA obligatorio.
+      operationId: getTenantMfaPolicy
+      responses:
+        "200":
+          description: Estado de la política MFA del tenant.
+    put:
+      tags: [Autenticación]
+      summary: Actualiza la política MFA obligatoria del tenant (OWNER/ADMIN).
+      operationId: updateTenantMfaPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requireMfa]
+              properties:
+                requireMfa:
+                  type: boolean
+      responses:
+        "200":
+          description: Política MFA actualizada.
+        "403":
+          description: Solo OWNER o ADMIN puede modificar la política.
 
   /api/security/access:
     get:
@@ -1026,24 +1112,24 @@ paths:
             maximum: 500
             default: 100
       responses:
-        '200':
+        "200":
           description: Eventos de acceso.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SecurityAccessResponse'
-        '401':
+                $ref: "#/components/schemas/SecurityAccessResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/topology/tree:
     get:
@@ -1053,24 +1139,24 @@ paths:
       operationId: getTopologyTree
       x-permission: view_network
       responses:
-        '200':
+        "200":
           description: Raíces del árbol de topología.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TopologyTreeResponse'
-        '401':
+                $ref: "#/components/schemas/TopologyTreeResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/topology/path:
     get:
@@ -1087,7 +1173,7 @@ paths:
           required: true
           description: Tipo de dispositivo.
           schema:
-            $ref: '#/components/schemas/TopologyKind'
+            $ref: "#/components/schemas/TopologyKind"
         - name: id
           in: query
           required: true
@@ -1102,36 +1188,36 @@ paths:
             type: string
             format: date-time
       responses:
-        '200':
+        "200":
           description: Camino hasta la raíz.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TopologyPathResponse'
-        '400':
+                $ref: "#/components/schemas/TopologyPathResponse"
+        "400":
           description: Faltan `kind` o `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: El dispositivo no existe en el tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/topology/downstream:
     get:
@@ -1148,7 +1234,7 @@ paths:
           required: true
           description: Tipo de dispositivo.
           schema:
-            $ref: '#/components/schemas/TopologyKind'
+            $ref: "#/components/schemas/TopologyKind"
         - name: id
           in: query
           required: true
@@ -1163,36 +1249,36 @@ paths:
             type: string
             format: date-time
       responses:
-        '200':
+        "200":
           description: Elementos downstream.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TopologyDownstreamResponse'
-        '400':
+                $ref: "#/components/schemas/TopologyDownstreamResponse"
+        "400":
           description: Faltan `kind` o `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: El dispositivo no existe en el tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/incidents:
     get:
@@ -1224,24 +1310,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Incidentes del tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IncidentList'
-        '401':
+                $ref: "#/components/schemas/IncidentList"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Incidentes e investigaciones]
       summary: Abre un incidente.
@@ -1255,9 +1341,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateIncidentRequest'
+              $ref: "#/components/schemas/CreateIncidentRequest"
       responses:
-        '201':
+        "201":
           description: Incidente creado.
           content:
             application/json:
@@ -1265,32 +1351,32 @@ paths:
                 type: object
                 properties:
                   incident:
-                    $ref: '#/components/schemas/Incident'
+                    $ref: "#/components/schemas/Incident"
                 required: [incident]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_incidents`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Ya hay un incidente abierto para ese dispositivo.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConflictError'
+                $ref: "#/components/schemas/ConflictError"
 
   /api/incidents/{id}:
     get:
@@ -1299,47 +1385,47 @@ paths:
       operationId: getIncident
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Incidente y mantenimiento relacionado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IncidentDetail'
-        '401':
+                $ref: "#/components/schemas/IncidentDetail"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o es de otro tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     patch:
       tags: [Incidentes e investigaciones]
       summary: Actualiza estado, severidad, título o descripción.
       operationId: updateIncident
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateIncidentRequest'
+              $ref: "#/components/schemas/UpdateIncidentRequest"
       responses:
-        '200':
+        "200":
           description: Incidente actualizado.
           content:
             application/json:
@@ -1347,32 +1433,32 @@ paths:
                 type: object
                 properties:
                   incident:
-                    $ref: '#/components/schemas/Incident'
+                    $ref: "#/components/schemas/Incident"
                 required: [incident]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o es de otro tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/incidents/{id}/confirm:
     post:
@@ -1383,52 +1469,52 @@ paths:
       operationId: confirmIncident
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfirmIncidentRequest'
+              $ref: "#/components/schemas/ConfirmIncidentRequest"
       responses:
-        '200':
+        "200":
           description: La confirmación ya existía.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '201':
+        "201":
           description: Confirmación creada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o es de otro tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/incidents/{id}/investigate:
     get:
@@ -1437,26 +1523,26 @@ paths:
       operationId: getIncidentInvestigation
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Estado de la investigación.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvestigationStatus'
-        '401':
+                $ref: "#/components/schemas/InvestigationStatus"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Incidentes e investigaciones]
       summary: Lanza una investigación del incidente.
@@ -1466,50 +1552,50 @@ paths:
       operationId: startIncidentInvestigation
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InvestigateRequest'
+              $ref: "#/components/schemas/InvestigateRequest"
       responses:
-        '201':
+        "201":
           description: La investigación terminó y hay resultado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvestigationResultResponse'
-        '202':
+                $ref: "#/components/schemas/InvestigationResultResponse"
+        "202":
           description: La investigación quedó pendiente.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvestigationPendingResponse'
-        '401':
+                $ref: "#/components/schemas/InvestigationPendingResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: No existe o es de otro tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '429':
+                $ref: "#/components/schemas/Error"
+        "429":
           description: Cuota de investigación excedida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RateLimitedError'
+                $ref: "#/components/schemas/RateLimitedError"
 
   /api/investigations/{runId}/feedbacks:
     get:
@@ -1518,7 +1604,7 @@ paths:
       operationId: listInvestigationFeedbacks
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathRunId'
+        - $ref: "#/components/parameters/PathRunId"
         - name: limit
           in: query
           required: false
@@ -1527,24 +1613,24 @@ paths:
             type: integer
             minimum: 1
       responses:
-        '200':
+        "200":
           description: Feedbacks de la corrida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FeedbackList'
-        '401':
+                $ref: "#/components/schemas/FeedbackList"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/investigations/{runId}/versions/{versionId}/feedback:
     post:
@@ -1555,7 +1641,7 @@ paths:
       operationId: createInvestigationFeedback
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathRunId'
+        - $ref: "#/components/parameters/PathRunId"
         - name: versionId
           in: path
           required: true
@@ -1567,40 +1653,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FeedbackRequest'
+              $ref: "#/components/schemas/FeedbackRequest"
       responses:
-        '200':
+        "200":
           description: El feedback ya existía.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '201':
+        "201":
           description: Feedback creado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/predictions:
     get:
@@ -1633,24 +1719,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Predicciones del tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PredictionList'
-        '401':
+                $ref: "#/components/schemas/PredictionList"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/predictions/{id}:
     patch:
@@ -1660,26 +1746,26 @@ paths:
       operationId: acknowledgePrediction
       x-permission: ack_alerts
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Predicción reconocida.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OkResponse'
-        '401':
+                $ref: "#/components/schemas/OkResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `ack_alerts`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/pending-incidents/promote:
     post:
@@ -1691,25 +1777,25 @@ paths:
       operationId: promotePendingIncidents
       x-roles: [OWNER]
       responses:
-        '200':
+        "200":
           description: Resultado de la promoción.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: El rol no es `OWNER`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans:
     get:
@@ -1721,24 +1807,24 @@ paths:
       operationId: listFiberPlans
       x-permission: view_network
       responses:
-        '200':
+        "200":
           description: Planos con su cantidad de zonas.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FiberPlanList'
-        '401':
+                $ref: "#/components/schemas/FiberPlanList"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Planes de fibra]
       summary: Sube un plano de fibra.
@@ -1753,9 +1839,9 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CreateFiberPlanRequest'
+              $ref: "#/components/schemas/CreateFiberPlanRequest"
       responses:
-        '201':
+        "201":
           description: Plano creado.
           content:
             application/json:
@@ -1763,26 +1849,26 @@ paths:
                 type: object
                 properties:
                   plan:
-                    $ref: '#/components/schemas/FiberPlan'
+                    $ref: "#/components/schemas/FiberPlan"
                 required: [plan]
-        '400':
+        "400":
           description: Formulario inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}:
     get:
@@ -1791,65 +1877,65 @@ paths:
       operationId: getFiberPlan
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Plano, zonas y marcadores.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FiberPlanDetail'
-        '401':
+                $ref: "#/components/schemas/FiberPlanDetail"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: El plano no existe en el tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Planes de fibra]
       summary: Borra un plano, sus zonas, marcadores y el archivo.
       operationId: deleteFiberPlan
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Plano borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: El plano no existe en el tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/correlate:
     get:
@@ -1863,7 +1949,7 @@ paths:
           required: true
           description: Tipo de dispositivo.
           schema:
-            $ref: '#/components/schemas/MarkerDeviceKind'
+            $ref: "#/components/schemas/MarkerDeviceKind"
         - name: deviceId
           in: query
           required: true
@@ -1871,30 +1957,30 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Marcadores y zona primaria.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FiberPlanCorrelation'
-        '400':
+                $ref: "#/components/schemas/FiberPlanCorrelation"
+        "400":
           description: Faltan `deviceKind` o `deviceId`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/zones:
     get:
@@ -1903,9 +1989,9 @@ paths:
       operationId: listFiberPlanZones
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Zonas del plano.
           content:
             application/json:
@@ -1915,35 +2001,35 @@ paths:
                   zones:
                     type: array
                     items:
-                      $ref: '#/components/schemas/FiberZone'
+                      $ref: "#/components/schemas/FiberZone"
                 required: [zones]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Planes de fibra]
       summary: Crea una zona en el plano.
       operationId: createFiberPlanZone
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFiberZoneRequest'
+              $ref: "#/components/schemas/CreateFiberZoneRequest"
       responses:
-        '201':
+        "201":
           description: Zona creada.
           content:
             application/json:
@@ -1951,26 +2037,26 @@ paths:
                 type: object
                 properties:
                   zone:
-                    $ref: '#/components/schemas/FiberZone'
+                    $ref: "#/components/schemas/FiberZone"
                 required: [zone]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/zones/{zoneId}:
     patch:
@@ -1979,16 +2065,16 @@ paths:
       operationId: updateFiberPlanZone
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateFiberZoneRequest'
+              $ref: "#/components/schemas/UpdateFiberZoneRequest"
       responses:
-        '200':
+        "200":
           description: Zona actualizada.
           content:
             application/json:
@@ -1996,54 +2082,54 @@ paths:
                 type: object
                 properties:
                   zone:
-                    $ref: '#/components/schemas/FiberZone'
+                    $ref: "#/components/schemas/FiberZone"
                 required: [zone]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Planes de fibra]
       summary: Borra una zona.
       operationId: deleteFiberPlanZone
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
       responses:
-        '200':
+        "200":
           description: Zona borrada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/zones/{zoneId}/markers:
     get:
@@ -2052,10 +2138,10 @@ paths:
       operationId: listFiberPlanZoneMarkers
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
       responses:
-        '200':
+        "200":
           description: Marcadores de la zona.
           content:
             application/json:
@@ -2065,36 +2151,36 @@ paths:
                   markers:
                     type: array
                     items:
-                      $ref: '#/components/schemas/FiberMarker'
+                      $ref: "#/components/schemas/FiberMarker"
                 required: [markers]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Planes de fibra]
       summary: Crea un marcador dentro de una zona.
       operationId: createFiberPlanZoneMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFiberMarkerRequest'
+              $ref: "#/components/schemas/CreateFiberMarkerRequest"
       responses:
-        '201':
+        "201":
           description: Marcador creado.
           content:
             application/json:
@@ -2102,26 +2188,26 @@ paths:
                 type: object
                 properties:
                   marker:
-                    $ref: '#/components/schemas/FiberMarker'
+                    $ref: "#/components/schemas/FiberMarker"
                 required: [marker]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/zones/{zoneId}/markers/{markerId}:
     patch:
@@ -2130,17 +2216,17 @@ paths:
       operationId: updateFiberPlanZoneMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
-        - $ref: '#/components/parameters/PathMarkerId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
+        - $ref: "#/components/parameters/PathMarkerId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateFiberMarkerRequest'
+              $ref: "#/components/schemas/UpdateFiberMarkerRequest"
       responses:
-        '200':
+        "200":
           description: Marcador actualizado.
           content:
             application/json:
@@ -2148,55 +2234,55 @@ paths:
                 type: object
                 properties:
                   marker:
-                    $ref: '#/components/schemas/FiberMarker'
+                    $ref: "#/components/schemas/FiberMarker"
                 required: [marker]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Planes de fibra]
       summary: Borra un marcador dentro de una zona.
       operationId: deleteFiberPlanZoneMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathZoneId'
-        - $ref: '#/components/parameters/PathMarkerId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathZoneId"
+        - $ref: "#/components/parameters/PathMarkerId"
       responses:
-        '200':
+        "200":
           description: Marcador borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/markers:
     get:
@@ -2205,9 +2291,9 @@ paths:
       operationId: listFiberPlanMarkers
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Marcadores sin zona.
           content:
             application/json:
@@ -2217,35 +2303,35 @@ paths:
                   markers:
                     type: array
                     items:
-                      $ref: '#/components/schemas/FiberMarker'
+                      $ref: "#/components/schemas/FiberMarker"
                 required: [markers]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Planes de fibra]
       summary: Crea un marcador sin zona.
       operationId: createFiberPlanMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFiberMarkerRequest'
+              $ref: "#/components/schemas/CreateFiberMarkerRequest"
       responses:
-        '201':
+        "201":
           description: Marcador creado.
           content:
             application/json:
@@ -2253,26 +2339,26 @@ paths:
                 type: object
                 properties:
                   marker:
-                    $ref: '#/components/schemas/FiberMarker'
+                    $ref: "#/components/schemas/FiberMarker"
                 required: [marker]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/fiber-plans/{id}/markers/{markerId}:
     patch:
@@ -2281,16 +2367,16 @@ paths:
       operationId: updateFiberPlanMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathMarkerId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathMarkerId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateFiberMarkerRequest'
+              $ref: "#/components/schemas/UpdateFiberMarkerRequest"
       responses:
-        '200':
+        "200":
           description: Marcador actualizado.
           content:
             application/json:
@@ -2298,54 +2384,54 @@ paths:
                 type: object
                 properties:
                   marker:
-                    $ref: '#/components/schemas/FiberMarker'
+                    $ref: "#/components/schemas/FiberMarker"
                 required: [marker]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Planes de fibra]
       summary: Borra un marcador.
       operationId: deleteFiberPlanMarker
       x-permission: view_network
       parameters:
-        - $ref: '#/components/parameters/PathId'
-        - $ref: '#/components/parameters/PathMarkerId'
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PathMarkerId"
       responses:
-        '200':
+        "200":
           description: Marcador borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/maintenance-windows:
     get:
@@ -2371,7 +2457,7 @@ paths:
             type: string
             format: date-time
       responses:
-        '200':
+        "200":
           description: Ventanas de la ventana pedida.
           content:
             application/json:
@@ -2381,14 +2467,14 @@ paths:
                   windows:
                     type: array
                     items:
-                      $ref: '#/components/schemas/MaintenanceWindow'
+                      $ref: "#/components/schemas/MaintenanceWindow"
                 required: [windows]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Mantenimiento y on-call]
       summary: Abre una ventana de mantenimiento.
@@ -2402,9 +2488,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMaintenanceWindowRequest'
+              $ref: "#/components/schemas/CreateMaintenanceWindowRequest"
       responses:
-        '201':
+        "201":
           description: Ventana creada.
           content:
             application/json:
@@ -2412,32 +2498,32 @@ paths:
                 type: object
                 properties:
                   window:
-                    $ref: '#/components/schemas/MaintenanceWindow'
+                    $ref: "#/components/schemas/MaintenanceWindow"
                 required: [window]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: La ventana se solapa con otra existente.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MaintenanceOverlapError'
+                $ref: "#/components/schemas/MaintenanceOverlapError"
 
   /api/maintenance-windows/{id}:
     delete:
@@ -2449,45 +2535,45 @@ paths:
       operationId: cancelMaintenanceWindow
       x-permission: manage_maintenance
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CancelMaintenanceWindowRequest'
+              $ref: "#/components/schemas/CancelMaintenanceWindowRequest"
       responses:
-        '200':
+        "200":
           description: Ventana cancelada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: La ventana ya está en estado terminal.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlreadyTerminalError'
+                $ref: "#/components/schemas/AlreadyTerminalError"
 
   /api/maintenance-windows/{id}/suppressions:
     get:
@@ -2498,9 +2584,9 @@ paths:
       operationId: listMaintenanceSuppressions
       x-permission: manage_maintenance
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Supresiones de la ventana.
           content:
             application/json:
@@ -2515,18 +2601,18 @@ paths:
                       type: object
                       additionalProperties: true
                 required: [windowId, suppressions]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/maintenance-windows/{id}/reevaluate:
     post:
@@ -2538,15 +2624,15 @@ paths:
       operationId: reevaluateMaintenanceWindow
       x-permission: manage_maintenance
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ReevaluateMaintenanceWindowRequest'
+              $ref: "#/components/schemas/ReevaluateMaintenanceWindowRequest"
       responses:
-        '200':
+        "200":
           description: Resultado de la reevaluación.
           content:
             application/json:
@@ -2563,24 +2649,24 @@ paths:
                     type: [string, "null"]
                     format: date-time
                 required: [reevaluated, notified, skipped]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '503':
+                $ref: "#/components/schemas/Error"
+        "503":
           description: La feature de reevaluación está deshabilitada.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FeatureDisabledError'
+                $ref: "#/components/schemas/FeatureDisabledError"
 
   /api/ops/oncall:
     get:
@@ -2596,7 +2682,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Guardias con su entrada vigente.
           content:
             application/json:
@@ -2606,20 +2692,20 @@ paths:
                   schedules:
                     type: array
                     items:
-                      $ref: '#/components/schemas/OncallSchedule'
+                      $ref: "#/components/schemas/OncallSchedule"
                 required: [schedules]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Mantenimiento y on-call]
       summary: Crea una guardia o una entrada de guardia.
@@ -2633,33 +2719,33 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOncallRequest'
+              $ref: "#/components/schemas/CreateOncallRequest"
       responses:
-        '201':
+        "201":
           description: Guardia o entrada creada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     patch:
       tags: [Mantenimiento y on-call]
       summary: Actualiza una guardia o una entrada.
@@ -2677,33 +2763,33 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOncallRequest'
+              $ref: "#/components/schemas/CreateOncallRequest"
       responses:
-        '200':
+        "200":
           description: Guardia o entrada actualizada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido o falta `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Mantenimiento y on-call]
       summary: Borra una guardia o una entrada.
@@ -2717,31 +2803,31 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Guardia o entrada borrada.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Falta `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/notifications:
     get:
@@ -2753,7 +2839,7 @@ paths:
       operationId: listNotificationChannels
       x-permission: view_network
       responses:
-        '200':
+        "200":
           description: Canales y entregas recientes.
           content:
             application/json:
@@ -2763,25 +2849,25 @@ paths:
                   channels:
                     type: array
                     items:
-                      $ref: '#/components/schemas/NotificationChannel'
+                      $ref: "#/components/schemas/NotificationChannel"
                   recentDeliveries:
                     type: array
                     items:
                       type: object
                       additionalProperties: true
                 required: [channels]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Mantenimiento y on-call]
       summary: Crea un canal de notificación.
@@ -2792,9 +2878,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateNotificationChannelRequest'
+              $ref: "#/components/schemas/CreateNotificationChannelRequest"
       responses:
-        '201':
+        "201":
           description: Canal creado.
           content:
             application/json:
@@ -2802,26 +2888,26 @@ paths:
                 type: object
                 properties:
                   channel:
-                    $ref: '#/components/schemas/NotificationChannel'
+                    $ref: "#/components/schemas/NotificationChannel"
                 required: [channel]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     patch:
       tags: [Mantenimiento y on-call]
       summary: Actualiza un canal de notificación.
@@ -2839,9 +2925,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateNotificationChannelRequest'
+              $ref: "#/components/schemas/UpdateNotificationChannelRequest"
       responses:
-        '200':
+        "200":
           description: Canal actualizado.
           content:
             application/json:
@@ -2849,26 +2935,26 @@ paths:
                 type: object
                 properties:
                   channel:
-                    $ref: '#/components/schemas/NotificationChannel'
+                    $ref: "#/components/schemas/NotificationChannel"
                 required: [channel]
-        '400':
+        "400":
           description: Cuerpo inválido o falta `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Mantenimiento y on-call]
       summary: Borra un canal de notificación.
@@ -2882,31 +2968,31 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Canal borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Falta `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     put:
       tags: [Mantenimiento y on-call]
       summary: Dry-run de un canal de notificación.
@@ -2923,49 +3009,49 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resultado del dry-run.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Falta `id`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_maintenance`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+                $ref: "#/components/schemas/Error"
+        "404":
           description: El canal no existe en el tenant.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: El canal está deshabilitado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '422':
+                $ref: "#/components/schemas/Error"
+        "422":
           description: El canal está mal configurado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MisconfiguredChannelError'
+                $ref: "#/components/schemas/MisconfiguredChannelError"
 
   /api/ops/events:
     get:
@@ -2999,24 +3085,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Timeline y su resumen.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpsEventsResponse'
-        '401':
+                $ref: "#/components/schemas/OpsEventsResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/situations:
     get:
@@ -3035,24 +3121,24 @@ paths:
             maximum: 72
             default: 6
       responses:
-        '200':
+        "200":
           description: Situaciones y su resumen.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpsSituationsResponse'
-        '401':
+                $ref: "#/components/schemas/OpsSituationsResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/anomalies:
     get:
@@ -3074,24 +3160,24 @@ paths:
             maximum: 720
             default: 168
       responses:
-        '200':
+        "200":
           description: Reportes de anomalías.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpsAnomaliesResponse'
-        '401':
+                $ref: "#/components/schemas/OpsAnomaliesResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/capacity:
     get:
@@ -3119,24 +3205,24 @@ paths:
             maximum: 1
             default: 0.3
       responses:
-        '200':
+        "200":
           description: Pronósticos de capacidad.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpsCapacityResponse'
-        '401':
+                $ref: "#/components/schemas/OpsCapacityResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/runbooks:
     get:
@@ -3170,24 +3256,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Runbooks e historial relacionado.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpsRunbooksResponse'
-        '401':
+                $ref: "#/components/schemas/OpsRunbooksResponse"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Ops]
       summary: Marca un runbook como usado.
@@ -3207,31 +3293,31 @@ paths:
                   minLength: 1
               required: [id]
       responses:
-        '200':
+        "200":
           description: Runbook marcado como usado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `view_network`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/ops/stream:
     get:
@@ -3243,19 +3329,19 @@ paths:
       operationId: streamOpsEvents
       x-permission: view_network
       responses:
-        '200':
+        "200":
           description: Stream de eventos.
           content:
             text/event-stream:
               schema:
                 type: string
-        '401':
+        "401":
           description: Sin sesión.
           content:
             text/plain:
               schema:
                 type: string
-        '403':
+        "403":
           description: Sin permiso `view_network`.
           content:
             text/plain:
@@ -3270,7 +3356,7 @@ paths:
       operationId: listUsers
       x-permission: manage_users
       responses:
-        '200':
+        "200":
           description: Usuarios del tenant.
           content:
             application/json:
@@ -3280,20 +3366,20 @@ paths:
                   users:
                     type: array
                     items:
-                      $ref: '#/components/schemas/User'
+                      $ref: "#/components/schemas/User"
                 required: [users]
-        '401':
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_users`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       tags: [Usuarios]
       summary: Crea un usuario.
@@ -3307,9 +3393,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateUserRequest'
+              $ref: "#/components/schemas/CreateUserRequest"
       responses:
-        '201':
+        "201":
           description: Usuario creado.
           content:
             application/json:
@@ -3317,32 +3403,32 @@ paths:
                 type: object
                 properties:
                   user:
-                    $ref: '#/components/schemas/User'
+                    $ref: "#/components/schemas/User"
                 required: [user]
-        '400':
+        "400":
           description: Cuerpo inválido.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_users` o intento de crear un `OWNER` sin serlo.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: El email ya existe.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /api/users/{id}:
     patch:
@@ -3354,15 +3440,15 @@ paths:
       operationId: updateUser
       x-permission: manage_users
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
+              $ref: "#/components/schemas/UpdateUserRequest"
       responses:
-        '200':
+        "200":
           description: Usuario actualizado.
           content:
             application/json:
@@ -3370,26 +3456,26 @@ paths:
                 type: object
                 properties:
                   user:
-                    $ref: '#/components/schemas/User'
+                    $ref: "#/components/schemas/User"
                 required: [user]
-        '400':
+        "400":
           description: Cuerpo inválido o intento de cambiarse el propio rol.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_users` o sin ser `OWNER` para cambiar roles.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       tags: [Usuarios]
       summary: Borra un usuario.
@@ -3399,33 +3485,33 @@ paths:
       operationId: deleteUser
       x-permission: manage_users
       parameters:
-        - $ref: '#/components/parameters/PathId'
+        - $ref: "#/components/parameters/PathId"
       responses:
-        '200':
+        "200":
           description: Usuario borrado.
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
+        "400":
           description: Intento de borrarse a sí mismo.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Sin sesión.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '403':
+                $ref: "#/components/schemas/Error"
+        "403":
           description: Sin permiso `manage_users` o sin ser `OWNER`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
 components:
   securitySchemes:
@@ -3575,7 +3661,7 @@ components:
         name:
           type: string
         role:
-          $ref: '#/components/schemas/Role'
+          $ref: "#/components/schemas/Role"
       required: [id, email, name, role]
 
     Tenant:
@@ -3599,13 +3685,13 @@ components:
         name:
           type: string
         role:
-          $ref: '#/components/schemas/Role'
+          $ref: "#/components/schemas/Role"
         tenantId:
           type: string
         mfaEnabled:
           type: boolean
         tenant:
-          $ref: '#/components/schemas/Tenant'
+          $ref: "#/components/schemas/Tenant"
       required: [id, email, name, role, tenantId]
 
     CurrentUserResponse:
@@ -3615,8 +3701,8 @@ components:
       properties:
         user:
           oneOf:
-            - $ref: '#/components/schemas/SessionUser'
-            - type: 'null'
+            - $ref: "#/components/schemas/SessionUser"
+            - type: "null"
       required: [user]
 
     LoginRequest:
@@ -3634,7 +3720,7 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
       required: [user]
 
     MfaRequiredResponse:
@@ -3670,9 +3756,9 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         tenant:
-          $ref: '#/components/schemas/Tenant'
+          $ref: "#/components/schemas/Tenant"
       required: [user, tenant]
 
     MfaSetupResponse:
@@ -3841,7 +3927,7 @@ components:
         conversations:
           type: array
           items:
-            $ref: '#/components/schemas/ConversationSummary'
+            $ref: "#/components/schemas/ConversationSummary"
       required: [conversations]
 
     ConversationMessage:
@@ -3878,7 +3964,7 @@ components:
             messages:
               type: array
               items:
-                $ref: '#/components/schemas/ConversationMessage'
+                $ref: "#/components/schemas/ConversationMessage"
           required: [id, title, messages]
       required: [conversation]
 
@@ -3894,7 +3980,7 @@ components:
         id:
           type: string
         provider:
-          $ref: '#/components/schemas/Provider'
+          $ref: "#/components/schemas/Provider"
         label:
           type: string
         baseUrl:
@@ -3909,11 +3995,11 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         connectors:
           type: array
           items:
-            $ref: '#/components/schemas/Connector'
+            $ref: "#/components/schemas/Connector"
         demoMode:
           type: boolean
       required: [connectors, demoMode]
@@ -3922,7 +4008,7 @@ components:
       type: object
       properties:
         provider:
-          $ref: '#/components/schemas/Provider'
+          $ref: "#/components/schemas/Provider"
         label:
           type: string
           minLength: 1
@@ -3956,7 +4042,7 @@ components:
       type: object
       properties:
         dataSource:
-          $ref: '#/components/schemas/DataSource'
+          $ref: "#/components/schemas/DataSource"
         overview:
           type: object
           additionalProperties: true
@@ -4011,11 +4097,11 @@ components:
         alerts:
           type: array
           items:
-            $ref: '#/components/schemas/Alert'
+            $ref: "#/components/schemas/Alert"
         count:
           type: integer
         dataSource:
-          $ref: '#/components/schemas/DataSource'
+          $ref: "#/components/schemas/DataSource"
       required: [alerts, count, dataSource]
 
     SlaEntry:
@@ -4038,7 +4124,15 @@ components:
           type: number
         offlineMs:
           type: number
-      required: [connectionId, deviceKind, deviceId, measuredMs, unmeasuredMs, offlineMs]
+      required:
+        [
+          connectionId,
+          deviceKind,
+          deviceId,
+          measuredMs,
+          unmeasuredMs,
+          offlineMs,
+        ]
 
     SlaResponse:
       type: object
@@ -4048,7 +4142,7 @@ components:
         sla:
           type: array
           items:
-            $ref: '#/components/schemas/SlaEntry'
+            $ref: "#/components/schemas/SlaEntry"
         count:
           type: integer
       required: [windowDays, sla, count]
@@ -4091,14 +4185,14 @@ components:
         rows:
           type: array
           items:
-            $ref: '#/components/schemas/AuditRow'
+            $ref: "#/components/schemas/AuditRow"
         byDay:
           type: array
           items:
             type: object
             additionalProperties: true
         pagination:
-          $ref: '#/components/schemas/AuditPagination'
+          $ref: "#/components/schemas/AuditPagination"
         generatedAt:
           type: string
           format: date-time
@@ -4128,7 +4222,7 @@ components:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/SecurityAccessEvent'
+            $ref: "#/components/schemas/SecurityAccessEvent"
         count:
           type: integer
       required: [events, count]
@@ -4147,7 +4241,7 @@ components:
         children:
           type: array
           items:
-            $ref: '#/components/schemas/TopologyNode'
+            $ref: "#/components/schemas/TopologyNode"
         downstreamCount:
           type: integer
       required: [kind, id, downstreamCount]
@@ -4158,7 +4252,7 @@ components:
         roots:
           type: array
           items:
-            $ref: '#/components/schemas/TopologyNode'
+            $ref: "#/components/schemas/TopologyNode"
         nodeCount:
           type: integer
         count:
@@ -4223,7 +4317,7 @@ components:
         id:
           type: string
         deviceKind:
-          $ref: '#/components/schemas/DeviceKind'
+          $ref: "#/components/schemas/DeviceKind"
         deviceId:
           type: string
         title:
@@ -4231,9 +4325,9 @@ components:
         description:
           type: [string, "null"]
         severity:
-          $ref: '#/components/schemas/IncidentSeverity'
+          $ref: "#/components/schemas/IncidentSeverity"
         status:
-          $ref: '#/components/schemas/IncidentStatus'
+          $ref: "#/components/schemas/IncidentStatus"
         createdAt:
           type: string
           format: date-time
@@ -4249,7 +4343,7 @@ components:
         incidents:
           type: array
           items:
-            $ref: '#/components/schemas/Incident'
+            $ref: "#/components/schemas/Incident"
         count:
           type: integer
         page:
@@ -4272,18 +4366,18 @@ components:
       type: object
       properties:
         incident:
-          $ref: '#/components/schemas/Incident'
+          $ref: "#/components/schemas/Incident"
         relatedMaintenance:
           type: array
           items:
-            $ref: '#/components/schemas/MaintenanceWindow'
+            $ref: "#/components/schemas/MaintenanceWindow"
       required: [incident, relatedMaintenance]
 
     CreateIncidentRequest:
       type: object
       properties:
         deviceKind:
-          $ref: '#/components/schemas/DeviceKind'
+          $ref: "#/components/schemas/DeviceKind"
         deviceId:
           type: string
           minLength: 1
@@ -4295,7 +4389,7 @@ components:
           type: [string, "null"]
           maxLength: 4096
         severity:
-          $ref: '#/components/schemas/IncidentSeverity'
+          $ref: "#/components/schemas/IncidentSeverity"
           default: warning
       required: [deviceKind, deviceId, title]
 
@@ -4303,9 +4397,9 @@ components:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/IncidentStatus'
+          $ref: "#/components/schemas/IncidentStatus"
         severity:
-          $ref: '#/components/schemas/IncidentSeverity'
+          $ref: "#/components/schemas/IncidentSeverity"
         title:
           type: string
           minLength: 1
@@ -4361,8 +4455,16 @@ components:
                 snapshot:
                   type: object
                   additionalProperties: true
-              required: [versionId, versionIndex, rulesetVersion, modelVersion, snapshotAt, snapshot]
-            - type: 'null'
+              required:
+                [
+                  versionId,
+                  versionIndex,
+                  rulesetVersion,
+                  modelVersion,
+                  snapshotAt,
+                  snapshot,
+                ]
+            - type: "null"
       required: [runId, status, requestedAt]
 
     InvestigationPendingResponse:
@@ -4417,7 +4519,7 @@ components:
       type: object
       properties:
         label:
-          $ref: '#/components/schemas/FeedbackLabel'
+          $ref: "#/components/schemas/FeedbackLabel"
         observations:
           type: [string, "null"]
           maxLength: 8192
@@ -4479,7 +4581,7 @@ components:
         predictions:
           type: array
           items:
-            $ref: '#/components/schemas/Prediction'
+            $ref: "#/components/schemas/Prediction"
         count:
           type: integer
         page:
@@ -4528,7 +4630,7 @@ components:
         plans:
           type: array
           items:
-            $ref: '#/components/schemas/FiberPlan'
+            $ref: "#/components/schemas/FiberPlan"
       required: [plans]
 
     FiberZone:
@@ -4544,7 +4646,7 @@ components:
           type: [string, "null"]
         color:
           type: [string, "null"]
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
       required: [id, planId, name]
 
     FiberMarker:
@@ -4559,7 +4661,7 @@ components:
         label:
           type: string
         deviceKind:
-          $ref: '#/components/schemas/MarkerDeviceKind'
+          $ref: "#/components/schemas/MarkerDeviceKind"
         deviceId:
           type: [string, "null"]
         xPercent:
@@ -4576,15 +4678,15 @@ components:
       type: object
       properties:
         plan:
-          $ref: '#/components/schemas/FiberPlan'
+          $ref: "#/components/schemas/FiberPlan"
         zones:
           type: array
           items:
-            $ref: '#/components/schemas/FiberZone'
+            $ref: "#/components/schemas/FiberZone"
         markers:
           type: array
           items:
-            $ref: '#/components/schemas/FiberMarker'
+            $ref: "#/components/schemas/FiberMarker"
       required: [plan, zones, markers]
 
     FiberPlanCorrelation:
@@ -4593,11 +4695,11 @@ components:
         markers:
           type: array
           items:
-            $ref: '#/components/schemas/FiberMarker'
+            $ref: "#/components/schemas/FiberMarker"
         primaryZone:
           oneOf:
-            - $ref: '#/components/schemas/FiberZone'
-            - type: 'null'
+            - $ref: "#/components/schemas/FiberZone"
+            - type: "null"
       required: [markers]
 
     CreateFiberPlanRequest:
@@ -4631,7 +4733,7 @@ components:
           maxLength: 1000
         color:
           type: [string, "null"]
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
       required: [name]
 
     UpdateFiberZoneRequest:
@@ -4646,7 +4748,7 @@ components:
           maxLength: 1000
         color:
           type: [string, "null"]
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
       required: []
 
     CreateFiberMarkerRequest:
@@ -4657,7 +4759,7 @@ components:
           minLength: 1
           maxLength: 255
         deviceKind:
-          $ref: '#/components/schemas/MarkerDeviceKind'
+          $ref: "#/components/schemas/MarkerDeviceKind"
         deviceId:
           type: [string, "null"]
           maxLength: 255
@@ -4682,7 +4784,7 @@ components:
           minLength: 1
           maxLength: 255
         deviceKind:
-          $ref: '#/components/schemas/MarkerDeviceKind'
+          $ref: "#/components/schemas/MarkerDeviceKind"
         deviceId:
           type: [string, "null"]
           maxLength: 255
@@ -4706,7 +4808,7 @@ components:
       type: object
       properties:
         kind:
-          $ref: '#/components/schemas/MaintenanceScopeKind'
+          $ref: "#/components/schemas/MaintenanceScopeKind"
         id:
           type: [string, "null"]
           minLength: 1
@@ -4731,7 +4833,7 @@ components:
         timezone:
           type: string
         scope:
-          $ref: '#/components/schemas/MaintenanceScope'
+          $ref: "#/components/schemas/MaintenanceScope"
         status:
           type: string
       required: [id, title, startUtc, endUtc, timezone, scope]
@@ -4757,7 +4859,7 @@ components:
           minLength: 1
           maxLength: 64
         scope:
-          $ref: '#/components/schemas/MaintenanceScope'
+          $ref: "#/components/schemas/MaintenanceScope"
       required: [title, startUtc, endUtc, timezone, scope]
 
     CancelMaintenanceWindowRequest:
@@ -4823,8 +4925,8 @@ components:
           type: string
         currentEntry:
           oneOf:
-            - $ref: '#/components/schemas/OncallEntry'
-            - type: 'null'
+            - $ref: "#/components/schemas/OncallEntry"
+            - type: "null"
       required: [id, name, rotationType, handoffTime, timezone]
 
     CreateOncallRequest:
@@ -4857,7 +4959,7 @@ components:
         handoffTime:
           type: string
           pattern: '^\d{2}:\d{2}$'
-          default: '09:00'
+          default: "09:00"
         timezone:
           type: string
           maxLength: 64
@@ -4895,13 +4997,13 @@ components:
         id:
           type: string
         type:
-          $ref: '#/components/schemas/NotificationType'
+          $ref: "#/components/schemas/NotificationType"
         target:
           type: string
         enabled:
           type: boolean
         minSeverity:
-          $ref: '#/components/schemas/NotificationSeverity'
+          $ref: "#/components/schemas/NotificationSeverity"
         labels:
           type: array
           items:
@@ -4914,7 +5016,7 @@ components:
       type: object
       properties:
         type:
-          $ref: '#/components/schemas/NotificationType'
+          $ref: "#/components/schemas/NotificationType"
         target:
           type: string
           minLength: 1
@@ -4923,7 +5025,7 @@ components:
           type: boolean
           default: true
         minSeverity:
-          $ref: '#/components/schemas/NotificationSeverity'
+          $ref: "#/components/schemas/NotificationSeverity"
           default: warning
         labels:
           type: array
@@ -4944,7 +5046,7 @@ components:
       description: Todos los campos son opcionales.
       properties:
         type:
-          $ref: '#/components/schemas/NotificationType'
+          $ref: "#/components/schemas/NotificationType"
         target:
           type: string
           minLength: 1
@@ -4952,7 +5054,7 @@ components:
         enabled:
           type: boolean
         minSeverity:
-          $ref: '#/components/schemas/NotificationSeverity'
+          $ref: "#/components/schemas/NotificationSeverity"
         labels:
           type: array
           maxItems: 16

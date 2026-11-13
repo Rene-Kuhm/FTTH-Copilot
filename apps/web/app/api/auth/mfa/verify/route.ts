@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma, issueToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
+import { prisma, issueToken, hashToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 import { auditAuth } from '@ftth-copilot/soc';
 
@@ -178,6 +178,25 @@ async function handleSetupVerification(
   });
 }
 
+const MAX_TEMP_TOKEN_TOTP_ATTEMPTS = 5;
+
+async function lockTempToken(usedKey: string, expiresAt: Date): Promise<void> {
+  try {
+    await prisma.authRateLimit.create({
+      data: {
+        key: usedKey,
+        windowStart: new Date(0),
+        expiresAt,
+        count: 1,
+      },
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code !== 'P2002') {
+      throw err;
+    }
+  }
+}
+
 async function handleMfaContinue(
   req: NextRequest,
   tempToken: string,
@@ -186,7 +205,20 @@ async function handleMfaContinue(
   // Verify tempToken and extract user info
   const { verifyToken } = await import('@ftth-copilot/db');
   const claims = verifyToken(tempToken);
-  if (!claims) {
+  if (!claims || !claims.isTemp) {
+    return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+  }
+
+  const tempTokenHash = hashToken(tempToken);
+  const usedKey = `mfa_temp_used:${tempTokenHash}`;
+  const attemptKey = `mfa_temp_attempt:${tempTokenHash}`;
+  const tokenExpiresAt = new Date(claims.exp * 1000);
+
+  const alreadyUsedOrLocked = await prisma.authRateLimit.findUnique({
+    where: { key_windowStart: { key: usedKey, windowStart: new Date(0) } },
+    select: { id: true },
+  });
+  if (alreadyUsedOrLocked) {
     return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
   }
 
@@ -204,9 +236,59 @@ async function handleMfaContinue(
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
+  // Reserve an attempt atomically BEFORE verifying TOTP so concurrent requests
+  // cannot bypass the 5-attempt cap.
+  const attemptRecord = await prisma.authRateLimit.upsert({
+    where: { key_windowStart: { key: attemptKey, windowStart: new Date(0) } },
+    create: {
+      key: attemptKey,
+      windowStart: new Date(0),
+      expiresAt: tokenExpiresAt,
+      count: 1,
+    },
+    update: {
+      count: { increment: 1 },
+    },
+    select: { count: true },
+  });
+
+  if (attemptRecord.count > MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
+    await lockTempToken(usedKey, tokenExpiresAt);
+    return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+  }
+
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
+    if (attemptRecord.count === MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
+      await lockTempToken(usedKey, tokenExpiresAt);
+      return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
+  }
+
+  // Consume tempToken atomically so it cannot be replayed after MFA verification completes.
+  try {
+    await prisma.authRateLimit.create({
+      data: {
+        key: usedKey,
+        windowStart: new Date(0),
+        expiresAt: tokenExpiresAt,
+        count: 1,
+      },
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code === 'P2002') {
+      return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
+    }
+    throw err;
+  }
+
+  // Complete first-time mandatory enrollment if user was pending MFA setup
+  if (!user.mfaEnabled) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { mfaEnabled: true },
+    });
   }
 
   // Issue real session

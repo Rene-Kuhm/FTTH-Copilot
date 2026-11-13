@@ -46,6 +46,7 @@ export interface SessionClaims {
   sub: string;     // userId
   tenantId: string;
   role: Role;
+  isTemp?: boolean;
   iat: number;
   exp: number;
 }

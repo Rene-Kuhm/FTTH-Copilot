@@ -66,7 +66,7 @@ verifica el JWT **y** que exista la fila `prisma.session` vigente.
 | # | Sección | Operaciones | Qué cubre |
 |---|---|---|---|
 | 1 | Salud y métricas | 4 | Liveness, métricas Prometheus y proxy a VictoriaMetrics. |
-| 2 | Autenticación | 12 | Login, signup, sesión y MFA. |
+| 2 | Autenticación | 15 | Login, signup, sesión y MFA. |
 | 3 | Chat y conversaciones | 4 | Copiloto conversacional y su historial. |
 | 4 | Conectores NMS | 4 | Alta, prueba y baja de conexiones a SmartOLT, Mikrowisp y MikroTik. |
 | 5 | Red | 8 | Dashboard, alertas, SLA, auditoría, seguridad y topología. |
@@ -223,9 +223,8 @@ Login, signup, sesión y MFA.
 
 | Método | Ruta | Descripción | Guard | Respuestas |
 |---|---|---|---|---|
-| GET | `/api/auth/{...nextauth}` | Stub de NextAuth (no implementado). | público | `501` |
-| POST | `/api/auth/{...nextauth}` | Stub de NextAuth (no implementado). | público | `501` |
 | GET | `/api/auth/ldap-test` | Diagnostica la conexión LDAP del tenant. | roles OWNER | ADMIN | `200`, `401`, `403` |
+| POST | `/api/auth/ldap/login` | Autentica un usuario contra LDAP/Active Directory y emite sesión. | público | `200`, `401`, `403` |
 | POST | `/api/auth/login` | Inicia sesión con email y contraseña. | público | `200`, `400`, `401`, `429` |
 | POST | `/api/auth/logout` | Cierra la sesión y expira las cookies. | sesión | `200` |
 | GET | `/api/auth/me` | Devuelve la sesión actual. | sesión | `200` |
@@ -234,50 +233,11 @@ Login, signup, sesión y MFA.
 | GET | `/api/auth/mfa/setup` | Estado de MFA del usuario actual. | sesión | `200`, `401` |
 | POST | `/api/auth/mfa/setup` | Genera el secreto TOTP y la URI `otpauth`. | sesión | `200`, `401`, `409` |
 | POST | `/api/auth/mfa/verify` | Verifica el segundo factor y abre sesión. | público | `200`, `400`, `401` |
+| GET | `/api/auth/oidc/callback` | Callback OIDC / SSO tras la autenticación en el IdP. | público | `302`, `404`, `500` |
+| GET | `/api/auth/oidc/login` | Inicia el flujo OIDC / SSO (Authorization Code + PKCE). | público | `302`, `404`, `500` |
 | POST | `/api/auth/signup` | Registra un usuario nuevo y su tenant. | público | `201`, `400`, `409`, `429` |
-
-### GET /api/auth/{...nextauth}
-
-Placeholder del route handler de NextAuth. **No** está implementado: responde
-**501** siempre.
-
-- **Guard:** público.
-- **Operation ID:** `nextAuthStub`.
-
-**Respuestas**
-
-| Código | Descripción | Cuerpo |
-|---|---|---|
-| `501` | NextAuth no está configurado. | `Error` |
-
-<details><summary>Campos de <code>501</code></summary>
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|---|---|
-| `error` | `string` | sí | — |
-
-</details>
-
-### POST /api/auth/{...nextauth}
-
-Placeholder del route handler de NextAuth. Responde **501** siempre.
-
-- **Guard:** público.
-- **Operation ID:** `nextAuthStubPost`.
-
-**Respuestas**
-
-| Código | Descripción | Cuerpo |
-|---|---|---|
-| `501` | NextAuth no está configurado. | `Error` |
-
-<details><summary>Campos de <code>501</code></summary>
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|---|---|
-| `error` | `string` | sí | — |
-
-</details>
+| GET | `/api/security/mfa-policy` | Consulta si el tenant exige MFA obligatorio. | sesión | `200` |
+| PUT | `/api/security/mfa-policy` | Actualiza la política MFA obligatoria del tenant (OWNER/ADMIN). | sesión | `200`, `403` |
 
 ### GET /api/auth/ldap-test
 
@@ -299,6 +259,27 @@ Placeholder del route handler de NextAuth. Responde **501** siempre.
 | `error` | `string` | sí | — |
 
 </details>
+
+### POST /api/auth/ldap/login
+
+- **Guard:** público.
+- **Operation ID:** `loginWithLdap`.
+
+**Cuerpo** (application/json, obligatorio)
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `username` | `string` | sí | — |
+| `password` | `string` | sí | — |
+| `code` | `string` | no | — |
+
+**Respuestas**
+
+| Código | Descripción | Cuerpo |
+|---|---|---|
+| `200` | Sesión LDAP iniciada o desafío MFA pendiente. | — |
+| `401` | Credenciales o código MFA inválidos. | — |
+| `403` | Política del tenant exige configurar MFA antes de iniciar sesión. | — |
 
 ### POST /api/auth/login
 
@@ -548,6 +529,62 @@ sesión (no la de CSRF).
 
 </details>
 
+### GET /api/auth/oidc/callback
+
+Valida `state`, `nonce`, `iss`, `aud`, `exp` e intercambia el código por tokens
+mediante PKCE. Resuelve la identidad por `(issuer, sub)` o vincula/aprovisiona
+en el tenant configurado y emite la sesión estándar `ftth_session`.
+
+- **Guard:** público.
+- **Operation ID:** `oidcCallback`.
+
+**Parámetros**
+
+| Nombre | En | Obligatorio | Tipo | Descripción |
+|---|---|---|---|---|
+| `code` | query | no | `string` |  |
+| `state` | query | no | `string` |  |
+
+**Respuestas**
+
+| Código | Descripción | Cuerpo |
+|---|---|---|
+| `302` | Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, o a `/login?error=...` ante rechazo. | — |
+| `404` | OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`). | `Error` |
+| `500` | Configuración OIDC inválida. | `Error` |
+
+<details><summary>Campos de <code>404</code></summary>
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `error` | `string` | sí | — |
+
+</details>
+
+### GET /api/auth/oidc/login
+
+Genera `code_verifier` (PKCE S256), `state` y `nonce` firmados en una cookie
+`HttpOnly` (`ftth_oidc_tx`) y redirige al endpoint de autorización del IdP.
+
+- **Guard:** público.
+- **Operation ID:** `oidcLogin`.
+
+**Respuestas**
+
+| Código | Descripción | Cuerpo |
+|---|---|---|
+| `302` | Redirección al proveedor OIDC (o a `/login?error=...` si falla discovery). | — |
+| `404` | OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`). | `Error` |
+| `500` | Configuración OIDC inválida. | `Error` |
+
+<details><summary>Campos de <code>404</code></summary>
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `error` | `string` | sí | — |
+
+</details>
+
 ### POST /api/auth/signup
 
 - **Guard:** público.
@@ -596,6 +633,35 @@ sesión (no la de CSRF).
 | `retryAfter` | `number` | no | — |
 
 </details>
+
+### GET /api/security/mfa-policy
+
+- **Guard:** sesión.
+- **Operation ID:** `getTenantMfaPolicy`.
+
+**Respuestas**
+
+| Código | Descripción | Cuerpo |
+|---|---|---|
+| `200` | Estado de la política MFA del tenant. | — |
+
+### PUT /api/security/mfa-policy
+
+- **Guard:** sesión.
+- **Operation ID:** `updateTenantMfaPolicy`.
+
+**Cuerpo** (application/json, obligatorio)
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `requireMfa` | `boolean` | sí | — |
+
+**Respuestas**
+
+| Código | Descripción | Cuerpo |
+|---|---|---|
+| `200` | Política MFA actualizada. | — |
+| `403` | Solo OWNER o ADMIN puede modificar la política. | — |
 
 ## 3. Chat y conversaciones
 

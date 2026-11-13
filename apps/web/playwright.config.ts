@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 3001);
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -8,7 +11,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   globalSetup: "./e2e/global-setup.ts",
   use: {
-    baseURL: "http://localhost:3001",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     // Load auth state from globalSetup (sets __test_bypass cookie)
@@ -25,9 +28,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npx next start -p 3001",
-    port: 3001,
-    reuseExistingServer: true,
+    command: `npx next start -p ${port}`,
+    port,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...(process.env as Record<string, string>),
+      OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER:
+        process.env.OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER ?? "true",
+    },
   },
 });

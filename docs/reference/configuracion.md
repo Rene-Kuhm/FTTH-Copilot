@@ -13,6 +13,7 @@ falla al arrancar, sino que **cae al default silenciosamente** en algunos casos 
 | Variable | Default | Obligatoria | Dónde se lee | Controla |
 |---|---|---|---|---|
 | `DATABASE_URL` | `postgresql://ftth:change-me@localhost:5432/ftth_copilot` | Sí | `packages/db/src/client.ts:11`, `scripts/setup.ts:245` | DSN de Prisma. `client.ts` busca un `.env` en 4 rutas candidatas si no está exportada |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | No (sí para worker) | `packages/jobs/src/connection.ts:11,42,51` | URL de Redis para colas BullMQ. Acepta `rediss://` (TLS, p. ej. AWS ElastiCache) (`connection.ts:27,51`) |
 
 Sin `DATABASE_URL` el build de Next.js igual compila (los resolvers de secretos son perezosos)
 y el fallo aparece en la primera query.
@@ -79,6 +80,22 @@ y el fallo aparece en la primera query.
 | `LDAP_NAME_ATTR` | `cn` | No | `auth-ldap.ts:91` | Atributo de nombre |
 | `LDAP_GROUP_ATTR` | `memberOf` | No | `auth-ldap.ts:92` | Atributo de grupos |
 | `LDAP_ROLE_MAP` | mapa embebido | No | `auth-ldap.ts:73` | Pares `CN=Group:ROLE`; gana el último match |
+
+### OIDC / SSO (`apps/web/lib/auth/oidc.ts`)
+
+| Variable | Default | Obligatoria | Dónde se lee | Controla |
+|---|---|---|---|---|
+| `OIDC_ENABLED` | `false` | No | `apps/web/lib/auth/oidc.ts:79,151` | Habilita SSO con OIDC Authorization Code + PKCE S256 (`'true'` exacto) |
+| `OIDC_ISSUER` | — | Sí si enabled | `oidc.ts:54,84,105-122` | URL `https://` del IdP (`http://` no loopback se rechaza siempre) |
+| `OIDC_CLIENT_ID` | — | Sí si enabled | `oidc.ts:55,85` | Client ID registrado en el IdP |
+| `OIDC_CLIENT_SECRET` | — | Sí si enabled | `oidc.ts:56,86` | Client secret del cliente confidencial |
+| `OIDC_REDIRECT_URI` | — | Sí si enabled | `oidc.ts:57,87` | URL de callback (`/api/auth/oidc/callback`) |
+| `OIDC_TENANT_SLUG` | — | Sí si enabled | `oidc.ts:58,88,591` | Slug del tenant único al que se vincula el IdP |
+| `OIDC_ALLOWED_EMAIL_DOMAINS` | vacío | No | `oidc.ts:59,89,143` | Lista separada por comas de dominios de email permitidos; vacío permite cualquier dominio |
+| `OIDC_AUTO_PROVISION` | `false` | No | `oidc.ts:60,90,144` | Si es `'true'`, crea el usuario y su `UserIdentity` en el primer login OIDC |
+| `OIDC_ROLE_CLAIM` | `groups` | No | `oidc.ts:61,91,145` | Claim del token con los grupos/roles para mapear el rol en FTTH-Copilot |
+| `OIDC_ROLE_MAP` | vacío | No | `oidc.ts:62,92,146` | Reglas de mapeo `grupo:ROLE` (p. ej. `noc-admins:ADMIN`) |
+| `OIDC_ALLOW_INSECURE_LOOPBACK_ISSUER` | `false` | No | `oidc.ts:63,93,104-131` | **Solo desarrollo/E2E** (nunca en producción): permite `OIDC_ISSUER` con `http://` únicamente en loopback (`localhost`, `127.0.0.1`, `[::1]`) y emite `log.warn` |
 
 ## 7. Receptor SNMP (`apps/web/lib/monitoring/snmp.ts`)
 
@@ -217,5 +234,5 @@ Sin proveedor configurado, `createLlmClient` lanza `No hay proveedor LLM configu
 ## Resumen de obligatoriedad
 
 - **Bloquean el arranque en producción**: `JWT_SECRET`, `KMS_MASTER_KEY`.
-- **Bloquean la función que activan**: `DATABASE_URL` (toda query), `LLM_PROVIDER` + una API key (chat), `SYSLOG_TENANT_ID` (receptor syslog), `LDAP_BIND_DN`/`LDAP_SEARCH_BASE`/`LDAP_BIND_PASSWORD` (LDAP), `SMARTOLT_API_BASE_URL`/`SMARTOLT_API_KEY` (SmartOLT live).
+- **Bloquean la función que activan**: `DATABASE_URL` (toda query), `LLM_PROVIDER` + una API key (chat), `SYSLOG_TENANT_ID` (receptor syslog), `LDAP_BIND_DN`/`LDAP_SEARCH_BASE`/`LDAP_BIND_PASSWORD` (LDAP), `OIDC_ISSUER`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`/`OIDC_REDIRECT_URI`/`OIDC_TENANT_SLUG` (OIDC si `OIDC_ENABLED=true`), `SMARTOLT_API_BASE_URL`/`SMARTOLT_API_KEY` (SmartOLT live).
 - **Todo lo demás tiene default y arranca apagado** por diseño: ningún plano de vigilancia corre sin un flag explícito.
