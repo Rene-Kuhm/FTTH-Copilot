@@ -85,7 +85,11 @@ spec:
           volumeMounts:
             - name: spool
               mountPath: {{ .Values.worker.persistence.mountPath }}
+            - name: tmp
+              mountPath: /tmp
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: spool
           {{- if .Values.worker.persistence.enabled }}
           persistentVolumeClaim:

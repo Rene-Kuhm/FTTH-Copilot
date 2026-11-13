@@ -40,6 +40,7 @@ spec:
             {{- toYaml .Values.migrations.command | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -51,4 +52,10 @@ spec:
                   key: DATABASE_URL
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 {{- end }}
