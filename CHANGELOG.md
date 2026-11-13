@@ -24,15 +24,14 @@ request and commit links. The entries below that point were written by hand.
 * **db:** add UserIdentity model and migration for OIDC/SSO ([92e72a2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/92e72a25db180b606e76c6e03a3aa94780ae1af0))
 * **infra:** add AWS ECS/RDS/ElastiCache Terraform reference deployment and tests ([acf0bbb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/acf0bbb01ede888b4a03b7f6298823d570435d74))
 * **infra:** add Kubernetes Helm chart for FTTH-Copilot and unit tests ([0bcd0bd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0bcd0bdc10cb1807a62779a96091272791b61e1e))
-* **infra:** AWS reference deployment with Terraform (draft) ([c6626e0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c6626e0e2d808b0d90743369ebdf3be708840c8f))
+* **infra:** AWS reference deployment with Terraform ([c6626e0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c6626e0e2d808b0d90743369ebdf3be708840c8f))
 * **infra:** encrypt backups with a customer-managed KMS key and document accepted Trivy findings ([88b5a88](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/88b5a88743560b76dc6676806fb8d024e50309be))
-* **infra:** Kubernetes Helm chart (draft) ([4c307a8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4c307a8e53483615f5e330698156fe4fb316db40))
+* **infra:** Kubernetes Helm chart ([4c307a8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4c307a8e53483615f5e330698156fe4fb316db40))
 * **web:** implement OIDC/SSO Authorization Code + PKCE login and callback ([6232463](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/62324639b887940fe87b83197b843cc9bd92f519))
 
 
 ### Fixed
 
-* **auth:** allow loopback http OIDC issuer during local next start ([953aced](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/953aced1ee3e71e2cb6b58e4bda0f5eee85ec066))
 * **auth:** invalidate MFA tempToken after verification and add lifecycle tests ([54579da](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/54579da313a75830fd1764173906d182dfe5d14c))
 * **auth:** lock MFA temp token after repeated invalid codes ([335157c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/335157cec906441896818e8db24c1d7749bd31db))
 * **auth:** pass message before context to log.warn in parseOidcConfig ([73f90a9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/73f90a929b8468b317224dcad48f80b0a661a1d5))
