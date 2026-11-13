@@ -143,8 +143,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/aws-emulator-pkg
-          gh release download --repo aws/aws-emulator --pattern '*amd64*.deb' --dir /tmp/aws-emulator-pkg
-          sudo apt-get install -y /tmp/aws-emulator-pkg/*.deb
+          gh release view --repo aws/aws-emulator --json assets --jq '.assets[].name' > /tmp/aws-emulator-assets.txt
+          echo "Assets in the latest aws/aws-emulator release:"
+          cat /tmp/aws-emulator-assets.txt
+          ASSET="$(grep -Ei '(amd64|x86_64|x64).*\.deb$' /tmp/aws-emulator-assets.txt | head -n 1 || true)"
+          if [ -z "$ASSET" ]; then
+            echo "::error::the latest aws/aws-emulator release has no amd64 .deb package (see the list above)"
+            exit 1
+          fi
+          gh release download --repo aws/aws-emulator --pattern "$ASSET" --dir /tmp/aws-emulator-pkg
+          sudo apt-get install -y "/tmp/aws-emulator-pkg/$ASSET"
           command -v aws-emulator
 
       - name: Start AWS Emulator (telemetry disabled) and trust its certificate
@@ -167,6 +175,7 @@ jobs:
           sudo update-ca-certificates
 
       - name: Layer 3 — Terraform apply, idempotency check, against AWS Emulator
+        id: apply
         working-directory: infra/aws
         shell: bash
         run: |
@@ -202,7 +211,7 @@ jobs:
           test "$RESTORED" = "synthetic-ok"
 
       - name: Terraform destroy against AWS Emulator
-        if: always()
+        if: always() && steps.apply.outcome == 'success'
         working-directory: infra/aws
         shell: bash
         run: |
