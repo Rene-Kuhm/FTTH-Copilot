@@ -80,3 +80,140 @@ jobs:
       - name: Layer 2 — Terraform native unit tests (mocked providers)
         working-directory: infra/aws
         run: terraform test
+
+  emulator-integration:
+    name: Layer 3-4 — AWS Emulator Apply, Idempotency & S3 Backup/Restore
+    runs-on: ubuntu-24.04
+    needs: static-and-mock-tests
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ftth
+          POSTGRES_PASSWORD: ftth_emulator_password
+          POSTGRES_DB: ftth_copilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ftth -d ftth_copilot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Terraform, AWS CLI, PostgreSQL client, and AWS Emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+          unzip -qo /tmp/terraform.zip -d /usr/local/bin
+          rm -f /tmp/terraform.zip
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client awscli
+
+          npm install -g @aws/aws-emulator || python3 -m pip install --break-system-packages aws-emulator || true
+
+      - name: Start AWS Emulator (telemetry disabled)
+        shell: bash
+        env:
+          EMULATOR_TELEMETRY: "off"
+        run: |
+          set -euo pipefail
+          if ! command -v aws-emulator >/dev/null 2>&1; then
+            echo "::error::aws-emulator binary not found after install"
+            exit 1
+          fi
+          nohup aws-emulator --port 9297 --telemetry off > /tmp/aws-emulator.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -skf https://127.0.0.1:9297/ >/dev/null 2>&1 || [ -f "$HOME/.aws/emulator/9297/ca.pem" ]; then
+              break
+            fi
+            sleep 1
+          done
+          ls -la "$HOME/.aws/emulator/9297" || true
+
+      - name: Layer 3 — Terraform apply, idempotency check, and destroy against AWS Emulator
+        working-directory: infra/aws
+        env:
+          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
+          AWS_SHARED_CREDENTIALS_FILE: "${{ runner.workspace }}/../../.aws/emulator/9297/emulator_credentials"
+          AWS_CONFIG_FILE: "${{ runner.workspace }}/../../.aws/emulator/9297/config"
+          AWS_CA_BUNDLE: "${{ runner.workspace }}/../../.aws/emulator/9297/ca.pem"
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
+          AWS_REGION: "us-east-1"
+          TF_VAR_emulator_mode: "true"
+          TF_VAR_enable_emulated_unsupported_resources: "false"
+          TF_VAR_allowed_account_ids: '["000000000000"]'
+          TF_VAR_allowed_udp_cidrs: '["198.51.100.0/24"]'
+        run: |
+          set -euo pipefail
+          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
+          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
+          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
+
+          terraform init -backend=false
+          terraform plan -out=tfplan
+          terraform apply -auto-approve tfplan
+          terraform plan -detailed-exitcode
+
+          BACKUP_BUCKET="$(terraform output -raw backup_bucket_name)"
+          echo "BACKUP_BUCKET=${BACKUP_BUCKET}" >> "$GITHUB_ENV"
+
+      - name: Layer 4 — Test db-backup.sh and db-restore.sh against emulated S3 + Postgres
+        env:
+          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
+          AWS_REGION: "us-east-1"
+          DATABASE_URL: "postgresql://ftth:ftth_emulator_password@127.0.0.1:5432/ftth_copilot"
+        run: |
+          set -euo pipefail
+          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
+          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
+          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
+
+          psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS backup_smoke_test (id INT PRIMARY KEY, label TEXT);"
+          psql "$DATABASE_URL" -c "INSERT INTO backup_smoke_test (id, label) VALUES (1, 'synthetic-ok') ON CONFLICT (id) DO NOTHING;"
+
+          ./scripts/db-backup.sh --remote "s3://${BACKUP_BUCKET}/ci-smoke"
+
+          LATEST_KEY="$(aws s3 ls "s3://${BACKUP_BUCKET}/ci-smoke/" | awk '{print $4}' | tail -n 1)"
+          test -n "$LATEST_KEY"
+          aws s3 cp "s3://${BACKUP_BUCKET}/ci-smoke/${LATEST_KEY}" "/tmp/${LATEST_KEY}"
+
+          psql "$DATABASE_URL" -c "DROP TABLE backup_smoke_test;"
+          echo "yes" | ./scripts/db-restore.sh "/tmp/${LATEST_KEY}"
+
+          RESTORED="$(psql "$DATABASE_URL" -tAc "SELECT label FROM backup_smoke_test WHERE id = 1;")"
+          test "$RESTORED" = "synthetic-ok"
+
+      - name: Terraform destroy against AWS Emulator
+        if: always()
+        working-directory: infra/aws
+        env:
+          AWS_ENDPOINT_URL: "https://127.0.0.1:9297"
+          AWS_EC2_METADATA_DISABLED: "true"
+          AWS_DISABLE_HOST_PREFIX_INJECTION: "true"
+          AWS_REGION: "us-east-1"
+          TF_VAR_emulator_mode: "true"
+          TF_VAR_enable_emulated_unsupported_resources: "false"
+          TF_VAR_allowed_account_ids: '["000000000000"]'
+          TF_VAR_allowed_udp_cidrs: '["198.51.100.0/24"]'
+        run: |
+          set -euo pipefail
+          export AWS_SHARED_CREDENTIALS_FILE="$HOME/.aws/emulator/9297/emulator_credentials"
+          export AWS_CONFIG_FILE="$HOME/.aws/emulator/9297/config"
+          export AWS_CA_BUNDLE="$HOME/.aws/emulator/9297/ca.pem"
+          terraform destroy -auto-approve
+
+      - name: Dump AWS Emulator logs on failure
+        if: failure()
+        run: |
+          echo "=== AWS Emulator Log ==="
+          tail -n 200 /tmp/aws-emulator.log || true
