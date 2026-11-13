@@ -32,3 +32,9 @@ export {
   type DeviceTraffic,
   type TrafficDetectorOptions,
 } from './traffic';
+export {
+  RBAC_ROLE_RANK,
+  parseRoleMap,
+  mapGroupsToRole,
+  type RbacRole,
+} from './auth-roles';

@@ -21,6 +21,7 @@
  */
 
 import type { Client, Entry, SearchOptions } from 'ldapts';
+import { mapGroupsToRole, parseRoleMap, type RbacRole } from '@ftth-copilot/security';
 
 export interface LdapConfig {
   enabled: boolean;
@@ -35,7 +36,7 @@ export interface LdapConfig {
   roleMap: Map<string, LdapRole>;
 }
 
-export type LdapRole = 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
+export type LdapRole = RbacRole;
 
 export interface LdapUser {
   dn: string;
@@ -51,34 +52,9 @@ export interface LdapAuthResult {
   error?: string;
 }
 
-const ROLE_RANK: Record<LdapRole, number> = {
-  OWNER: 3,
-  ADMIN: 2,
-  OPERATOR: 1,
-  MEMBER: 0,
-};
-
 function loadConfig(): LdapConfig {
   const enabled = process.env.LDAP_ENABLED === 'true';
-  const roleMap = new Map<string, LdapRole>();
-
-  // One mapping per group: the map is keyed by group, so a second entry for the
-  // same group would silently discard the first.
-  const defaultRoleMap = [
-    'CN=NOC-Admins:ADMIN',
-    'CN=NOC-Ops:OPERATOR',
-    'CN=NOC-Members:MEMBER',
-  ];
-
-  const roleMapStr = process.env.LDAP_ROLE_MAP ?? defaultRoleMap.join(',');
-  for (const entry of roleMapStr.split(',')) {
-    const parts = entry.trim().split(':');
-    const group = parts[0]?.trim();
-    const role = parts[1]?.trim() as LdapRole | undefined;
-    if (group && role && role in ROLE_RANK) {
-      roleMap.set(group.toLowerCase(), role);
-    }
-  }
+  const roleMap = parseRoleMap(process.env.LDAP_ROLE_MAP);
 
   return {
     enabled,
@@ -92,20 +68,6 @@ function loadConfig(): LdapConfig {
     groupAttr: process.env.LDAP_GROUP_ATTR ?? 'memberOf',
     roleMap,
   };
-}
-
-function deriveRole(groups: string[], roleMap: Map<string, LdapRole>): LdapRole {
-  let best: LdapRole = 'MEMBER';
-  let bestRank = 0;
-
-  for (const group of groups) {
-    const role = roleMap.get(group.toLowerCase());
-    if (role && ROLE_RANK[role] > bestRank) {
-      best = role;
-      bestRank = ROLE_RANK[role];
-    }
-  }
-  return best;
 }
 
 /**
@@ -296,7 +258,7 @@ export async function authenticateLdapUser(
     await closeClient(client);
 
     // Step 5: Map groups to role
-    const role = deriveRole(groups, config.roleMap);
+    const role = mapGroupsToRole(groups, config.roleMap);
 
     if (!email) {
       return { ok: false, error: 'El usuario LDAP no tiene atributo de email configurado' };
