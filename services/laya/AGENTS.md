@@ -21,6 +21,7 @@ procesamiento por lotes. La implementación de referencia está en TypeScript, e
 
 ```bash
 python3 -m py_compile services/laya/app.py
+cd services/laya && uv run --with-requirements requirements-dev.txt pytest -v
 ```
 
 El servicio se levanta con Docker; su imagen fija la versión de Python.
