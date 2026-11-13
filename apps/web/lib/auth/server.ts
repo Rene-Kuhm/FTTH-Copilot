@@ -92,7 +92,7 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-function setSessionCookie(token: string): string {
+export function setSessionCookie(token: string): string {
   const attrs = sessionCookieAttributes();
   const parts = [
     `${COOKIE_NAME}=${token}`,
@@ -104,6 +104,28 @@ function setSessionCookie(token: string): string {
   if (attrs.sameSite === 'strict') parts.push('SameSite=Strict');
   if (attrs.secure) parts.push('Secure');
   return parts.join('; ');
+}
+
+export async function issueSessionForUser(
+  user: { id: string; tenantId: string; role: Role },
+  req: Request,
+): Promise<{ token: string; sessionCookie: string; csrfCookie: string }> {
+  const { token, tokenHash, expiresAt } = issueToken(user.id, user.tenantId, user.role);
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+      userAgent: req.headers.get('user-agent') ?? null,
+      ipAddress: extractClientIp(req.headers.get('x-forwarded-for')),
+    },
+  });
+  const { cookie: csrfCookie } = generateCsrfToken();
+  return {
+    token,
+    sessionCookie: setSessionCookie(token),
+    csrfCookie,
+  };
 }
 
 function slugify(text: string): string {
