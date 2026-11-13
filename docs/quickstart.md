@@ -3,6 +3,8 @@
 > **Objetivo:** llegar a un diagnóstico funcional en 5 minutos o menos,
 > sin credenciales reales de NMS.
 
+> **Permiso:** correr el demo requiere hoy el permiso escrito previo del owner. Pedilo a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com); más detalle en [Licencias y piloto](../README.md#licencias-y-piloto).
+
 ---
 
 ## Paso 0 — ¿Qué querés evaluar?

@@ -5,6 +5,8 @@ dashboard con datos sintéticos. Terminás con una URL abierta y un dashboard co
 
 **Requiere:** Docker y Docker Compose. **No** requiere hardware, ni NMS, ni claves de API.
 
+> **Permiso:** correr el demo requiere hoy el permiso escrito previo del owner. Pedilo a [contacto@tecnodespegue.com](mailto:contacto@tecnodespegue.com); más detalle en [Licencias y piloto](../../README.md#licencias-y-piloto).
+
 ---
 
 ## 1. Verificá que Docker está disponible
