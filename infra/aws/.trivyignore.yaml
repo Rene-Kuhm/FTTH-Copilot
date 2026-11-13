@@ -1,0 +1,26 @@
+# Accepted Trivy IaC findings. Each entry is scoped to the file that declares the
+# accepted resource, and the statement explains why it is accepted. Anything else
+# is still a gate failure.
+misconfigurations:
+  - id: AVD-AWS-0053
+    paths:
+      - ecs.tf
+    statement: >-
+      The web ALB is the public entry point of the FTTH-Copilot web UI and API.
+      Public exposure is intended; ingress is restricted by var.allowed_ingress_cidrs
+      in the ALB security group (network.tf).
+  - id: AVD-AWS-0054
+    paths:
+      - ecs.tf
+    statement: >-
+      The HTTP:80 listener on the web ALB only redirects to HTTPS:443 (see
+      aws_lb_listener.web_http). No application traffic is served over plain HTTP.
+  - id: AVD-AWS-0104
+    paths:
+      - network.tf
+    statement: >-
+      Worker and web tasks must reach arbitrary HTTPS SaaS and OLT/vendor endpoints
+      (SmartOLT, Mikrowisp, MikroTik) and send SNMP polls over UDP to customer
+      networks, whose addresses are not known in advance. Narrowing egress to fixed
+      CIDRs would break telemetry collection. Mitigated by private subnets without
+      public IPs for tasks and by the security group allowing only the required ports.
