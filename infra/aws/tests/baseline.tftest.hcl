@@ -1,6 +1,20 @@
 mock_provider "aws" {}
 mock_provider "random" {}
 
+override_data {
+  target = data.aws_availability_zones.available
+  values = {
+    names = ["us-east-1a", "us-east-1b"]
+  }
+}
+
+override_data {
+  target = data.aws_iam_policy_document.ecs_assume_role
+  values = {
+    json = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"ecs-tasks.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+  }
+}
+
 variables {
   deploy_env = "staging"
   aws_region = "us-east-1"
