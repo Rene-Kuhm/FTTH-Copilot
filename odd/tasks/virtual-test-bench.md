@@ -95,3 +95,17 @@ sin hardware físico, y el conector de SmartOLT al día con la API de octubre 20
   por conexión que corta y reconecta un stream mudo; sin conexiones vivas el loop figura
   `inactive` y no `hung`; `disabled` sigue siendo terminal y rotar la key pide reiniciar
   el worker (documentado).
+- **L11** (usuario, 2026-11-07): "Revisar commit por commit (lo que recomiendo). Me
+  autorizás a crear worktrees temporales dentro de .git/ y le paso al revisor un commit
+  por vez. El commit de T1 es el de mayor riesgo, porque cambia el entorno y el CI."
+- **L12** (review de T1): worktree `.git/review-wt/t1-lab` en fe87af9 (2.108 líneas, sí
+  entra en el límite). Lineage `review-fa38c72acd3f5551` abierta, en `reviewing` y
+  esperando a los 3 revisores. La corrida falló antes de revisar con un 429 del
+  proveedor: "Token Plan usage limit reached". No se envió nada y no se reintentó.
+- **L13** (usuario): pasar `review-risk` a `deepseek/deepseek-flash`. Hecho en
+  `~/.gentle-shell/config/gentle-ai/profiles.json`, con backup en
+  `profiles.json.bak-20261107-review-risk`. Al relanzar los 3 revisores volvió el
+  mismo 429 de MiniMax ("Token Plan usage limit reached"). Lo más probable es que esta
+  sesión de Pi haya congelado el ruteo de modelos al arrancar, así que el cambio pide
+  reiniciar Pi. Además, `models.json` no declara ningún proveedor `deepseek`. La
+  lineage `review-fa38c72acd3f5551` sigue abierta en reviewing y no se reintentó.
