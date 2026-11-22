@@ -63,12 +63,18 @@ disparar acciones con la sesión del operador.
 
 ### Anti brute-force
 
-- Cuota de **ventana fija**, con dos claves: `login:email:<normalizado>` y
-  `login:ip:<ip>` (`packages/db/src/auth-rate-limit.ts:59-63`). Se chequea **antes** de
-  cualquier acceso a la base (`apps/web/lib/auth/server.ts:231-244`).
+- Cuota de **ventana fija** con namespaces separados por flujo para evitar lockouts
+  cruzados entre autenticación primaria y segundo factor: `login:email:<normalizado>` /
+  `login:ip:<ip>` para login y `mfa:email:<normalizado>` / `mfa:ip:<ip>` para las rutas
+  de MFA (`verify`, `setup` y `disable`), generadas únicamente por `authRateLimitKeys`
+  (`packages/db/src/auth-rate-limit.ts`).
+- La cuota se **reserva atómicamente antes** de cualquier verificación costosa mediante un
+  único `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` sobre todos los buckets de la
+  operación (`reserveAuthQuota`) y se **reembolsa** con `releaseAuthQuota` cuando la
+  verificación resulta válida (`apps/web/lib/auth/server.ts`, `ldap-login.ts` y rutas MFA).
 - El contador vive en `AuthRateLimit`, que **no tiene FK a usuario ni a tenant**, a
   propósito: el atacante todavía no está identificado (`schema.prisma:454-458`).
-- El store es **inyectable** (`auth-rate-limit.ts:18`), lo que permite testear la cuota sin
+- El store es **inyectable** (`auth-rate-limit.ts`), lo que permite testear la cuota sin
   esperas.
 
 ### MFA

@@ -491,6 +491,64 @@ describe('handleLogin', () => {
         else process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = prevWindowMs;
       }
     });
+
+    it('uses the login namespace and is not blocked by exhausted mfa buckets', async () => {
+      const prevMax = process.env['AUTH_RATE_LIMIT_MAX'];
+      const prevWindowMs = process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+      process.env['AUTH_RATE_LIMIT_MAX'] = '3';
+      process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = '60000';
+
+      const frozenNowMs = 1_700_000_000_000;
+      const startMs = Math.floor(frozenNowMs / 60000) * 60000;
+      const buckets = new Map<string, number>([
+        [`mfa:email:user@example.com:${startMs}`, 3],
+        [`mfa:ip:203.0.113.9:${startMs}`, 3],
+      ]);
+
+      mocks.prisma.user.findUnique.mockResolvedValue(dbUser({ mfaEnabled: false, totpSecret: null }));
+      mocks.authRateLimitKeys.mockImplementation(
+        (email: string, ip: string | null, scope: 'login' | 'mfa' = 'login'): string[] => {
+          const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+          if (ip) keys.push(`${scope}:ip:${ip}`);
+          return keys;
+        },
+      );
+      mocks.reserveAuthQuota.mockImplementation(async (keys: string[], opts: { max: number; windowMs: number }) => {
+        const counts = keys.map((key) => {
+          const bucketKey = `${key}:${startMs}`;
+          const next = (buckets.get(bucketKey) ?? 0) + 1;
+          buckets.set(bucketKey, next);
+          return next;
+        });
+        return counts.every((c) => c <= opts.max)
+          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
+          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+      });
+      mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+        for (const key of keys) {
+          const bucketKey = `${key}:${startMs}`;
+          const current = buckets.get(bucketKey) ?? 0;
+          buckets.set(bucketKey, Math.max(current - 1, 0));
+        }
+      });
+
+      try {
+        const res = await handleLogin(
+          post({ email: 'user@example.com', password: 'correct-horse' }, { 'x-forwarded-for': '203.0.113.9' }),
+        );
+        expect(res.status).toBe(200);
+        expect(mocks.authRateLimitKeys).toHaveBeenCalledWith('user@example.com', '203.0.113.9');
+        expect(buckets.get(`mfa:email:user@example.com:${startMs}`)).toBe(3);
+        expect(buckets.get(`mfa:ip:203.0.113.9:${startMs}`)).toBe(3);
+        expect(buckets.get(`login:email:user@example.com:${startMs}`)).toBe(0);
+      } finally {
+        if (prevMax === undefined) delete process.env['AUTH_RATE_LIMIT_MAX'];
+        else process.env['AUTH_RATE_LIMIT_MAX'] = prevMax;
+
+        if (prevWindowMs === undefined) delete process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+        else process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = prevWindowMs;
+      }
+    });
   });
 });
 

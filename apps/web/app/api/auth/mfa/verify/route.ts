@@ -14,8 +14,8 @@ import { generateCsrfToken } from '@/lib/auth/csrf';
 import {
   AUTH_QUOTA_ERROR_MESSAGE,
   authQuotaKeys,
-  checkAuthQuotaForKeys,
-  recordAuthFailures,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
 } from '@/lib/auth/quota';
 import { prisma, issueToken, hashToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
@@ -86,8 +86,8 @@ async function handleMfaLogin(
   code: string,
 ): Promise<NextResponse> {
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(email, clientIp);
-  const quota = await checkAuthQuotaForKeys(rateKeys);
+  const rateKeys = authQuotaKeys(email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);
   }
@@ -97,7 +97,6 @@ async function handleMfaLogin(
   // Verify credentials
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    await recordAuthFailures(rateKeys);
     await auditAuth.login(
       { tenantId: 'unknown', actorId: 'unknown', ipAddress: clientIp ?? undefined },
       email,
@@ -108,7 +107,6 @@ async function handleMfaLogin(
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    await recordAuthFailures(rateKeys);
     await auditAuth.login(
       { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: clientIp ?? undefined },
       user.id,
@@ -121,11 +119,11 @@ async function handleMfaLogin(
   if (user.mfaEnabled && user.totpSecret) {
     const secret = decryptApiKey(user.totpSecret);
     if (!verifyTOTP(secret, code)) {
-      await recordAuthFailures(rateKeys);
       return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
     }
   } else if (user.mfaEnabled) {
     // MFA enabled but no secret - shouldn't happen
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured properly' }, { status: 500 });
   }
 
@@ -147,6 +145,7 @@ async function handleMfaLogin(
     user.id,
     true,
   );
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   const { cookie: csrfCookie } = generateCsrfToken();
   const headers = new Headers({ 'content-type': 'application/json' });
@@ -186,15 +185,14 @@ async function handleSetupVerification(
   }
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(user.email, clientIp);
-  const quota = await checkAuthQuotaForKeys(rateKeys);
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);
   }
 
   const secret = decryptApiKey(dbUser.totpSecret);
   if (!verifyTOTP(secret, code)) {
-    await recordAuthFailures(rateKeys);
     return NextResponse.json({ error: 'Invalid verification code' }, { status: 401 });
   }
 
@@ -203,6 +201,7 @@ async function handleSetupVerification(
     where: { id: user.id },
     data: { mfaEnabled: true },
   });
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({
     mfaEnabled: true,
@@ -264,14 +263,15 @@ async function handleMfaContinue(
   }
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(user.email, clientIp);
-  const quota = await checkAuthQuotaForKeys(rateKeys);
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);
   }
 
   // Verify MFA code
   if (!user.totpSecret) {
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
@@ -298,7 +298,6 @@ async function handleMfaContinue(
 
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
-    await recordAuthFailures(rateKeys);
     if (attemptRecord.count === MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
       await lockTempToken(usedKey, tokenExpiresAt);
       return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });
@@ -349,6 +348,7 @@ async function handleMfaContinue(
     user.id,
     true,
   );
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   const { cookie: csrfCookie } = generateCsrfToken();
   const headers = new Headers({ 'content-type': 'application/json' });

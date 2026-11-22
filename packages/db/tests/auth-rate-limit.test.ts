@@ -49,6 +49,20 @@ describe('authRateLimitKeys', () => {
       'login:ip:1.2.3.4',
     ]);
   });
+
+  it('supports explicit login scope and isolates keys under the mfa scope', () => {
+    expect(authRateLimitKeys('a@b.c', '1.2.3.4', 'login')).toEqual([
+      'login:email:a@b.c',
+      'login:ip:1.2.3.4',
+    ]);
+    expect(authRateLimitKeys('  User@Example.COM ', null, 'mfa')).toEqual([
+      'mfa:email:user@example.com',
+    ]);
+    expect(authRateLimitKeys('a@b.c', '1.2.3.4', 'mfa')).toEqual([
+      'mfa:email:a@b.c',
+      'mfa:ip:1.2.3.4',
+    ]);
+  });
 });
 
 function fakeStore(initial: Record<string, number>): AuthRateLimitStore {

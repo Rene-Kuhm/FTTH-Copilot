@@ -47,9 +47,9 @@ vi.mock('@ftth-copilot/db', () => ({
     const first = xForwardedFor.split(',')[0]?.trim();
     return first && first.length > 0 ? first : null;
   },
-  authRateLimitKeys: (email: string, ip: string | null): string[] => {
-    const keys = [`login:email:${email.trim().toLowerCase()}`];
-    if (ip) keys.push(`login:ip:${ip}`);
+  authRateLimitKeys: (email: string, ip: string | null, scope: 'login' | 'mfa' = 'login'): string[] => {
+    const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+    if (ip) keys.push(`${scope}:ip:${ip}`);
     return keys;
   },
   checkAuthQuota: async (
@@ -87,6 +87,49 @@ vi.mock('@ftth-copilot/db', () => ({
       allowed: false,
       retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
     };
+  },
+  reserveAuthQuota: async (
+    keys: string[],
+    opts: { max: number; windowMs: number },
+  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date }> => {
+    const nowMs = FROZEN_NOW_MS;
+    const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
+    const expiresAt = windowStartMs + opts.windowMs;
+    const counts = keys.map((key) => {
+      const bucketKey = `${key}:${windowStartMs}`;
+      const existing = mocks.buckets.get(bucketKey);
+      const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
+      mocks.buckets.set(bucketKey, { count, expiresAt });
+      return count;
+    });
+    if (counts.every((count) => count <= opts.max)) {
+      return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
+    }
+    return {
+      allowed: false,
+      retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+      windowStart: new Date(windowStartMs),
+    };
+  },
+  releaseAuthQuota: async (
+    keys: string[],
+    opts: { max: number; windowMs: number },
+    _store?: unknown,
+    windowStartDate?: Date,
+  ): Promise<void> => {
+    const windowStartMs = windowStartDate
+      ? windowStartDate.getTime()
+      : computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs);
+    for (const key of keys) {
+      const bucketKey = `${key}:${windowStartMs}`;
+      const existing = mocks.buckets.get(bucketKey);
+      if (existing) {
+        mocks.buckets.set(bucketKey, {
+          count: Math.max(existing.count - 1, 0),
+          expiresAt: existing.expiresAt,
+        });
+      }
+    }
   },
 }));
 
@@ -209,7 +252,29 @@ describe('MFA disable brute-force quota', () => {
         where: { id: 'usr-1' },
         data: { mfaEnabled: false, totpSecret: null },
       });
-      expect(mocks.buckets.size).toBe(0);
+      for (const bucket of mocks.buckets.values()) {
+        expect(bucket.count).toBe(0);
+      }
+    });
+
+    it('uses mfa: keys on POST /api/auth/mfa/disable and ignores exhausted login: buckets', async () => {
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      const expiresAt = startMs + 60_000;
+      mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 3, expiresAt });
+      mocks.buckets.set(`login:ip:203.0.113.15:${startMs}`, { count: 3, expiresAt });
+
+      mocks.verifyTOTP.mockReturnValueOnce(false);
+      const failRes = await disablePost(disableRequest({ code: '000000' }, '203.0.113.15'));
+      expect(failRes.status).toBe(401);
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`mfa:ip:203.0.113.15:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
+
+      mocks.verifyTOTP.mockReturnValueOnce(true);
+      const okRes = await disablePost(disableRequest({ code: '654321' }, '203.0.113.15'));
+      expect(okRes.status).toBe(200);
+      // Refund of okRes's reservation (2 -> 1) leaves only the prior failed attempt counted.
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(1);
     });
 
     it('does not consume budget on early rejections before TOTP check', async () => {
@@ -259,7 +324,29 @@ describe('MFA disable brute-force quota', () => {
         where: { id: 'usr-1' },
         data: { mfaEnabled: false, totpSecret: null },
       });
-      expect(mocks.buckets.size).toBe(0);
+      for (const bucket of mocks.buckets.values()) {
+        expect(bucket.count).toBe(0);
+      }
+    });
+
+    it('uses mfa: keys on DELETE /api/auth/mfa/setup and ignores exhausted login: buckets', async () => {
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      const expiresAt = startMs + 60_000;
+      mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 3, expiresAt });
+      mocks.buckets.set(`login:ip:203.0.113.25:${startMs}`, { count: 3, expiresAt });
+
+      mocks.verifyTOTP.mockReturnValueOnce(false);
+      const failRes = await setupDelete(setupDeleteRequest({ code: '000000' }, '203.0.113.25'));
+      expect(failRes.status).toBe(401);
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`mfa:ip:203.0.113.25:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
+
+      mocks.verifyTOTP.mockReturnValueOnce(true);
+      const okRes = await setupDelete(setupDeleteRequest({ code: '654321' }, '203.0.113.25'));
+      expect(okRes.status).toBe(200);
+      // Refund of okRes's reservation (2 -> 1) leaves only the prior failed attempt counted.
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(1);
     });
 
     it('does not consume budget on early rejections before TOTP check', async () => {

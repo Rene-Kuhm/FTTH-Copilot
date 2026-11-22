@@ -32,6 +32,7 @@ export {
   computeWindowStart,
   extractClientIp,
   authRateLimitKeys,
+  type AuthRateLimitScope,
   type AuthQuotaOptions,
   type AuthQuotaReservation,
   type AuthRateLimitStore,
