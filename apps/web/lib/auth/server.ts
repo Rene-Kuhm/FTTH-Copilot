@@ -208,10 +208,6 @@ export async function handleSignup(req: Request) {
     // Generate CSRF token for subsequent requests
     const { cookie: csrfCookie } = generateCsrfToken();
 
-    if (signupQuota) {
-      await releaseAuthQuotaForKeys(signupKeys, signupQuota.windowStart);
-    }
-
     return jsonResponse(
       {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
