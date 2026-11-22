@@ -31,6 +31,13 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
 
   await page.route("**/api/auth/login", async (route) => {
     const body = route.request().postDataJSON();
+    if (body.email === "ratelimit@isp.com") {
+      return route.fulfill({
+        status: 429,
+        json: { error: "Demasiados intentos. Probá de nuevo más tarde." },
+        headers: { "retry-after": "42" },
+      });
+    }
     if (body.email === "mfa@isp.com" && body.password === MOCK_USER.password) {
       return route.fulfill({
         status: 200,
@@ -104,9 +111,9 @@ test.describe("Auth flows", () => {
   });
 
   test("anonymous users see a neutral login state", async ({ page }) => {
-    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+    await expect(page.locator('form [role="alert"]')).toHaveCount(0);
     await expect(page.getByText('Not authenticated')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Inicia sesión' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Inicia(r)? sesión/ }).first()).toBeVisible();
   });
 
   test("signup flow: fill form, submit, verify session appears", async ({ page }) => {
@@ -146,8 +153,10 @@ test.describe("Auth flows", () => {
     // Now logout
     await page.click("text=Salir");
 
-    await expect(page.locator("text=Iniciar sesión")).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator("text=Crear cuenta")).toBeVisible();
+    await expect(page.locator("text=Iniciar sesión").first()).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("link", { name: "Crear cuenta" }).or(page.getByRole("button", { name: "Crear cuenta" })).first(),
+    ).toBeVisible();
   });
 
   test("invalid credentials: wrong password shows error", async ({ page }) => {
@@ -168,6 +177,7 @@ test.describe("Auth flows", () => {
     await page.click('button[type="submit"]:has-text("Entrar")');
 
     await expect(page.getByRole("heading", { name: "Verificación en dos pasos" })).toBeVisible();
+    await expect(page.getByLabel("Código TOTP")).toBeFocused();
     await page.getByLabel("Código TOTP").fill("123456");
     await page.click('button[type="submit"]:has-text("Verificar")');
 
@@ -183,10 +193,21 @@ test.describe("Auth flows", () => {
 
     await page.getByLabel("Código TOTP").fill("000000");
     await page.click('button[type="submit"]:has-text("Verificar")');
-    await expect(page.getByRole("alert")).toContainText("Invalid MFA code");
+    await expect(page.locator('form [role="alert"]')).toContainText("Invalid MFA code");
 
     await page.getByLabel("Código TOTP").fill("999999");
     await page.click('button[type="submit"]:has-text("Verificar")');
-    await expect(page.getByRole("alert")).toContainText("30");
+    await expect(page.locator('form [role="alert"]')).toContainText("30");
+  });
+
+  test("login 429 rate limit shows retry-after seconds", async ({ page }) => {
+    await page.click("text=Iniciar sesión");
+    await page.fill('input[placeholder="email@ejemplo.com"]', "ratelimit@isp.com");
+    await page.fill('input[placeholder*="contraseña"]', MOCK_USER.password);
+    await page.click('button[type="submit"]:has-text("Entrar")');
+
+    const alert = page.locator('form [role="alert"]');
+    await expect(alert).toContainText("42");
+    await expect(alert).toContainText("Intentá de nuevo en 42 segundos.");
   });
 });
