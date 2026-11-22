@@ -4,17 +4,19 @@
  * El núcleo es puro: no depende del runtime, ni de Prisma, ni de Redis. Lo
  * usan las dos capas del repo:
  *
- * - el proxy de Next.js 16 (antes `middleware`), que corre en Node y aplica
- *   el límite grueso de cada petición con el store global;
- * - las rutas de la API que mutan estado, que usan el mismo store con otro
- *   prefijo de clave.
+ * - el middleware de **Edge** (`apps/web/middleware.ts`), que no tiene TCP y
+ *   aplica un límite grueso en memoria **por instancia**;
+ * - las rutas de la API que mutan estado en **Node**, que usan el store
+ *   compartido (`lib/rate-limit-store.ts`) con otro prefijo de clave.
  *
- * Lo que cambia entre las dos es la clave, nunca las cuentas. Por eso el
- * almacén es una interfaz: `RateLimitStore`.
+ * Lo que cambia entre las dos es el almacén y la clave, nunca las cuentas. Por
+ * eso el almacén es una interfaz: `RateLimitStore`.
  *
- * Con `REDIS_URL` el almacén es Redis y el límite es global. Sin ella, o si
- * Redis falla, el almacén en memoria queda como respaldo: el límite es por
- * instancia y se avisa en los logs.
+ * En Node, con `REDIS_URL` el almacén es Redis y el límite es global entre
+ * réplicas; si Redis cae o falla con `REDIS_URL` configurada, la petición pasa
+ * sin contador en memoria y la cuenta se reanuda cuando Redis vuelve
+ * (fail-open, con aviso en los logs). Sin `REDIS_URL`, Node usa el almacén en
+ * memoria desde el arranque (límite por instancia, con aviso en los logs).
  */
 
 /** Configuración de un límite. */
@@ -40,8 +42,9 @@ export interface RateLimitResult {
 /**
  * Límites por defecto.
  *
- * `normal` y `auth` son los que aplica el proxy. `mutation` es
- * el que aplican las rutas que cambian estado: son más estrictas porque
+ * `normal` y `auth` son los que aplica el middleware de Edge (en memoria, por
+ * instancia). `mutation` es el que aplican en Node las rutas que cambian
+ * estado (global en Redis cuando hay `REDIS_URL`): son más estrictas porque
  * escriben en la base y, en el caso de la investigación, gastan LLM.
  */
 export const RATE_LIMITS = {
@@ -135,11 +138,12 @@ export interface RateLimitStore {
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
- * Almacén en memoria: el de siempre, y el respaldo cuando no hay Redis.
+ * Almacén en memoria: el de Edge, y el de Node cuando no hay `REDIS_URL`.
  *
  * Vive en el proceso: con varias réplicas de la web, cada una cuenta por su
- * cuenta. Es el respaldo del modo embebido, del desarrollo local y de un
- * parpadeo de Redis, no el almacén preferido en producción.
+ * cuenta. Es el almacén obligatorio del middleware en Edge (sin TCP) y el que
+ * usa Node cuando `REDIS_URL` no está definida (modo embebido o desarrollo
+ * local). No actúa como respaldo cuando Redis falla con `REDIS_URL` activa.
  */
 export function createInMemoryRateLimitStore(): RateLimitStore {
   const entries = new Map<string, { count: number; windowStart: number }>();

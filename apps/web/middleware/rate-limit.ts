@@ -1,30 +1,32 @@
 /**
- * Límite de peticiones del proxy (antes `middleware`).
+ * Límite grueso de peticiones en el middleware/proxy de Edge.
  *
- * Next.js 16 corre el proxy en el runtime de Node, así que ya no hay una
- * barrera de TCP: el límite usa el mismo store global que las rutas de la API
- * (`lib/rate-limit-store.ts`). Con `REDIS_URL` la cuenta es de todas las
- * réplicas; sin ella, o si Redis falla, el store cae a memoria y el límite
- * queda por instancia, con un aviso en los logs.
+ * En Next.js 16.3.8 `middleware.ts` compila al runtime de Edge, donde no hay
+ * TCP: no puede hablar con Redis ni usar Prisma. Por eso este límite corre
+ * únicamente en memoria y es **por instancia** (con varias réplicas de la web,
+ * el límite real es `max` por réplica).
  *
- * Las cuentas no divergen porque ambos caminos comparten el núcleo puro
- * (`lib/rate-limit-core.ts`) y el prefijo de cada límite es distinto
- * (`rl`, `rl-auth` para el proxy; `rl-mut` para las mutaciones de la API).
+ * Para coordinar cuotas entre réplicas, las superficies que corren en **Node**
+ * (los route handlers, vía `enforceApiRateLimit`) usan el store compartido de
+ * `lib/rate-limit-store.ts` con `REDIS_URL`. Ambos caminos comparten el núcleo
+ * puro (`lib/rate-limit-core.ts`) para no divergir en las cuentas.
  */
 import {
   RATE_LIMITS,
+  createInMemoryRateLimitStore,
   getRateLimitKey,
   rateLimitResponse,
   type RateLimitConfig,
   type RateLimitResult,
 } from '../lib/rate-limit-core';
-import { getRateLimitStore } from '../lib/rate-limit-store';
 
 export { RATE_LIMITS, getRateLimitKey, rateLimitResponse };
 export type { RateLimitConfig, RateLimitResult };
 
+const store = createInMemoryRateLimitStore();
+
 /**
- * Comprueba el límite de una clave.
+ * Comprueba el límite de una clave en el almacén en memoria de la instancia.
  *
  * Devuelve { allowed: boolean; remaining: number; resetAt: number }.
  */
@@ -32,5 +34,5 @@ export async function checkRateLimit(
   key: string,
   config: RateLimitConfig,
 ): Promise<RateLimitResult> {
-  return getRateLimitStore().consume(key, config, Date.now());
+  return store.consume(key, config, Date.now());
 }

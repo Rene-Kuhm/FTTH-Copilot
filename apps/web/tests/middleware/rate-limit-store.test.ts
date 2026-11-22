@@ -1,14 +1,17 @@
 /**
- * El límite del proxy tiene que contar en el store global compartido, no en un
- * Map del proceso. Con `REDIS_URL` el límite es de todas las réplicas; sin
- * ella el mismo store cae a memoria y sigue funcionando por instancia.
+ * El límite del middleware de Edge (`middleware/rate-limit.ts`) es en memoria
+ * y por instancia: nunca debe tocar `lib/rate-limit-store.ts` (que importa
+ * `ioredis` y rompe en Edge). El store compartido queda para los route handlers
+ * que corren en Node.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RateLimitResult } from '../../lib/rate-limit-core';
 
 const mocks = vi.hoisted(() => ({
-  consume: vi.fn(),
-  getRateLimitStore: vi.fn(),
+  getRateLimitStore: vi.fn(() => {
+    throw new Error(
+      'middleware/rate-limit.ts no debe usar el store compartido (@/lib/rate-limit-store)',
+    );
+  }),
 }));
 
 vi.mock('@/lib/rate-limit-store', () => ({
@@ -17,34 +20,34 @@ vi.mock('@/lib/rate-limit-store', () => ({
 
 import { checkRateLimit } from '../../middleware/rate-limit';
 
-const CONFIG = { max: 10, windowMs: 60_000, keyPrefix: 'rl' };
-
-describe('checkRateLimit — store global compartido', () => {
+describe('checkRateLimit — limitador en memoria del middleware Edge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getRateLimitStore.mockReturnValue({ kind: 'redis', consume: mocks.consume });
   });
 
-  it('consume el store compartido en vez de un contador por instancia', async () => {
-    const expected: RateLimitResult = { allowed: true, remaining: 9, resetAt: 1_000 };
-    mocks.consume.mockResolvedValue(expected);
+  it('nunca consulta el store compartido de Redis (@/lib/rate-limit-store)', async () => {
+    const result = await checkRateLimit('rl:ip:203.0.113.7', {
+      max: 10,
+      windowMs: 60_000,
+      keyPrefix: 'rl',
+    });
 
-    const actual = await checkRateLimit('rl:ip:203.0.113.7', CONFIG);
-
-    expect(mocks.getRateLimitStore).toHaveBeenCalledOnce();
-    expect(mocks.consume).toHaveBeenCalledWith(
-      'rl:ip:203.0.113.7',
-      CONFIG,
-      expect.any(Number),
-    );
-    expect(actual).toEqual(expected);
+    expect(mocks.getRateLimitStore).not.toHaveBeenCalled();
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(9);
   });
 
-  it('respeta un resultado de cuota agotada del store compartido', async () => {
-    mocks.consume.mockResolvedValue({ allowed: false, remaining: 0, resetAt: 1_000 });
+  it('mantiene un contador stateful en memoria: con max=1, la segunda llamada al mismo key es denegada', async () => {
+    const config = { max: 1, windowMs: 60_000, keyPrefix: 'rl' };
+    const key = 'rl:ip:203.0.113.42';
 
-    const actual = await checkRateLimit('rl:ip:203.0.113.7', CONFIG);
+    const first = await checkRateLimit(key, config);
+    const second = await checkRateLimit(key, config);
 
-    expect(actual.allowed).toBe(false);
+    expect(mocks.getRateLimitStore).not.toHaveBeenCalled();
+    expect(first.allowed).toBe(true);
+    expect(first.remaining).toBe(0);
+    expect(second.allowed).toBe(false);
+    expect(second.remaining).toBe(0);
   });
 });

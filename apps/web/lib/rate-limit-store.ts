@@ -1,10 +1,11 @@
 /**
- * SEC-008 — almacén de cuota con Redis, con respaldo en memoria.
+ * SEC-008 — almacén de cuota con Redis para Node, con respaldo en memoria.
  *
- * El proxy de Next.js 16 corre en Node y usa este mismo store, así que el
- * límite del proxy y el de las rutas que mutan estado son **globales**: todas
- * las instancias de la web cuentan en la misma Redis, la que usa la cola del
- * worker. Cada capa usa su propio prefijo de clave para no mezclar cuentas.
+ * El middleware de Edge (`apps/web/middleware.ts`) no tiene TCP y mantiene su
+ * límite grueso en memoria, **por instancia**. Este store compartido queda para
+ * las superficies que corren en **Node** (los route handlers que mutan estado,
+ * vía `enforceApiRateLimit`): todas las réplicas de la web cuentan en la misma
+ * Redis (`REDIS_URL`), la misma que usa la cola del worker.
  *
  * Dos reglas:
  *
@@ -13,7 +14,8 @@
  *    queda por instancia y se avisa en los logs.
  * 2. **Si Redis falla, la petición pasa.** Un limiter que tumba la API
  *    cuando parpadea la Redis es peor que no tener limiter: la cuenta se
- *    reanuda cuando Redis vuelve, y el aviso queda en los logs.
+ *    reanuda cuando Redis vuelve, el aviso queda en los logs y el middleware de
+ *    Edge conserva su límite en memoria como red de seguridad.
  */
 import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
@@ -292,11 +294,12 @@ export function getRateLimitStore(env: NodeJS.ProcessEnv = process.env): RateLim
 }
 
 /**
- * Aplica el límite a una petición de la API.
+ * Aplica el límite a una petición de la API en el runtime de Node.
  *
  * Devuelve la respuesta 429 cuando la cuota está agotada, y `null` cuando
- * la petición puede seguir. Comparte el store del proxy, con el prefijo de
- * las rutas que mutan estado para no mezclar las cuentas de ambos caminos.
+ * la petición puede seguir. Coordina las rutas que mutan estado entre réplicas
+ * vía Redis (`REDIS_URL`), mientras el middleware de Edge aplica su límite
+ * grueso en memoria por instancia.
  */
 export async function enforceApiRateLimit(
   request: Request,
