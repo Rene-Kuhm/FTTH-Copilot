@@ -864,15 +864,17 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
 
   // Enforce user-level TOTP and tenant-level mandatory MFA policy
   const tenantRequiresMfa = await isTenantMfaRequired(userRecord.tenantId);
+  const totpSecret = userRecord.totpSecret ?? null;
+  const requiresMfaEnrollment = tenantRequiresMfa || (userRecord.mfaEnabled && !totpSecret);
   const mfaGate = evaluateMfaGate(
     {
       id: userRecord.id,
       tenantId: userRecord.tenantId,
       role: userRecord.role,
       mfaEnabled: userRecord.mfaEnabled,
-      totpSecret: userRecord.totpSecret ?? (userRecord.mfaEnabled ? 'configured' : null),
+      totpSecret,
     },
-    tenantRequiresMfa,
+    requiresMfaEnrollment,
   );
   if (mfaGate.action === 'mfa_required') {
     await releaseOidcQuotas();

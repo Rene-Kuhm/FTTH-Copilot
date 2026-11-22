@@ -419,6 +419,7 @@ describe('OIDC API routes', () => {
       role: 'OPERATOR',
       tenantId: 'tenant-1',
       mfaEnabled: true,
+      totpSecret: 'enc-totp-secret',
     });
 
     const res = await oidcCallbackGet(
@@ -428,6 +429,53 @@ describe('OIDC API routes', () => {
     );
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('/login?mfa=required&tempToken=temp-user-mfa');
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('redirects to MFA enrollment and emits no session when user has mfaEnabled=true without totpSecret even if tenant does not require MFA', async () => {
+    setValidOidcEnv();
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: false });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-mfa-corrupt',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-mfa-corrupt',
+      userId: 'user-mfa-corrupt',
+      tenantId: 'tenant-1',
+    });
+    mocks.userFindUnique.mockResolvedValueOnce({
+      id: 'user-mfa-corrupt',
+      email: 'mfa-corrupt@example.com',
+      name: 'Corrupt MFA User',
+      role: 'OPERATOR',
+      tenantId: 'tenant-1',
+      mfaEnabled: true,
+      totpSecret: null,
+    });
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toContain('/login?mfa=setup_required&tempToken=temp-user-mfa-corrupt');
+    expect(location).not.toContain('mfa=required');
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).not.toContain('ftth_session=');
     expect(mocks.sessionCreate).not.toHaveBeenCalled();
   });
 
