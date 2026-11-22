@@ -136,40 +136,70 @@ describe('recordAuthAttempt', () => {
 });
 
 function fakeAtomicStore(initial: Record<string, number>): AtomicAuthRateLimitStore & {
-  counts(): Record<string, number>;
+  counts(windowStart?: Date): Record<string, number>;
 } {
-  const buckets = new Map<string, { count: number; expiresAt: Date }>();
+  const defaultWindowStart = computeWindowStart(NOW, WINDOW_MS);
+  const buckets = new Map<
+    string,
+    { key: string; windowStartMs: number; count: number; expiresAt: Date }
+  >();
+  const bucketKey = (key: string, windowStart: Date): string =>
+    `${key}\0${windowStart.getTime()}`;
+
   for (const [key, count] of Object.entries(initial)) {
-    buckets.set(key, { count, expiresAt: new Date(NOW.getTime() + WINDOW_MS) });
+    buckets.set(bucketKey(key, defaultWindowStart), {
+      key,
+      windowStartMs: defaultWindowStart.getTime(),
+      count,
+      expiresAt: new Date(defaultWindowStart.getTime() + WINDOW_MS),
+    });
   }
   return {
-    async findCount(key) {
-      return buckets.get(key) ?? null;
+    async findCount(key, windowStart) {
+      const entry = buckets.get(bucketKey(key, windowStart));
+      return entry ? { count: entry.count, expiresAt: entry.expiresAt } : null;
     },
-    async increment(key, _windowStart, expiresAt) {
-      const current = buckets.get(key);
+    async increment(key, windowStart, expiresAt) {
+      const bk = bucketKey(key, windowStart);
+      const current = buckets.get(bk);
       const count = (current?.count ?? 0) + 1;
-      buckets.set(key, { count, expiresAt });
+      buckets.set(bk, {
+        key,
+        windowStartMs: windowStart.getTime(),
+        count,
+        expiresAt,
+      });
       return count;
     },
-    async reserve(keys, _windowStart, expiresAt) {
+    async reserve(keys, windowStart, expiresAt) {
+      const windowStartMs = windowStart.getTime();
       return keys.map((key) => {
-        const current = buckets.get(key);
+        const bk = bucketKey(key, windowStart);
+        const current = buckets.get(bk);
         const count = (current?.count ?? 0) + 1;
-        buckets.set(key, { count, expiresAt });
+        buckets.set(bk, { key, windowStartMs, count, expiresAt });
         return count;
       });
     },
-    async release(keys) {
+    async release(keys, windowStart) {
       for (const key of keys) {
-        const current = buckets.get(key);
+        const bk = bucketKey(key, windowStart);
+        const current = buckets.get(bk);
         if (current) {
-          buckets.set(key, { count: Math.max(current.count - 1, 0), expiresAt: current.expiresAt });
+          buckets.set(bk, {
+            ...current,
+            count: Math.max(current.count - 1, 0),
+          });
         }
       }
     },
-    counts() {
-      return Object.fromEntries([...buckets.entries()].map(([k, v]) => [k, v.count]));
+    counts(windowStart: Date = defaultWindowStart) {
+      const targetMs = windowStart.getTime();
+      return Object.fromEntries(
+        [...buckets.values()]
+          .filter((entry) => entry.windowStartMs === targetMs)
+          .map((entry) => [entry.key, entry.count]),
+      );
     },
   };
 }
@@ -212,5 +242,70 @@ describe('reserveAuthQuota & releaseAuthQuota', () => {
     await releaseAuthQuota(keys, OPTS, store, reservation.windowStart);
     await releaseAuthQuota(keys, OPTS, store, reservation.windowStart);
     expect(store.counts()).toEqual({ 'login:email:a@b.c': 0, 'login:ip:1.2.3.4': 0 });
+  });
+
+  it('refunds only window N when clock advances to window N+1 and leaves N+1 untouched', async () => {
+    const store = fakeAtomicStore({});
+    const keys = ['login:email:a@b.c', 'login:ip:1.2.3.4'];
+    const nowN = NOW;
+    const nowN1 = new Date(NOW.getTime() + WINDOW_MS);
+
+    const resN = await reserveAuthQuota(keys, OPTS, store, nowN);
+    expect(resN.allowed).toBe(true);
+
+    // Clock advances into window N+1; reserve the same keys in the new window.
+    const resN1 = await reserveAuthQuota(keys, OPTS, store, nowN1);
+    expect(resN1.allowed).toBe(true);
+
+    // Release using windowStart of window N: must refund N to 0 and leave N+1 at 1.
+    await releaseAuthQuota(keys, OPTS, store, resN.windowStart);
+
+    for (const key of keys) {
+      expect((await store.findCount(key, resN.windowStart))?.count).toBe(0);
+      expect((await store.findCount(key, resN1.windowStart))?.count).toBe(1);
+    }
+
+    // Window N+1 still has 2 remaining slots out of max=3 (3rd attempt allowed, 4th denied).
+    expect((await reserveAuthQuota(keys, OPTS, store, nowN1)).allowed).toBe(true); // count 2
+    expect((await reserveAuthQuota(keys, OPTS, store, nowN1)).allowed).toBe(true); // count 3
+    expect((await reserveAuthQuota(keys, OPTS, store, nowN1)).allowed).toBe(false); // count 4
+  });
+
+  it('treats release for a window with no bucket as a no-op without touching another window', async () => {
+    const store = fakeAtomicStore({});
+    const keys = ['login:email:a@b.c', 'login:ip:1.2.3.4'];
+    const windowN = computeWindowStart(NOW, WINDOW_MS);
+    const nowN1 = new Date(NOW.getTime() + WINDOW_MS);
+
+    const resN1 = await reserveAuthQuota(keys, OPTS, store, nowN1);
+    expect(resN1.allowed).toBe(true);
+
+    await releaseAuthQuota(keys, OPTS, store, windowN);
+
+    for (const key of keys) {
+      expect(await store.findCount(key, windowN)).toBeNull();
+      expect((await store.findCount(key, resN1.windowStart))?.count).toBe(1);
+    }
+  });
+
+  it('isolates findCount and increment across windowStart boundaries', async () => {
+    const store = fakeAtomicStore({});
+    const key = 'login:email:a@b.c';
+    const nowN = NOW;
+    const nowN1 = new Date(NOW.getTime() + WINDOW_MS);
+    const windowN = computeWindowStart(nowN, WINDOW_MS);
+    const windowN1 = computeWindowStart(nowN1, WINDOW_MS);
+
+    for (let i = 0; i < OPTS.max; i += 1) {
+      expect((await recordAuthAttempt(key, OPTS, store, nowN)).allowed).toBe(true);
+    }
+    expect((await store.findCount(key, windowN))?.count).toBe(3);
+    expect(await store.findCount(key, windowN1)).toBeNull();
+    expect((await checkAuthQuota(key, OPTS, store, nowN)).allowed).toBe(false);
+    expect((await checkAuthQuota(key, OPTS, store, nowN1)).allowed).toBe(true);
+
+    expect((await recordAuthAttempt(key, OPTS, store, nowN1)).allowed).toBe(true);
+    expect((await store.findCount(key, windowN))?.count).toBe(3);
+    expect((await store.findCount(key, windowN1))?.count).toBe(1);
   });
 });
