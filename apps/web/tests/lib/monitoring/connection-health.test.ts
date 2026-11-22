@@ -18,18 +18,19 @@ describe('connection-health registry (Fase 2 — 2.6)', () => {
   });
 
   it('records a successful tick and clears the last error', () => {
-    recordConnectionError('c-1', 'boom', 1000);
-    recordConnectionSuccess('c-1', 2000);
+    recordConnectionError('tenant-1', 'c-1', 'boom', 1000);
+    recordConnectionSuccess('tenant-1', 'c-1', 2000);
     const snap = snapshotConnectionHealth();
     expect(snap).toHaveLength(1);
+    expect(snap[0]!.tenantId).toBe('tenant-1');
     expect(snap[0]!.lastRunAt).toBe(2000);
     expect(snap[0]!.lastError).toBeNull();
     expect(snap[0]!.lastErrorAt).toBeNull();
   });
 
   it('records an error and keeps the last-run timestamp intact', () => {
-    recordConnectionSuccess('c-1', 1000);
-    recordConnectionError('c-1', 'NMS timeout', 2000);
+    recordConnectionSuccess('tenant-1', 'c-1', 1000);
+    recordConnectionError('tenant-1', 'c-1', 'NMS timeout', 2000);
     const snap = snapshotConnectionHealth();
     expect(snap[0]!.lastRunAt).toBe(1000);
     expect(snap[0]!.lastError).toBe('NMS timeout');
@@ -37,9 +38,9 @@ describe('connection-health registry (Fase 2 — 2.6)', () => {
   });
 
   it('partial failures: keeps per-connection state independent', () => {
-    recordConnectionSuccess('c-1', 1000);
-    recordConnectionSuccess('c-2', 1100);
-    recordConnectionError('c-1', 'NMS timeout', 1200);
+    recordConnectionSuccess('tenant-1', 'c-1', 1000);
+    recordConnectionSuccess('tenant-1', 'c-2', 1100);
+    recordConnectionError('tenant-1', 'c-1', 'NMS timeout', 1200);
     const snap = snapshotConnectionHealth();
     const c1 = snap.find((c) => c.connectionId === 'c-1');
     const c2 = snap.find((c) => c.connectionId === 'c-2');
@@ -52,6 +53,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns fresh when there is no observation at all', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'fresh',
         lastRunAt: null,
@@ -66,6 +68,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns error when the last error is recent', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'healthy',
         lastRunAt: 1000,
@@ -80,6 +83,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns stale when the last successful tick is too old (ciclo colgado)', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'healthy',
         lastRunAt: 1000,
@@ -94,6 +98,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns recovered when an old error was followed by a recent success', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'healthy',
         lastRunAt: 5000,
@@ -108,6 +113,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns healthy when a recent tick succeeded and there is no error', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'healthy',
         lastRunAt: 4000,
@@ -118,6 +124,66 @@ describe('evaluateConnectionHealth — pure classifier', () => {
     );
     expect(r).toBe('healthy');
   });
+
+  it('returns fresh when there has never been a successful tick and the last error is no longer recent', () => {
+    const r = evaluateConnectionHealth(
+      {
+        connectionId: 'c-1',
+        state: 'error',
+        lastRunAt: null,
+        lastError: 'NMS timeout',
+        lastErrorAt: 1000,
+      },
+      1000 + 6 * 60 * 1000,
+    );
+    expect(r).toBe('fresh');
+  });
+
+  it('returns recovered for an external snapshot whose historical error aged out while not stale', () => {
+    const r = evaluateConnectionHealth(
+      {
+        connectionId: 'c-1',
+        state: 'healthy',
+        lastRunAt: 4000,
+        lastError: 'NMS timeout',
+        lastErrorAt: 4500,
+      },
+      6000,
+      10_000,
+      1000,
+    );
+    expect(r).toBe('recovered');
+  });
+});
+
+describe('tenant scoping — registro indexado por (tenantId, connectionId)', () => {
+  beforeEach(() => {
+    __resetConnectionHealth();
+  });
+
+  it('mantiene aislados el mismo connectionId de dos tenants', () => {
+    const now = 100_000;
+    recordConnectionSuccess('tenant-a', 'c-1', now - 2000);
+    recordConnectionError('tenant-b', 'c-1', 'secreto del tenant b', now - 1000);
+
+    const a = snapshotConnectionHealth('tenant-a');
+    const b = snapshotConnectionHealth('tenant-b');
+    expect(a).toHaveLength(1);
+    expect(b).toHaveLength(1);
+    expect(a[0]!.lastError).toBeNull();
+    expect(b[0]!.lastError).toBe('secreto del tenant b');
+    expect(snapshotConnectionHealth('tenant-c')).toEqual([]);
+  });
+
+  it('filtra el detalle evaluado por tenant sin mezclar estados', () => {
+    const now = 100_000;
+    recordConnectionSuccess('tenant-a', 'c-1', now - 1000);
+    recordConnectionError('tenant-b', 'c-2', 'timeout', now - 1000);
+
+    const a = snapshotEvaluatedConnectionHealth(now, undefined, undefined, 'tenant-a');
+    expect(a.map((c) => c.connectionId)).toEqual(['c-1']);
+    expect(snapshotEvaluatedConnectionHealth(now, undefined, undefined, 'tenant-b')).toHaveLength(1);
+  });
 });
 
 describe('snapshotEvaluatedConnectionHealth — integration', () => {
@@ -127,11 +193,11 @@ describe('snapshotEvaluatedConnectionHealth — integration', () => {
 
   it('evaluates every entry in the registry', () => {
     const now = 100_000;
-    recordConnectionSuccess('c-1', now - 60_000); // healthy (recent success)
-    recordConnectionError('c-2', 'timeout', now - 60_000); // error (error 60s ago, recent)
-    recordConnectionSuccess('c-3', now - 60 * 60 * 1000); // stale
-    recordConnectionError('c-4', 'old', now - 60 * 60 * 1000);
-    recordConnectionSuccess('c-4', now - 1000); // recovered
+    recordConnectionSuccess('tenant-1', 'c-1', now - 60_000); // healthy (recent success)
+    recordConnectionError('tenant-1', 'c-2', 'timeout', now - 60_000); // error (error 60s ago, recent)
+    recordConnectionSuccess('tenant-1', 'c-3', now - 60 * 60 * 1000); // stale
+    recordConnectionError('tenant-1', 'c-4', 'old', now - 60 * 60 * 1000);
+    recordConnectionSuccess('tenant-1', 'c-4', now - 1000); // recovered
     const snap = snapshotEvaluatedConnectionHealth(now);
     const states = Object.fromEntries(snap.map((s) => [s.connectionId, s.state]));
     expect(states['c-1']).toBe('healthy');
@@ -142,7 +208,7 @@ describe('snapshotEvaluatedConnectionHealth — integration', () => {
 
   it('is idempotent (same registry state → same snapshot)', () => {
     const now = 100_000;
-    recordConnectionSuccess('c-1', now - 1000);
+    recordConnectionSuccess('tenant-1', 'c-1', now - 1000);
     const a = snapshotEvaluatedConnectionHealth(now);
     const b = snapshotEvaluatedConnectionHealth(now);
     expect(a).toEqual(b);

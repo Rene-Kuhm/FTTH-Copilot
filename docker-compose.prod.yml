@@ -1,7 +1,21 @@
+# Resource limits are per service: without a ceiling one container can take
+# the whole host and starve the rest; without a reservation there is no
+# guaranteed minimum under pressure. Every value is overridable through an
+# environment variable with a safe default sized for the 2 vCPU / 4 GB host
+# documented in docs/how-to/desplegar-en-staging.md. Raise the reservations
+# only together with the host sizing, and keep their sum below the host RAM.
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "${POSTGRES_CPU_LIMIT:-1.0}"
+          memory: ${POSTGRES_MEM_LIMIT:-1g}
+        reservations:
+          cpus: "${POSTGRES_CPU_RESERVATION:-0.25}"
+          memory: ${POSTGRES_MEM_RESERVATION:-512m}
     env_file:
       - .env.prod
     environment:
@@ -18,7 +32,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-ftth} -d $${POSTGRES_DB:-ftth_copilot}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-ftth} -d $${POSTGRES_DB:-ftth_copilot}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -37,6 +55,16 @@ services:
   redis:
     image: redis:8.10.2-alpine
     restart: unless-stopped
+    # The AOF rewrite is brief but memory-hungry; the limit is above the
+    # reservation so it can spike without taking the host down.
+    deploy:
+      resources:
+        limits:
+          cpus: "${REDIS_CPU_LIMIT:-0.5}"
+          memory: ${REDIS_MEM_LIMIT:-512m}
+        reservations:
+          cpus: "${REDIS_CPU_RESERVATION:-0.1}"
+          memory: ${REDIS_MEM_RESERVATION:-128m}
     environment:
       # The healthcheck authenticates with it.
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -65,7 +93,11 @@ services:
     healthcheck:
       # It authenticates: a bare `redis-cli ping` gets NOAUTH and still
       # exits 0, so it would report a healthy Redis that nobody can use.
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG',
+        ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -78,6 +110,15 @@ services:
       dockerfile: Dockerfile
       target: dependencies
     restart: "no"
+    # One-shot job: small bounds are enough for `prisma migrate deploy`.
+    deploy:
+      resources:
+        limits:
+          cpus: "${MIGRATE_CPU_LIMIT:-0.5}"
+          memory: ${MIGRATE_MEM_LIMIT:-512m}
+        reservations:
+          cpus: "${MIGRATE_CPU_RESERVATION:-0.1}"
+          memory: ${MIGRATE_MEM_RESERVATION:-128m}
     command: ["pnpm", "--filter", "@ftth-copilot/db", "db:deploy"]
     env_file:
       - .env.prod
@@ -94,6 +135,16 @@ services:
       target: runner
     image: ftth-copilot:latest
     restart: unless-stopped
+    # Two replicas can run in staging behind Caddy: the reservation is what
+    # has to fit twice on the host, not the limit.
+    deploy:
+      resources:
+        limits:
+          cpus: "${APP_CPU_LIMIT:-1.0}"
+          memory: ${APP_MEM_LIMIT:-1g}
+        reservations:
+          cpus: "${APP_CPU_RESERVATION:-0.25}"
+          memory: ${APP_MEM_RESERVATION:-384m}
     env_file:
       - .env.prod
     environment:
@@ -160,6 +211,17 @@ services:
       context: .
       dockerfile: services/worker/Dockerfile
     restart: unless-stopped
+    # The worker drains the durable spool and owns the polling loops, so it
+    # gets the largest share; the syslog/SNMP receive buffers need the memory
+    # headroom documented in SYSLOG_RECV_BUFFER_BYTES.
+    deploy:
+      resources:
+        limits:
+          cpus: "${WORKER_CPU_LIMIT:-1.5}"
+          memory: ${WORKER_MEM_LIMIT:-1536m}
+        reservations:
+          cpus: "${WORKER_CPU_RESERVATION:-0.5}"
+          memory: ${WORKER_MEM_RESERVATION:-512m}
     network_mode: host
     env_file:
       - .env.prod
@@ -193,6 +255,15 @@ services:
       context: ./services/laya
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Rule-based expert system: no GPU, modest bounds even in shadow mode.
+    deploy:
+      resources:
+        limits:
+          cpus: "${LAYA_CPU_LIMIT:-0.5}"
+          memory: ${LAYA_MEM_LIMIT:-512m}
+        reservations:
+          cpus: "${LAYA_CPU_RESERVATION:-0.1}"
+          memory: ${LAYA_MEM_RESERVATION:-256m}
     environment:
       LAYA_MODE: ${LAYA_MODE:-shadow}
       LAYA_LOG_LEVEL: ${LAYA_LOG_LEVEL:-info}
@@ -225,6 +296,16 @@ services:
   victoriametrics:
     image: ${VICTORIAMETRICS_IMAGE:-victoriametrics/victoria-metrics:v1.153.0}
     restart: unless-stopped
+    # Single-node TSDB: the limit holds the indexed series in check; disk
+    # retention is bounded separately by VM_RETENTION_PERIOD.
+    deploy:
+      resources:
+        limits:
+          cpus: "${VM_CPU_LIMIT:-1.0}"
+          memory: ${VM_MEM_LIMIT:-1g}
+        reservations:
+          cpus: "${VM_CPU_RESERVATION:-0.15}"
+          memory: ${VM_MEM_RESERVATION:-384m}
     entrypoint: ["/bin/sh", "/opt/vm/entrypoint.sh"]
     environment:
       VICTORIAMETRICS_SCRAPE_TARGET: ${VICTORIAMETRICS_SCRAPE_TARGET:-app:3001}
@@ -273,14 +354,23 @@ services:
   vmalert:
     image: ${VMALERT_IMAGE:-victoriametrics/vmalert:v1.153.0}
     restart: unless-stopped
+    # Sidecar that evaluates rules against the VM query API: no local series.
+    deploy:
+      resources:
+        limits:
+          cpus: "${VMALERT_CPU_LIMIT:-0.5}"
+          memory: ${VMALERT_MEM_LIMIT:-256m}
+        reservations:
+          cpus: "${VMALERT_CPU_RESERVATION:-0.05}"
+          memory: ${VMALERT_MEM_RESERVATION:-128m}
     entrypoint: ["/vmalert-prod"]
     command:
-      - '-rule=/etc/vmalert/rules.yml'
-      - '-datasource.url=http://victoriametrics:8428'
+      - "-rule=/etc/vmalert/rules.yml"
+      - "-datasource.url=http://victoriametrics:8428"
       # Single-node appends /api/v1/write itself; do NOT include the path here.
-      - '-remoteWrite.url=http://victoriametrics:8428'
-      - '-notifier.url=http://victoriametrics:8428'
-      - '-loggerLevel=${VMALERT_LOG_LEVEL:-INFO}'
+      - "-remoteWrite.url=http://victoriametrics:8428"
+      - "-notifier.url=http://victoriametrics:8428"
+      - "-loggerLevel=${VMALERT_LOG_LEVEL:-INFO}"
     volumes:
       - ./docker/victoriametrics-alerts.yml:/etc/vmalert/rules.yml:ro
     depends_on:

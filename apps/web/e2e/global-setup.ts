@@ -1,6 +1,9 @@
 import { chromium, type FullConfig } from "@playwright/test";
+import { prisma } from "@ftth-copilot/db";
 import * as path from "path";
 import { fileURLToPath } from "url";
+
+import { clearAuthQuotaBuckets } from "./reset-rate-limits";
 
 /**
  * Global setup for E2E tests.
@@ -8,8 +11,15 @@ import { fileURLToPath } from "url";
  * - __test_bypass cookie (skips auth middleware)
  * - ftth_csrf cookie (valid CSRF token for mutations)
  * Playwright will load this storage state for all tests.
+ *
+ * Also clears the auth quota buckets so repeated runs are idempotent.
  */
 export default async function globalSetup(_config: FullConfig) {
+  const cleared = await clearAuthQuotaBuckets(prisma.authRateLimit);
+  if (cleared > 0) {
+    console.log(`[e2e] cleared ${cleared} auth quota bucket(s)`);
+  }
+
   const browser = await chromium.launch();
   const context = await browser.newContext();
 
