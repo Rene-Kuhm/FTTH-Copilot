@@ -138,4 +138,23 @@ describe('computeInvestigationFacts', () => {
       facts.deterministicMissing.some((m) => m.what.includes('telemetría óptica')),
     ).toBe(true);
   });
+
+  it('characterizes hasCriticalAttenuation boundary strictly below -27 dBm', () => {
+    const mkMetric = (rx: string): InvestigationEvidenceRef[] => [
+      {
+        evidenceRefId: 'ref-m',
+        kind: 'metric',
+        source: 'telemetry:rx_power',
+        observedAt: baseDate.toISOString(),
+        summary: `rx_power: ${rx} dBm`,
+        quality: 'fresh',
+        qualityReason: 'within_ttl',
+      },
+    ];
+
+    expect(computeInvestigationFacts(mkMetric('-26.9')).optical.hasCriticalAttenuation).toBe(false);
+    expect(computeInvestigationFacts(mkMetric('-27')).optical.hasCriticalAttenuation).toBe(false);
+    expect(computeInvestigationFacts(mkMetric('-27.0')).optical.hasCriticalAttenuation).toBe(false);
+    expect(computeInvestigationFacts(mkMetric('-27.1')).optical.hasCriticalAttenuation).toBe(true);
+  });
 });

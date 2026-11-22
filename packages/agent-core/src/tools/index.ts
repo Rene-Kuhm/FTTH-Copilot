@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
 import { SmartOltClient } from '@ftth-copilot/connectors-smartolt';
 import {
+  DEFAULT_DEGRADED_RX_THRESHOLD_DBM,
   EVIDENCE_PROVENANCE_SCHEMA,
   evidenceProvenanceSchema,
   type TopologyEdge,
@@ -165,7 +166,7 @@ export function buildTools(_connector: INmsConnector): Anthropic.Tool[] {
           thresholdDbm: {
             type: 'number',
             description:
-              'Umbral de RX power. Sugeridos: -25 (atención), -27 (problema). Son los mismos umbrales que usa el motor de detección.',
+              `Umbral de RX power. Sugeridos: -25 (atención), ${DEFAULT_DEGRADED_RX_THRESHOLD_DBM} (problema). Son los mismos umbrales que usa el motor de detección.`,
           },
         },
         ['thresholdDbm'],

@@ -46,7 +46,7 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/connectors/mikrotik`](packages/connectors/mikrotik) | L1 | Adaptador MikroTik RouterOS v7 (REST con fallback a API binaria 8728), credenciales cifradas en PostgreSQL. | `connectors-core`, `security` |
 | [`packages/shared`](packages/shared) | L0 | Contratos canónicos Zod, esquemas compartidos, tipos de telemetría, cliente Laya y Expert System. | — |
 | [`packages/connectors/core`](packages/connectors/core) | L0 | Tipos canónicos de NMS y políticas estrictas de seguridad SSRF (allowlists, rangos privados, metadatos de nube). | — |
-| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | — |
+| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | `shared` |
 | [`packages/security`](packages/security) | L0 | Analizador RFC 3164/5424 de paquetes syslog y clasificadores de ataques. | — |
 
 > El servicio `services/laya` (FastAPI) es un despliegue opcional del Expert System para escenarios Docker y batch. La implementación de referencia es TypeScript, en `packages/shared/src/laya-expert-system.ts`.
