@@ -1,31 +1,27 @@
 /**
- * Límite de peticiones en el middleware de Edge.
+ * Límite de peticiones del proxy (antes `middleware`).
  *
- * El middleware corre en el runtime de Edge, donde no hay TCP: no puede
- * hablar con Redis, y tampoco puede usar Prisma. Así que el límite que aplica
- * es **por instancia**: con varias réplicas de la web, el límite real es `max`
- * por réplica.
+ * Next.js 16 corre el proxy en el runtime de Node, así que ya no hay una
+ * barrera de TCP: el límite usa el mismo store global que las rutas de la API
+ * (`lib/rate-limit-store.ts`). Con `REDIS_URL` la cuenta es de todas las
+ * réplicas; sin ella, o si Redis falla, el store cae a memoria y el límite
+ * queda por instancia, con un aviso en los logs.
  *
- * Por eso el runtime de Node tiene su propio almacén (`lib/rate-limit-store.ts`)
- * con Redis, donde el límite es global. Los dos usan el mismo núcleo
- * (`lib/rate-limit-core.ts`), así que las cuentas no pueden divergir.
- *
- * El middleware conserva el límite grueso: es el camino rápido que corre
- * antes que cualquier ruta, y es la red de seguridad cuando la Redis no está.
+ * Las cuentas no divergen porque ambos caminos comparten el núcleo puro
+ * (`lib/rate-limit-core.ts`) y el prefijo de cada límite es distinto
+ * (`rl`, `rl-auth` para el proxy; `rl-mut` para las mutaciones de la API).
  */
 import {
   RATE_LIMITS,
-  createInMemoryRateLimitStore,
   getRateLimitKey,
   rateLimitResponse,
   type RateLimitConfig,
   type RateLimitResult,
 } from '../lib/rate-limit-core';
+import { getRateLimitStore } from '../lib/rate-limit-store';
 
 export { RATE_LIMITS, getRateLimitKey, rateLimitResponse };
 export type { RateLimitConfig, RateLimitResult };
-
-const store = createInMemoryRateLimitStore();
 
 /**
  * Comprueba el límite de una clave.
@@ -36,5 +32,5 @@ export async function checkRateLimit(
   key: string,
   config: RateLimitConfig,
 ): Promise<RateLimitResult> {
-  return store.consume(key, config, Date.now());
+  return getRateLimitStore().consume(key, config, Date.now());
 }

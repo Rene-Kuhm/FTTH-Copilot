@@ -26,11 +26,11 @@ clasificación el middleware aplica **sólo**:
 > **El middleware nunca aplica auth a las rutas de API.** La autorización vive dentro de
 > cada handler. Si tu handler no resuelve la sesión, tu endpoint queda abierto.
 
-El rate limit del middleware es **en memoria y por instancia**
-(`apps/web/middleware/rate-limit.ts`): en despliegues multi-instancia no es un límite
-global. Por eso las rutas que cambian estado agregan, en el handler, un límite
-**global** contado en la Redis compartida (paso 5). Las cuotas de negocio, que sí van a
-la base, están aparte.
+El rate limit del proxy (antes middleware) y el de las rutas que cambian estado
+comparten el store global de `apps/web/lib/rate-limit-store.ts`, contado en la Redis
+de `REDIS_URL` con prefijos de clave distintos. Sin `REDIS_URL` el store cae a memoria
+y el límite queda por instancia, con un aviso en los logs. Las cuotas de negocio, que
+sí van a la base, están aparte.
 
 ## 2. Resolvé la sesión y el permiso
 
@@ -200,11 +200,12 @@ de la cuota.
 
 Dos reglas del almacén (`apps/web/lib/rate-limit-store.ts`):
 
-- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria y queda por
-  instancia. Es lo esperado en el modo embebido y en desarrollo local.
+- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria, queda por
+  instancia y se avisa en los logs. Es lo esperado en el modo embebido y en desarrollo
+  local.
 - **Si la Redis falla, la petición pasa**: un limiter que tumba la API cuando parpadea
-  la Redis es peor que no tener limiter. El middleware de Edge sigue aplicando su
-  límite en memoria como red de seguridad.
+  la Redis es peor que no tener limiter; la cuenta se reanuda cuando Redis vuelve y el
+  aviso queda en los logs.
 
 ### 5.2 Cuotas de negocio (en la base)
 

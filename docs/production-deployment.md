@@ -676,16 +676,16 @@ Si un secreto se expone:
 
 ### 6.4 Rate limiting en producción
 
-El rate limiting vive en dos capas, con propósitos distintos:
+El rate limiting usa un único store compartido, con dos prefijos de clave:
 
 | Capa | Dónde | Almacén | Alcance |
 |------|-------|---------|---------|
-| Middleware de Edge | `apps/web/middleware.ts` | En memoria del proceso | Por instancia |
+| Proxy (antes middleware) | `apps/web/middleware.ts` → `lib/rate-limit-store.ts` | Redis | Global |
 | Rutas que mutan estado | `apps/web/lib/rate-limit-store.ts` | Redis | Global |
 
-El middleware corre en Edge, donde no hay TCP: no puede hablar con Redis. Por eso su
-límite es por instancia, y el global lo aporta el runtime de Node, en el handler, para
-las rutas que cambian estado.
+Next.js 16 corre el proxy en el runtime de Node, así que puede hablar con Redis. El
+proxy y las rutas que mutan estado cuentan en el mismo store con prefijos distintos
+(`rl`, `rl-auth` para el proxy; `rl-mut` para las mutaciones), sin mezclar cuentas.
 
 Para que el límite global sea real hace falta que `REDIS_URL` apunte a la Redis del
 despliegue —la misma que usa la cola del worker:
@@ -697,11 +697,12 @@ REDIS_URL=redis://:<password>@redis:6379
 
 Dos comportamientos que hay que conocer antes de tocar la config:
 
-- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria y queda por
-  instancia. Es lo esperado en el modo embebido y en desarrollo local.
+- **Sin `REDIS_URL` no se cae nada**: el store cae al almacén en memoria, el límite
+  queda por instancia y se emite un aviso en los logs (`REDIS_URL is not set; rate
+  limit is per instance`). Es lo esperado en el modo embebido y en desarrollo local.
 - **Si la Redis falla, la petición pasa** (fail-open). Un limiter que tumba la API
-  cuando parpadea la Redis es peor que no tener limiter; el middleware de Edge sigue
-  aplicando su límite en memoria como red de seguridad.
+  cuando parpadea la Redis es peor que no tener limiter; la cuenta se reanuda cuando
+  Redis vuelve y el aviso queda en los logs.
 
 Las claves se guardan con el prefijo `ftth:rl:`. Es el mismo Redis que usa BullMQ, así
 que ese prefijo es lo que evita pisar la cola.

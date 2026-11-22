@@ -4,18 +4,17 @@
  * El núcleo es puro: no depende del runtime, ni de Prisma, ni de Redis. Lo
  * usan las dos capas del repo:
  *
- * - el middleware de **Edge**, que solo puede guardar en memoria (Edge no
- *   tiene TCP, así que no puede hablar con Redis);
- * - el runtime de **Node**, que sí puede y usa Redis, de modo que el límite
- *   sea el mismo para todas las instancias de la web.
+ * - el proxy de Next.js 16 (antes `middleware`), que corre en Node y aplica
+ *   el límite grueso de cada petición con el store global;
+ * - las rutas de la API que mutan estado, que usan el mismo store con otro
+ *   prefijo de clave.
  *
- * Lo que cambia entre las dos es **el almacén**, nunca las cuentas. Por eso
- * el almacén es una interfaz: `RateLimitStore`.
+ * Lo que cambia entre las dos es la clave, nunca las cuentas. Por eso el
+ * almacén es una interfaz: `RateLimitStore`.
  *
- * El almacén en memoria es por instancia. Con varias réplicas de la web, el
- * límite real es `max` por instancia. Por eso el runtime de Node usa
- * Redis cuando hay `REDIS_URL`, y el almacén en memoria queda como el
- * respaldo del modo embebido y del desarrollo local.
+ * Con `REDIS_URL` el almacén es Redis y el límite es global. Sin ella, o si
+ * Redis falla, el almacén en memoria queda como respaldo: el límite es por
+ * instancia y se avisa en los logs.
  */
 
 /** Configuración de un límite. */
@@ -41,7 +40,7 @@ export interface RateLimitResult {
 /**
  * Límites por defecto.
  *
- * `normal` y `auth` son los que aplica el middleware de Edge. `mutation` es
+ * `normal` y `auth` son los que aplica el proxy. `mutation` es
  * el que aplican las rutas que cambian estado: son más estrictas porque
  * escriben en la base y, en el caso de la investigación, gastan LLM.
  */
@@ -139,8 +138,8 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
  * Almacén en memoria: el de siempre, y el respaldo cuando no hay Redis.
  *
  * Vive en el proceso: con varias réplicas de la web, cada una cuenta por su
- * cuenta. Es el comportamiento correcto para el modo embebido y para el
- * desarrollo local, y el que se usa en Edge (que no puede hacer otra cosa).
+ * cuenta. Es el respaldo del modo embebido, del desarrollo local y de un
+ * parpadeo de Redis, no el almacén preferido en producción.
  */
 export function createInMemoryRateLimitStore(): RateLimitStore {
   const entries = new Map<string, { count: number; windowStart: number }>();

@@ -13,7 +13,7 @@ falla al arrancar, sino que **cae al default silenciosamente** en algunos casos 
 | Variable | Default | Obligatoria | Dónde se lee | Controla |
 |---|---|---|---|---|
 | `DATABASE_URL` | `postgresql://ftth:change-me@localhost:5432/ftth_copilot` | Sí | `packages/db/src/client.ts:11`, `scripts/setup.ts:245` | DSN de Prisma. `client.ts` busca un `.env` en 4 rutas candidatas si no está exportada |
-| `REDIS_URL` | `redis://127.0.0.1:6379` | No (sí para worker) | `packages/jobs/src/connection.ts:11,42,51` | URL de Redis para colas BullMQ. Acepta `rediss://` (TLS, p. ej. AWS ElastiCache) (`connection.ts:27,51`) |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | No (sí para worker y para límite global) | `packages/jobs/src/connection.ts:11,42,51`, `apps/web/lib/rate-limit-store.ts:256` | URL de Redis para colas BullMQ y para el store global de rate limit. Acepta `rediss://` (TLS, p. ej. AWS ElastiCache) (`connection.ts:27,51`). Sin ella el límite cae a memoria, queda por instancia y avisa en los logs |
 
 Sin `DATABASE_URL` el build de Next.js igual compila (los resolvers de secretos son perezosos)
 y el fallo aparece en la primera query.
@@ -45,6 +45,7 @@ y el fallo aparece en la primera query.
 | `INVESTIGATION_DAILY_QUOTA` | `100` | `apps/web/lib/investigations/quota.ts:30` | Investigaciones por día |
 | `AUTH_RATE_LIMIT_MAX` | `10` | `apps/web/lib/auth/server.ts:58` | Intentos de login/signup por ventana |
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | `apps/web/lib/auth/server.ts:59` | Ventana anti brute-force (15 min) |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | `apps/web/lib/rate-limit-store.ts:256` | Store global del límite del proxy y de las rutas que mutan estado (§1) |
 
 ## 5. Conectores NMS
 
