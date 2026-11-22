@@ -72,4 +72,32 @@ describe('auth client login', () => {
     const { loginRequest } = await import('@/lib/auth/client');
     await expect(loginRequest('user@example.com', 'bad')).rejects.toThrow('Invalid credentials');
   });
+
+  it('incluye el tiempo de reintento cuando 429 trae retry-after positivo', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'retry-after': '42' }),
+      json: async () => ({ error: 'Demasiados intentos. Probá de nuevo más tarde.' }),
+    }) as unknown as typeof fetch;
+
+    const { loginRequest } = await import('@/lib/auth/client');
+    await expect(loginRequest('user@example.com', 'bad')).rejects.toThrow(
+      'Demasiados intentos. Probá de nuevo más tarde. Intentá de nuevo en 42 segundos.',
+    );
+  });
+
+  it('conserva solo el mensaje del servidor cuando 429 no trae retry-after', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers(),
+      json: async () => ({ error: 'Demasiados intentos. Probá de nuevo más tarde.' }),
+    }) as unknown as typeof fetch;
+
+    const { loginRequest } = await import('@/lib/auth/client');
+    await expect(loginRequest('user@example.com', 'bad')).rejects.toThrow(
+      /^Demasiados intentos\. Probá de nuevo más tarde\.$/,
+    );
+  });
 });

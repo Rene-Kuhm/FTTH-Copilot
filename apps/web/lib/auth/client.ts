@@ -53,6 +53,17 @@ function readString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function readRetryAfterSeconds(response: Response): number | null {
+  try {
+    const retryAfter = response.headers?.get?.('retry-after');
+    if (!retryAfter) return null;
+    const seconds = Number.parseInt(retryAfter, 10);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loginRequest(email: string, password: string): Promise<LoginResult> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
@@ -80,7 +91,14 @@ export async function loginRequest(email: string, password: string): Promise<Log
   }
 
   if (!response.ok) {
-    throw new Error(readString(body.error) ?? 'No se pudo iniciar sesión.');
+    const message = readString(body.error) ?? 'No se pudo iniciar sesión.';
+    if (response.status === 429) {
+      const seconds = readRetryAfterSeconds(response);
+      if (seconds !== null) {
+        throw new Error(`${message} Intentá de nuevo en ${seconds} segundos.`);
+      }
+    }
+    throw new Error(message);
   }
 
   return { status: 'ok' };

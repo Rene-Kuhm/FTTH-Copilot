@@ -112,4 +112,35 @@ describe('AuthBar MFA challenge', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toMatch(/MFA|configurar|organización/i);
   });
+
+  it('enfoca el campo de código TOTP al aparecer el paso MFA y no roba el foco después', async () => {
+    authMocks.login.mockResolvedValue({ status: 'mfa_required', tempToken: 'temp-123' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: 'Código inválido' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderAuthBar();
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await screen.findByText('Verificación en dos pasos');
+    const codeInput = screen.getByLabelText(/código totp/i);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(codeInput);
+    });
+
+    const verifyButton = screen.getByRole('button', { name: 'Verificar' });
+    verifyButton.focus();
+    expect(document.activeElement).toBe(verifyButton);
+
+    fireEvent.change(codeInput, { target: { value: '000000' } });
+    fireEvent.click(verifyButton);
+    await screen.findByRole('alert');
+
+    expect(document.activeElement).toBe(verifyButton);
+  });
 });

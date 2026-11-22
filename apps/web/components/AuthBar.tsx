@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/client';
 import { ThemeToggle } from './ThemeToggle';
 import {
@@ -63,6 +63,14 @@ export function AuthBar({
       : null,
   );
   const [submitting, setSubmitting] = useState(false);
+  const mfaCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const showMfaStep = !auth.loading && !auth.user && Boolean(mfaTempToken);
+
+  useEffect(() => {
+    if (showMfaStep) {
+      mfaCodeInputRef.current?.focus();
+    }
+  }, [showMfaStep, mfaTempToken]);
 
   if (auth.loading) {
     return (
@@ -329,6 +337,7 @@ export function AuthBar({
         )}
         <Field icon={<KeyIcon className="h-4 w-4" />} label="Código TOTP">
           <input
+            ref={mfaCodeInputRef}
             type="text"
             name="code"
             inputMode="numeric"
