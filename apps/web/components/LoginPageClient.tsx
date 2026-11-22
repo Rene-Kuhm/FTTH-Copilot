@@ -26,6 +26,17 @@ export function LoginPageClient({
     }
   }, [auth.user, router]);
 
+  useEffect(() => {
+    if (initialMfaTempToken && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('tempToken') || url.searchParams.get('mfa') === 'required') {
+        url.searchParams.delete('tempToken');
+        url.searchParams.delete('mfa');
+        window.history.replaceState(window.history.state, '', url.toString());
+      }
+    }
+  }, [initialMfaTempToken]);
+
   return (
     <AuthPageShell title="Iniciar sesión" description="Accedé al centro de operaciones de tu organización.">
       <AuthBar

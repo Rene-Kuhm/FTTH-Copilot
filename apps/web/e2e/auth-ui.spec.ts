@@ -31,6 +31,12 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
 
   await page.route("**/api/auth/login", async (route) => {
     const body = route.request().postDataJSON();
+    if (body.email === "mfa@isp.com" && body.password === MOCK_USER.password) {
+      return route.fulfill({
+        status: 200,
+        json: { mfaRequired: true, tempToken: "temp-mfa-token" },
+      });
+    }
     if (body.email === MOCK_USER.email && body.password === MOCK_USER.password) {
       return route.fulfill({
         status: 200,
@@ -41,6 +47,28 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
     return route.fulfill({
       status: 401,
       json: { error: "Credenciales inválidas" },
+    });
+  });
+
+  await page.route("**/api/auth/mfa/verify", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.tempToken === "temp-mfa-token" && body.code === "123456") {
+      return route.fulfill({
+        status: 200,
+        json: { ok: true },
+        headers: { "set-cookie": "session=mock-token; Path=/; HttpOnly" },
+      });
+    }
+    if (body.tempToken === "temp-mfa-token" && body.code === "000000") {
+      return route.fulfill({
+        status: 401,
+        json: { error: "Invalid MFA code" },
+      });
+    }
+    return route.fulfill({
+      status: 429,
+      json: { error: "Demasiados intentos. Probá de nuevo más tarde." },
+      headers: { "retry-after": "30" },
     });
   });
 
@@ -131,5 +159,34 @@ test.describe("Auth flows", () => {
     await page.click('button[type="submit"]:has-text("Entrar")');
 
     await expect(page.locator("text=Credenciales inválidas")).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("mfa challenge: complete login after valid TOTP", async ({ page }) => {
+    await page.click("text=Iniciar sesión");
+    await page.fill('input[placeholder="email@ejemplo.com"]', "mfa@isp.com");
+    await page.fill('input[placeholder*="contraseña"]', MOCK_USER.password);
+    await page.click('button[type="submit"]:has-text("Entrar")');
+
+    await expect(page.getByRole("heading", { name: "Verificación en dos pasos" })).toBeVisible();
+    await page.getByLabel("Código TOTP").fill("123456");
+    await page.click('button[type="submit"]:has-text("Verificar")');
+
+    await expect(page.getByText("Activa", { exact: true })).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("mfa challenge: invalid code and 429 show clear errors", async ({ page }) => {
+    await page.click("text=Iniciar sesión");
+    await page.fill('input[placeholder="email@ejemplo.com"]', "mfa@isp.com");
+    await page.fill('input[placeholder*="contraseña"]', MOCK_USER.password);
+    await page.click('button[type="submit"]:has-text("Entrar")');
+    await expect(page.getByRole("heading", { name: "Verificación en dos pasos" })).toBeVisible();
+
+    await page.getByLabel("Código TOTP").fill("000000");
+    await page.click('button[type="submit"]:has-text("Verificar")');
+    await expect(page.getByRole("alert")).toContainText("Invalid MFA code");
+
+    await page.getByLabel("Código TOTP").fill("999999");
+    await page.click('button[type="submit"]:has-text("Verificar")');
+    await expect(page.getByRole("alert")).toContainText("30");
   });
 });

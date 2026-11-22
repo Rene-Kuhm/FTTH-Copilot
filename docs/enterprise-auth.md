@@ -201,6 +201,15 @@ When `requireMfa` is `true` for a tenant:
 - Each `tempToken` is single-use once MFA verification succeeds and is locked after **5 invalid TOTP attempts** on `POST /api/auth/mfa/verify` (tracked per token in `auth_rate_limits` until token expiry; subsequent attempts with that `tempToken` return `401`, even with a valid code).
 - `POST /api/auth/mfa/disable` rejects requests with `403` so users cannot disable MFA while the tenant policy requires it.
 
+### Web login challenge
+
+The web login UI handles MFA challenges returned by `POST /api/auth/login`:
+
+- `200 { mfaRequired: true, tempToken }`: shows a TOTP step and verifies with `POST /api/auth/mfa/verify` using `{ tempToken, code }`.
+- `403 { code: "MFA_SETUP_REQUIRED", mfaSetupRequired: true, tempToken }`: shows a minimal enrollment-required step. The user can generate a TOTP secret through `POST /api/auth/mfa/setup` with `Authorization: Bearer <tempToken>`, then verify with `POST /api/auth/mfa/verify`.
+- The `tempToken` is kept only in memory (React state), never in `localStorage`. It is cleared on successful verification, cancel, or navigation away.
+- MFA verification errors are shown inline (`aria-live="assertive"`). `429` responses include the `Retry-After` delay in the message when present.
+
 ---
 
 ## Combined auth

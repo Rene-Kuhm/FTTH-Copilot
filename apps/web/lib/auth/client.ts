@@ -23,11 +23,16 @@ export interface SessionUser {
   tenant: { id: string; name: string; slug: string };
 }
 
+export type LoginResult =
+  | { status: 'ok' }
+  | { status: 'mfa_required'; tempToken: string }
+  | { status: 'mfa_setup_required'; tempToken: string; error: string };
+
 interface AuthState {
   user: SessionUser | null;
   loading: boolean;
   refresh: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   signup: (
     email: string,
     password: string,
@@ -42,6 +47,43 @@ const AuthContext = createContext<AuthState | null>(null);
 async function errorFromResponse(response: Response, fallback: string): Promise<Error> {
   const body = await response.json().catch(() => ({}));
   return new Error(typeof body.error === 'string' ? body.error : fallback);
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+export async function loginRequest(email: string, password: string): Promise<LoginResult> {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, password }),
+  });
+
+  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if (response.ok && body.mfaRequired === true) {
+    const tempToken = readString(body.tempToken);
+    if (tempToken) {
+      return { status: 'mfa_required', tempToken };
+    }
+  }
+
+  if (response.status === 403 && body.mfaSetupRequired === true) {
+    const tempToken = readString(body.tempToken);
+    return {
+      status: 'mfa_setup_required',
+      tempToken: tempToken ?? '',
+      error: readString(body.error) ?? 'La política de la organización exige configurar MFA antes de ingresar.',
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(readString(body.error) ?? 'No se pudo iniciar sesión.');
+  }
+
+  return { status: 'ok' };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -70,17 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
-      });
-      if (!response.ok) {
-        throw await errorFromResponse(response, 'No se pudo iniciar sesión.');
+    async (email: string, password: string): Promise<LoginResult> => {
+      const result = await loginRequest(email, password);
+      if (result.status === 'ok') {
+        await refresh();
       }
-      await refresh();
+      return result;
     },
     [refresh],
   );
