@@ -7,6 +7,7 @@ import {
 } from '@/lib/monitoring/scheduler-health';
 import { readWorkerHealth } from '@/lib/monitoring/worker-health';
 import {
+  aggregateConnectionHealth,
   snapshotEvaluatedConnectionHealth,
 } from '@/lib/monitoring/connection-health';
 import { checkDatabaseHealth } from '@/lib/monitoring/database-health';
@@ -65,7 +66,10 @@ export async function GET(request: Request): Promise<NextResponse> {
   // ticked yet is warming up —with the instant of its next tick— and not
   // dead.
   const services = withServiceStatus(registered, now);
-  const connections = snapshotEvaluatedConnectionHealth(now);
+  // This endpoint is public. Only non-identifying aggregates leave here:
+  // per-connection ids and error messages are served by /api/connectors,
+  // which authenticates and filters by the caller's tenant.
+  const connections = aggregateConnectionHealth(snapshotEvaluatedConnectionHealth(now));
   const database = await checkDatabaseHealth();
 
   const isDatabaseHealthy = database.status === 'connected';

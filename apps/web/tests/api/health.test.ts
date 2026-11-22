@@ -231,16 +231,22 @@ describe('GET /api/health — Fase 2 fields (2.6)', () => {
     expect(body.hungLoops).toContain('polling');
   });
 
-  it('reports connections[] with per-connection state', async () => {
+  it('publica solo agregados de conexiones, sin ids ni mensajes de error', async () => {
     const now = Date.now();
-    recordConnectionSuccess('c-1', now - 1000);
-    recordConnectionError('c-2', 'NMS timeout', now - 1000);
+    recordConnectionSuccess('tenant-1', 'c-1', now - 1000);
+    recordConnectionError('tenant-1', 'c-2', 'NMS timeout secreto', now - 1000);
+    recordConnectionError('tenant-2', 'c-3', 'error de otro tenant', now - 1000);
     const res = await GET(new Request('http://localhost/api/health'));
     const body = await res.json();
-    expect(body.connections).toBeInstanceOf(Array);
-    const states = Object.fromEntries(body.connections.map((c: { connectionId: string; state: string }) => [c.connectionId, c.state]));
-    expect(states['c-1']).toBe('healthy');
-    expect(states['c-2']).toBe('error');
+    expect(body.connections).toEqual({
+      total: 3,
+      byState: { fresh: 0, healthy: 1, stale: 0, error: 2, recovered: 0 },
+    });
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain('c-1');
+    expect(raw).not.toContain('c-2');
+    expect(raw).not.toContain('NMS timeout secreto');
+    expect(raw).not.toContain('error de otro tenant');
   });
 
   it('returns hungLoops: [] when every expected service is healthy', async () => {
