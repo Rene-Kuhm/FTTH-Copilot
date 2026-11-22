@@ -160,6 +160,9 @@ GREEN medido después:
 - `database-health.ts` conserva una rama sin cubrir (88.88% branch): la línea 31 hace
   `if (timer) clearTimeout(timer)` y `timer` se asigna de forma sincrónica dentro del executor de
   `new Promise`, así que la rama `false` es inalcanzable por construcción.
+- `event-ingest.ts` y `scheduler-health.ts` siguen apareciendo como 0/0 en el reporte: son barras de
+  re-export puro, sin código propio ejecutable. Lo que se verificó es el **cableado** (que delegan
+  en `@ftth-copilot/ingest` y `@ftth-copilot/scheduler`), no su lógica, que vive en esos packages.
 - **Bugs reales encontrados: ninguno.** Los dos writers buscaron fallos de comportamiento y no
   encontraron ninguno; por eso no hay commit `fix:`.
 
@@ -226,6 +229,7 @@ mismo commit de cada cambio (T4 y T5).
 | Lint + types + tests del monorepo | `pnpm turbo run lint typecheck test --force` | **73/73 tareas exitosas**, 0 cacheadas, 25.0s. 0 errores de ESLint. 1 warning preexistente en `apps/web/app/layout.tsx:70` (`@next/next/no-page-custom-font`), archivo que ninguna de las unidades tocó. |
 | Contrato HTTP | `pnpm contract:check` | exit 0 — `contrato al día: 89 operaciones, 3 artefactos.` |
 | Arquitectura C4 | `pnpm c4:check` | exit 0 — `vistas C4 al día: 4 vistas.` |
+| Cobertura del monorepo | `pnpm test:coverage-check` | exit 0 — **25/25 tareas exitosas** (1 cacheada, 24 ejecutadas), 14.6s. Ningún umbral de cobertura falló. `apps/web/lib/monitoring` queda en 100 / 98.48 / 100 / 100. |
 
 Los tres gates correron sobre el árbol completo, con la rama Item 2 apilada encima de Item 1.
 
