@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
+import { generateCsrfToken } from '@/lib/auth/csrf';
 import {
   AUTH_QUOTA_ERROR_MESSAGE,
   authQuotaKeys,
@@ -147,14 +148,16 @@ async function handleMfaLogin(
     true,
   );
 
+  const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
+
   return new NextResponse(
     JSON.stringify({ user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
     {
       status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie': setSessionCookie(token),
-      },
+      headers,
     },
   );
 }
@@ -347,14 +350,16 @@ async function handleMfaContinue(
     true,
   );
 
+  const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
+
   return new NextResponse(
     JSON.stringify({ user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
     {
       status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie': setSessionCookie(token),
-      },
+      headers,
     },
   );
 }

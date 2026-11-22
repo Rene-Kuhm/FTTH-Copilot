@@ -181,9 +181,13 @@ describe('handleSignup', () => {
       post({ email: 'a@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme' }),
     );
 
-    const cookies = res.headers.get('set-cookie') ?? '';
-    expect(cookies).toContain(`${SESSION_COOKIE}=raw-token`);
-    expect(cookies).toContain('ftth_csrf=');
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies).toHaveLength(2);
+    for (const entry of setCookies) {
+      expect(entry.includes(`${SESSION_COOKIE}=`) && entry.includes('ftth_csrf=')).toBe(false);
+    }
+    expect(setCookies.some((entry) => entry.includes(`${SESSION_COOKIE}=raw-token`))).toBe(true);
+    expect(setCookies.some((entry) => entry.includes('ftth_csrf='))).toBe(true);
     // The session row must hold the hash, never the raw token.
     const stored = mocks.prisma.session.create.mock.calls[0][0].data;
     expect(stored.tokenHash).toBe('sha256:raw-token');
@@ -260,9 +264,13 @@ describe('handleLogin', () => {
     const res = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
 
     expect(res.status).toBe(200);
-    const cookies = res.headers.get('set-cookie') ?? '';
-    expect(cookies).toContain(`${SESSION_COOKIE}=raw-token`);
-    expect(cookies).toContain('ftth_csrf=');
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies).toHaveLength(2);
+    for (const entry of setCookies) {
+      expect(entry.includes(`${SESSION_COOKIE}=`) && entry.includes('ftth_csrf=')).toBe(false);
+    }
+    expect(setCookies.some((entry) => entry.includes(`${SESSION_COOKIE}=raw-token`))).toBe(true);
+    expect(setCookies.some((entry) => entry.includes('ftth_csrf='))).toBe(true);
     const body = await res.json();
     expect(body.user.email).toBe('user@example.com');
     expect(body).not.toHaveProperty('tokenHash');
@@ -449,11 +457,18 @@ describe('handleLogout', () => {
       new Request('http://localhost/api/auth/logout', { method: 'POST' }),
     );
 
-    const cookies = res.headers.get('set-cookie') ?? '';
-    expect(cookies).toContain(`${SESSION_COOKIE}=`);
-    expect(cookies).toContain('Max-Age=0');
-    expect(cookies).toMatch(/ftth_session=[^;]*;[^,]*HttpOnly/);
-    expect(cookies).toContain('ftth_csrf=');
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies).toHaveLength(2);
+    for (const entry of setCookies) {
+      expect(entry.includes(`${SESSION_COOKIE}=`) && entry.includes('ftth_csrf=')).toBe(false);
+    }
+    const sessionClear = setCookies.find((entry) => entry.startsWith(`${SESSION_COOKIE}=`));
+    const csrfClear = setCookies.find((entry) => entry.startsWith('ftth_csrf='));
+    expect(sessionClear).toBeDefined();
+    expect(sessionClear).toContain('Max-Age=0');
+    expect(sessionClear).toContain('HttpOnly');
+    expect(csrfClear).toBeDefined();
+    expect(csrfClear).toContain('Max-Age=0');
   });
 
   it('succeeds without a cookie and still clears both', async () => {
@@ -463,6 +478,10 @@ describe('handleLogout', () => {
 
     expect(res.status).toBe(200);
     expect(mocks.prisma.session.deleteMany).not.toHaveBeenCalled();
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies).toHaveLength(2);
+    expect(setCookies.some((entry) => entry.startsWith(`${SESSION_COOKIE}=`) && entry.includes('Max-Age=0'))).toBe(true);
+    expect(setCookies.some((entry) => entry.startsWith('ftth_csrf=') && entry.includes('Max-Age=0'))).toBe(true);
   });
 });
 

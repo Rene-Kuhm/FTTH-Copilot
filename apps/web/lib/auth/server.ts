@@ -69,13 +69,19 @@ export interface CurrentUser {
   tenant: { id: string; name: string; slug: string };
 }
 
-function jsonResponse(body: unknown, init?: ResponseInit) {
+function jsonResponse(body: unknown, init?: ResponseInit, setCookies?: string[]) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  if (setCookies) {
+    for (const cookie of setCookies) {
+      headers.append('set-cookie', cookie);
+    }
+  }
   return new NextResponse(JSON.stringify(body), {
     ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...init?.headers,
-    },
+    headers,
   });
 }
 
@@ -214,12 +220,8 @@ export async function handleSignup(req: Request) {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
         tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
       },
-      {
-        status: 201,
-        headers: {
-          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-        },
-      },
+      { status: 201 },
+      [setSessionCookie(token), csrfCookie],
     );
   } catch (err) {
     const info = describeError(err);
@@ -337,12 +339,8 @@ export async function handleLogin(req: Request) {
 
     return jsonResponse(
       { user: { id: user.id, email: user.email, name: user.name, role: user.role } },
-      {
-        status: 200,
-        headers: {
-          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-        },
-      },
+      { status: 200 },
+      [setSessionCookie(token), csrfCookie],
     );
   } catch (err) {
     const info = describeError(err);
@@ -379,7 +377,8 @@ export async function handleLogout(req: Request) {
 
   // Also clear CSRF cookie
   const csrfClear = clearCsrfCookie();
-  res.headers.set('set-cookie', `${parts.join('; ')}, ${csrfClear}`);
+  res.headers.append('set-cookie', parts.join('; '));
+  res.headers.append('set-cookie', csrfClear);
   return res;
 }
 

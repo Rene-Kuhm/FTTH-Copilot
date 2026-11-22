@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { validateCsrfToken } from '@/lib/auth/csrf';
 
 interface Bucket {
   count: number;
@@ -138,6 +139,15 @@ function makeUser(overrides: Record<string, unknown> = {}) {
     totpSecret: 'encrypted-secret',
     ...overrides,
   };
+}
+
+function extractCookieValue(setCookieHeaders: string[], cookieName: string): string | null {
+  const prefix = `${cookieName}=`;
+  const entry = setCookieHeaders.find((header) => header.startsWith(prefix));
+  if (!entry) return null;
+  const semiIndex = entry.indexOf(';');
+  const value = semiIndex === -1 ? entry.slice(prefix.length) : entry.slice(prefix.length, semiIndex);
+  return value.length > 0 ? value : null;
 }
 
 describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () => {
@@ -383,6 +393,67 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
       expect(res.status).toBe(401);
       await expect(res.json()).resolves.toEqual({ error: 'Invalid or expired temp token' });
       expect(mocks.buckets.size).toBe(0);
+    });
+  });
+
+  describe('CSRF cookie issuance on successful MFA login (S2, S5)', () => {
+    it('sets both ftth_session and a valid ftth_csrf cookie on handleMfaLogin success', async () => {
+      const res = await POST(
+        mfaRequest(
+          { email: 'operator@example.com', password: 'correct-password', code: '654321' },
+          '203.0.113.10',
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        user: {
+          id: 'usr-1',
+          email: 'operator@example.com',
+          name: 'Operator',
+          role: 'OWNER',
+        },
+      });
+
+      const setCookies = res.headers.getSetCookie();
+      expect(setCookies).toHaveLength(2);
+      for (const entry of setCookies) {
+        expect(entry.includes('ftth_session=') && entry.includes('ftth_csrf=')).toBe(false);
+      }
+      expect(setCookies.some((entry) => entry.includes('ftth_session=raw-session-token'))).toBe(true);
+      expect(setCookies.some((entry) => entry.includes('ftth_csrf='))).toBe(true);
+
+      const csrfToken = extractCookieValue(setCookies, 'ftth_csrf');
+      expect(csrfToken).toBeTruthy();
+      expect(validateCsrfToken(`ftth_csrf=${csrfToken}`, csrfToken)).toBe(true);
+    });
+
+    it('sets both ftth_session and a valid ftth_csrf cookie on handleMfaContinue success', async () => {
+      const res = await POST(
+        mfaRequest({ tempToken: 'valid-temp-token', code: '654321' }, '203.0.113.11'),
+      );
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        user: {
+          id: 'usr-1',
+          email: 'operator@example.com',
+          name: 'Operator',
+          role: 'OWNER',
+        },
+      });
+
+      const setCookies = res.headers.getSetCookie();
+      expect(setCookies).toHaveLength(2);
+      for (const entry of setCookies) {
+        expect(entry.includes('ftth_session=') && entry.includes('ftth_csrf=')).toBe(false);
+      }
+      expect(setCookies.some((entry) => entry.includes('ftth_session=raw-session-token'))).toBe(true);
+      expect(setCookies.some((entry) => entry.includes('ftth_csrf='))).toBe(true);
+
+      const csrfToken = extractCookieValue(setCookies, 'ftth_csrf');
+      expect(csrfToken).toBeTruthy();
+      expect(validateCsrfToken(`ftth_csrf=${csrfToken}`, csrfToken)).toBe(true);
     });
   });
 
