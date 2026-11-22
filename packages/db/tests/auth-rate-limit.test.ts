@@ -217,6 +217,37 @@ describe('reserveAuthQuota & releaseAuthQuota', () => {
     expect(res.windowStart).toEqual(computeWindowStart(NOW, WINDOW_MS));
   });
 
+  it('does not increment any bucket when reserving with an already-exhausted key', async () => {
+    const store = fakeAtomicStore({});
+    const opts = { max: 2, windowMs: WINDOW_MS };
+    const attackerKeys = ['login:email:attacker@example.com', 'login:ip:1.2.3.4'];
+
+    expect((await reserveAuthQuota(attackerKeys, opts, store, NOW)).allowed).toBe(true);
+    expect((await reserveAuthQuota(attackerKeys, opts, store, NOW)).allowed).toBe(true);
+    expect(store.counts()).toEqual({
+      'login:email:attacker@example.com': 2,
+      'login:ip:1.2.3.4': 2,
+    });
+
+    const victimDecision = await reserveAuthQuota(
+      ['login:email:victim@example.com', 'login:ip:1.2.3.4'],
+      opts,
+      store,
+      NOW,
+    );
+    expect(victimDecision.allowed).toBe(false);
+    expect(victimDecision.retryAfter).toBeGreaterThan(0);
+
+    const windowStart = computeWindowStart(NOW, WINDOW_MS);
+    expect(
+      (await store.findCount('login:email:victim@example.com', windowStart))?.count ?? 0,
+    ).toBe(0);
+    expect(store.counts()).toEqual({
+      'login:email:attacker@example.com': 2,
+      'login:ip:1.2.3.4': 2,
+    });
+  });
+
   it('allows immediately without touching the store when keys are empty', async () => {
     const store = fakeAtomicStore({});
     const res = await reserveAuthQuota([], OPTS, store, NOW);

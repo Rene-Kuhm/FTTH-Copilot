@@ -157,6 +157,21 @@ export async function reserveAuthQuota(
   if (keys.length === 0) {
     return { allowed: true, retryAfter: 0, windowStart };
   }
+  // Pre-check before writing so an already-exhausted key cannot increment other buckets.
+  const existing = await Promise.all(
+    [...new Set(keys)].map((key) => store.findCount(key, windowStart)),
+  );
+  if (
+    existing.some(
+      (b) => (b && b.expiresAt.getTime() > now.getTime() ? b.count : 0) >= opts.max,
+    )
+  ) {
+    return {
+      allowed: false,
+      retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs),
+      windowStart,
+    };
+  }
   const windowEnd = new Date(windowStart.getTime() + opts.windowMs);
   const counts = await store.reserve(keys, windowStart, windowEnd);
   if (counts.every((count) => count <= opts.max)) {
