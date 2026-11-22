@@ -78,6 +78,31 @@ del VPS, o si hay que probar el camino real contra una base administrada.
 Los puertos UDP sólo hacen falta si el staging recibe eventos de un NMS real. Si no, los
 receptores arrancan igual y no reciben nada.
 
+### Límites y reservas de recursos
+
+Todos los servicios declaran `deploy.resources.limits` y `deploy.resources.reservations`
+en `docker-compose.prod.yml`; `docker-compose.staging.yml` agrega los de Caddy y el mock NMS.
+El límite es el techo y la reserva es el mínimo garantizado. Los valores por defecto caben
+en el VPS de arriba: las reservas suman ~2,5 GB con una réplica de `app`, y ~2,9 GB con dos.
+Cualquier valor se puede ajustar sin editar el compose, con la variable correspondiente:
+
+| Servicio | CPU (límite / reserva) | Memoria (límite / reserva) | Variables |
+|---|---|---|---|
+| `postgres` | 1,0 / 0,25 | 1 GB / 512 MB | `POSTGRES_CPU_LIMIT`, `POSTGRES_MEM_LIMIT`, `POSTGRES_CPU_RESERVATION`, `POSTGRES_MEM_RESERVATION` |
+| `redis` | 0,5 / 0,1 | 512 MB / 128 MB | `REDIS_CPU_LIMIT`, `REDIS_MEM_LIMIT`, `REDIS_CPU_RESERVATION`, `REDIS_MEM_RESERVATION` |
+| `db-migrate` | 0,5 / 0,1 | 512 MB / 128 MB | `MIGRATE_CPU_LIMIT`, `MIGRATE_MEM_LIMIT`, `MIGRATE_CPU_RESERVATION`, `MIGRATE_MEM_RESERVATION` |
+| `app` | 1,0 / 0,25 | 1 GB / 384 MB | `APP_CPU_LIMIT`, `APP_MEM_LIMIT`, `APP_CPU_RESERVATION`, `APP_MEM_RESERVATION` |
+| `worker` | 1,5 / 0,5 | 1536 MB / 512 MB | `WORKER_CPU_LIMIT`, `WORKER_MEM_LIMIT`, `WORKER_CPU_RESERVATION`, `WORKER_MEM_RESERVATION` |
+| `laya` | 0,5 / 0,1 | 512 MB / 256 MB | `LAYA_CPU_LIMIT`, `LAYA_MEM_LIMIT`, `LAYA_CPU_RESERVATION`, `LAYA_MEM_RESERVATION` |
+| `victoriametrics` | 1,0 / 0,15 | 1 GB / 384 MB | `VM_CPU_LIMIT`, `VM_MEM_LIMIT`, `VM_CPU_RESERVATION`, `VM_MEM_RESERVATION` |
+| `vmalert` | 0,5 / 0,05 | 256 MB / 128 MB | `VMALERT_CPU_LIMIT`, `VMALERT_MEM_LIMIT`, `VMALERT_CPU_RESERVATION`, `VMALERT_MEM_RESERVATION` |
+| `caddy` | 0,5 / 0,05 | 256 MB / 64 MB | `CADDY_CPU_LIMIT`, `CADDY_MEM_LIMIT`, `CADDY_CPU_RESERVATION`, `CADDY_MEM_RESERVATION` |
+| `mock-nms` | 0,5 / 0,05 | 256 MB / 64 MB | `MOCK_NMS_CPU_LIMIT`, `MOCK_NMS_MEM_LIMIT`, `MOCK_NMS_CPU_RESERVATION`, `MOCK_NMS_MEM_RESERVATION` |
+
+El worker corre en la red del host: el límite de memoria también cubre los buffers de syslog
+y SNMP, dimensionados con `SYSLOG_RECV_BUFFER_BYTES`. Si se ajusta ese buffer hacia arriba,
+hay que revisar `WORKER_MEM_LIMIT` en la misma operación.
+
 ---
 
 ## 2. La topología
