@@ -215,7 +215,11 @@ describe('handleSignup', () => {
     );
     mocks.reserveAuthQuota.mockImplementation(
       async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        }
+        const counts = uniqueKeys.map((key) => {
           const bucketKey = `${key}:${startMs}`;
           const next = (buckets.get(bucketKey) ?? 0) + 1;
           buckets.set(bucketKey, next);
@@ -267,6 +271,7 @@ describe('handleSignup', () => {
       );
       expect(fourthSequential.status).toBe(429);
       expect(fourthSequential.headers.get('retry-after')).toBe('60');
+      expect(buckets.get(`signup:ip:198.51.100.7:${startMs}`)).toBe(3);
       expect(mocks.prisma.user.create).not.toHaveBeenCalled();
       expect(mocks.prisma.tenant.create).not.toHaveBeenCalled();
 
@@ -495,7 +500,18 @@ describe('handleLogin', () => {
         async (keys: string[], opts: { max: number; windowMs: number }) => {
           const nowMs = frozenNowMs;
           const startMs = windowStart(nowMs, opts.windowMs);
-          const counts = keys.map((key) => {
+          const uniqueKeys = [...new Set(keys)];
+          if (uniqueKeys.some((k) => {
+            const b = buckets.get(`${k}:${startMs}`);
+            return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+          })) {
+            return {
+              allowed: false,
+              retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
+              windowStart: new Date(startMs),
+            };
+          }
+          const counts = uniqueKeys.map((key) => {
             const bucketKey = `${key}:${startMs}`;
             const existing = buckets.get(bucketKey);
             const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
@@ -607,7 +623,11 @@ describe('handleLogin', () => {
         },
       );
       mocks.reserveAuthQuota.mockImplementation(async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        }
+        const counts = uniqueKeys.map((key) => {
           const bucketKey = `${key}:${startMs}`;
           const next = (buckets.get(bucketKey) ?? 0) + 1;
           buckets.set(bucketKey, next);

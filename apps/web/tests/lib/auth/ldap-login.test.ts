@@ -278,7 +278,11 @@ describe('authenticateAndIssueLdapSession', () => {
     });
     mocks.reserveAuthQuota.mockImplementation(
       async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(k) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+        }
+        const counts = uniqueKeys.map((key) => {
           const next = (buckets.get(key) ?? 0) + 1;
           buckets.set(key, next);
           return next;
@@ -346,6 +350,8 @@ describe('authenticateAndIssueLdapSession', () => {
     expect(blockedRes.headers.get('retry-after')).toBe('45');
     await expect(blockedRes.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
     expect(mocks.authenticateLdapUser).toHaveBeenCalledTimes(maxAttempts);
+    expect(buckets.get('login:email:jdoe')).toBe(maxAttempts);
+    expect(buckets.get('login:ip:203.0.113.10')).toBe(maxAttempts);
   });
 
   it('emits ftth_session and ftth_csrf as two separate Set-Cookie headers', async () => {

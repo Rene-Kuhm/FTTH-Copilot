@@ -109,7 +109,18 @@ vi.mock('@ftth-copilot/db', () => ({
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
     const expiresAt = windowStartMs + opts.windowMs;
-    const counts = keys.map((key) => {
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.some((k) => {
+      const b = mocks.buckets.get(`${k}:${windowStartMs}`);
+      return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+    })) {
+      return {
+        allowed: false,
+        retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+        windowStart: new Date(windowStartMs),
+      };
+    }
+    const counts = uniqueKeys.map((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
@@ -627,7 +638,7 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
       expect(mocks.buckets.get(`login:ip:198.51.100.42:${startMs}`)).toBeUndefined();
     });
 
-    it('allows tempToken continue even when login: buckets are exhausted, while throttling handleMfaLogin', async () => {
+    it('allows tempToken continue even when login: buckets are exhausted, while throttling handleMfaLogin without incrementing exhausted buckets', async () => {
       const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
       const expiresAt = startMs + 60_000;
       mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 3, expiresAt });
@@ -646,10 +657,30 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
       );
       expect(loginFlowRes.status).toBe(429);
 
-      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(4);
-      expect(mocks.buckets.get(`login:ip:203.0.113.80:${startMs}`)?.count).toBe(4);
+      // Denied reservation must leave already-exhausted buckets untouched.
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
+      expect(mocks.buckets.get(`login:ip:203.0.113.80:${startMs}`)?.count).toBe(3);
       expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(0);
       expect(mocks.buckets.get(`mfa:ip:203.0.113.80:${startMs}`)?.count).toBe(0);
+    });
+
+    it('does not consume any bucket when denied by an exhausted IP, preventing victim lockout', async () => {
+      mocks.verifyPassword.mockResolvedValue(false);
+      const attackerIp = '203.0.113.99';
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      for (let i = 1; i <= 3; i++) {
+        expect((await POST(mfaRequest({ email: 'attacker@example.com', password: 'wrong', code: '123456' }, attackerIp))).status).toBe(401);
+      }
+
+      const denied = await POST(mfaRequest({ email: 'victim@example.com', password: 'wrong', code: '123456' }, attackerIp));
+      expect(denied.status).toBe(429);
+      expect(mocks.buckets.get(`login:email:victim@example.com:${startMs}`)).toBeUndefined();
+      expect(mocks.buckets.get(`login:ip:${attackerIp}:${startMs}`)?.count).toBe(3);
+
+      mocks.verifyPassword.mockResolvedValue(true);
+      mocks.prisma.user.findUnique.mockResolvedValue(makeUser({ email: 'victim@example.com' }));
+      const victimRes = await POST(mfaRequest({ email: 'victim@example.com', password: 'correct', code: '654321' }, '203.0.113.100'));
+      expect(victimRes.status).toBe(200);
     });
 
     it('uses mfa: keys in handleSetupVerification and ignores exhausted login: buckets', async () => {

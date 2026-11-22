@@ -95,7 +95,18 @@ vi.mock('@ftth-copilot/db', () => ({
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
     const expiresAt = windowStartMs + opts.windowMs;
-    const counts = keys.map((key) => {
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.some((k) => {
+      const b = mocks.buckets.get(`${k}:${windowStartMs}`);
+      return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+    })) {
+      return {
+        allowed: false,
+        retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+        windowStart: new Date(windowStartMs),
+      };
+    }
+    const counts = uniqueKeys.map((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
