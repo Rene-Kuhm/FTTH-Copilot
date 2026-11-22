@@ -643,6 +643,36 @@ describe('handleLogin', () => {
       }
     });
   });
+
+  describe('quota-store outage degradation', () => {
+    it('returns 401 Invalid credentials for wrong password when quota store fails', async () => {
+      mocks.reserveAuthQuota.mockRejectedValue(new Error('DB down'));
+      mocks.verifyPassword.mockResolvedValue(false);
+      const res = await handleLogin(post({ email: 'user@example.com', password: 'wrong-password' }));
+      expect(res.status).toBe(401);
+      await expect(res.json()).resolves.toEqual({ error: 'Invalid credentials' });
+    });
+
+    it('returns 401 Invalid MFA code for wrong TOTP code when quota store fails', async () => {
+      mocks.reserveAuthQuota.mockRejectedValue(new Error('DB down'));
+      mocks.prisma.user.findUnique.mockResolvedValue(dbUser({ mfaEnabled: true, totpSecret: 'encrypted' }));
+      const res = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse', code: '000000' }));
+      expect(res.status).toBe(401);
+      await expect(res.json()).resolves.toEqual({ error: 'Invalid MFA code' });
+    });
+
+    it('returns 200 for valid credentials when quota store fails on reserve or release', async () => {
+      mocks.reserveAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+      const resReserveFail = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
+      expect(resReserveFail.status).toBe(200);
+      expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+
+      mocks.releaseAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+      const resReleaseFail = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
+      expect(resReleaseFail.status).toBe(200);
+      expect(mocks.prisma.session.create).toHaveBeenCalledTimes(2);
+    });
+  });
 });
 
 describe('handleLogout', () => {

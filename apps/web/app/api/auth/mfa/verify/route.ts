@@ -86,7 +86,7 @@ async function handleMfaLogin(
   code: string,
 ): Promise<NextResponse> {
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(email, clientIp, 'mfa');
+  const rateKeys = authQuotaKeys(email, clientIp, 'login');
   const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);
