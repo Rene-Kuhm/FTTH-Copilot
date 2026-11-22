@@ -175,10 +175,34 @@ export const HealthReportSchema = z.object({
 }).passthrough().optional(),
   hungLoops: z.array(z.object({
 }).passthrough()).optional(),
-  connections: z.object({
-}).passthrough().optional(),
+  connections: z.lazy(() => ConnectionHealthAggregateSchema).optional(),
   ingest: z.object({
 }).passthrough().optional(),
+}).passthrough();
+
+/** Agregado no identificativo del health público. Nunca expone ids de conexión, ids de tenant ni mensajes de error; el detalle vive en `/api/connectors`, autenticado y filtrado por tenant. */
+export const ConnectionHealthAggregateSchema = z.object({
+  total: z.number().int(),
+  byState: z.lazy(() => ConnectionHealthCountsSchema),
+}).passthrough();
+
+/** Conteo de conexiones por estado; todos los estados están presentes. */
+export const ConnectionHealthCountsSchema = z.object({
+  fresh: z.number().int(),
+  healthy: z.number().int(),
+  stale: z.number().int(),
+  error: z.number().int(),
+  recovered: z.number().int(),
+}).passthrough();
+
+/** Detalle de salud de una conexión. Sólo se sirve en `/api/connectors` al tenant autenticado dueño de la conexión. */
+export const ConnectionHealthDetailSchema = z.object({
+  tenantId: z.string(),
+  connectionId: z.string(),
+  state: z.enum(["fresh", "healthy", "stale", "error", "recovered"]),
+  lastRunAt: z.number().int().nullable(),
+  lastError: z.string().nullable(),
+  lastErrorAt: z.number().int().nullable(),
 }).passthrough();
 
 /** Esquema del contrato. */
@@ -249,6 +273,7 @@ export const ConnectorListSchema = z.object({
   user: UserSchema.optional(),
   connectors: z.array(ConnectorSchema),
   demoMode: z.boolean(),
+  health: z.array(ConnectionHealthDetailSchema),
 }).passthrough();
 
 /** Esquema del contrato. */
