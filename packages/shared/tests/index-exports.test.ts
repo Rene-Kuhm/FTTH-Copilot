@@ -56,7 +56,7 @@ describe('shared public API surface — Fase F verdict-log re-exports', () => {
     expect(Shared.VerdictSeveritySchema.safeParse('fatal').success).toBe(false);
   });
 
-  it('exposes the VerdictLog, VerdictCode, and VerdictSeverity types at the boundary', () => {
+  it('exposes the VerdictLog, Verdict, VerdictCode, and VerdictSeverity types at the boundary', () => {
     const row: Shared.VerdictLog = {
       schema: Shared.VERDICT_LOG_SCHEMA,
       id: 'vl-1',
@@ -70,6 +70,14 @@ describe('shared public API surface — Fase F verdict-log re-exports', () => {
       injectionSuspicion: false,
     };
     expect(row.schema).toBe('ftth.verdict-log.v1');
+
+    const verdict: Shared.Verdict = {
+      toolName: 'list_olts',
+      code: 'ok',
+      reason: 'fresh-complete',
+      severity: 'ok',
+    };
+    expect(verdict.code).toBe('ok');
 
     const codes: ReadonlyArray<Shared.VerdictCode> = ['ok', 'low_confidence', 'stale', 'incomplete'];
     expect(codes).toContain('incomplete');

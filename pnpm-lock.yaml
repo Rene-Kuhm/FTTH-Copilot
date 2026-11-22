@@ -882,9 +882,6 @@ importers:
 
   packages/shared:
     dependencies:
-      '@ftth-copilot/evidence':
-        specifier: workspace:*
-        version: link:../evidence
       zod:
         specifier: ^3.23.8
         version: 3.25.76

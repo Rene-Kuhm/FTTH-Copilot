@@ -1,6 +1,10 @@
 /**
  * Public types for the TruthGate (Phase B, observation mode).
  *
+ * Canonical definitions live in `@ftth-copilot/shared`; this module
+ * re-exports them to preserve `@ftth-copilot/evidence`'s public API
+ * without upward dependencies.
+ *
  * `Verdict` is the unit of evidence-side awareness emitted by
  * `classifyEnvelope` / `classifyUnwrapped` and accumulated by
  * `runAgent` onto `AgentResult.verdicts`.
@@ -9,13 +13,4 @@
  * ties on code break on `severity` (`critical > warning > info > ok`).
  */
 
-export type VerdictCode = 'ok' | 'low_confidence' | 'stale' | 'incomplete';
-
-export type VerdictSeverity = 'ok' | 'info' | 'warning' | 'critical';
-
-export interface Verdict {
-  toolName: string;
-  code: VerdictCode;
-  reason: string;
-  severity: VerdictSeverity;
-}
+export type { Verdict, VerdictCode, VerdictSeverity } from '@ftth-copilot/shared';
