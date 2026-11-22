@@ -39,8 +39,10 @@ vi.mock('@ftth-copilot/soc', () => ({
 }));
 
 const { authenticateAndIssueLdapSession } = await import('@/lib/auth/ldap-login');
+const { totp } = await import('@/lib/auth/totp');
 
 const ORIGINAL_SLUG = process.env['LDAP_TENANT_SLUG'];
+const ORIGINAL_RATE_MAX = process.env['AUTH_RATE_LIMIT_MAX'];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -64,6 +66,11 @@ afterEach(() => {
     delete process.env['LDAP_TENANT_SLUG'];
   } else {
     process.env['LDAP_TENANT_SLUG'] = ORIGINAL_SLUG;
+  }
+  if (ORIGINAL_RATE_MAX === undefined) {
+    delete process.env['AUTH_RATE_LIMIT_MAX'];
+  } else {
+    process.env['AUTH_RATE_LIMIT_MAX'] = ORIGINAL_RATE_MAX;
   }
 });
 
@@ -181,5 +188,116 @@ describe('authenticateAndIssueLdapSession', () => {
     });
     expect(mocks.prisma.session.create).not.toHaveBeenCalled();
     expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('records failed attempts on invalid MFA code until the quota bucket is exhausted', async () => {
+    const maxAttempts = 3;
+    process.env['AUTH_RATE_LIMIT_MAX'] = String(maxAttempts);
+
+    const buckets = new Map<string, number>();
+    mocks.authRateLimitKeys.mockImplementation((email: string, ip: string | null) => {
+      const keys = [`login:email:${email.trim().toLowerCase()}`];
+      if (ip) keys.push(`login:ip:${ip}`);
+      return keys;
+    });
+    mocks.checkAuthQuota.mockImplementation(
+      async (key: string, opts: { max: number; windowMs: number }) => {
+        const count = buckets.get(key) ?? 0;
+        return count < opts.max ? { allowed: true, retryAfter: 0 } : { allowed: false, retryAfter: 45 };
+      },
+    );
+    mocks.recordAuthAttempt.mockImplementation(
+      async (key: string, opts: { max: number; windowMs: number }) => {
+        const next = (buckets.get(key) ?? 0) + 1;
+        buckets.set(key, next);
+        return next <= opts.max ? { allowed: true, retryAfter: 0 } : { allowed: false, retryAfter: 45 };
+      },
+    );
+
+    const secret = 'JBSWY3DPEHPK3PXP';
+    mocks.decryptApiKey.mockReturnValue(secret);
+    const now = Date.now();
+    const validCodes = new Set([totp(secret, now - 30000), totp(secret, now), totp(secret, now + 30000)]);
+    const wrongCode = ['000000', '111111', '222222', '333333'].find((c) => !validCodes.has(c))!;
+
+    mocks.authenticateLdapUser.mockResolvedValue({
+      ok: true,
+      user: {
+        dn: 'uid=jdoe,ou=users,dc=example,dc=com',
+        email: 'jdoe@example.invalid',
+        name: 'Jane Doe',
+        groups: ['CN=NOC-Ops'],
+        role: 'OPERATOR',
+      },
+    });
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: 'usr-ldap-1',
+      email: 'jdoe@example.invalid',
+      name: 'Jane Doe',
+      role: 'OPERATOR',
+      tenantId: 'ten-1',
+      mfaEnabled: true,
+      totpSecret: 'enc-totp-secret',
+    });
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const res = await authenticateAndIssueLdapSession({
+        req: makeReq(),
+        username: 'jdoe',
+        password: 'secret',
+        code: wrongCode,
+      });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: 'Invalid MFA code' });
+    }
+
+    expect(mocks.recordAuthAttempt).toHaveBeenCalledTimes(maxAttempts * 2);
+    expect(buckets.get('login:email:jdoe')).toBe(maxAttempts);
+    expect(buckets.get('login:ip:203.0.113.10')).toBe(maxAttempts);
+
+    const blockedRes = await authenticateAndIssueLdapSession({
+      req: makeReq(),
+      username: 'jdoe',
+      password: 'secret',
+      code: wrongCode,
+    });
+    expect(blockedRes.status).toBe(429);
+    expect(blockedRes.headers.get('retry-after')).toBe('45');
+    expect(mocks.authenticateLdapUser).toHaveBeenCalledTimes(maxAttempts);
+  });
+
+  it('emits ftth_session and ftth_csrf as two separate Set-Cookie headers', async () => {
+    mocks.authenticateLdapUser.mockResolvedValueOnce({
+      ok: true,
+      user: {
+        dn: 'uid=jdoe,ou=users,dc=example,dc=com',
+        email: 'jdoe@example.invalid',
+        name: 'Jane Doe',
+        groups: ['CN=NOC-Admins'],
+        role: 'ADMIN',
+      },
+    });
+    mocks.prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'usr-ldap-1',
+      email: 'jdoe@example.invalid',
+      name: 'Jane Doe',
+      role: 'ADMIN',
+      tenantId: 'ten-1',
+      mfaEnabled: false,
+      totpSecret: null,
+    });
+
+    const res = await authenticateAndIssueLdapSession({
+      req: makeReq(),
+      username: 'jdoe',
+      password: 'secret',
+    });
+
+    expect(res.status).toBe(200);
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies).toHaveLength(2);
+    expect(setCookies.some((c) => c.startsWith('ftth_session=session-token'))).toBe(true);
+    expect(setCookies.some((c) => c.startsWith('ftth_csrf='))).toBe(true);
+    expect(setCookies.every((c) => !(c.includes('ftth_session=') && c.includes('ftth_csrf=')))).toBe(true);
   });
 });

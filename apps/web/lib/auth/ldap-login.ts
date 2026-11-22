@@ -145,6 +145,9 @@ export async function authenticateAndIssueLdapSession({
   const mfaGate = evaluateMfaGate(user, tenantRequiresMfa, code);
 
   if (mfaGate.action === 'invalid_code') {
+    for (const key of rateKeys) {
+      await recordAuthAttempt(key, { max, windowMs });
+    }
     return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
   }
   if (mfaGate.action === 'mfa_required') {
@@ -186,17 +189,18 @@ export async function authenticateAndIssueLdapSession({
   );
 
   const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
 
-  return jsonResponse(
-    {
+  return new NextResponse(
+    JSON.stringify({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       authMethod: 'ldap',
-    },
+    }),
     {
       status: 200,
-      headers: {
-        'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-      },
+      headers,
     },
   );
 }
