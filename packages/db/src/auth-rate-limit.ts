@@ -177,6 +177,8 @@ export async function reserveAuthQuota(
   if (counts.every((count) => count <= opts.max)) {
     return { allowed: true, retryAfter: 0, windowStart };
   }
+  // Roll back the increments this reservation just made so denied requests consume nothing.
+  await store.release(keys, windowStart);
   return {
     allowed: false,
     retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs),

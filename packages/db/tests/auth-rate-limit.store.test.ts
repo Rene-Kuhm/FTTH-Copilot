@@ -86,6 +86,7 @@ describe('default store (Prisma-backed)', () => {
     );
     expect(decision.allowed).toBe(false);
     expect(decision.retryAfter).toBeGreaterThan(0);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('releaseAuthQuota executes a single executeRaw decrement for the reserved window', async () => {

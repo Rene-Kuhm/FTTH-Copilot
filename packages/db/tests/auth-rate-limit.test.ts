@@ -248,6 +248,40 @@ describe('reserveAuthQuota & releaseAuthQuota', () => {
     });
   });
 
+  it('rolls back the increments when the reservation is denied', async () => {
+    const store = fakeAtomicStore({ 'login:ip:1.2.3.4': OPTS.max - 1 });
+    const windowEnd = new Date(computeWindowStart(NOW, WINDOW_MS).getTime() + WINDOW_MS);
+    let raced = false;
+    const racingStore: AtomicAuthRateLimitStore = {
+      ...store,
+      async reserve(keys, ws, we) {
+        if (!raced) {
+          raced = true;
+          await store.increment('login:ip:1.2.3.4', ws, windowEnd);
+        }
+        return store.reserve(keys, ws, we);
+      },
+    };
+    const res = await reserveAuthQuota(['login:email:victim@example.com', 'login:ip:1.2.3.4'], OPTS, racingStore, NOW);
+    expect(res.allowed).toBe(false);
+    expect(res.retryAfter).toBeGreaterThan(0);
+    expect(store.counts()).toEqual({ 'login:ip:1.2.3.4': OPTS.max, 'login:email:victim@example.com': 0 });
+  });
+
+  it('bounds concurrent reservations to max without overcounting buckets', async () => {
+    const store = fakeAtomicStore({});
+    const sharedIp = 'login:ip:1.2.3.4';
+    const decisions = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => reserveAuthQuota([`login:email:u${i}@example.com`, sharedIp], OPTS, store, NOW)),
+    );
+    const allowed = decisions.filter((d) => d.allowed);
+    expect(allowed).toHaveLength(OPTS.max);
+    expect(decisions.filter((d) => !d.allowed).every((d) => d.retryAfter > 0)).toBe(true);
+    const counts = store.counts();
+    expect(counts[sharedIp]).toBe(OPTS.max);
+    expect(Object.entries(counts).filter(([k]) => k.startsWith('login:email:')).reduce((s, [, v]) => s + v, 0)).toBe(OPTS.max);
+  });
+
   it('allows immediately without touching the store when keys are empty', async () => {
     const store = fakeAtomicStore({});
     const res = await reserveAuthQuota([], OPTS, store, NOW);

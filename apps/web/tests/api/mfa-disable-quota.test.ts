@@ -116,6 +116,11 @@ vi.mock('@ftth-copilot/db', () => ({
     if (counts.every((count) => count <= opts.max)) {
       return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
     }
+    for (const key of uniqueKeys) {
+      const bk = `${key}:${windowStartMs}`;
+      const cur = mocks.buckets.get(bk);
+      if (cur) mocks.buckets.set(bk, { count: Math.max(cur.count - 1, 0), expiresAt: cur.expiresAt });
+    }
     return {
       allowed: false,
       retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),

@@ -287,9 +287,11 @@ describe('authenticateAndIssueLdapSession', () => {
           buckets.set(key, next);
           return next;
         });
-        return counts.every((count) => count <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: frozenWindowStart }
-          : { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+        if (counts.every((count) => count <= opts.max)) {
+          return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart };
+        }
+        uniqueKeys.forEach((k) => buckets.set(k, Math.max((buckets.get(k) ?? 0) - 1, 0)));
+        return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
       },
     );
     mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {

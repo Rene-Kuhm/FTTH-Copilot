@@ -225,9 +225,11 @@ describe('handleSignup', () => {
           buckets.set(bucketKey, next);
           return next;
         });
-        return counts.every((c) => c <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
-          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        if (counts.every((c) => c <= opts.max)) {
+          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
+        }
+        uniqueKeys.forEach((k) => buckets.set(`${k}:${startMs}`, Math.max((buckets.get(`${k}:${startMs}`) ?? 0) - 1, 0)));
+        return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
       },
     );
     mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
@@ -521,6 +523,11 @@ describe('handleLogin', () => {
           if (counts.every((count) => count <= opts.max)) {
             return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
           }
+          for (const key of uniqueKeys) {
+            const bk = `${key}:${startMs}`;
+            const cur = buckets.get(bk);
+            if (cur) buckets.set(bk, { count: Math.max(cur.count - 1, 0), expiresAt: cur.expiresAt });
+          }
           return {
             allowed: false,
             retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
@@ -633,9 +640,11 @@ describe('handleLogin', () => {
           buckets.set(bucketKey, next);
           return next;
         });
-        return counts.every((c) => c <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
-          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        if (counts.every((c) => c <= opts.max)) {
+          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
+        }
+        uniqueKeys.forEach((k) => buckets.set(`${k}:${startMs}`, Math.max((buckets.get(`${k}:${startMs}`) ?? 0) - 1, 0)));
+        return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
       });
       mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
         for (const key of keys) {
