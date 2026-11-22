@@ -219,7 +219,17 @@ mismo commit de cada cambio (T4 y T5).
 - No se ejecutó `pnpm test:e2e` (Playwright, requiere Postgres) ni los tests de integración que
   requieren base real.
 
-### L6 — Límites de slice para la publicación
+### L6 — Gates finales (ejecutados sobre `refactor/canonical-domain-contracts`)
+
+| Gate | Comando | Resultado |
+|---|---|---|
+| Lint + types + tests del monorepo | `pnpm turbo run lint typecheck test --force` | **73/73 tareas exitosas**, 0 cacheadas, 25.0s. 0 errores de ESLint. 1 warning preexistente en `apps/web/app/layout.tsx:70` (`@next/next/no-page-custom-font`), archivo que ninguna de las unidades tocó. |
+| Contrato HTTP | `pnpm contract:check` | exit 0 — `contrato al día: 89 operaciones, 3 artefactos.` |
+| Arquitectura C4 | `pnpm c4:check` | exit 0 — `vistas C4 al día: 4 vistas.` |
+
+Los tres gates correron sobre el árbol completo, con la rama Item 2 apilada encima de Item 1.
+
+### L7 — Límites de slice para la publicación
 
 La rama `refactor/canonical-domain-contracts` es apilada sobre `test/zero-coverage-modules`, así
 que el diff de Item 2 contra `test/zero-coverage-modules` son 3 commits (~250 líneas de fuente y
