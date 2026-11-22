@@ -6,7 +6,7 @@ import {
   checkAuthQuota,
   recordAuthAttempt,
 } from '@ftth-copilot/db';
-import type { AuthQuotaOptions } from '@ftth-copilot/db';
+import type { AuthQuotaOptions, AuthRateLimitScope } from '@ftth-copilot/db';
 
 export const AUTH_QUOTA_ERROR_MESSAGE = 'Demasiados intentos. Probá de nuevo más tarde.';
 
@@ -26,10 +26,14 @@ export function authRateLimitOptions(): AuthQuotaOptions {
 }
 
 /**
- * Derive rate-limit bucket keys for a login attempt (email + optional client IP).
+ * Derive rate-limit bucket keys for an auth attempt (email + optional client IP).
  */
-export function authQuotaKeys(email: string, clientIp: string | null): string[] {
-  return authRateLimitKeys(email, clientIp);
+export function authQuotaKeys(
+  email: string,
+  clientIp: string | null,
+  scope?: AuthRateLimitScope,
+): string[] {
+  return authRateLimitKeys(email, clientIp, scope);
 }
 
 /**

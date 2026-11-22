@@ -58,9 +58,13 @@ vi.mock('@ftth-copilot/db', () => ({
     const first = xForwardedFor.split(',')[0]?.trim();
     return first && first.length > 0 ? first : null;
   },
-  authRateLimitKeys: (email: string, ip: string | null): string[] => {
-    const keys = [`login:email:${email.trim().toLowerCase()}`];
-    if (ip) keys.push(`login:ip:${ip}`);
+  authRateLimitKeys: (
+    email: string,
+    ip: string | null,
+    scope: 'login' | 'mfa' = 'login',
+  ): string[] => {
+    const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+    if (ip) keys.push(`${scope}:ip:${ip}`);
     return keys;
   },
   checkAuthQuota: async (
@@ -394,6 +398,24 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
       await expect(res.json()).resolves.toEqual({ error: 'Invalid or expired temp token' });
       expect(mocks.buckets.size).toBe(0);
     });
+
+    it('does not block MFA continuation when the login email quota is exhausted', async () => {
+      mocks.verifyPassword.mockResolvedValue(false);
+      for (let i = 1; i <= 3; i++) {
+        const res = await POST(
+          mfaRequest(
+            { email: 'operator@example.com', password: 'wrong-password', code: '123456' },
+            `198.51.100.${i}`,
+          ),
+        );
+        expect(res.status).toBe(401);
+      }
+
+      const contRes = await POST(
+        mfaRequest({ tempToken: 'valid-temp-token', code: '654321' }, '203.0.113.82'),
+      );
+      expect(contRes.status).toBe(200);
+    });
   });
 
   describe('CSRF cookie issuance on successful MFA login (S2, S5)', () => {
@@ -550,6 +572,48 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
       });
       expect(mocks.prisma.user.update).toHaveBeenCalledTimes(1);
       expect(mocks.buckets.size).toBe(0);
+    });
+
+    it('does not block setup verification when the login email quota is exhausted', async () => {
+      mocks.verifyPassword.mockResolvedValue(false);
+
+      for (let i = 1; i <= 3; i++) {
+        const res = await POST(
+          mfaRequest(
+            { email: 'operator@example.com', password: 'wrong-password', code: '123456' },
+            `198.51.100.${i}`,
+          ),
+        );
+        expect(res.status).toBe(401);
+      }
+
+      mocks.verifyPassword.mockResolvedValue(true);
+      const loginThrottled = await POST(
+        mfaRequest(
+          { email: 'operator@example.com', password: 'correct-password', code: '654321' },
+          '198.51.100.99',
+        ),
+      );
+      expect(loginThrottled.status).toBe(429);
+
+      const setupRes = await POST(mfaRequest({ code: '654321' }, '203.0.113.80'));
+      expect(setupRes.status).toBe(200);
+      await expect(setupRes.json()).resolves.toEqual({
+        mfaEnabled: true,
+        message: 'MFA has been enabled successfully',
+      });
+    });
+
+    it('records failed setup verification in the mfa bucket and not the login bucket', async () => {
+      mocks.verifyTOTP.mockReturnValue(false);
+
+      const res = await POST(mfaRequest({ code: '000000' }, '203.0.113.81'));
+      expect(res.status).toBe(401);
+
+      const bucketKeys = Array.from(mocks.buckets.keys());
+      expect(bucketKeys.some((k) => k.startsWith('mfa:email:operator@example.com:'))).toBe(true);
+      expect(bucketKeys.some((k) => k.startsWith('mfa:ip:203.0.113.81:'))).toBe(true);
+      expect(bucketKeys.some((k) => k.startsWith('login:'))).toBe(false);
     });
   });
 });

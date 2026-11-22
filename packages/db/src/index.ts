@@ -31,6 +31,7 @@ export {
   extractClientIp,
   authRateLimitKeys,
   type AuthQuotaOptions,
+  type AuthRateLimitScope,
   type AuthRateLimitStore,
 } from './auth-rate-limit';
 

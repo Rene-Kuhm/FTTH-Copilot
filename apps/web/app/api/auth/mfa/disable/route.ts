@@ -52,7 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
   const quota = await checkAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return NextResponse.json(

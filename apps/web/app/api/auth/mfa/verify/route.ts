@@ -186,7 +186,7 @@ async function handleSetupVerification(
   }
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
   const quota = await checkAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);
@@ -264,7 +264,7 @@ async function handleMfaContinue(
   }
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
   const quota = await checkAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return quotaExceededResponse(quota.retryAfter);

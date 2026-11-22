@@ -47,9 +47,13 @@ vi.mock('@ftth-copilot/db', () => ({
     const first = xForwardedFor.split(',')[0]?.trim();
     return first && first.length > 0 ? first : null;
   },
-  authRateLimitKeys: (email: string, ip: string | null): string[] => {
-    const keys = [`login:email:${email.trim().toLowerCase()}`];
-    if (ip) keys.push(`login:ip:${ip}`);
+  authRateLimitKeys: (
+    email: string,
+    ip: string | null,
+    scope: 'login' | 'mfa' = 'login',
+  ): string[] => {
+    const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+    if (ip) keys.push(`${scope}:ip:${ip}`);
     return keys;
   },
   checkAuthQuota: async (
@@ -226,6 +230,22 @@ describe('MFA disable brute-force quota', () => {
 
       expect(mocks.buckets.size).toBe(0);
     });
+
+    it('uses the mfa bucket and is not blocked by an exhausted login email bucket', async () => {
+      const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      mocks.buckets.set(`login:email:operator@example.com:${windowStartMs}`, {
+        count: 3,
+        expiresAt: windowStartMs + 60_000,
+      });
+
+      const ok = await disablePost(disableRequest({ code: '654321' }, '203.0.113.12'));
+      expect(ok.status).toBe(200);
+
+      mocks.verifyTOTP.mockReturnValue(false);
+      const fail = await disablePost(disableRequest({ code: '000000' }, '203.0.113.13'));
+      expect(fail.status).toBe(401);
+      expect(mocks.buckets.has(`mfa:email:operator@example.com:${windowStartMs}`)).toBe(true);
+    });
   });
 
   describe('DELETE /api/auth/mfa/setup', () => {
@@ -275,6 +295,22 @@ describe('MFA disable brute-force quota', () => {
       expect(notConfigured.status).toBe(400);
 
       expect(mocks.buckets.size).toBe(0);
+    });
+
+    it('uses the mfa bucket and is not blocked by an exhausted login email bucket', async () => {
+      const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      mocks.buckets.set(`login:email:operator@example.com:${windowStartMs}`, {
+        count: 3,
+        expiresAt: windowStartMs + 60_000,
+      });
+
+      const ok = await setupDelete(setupDeleteRequest({ code: '654321' }, '203.0.113.22'));
+      expect(ok.status).toBe(200);
+
+      mocks.verifyTOTP.mockReturnValue(false);
+      const fail = await setupDelete(setupDeleteRequest({ code: '000000' }, '203.0.113.23'));
+      expect(fail.status).toBe(401);
+      expect(mocks.buckets.has(`mfa:email:operator@example.com:${windowStartMs}`)).toBe(true);
     });
   });
 });

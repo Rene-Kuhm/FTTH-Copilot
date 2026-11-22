@@ -46,6 +46,13 @@ describe('authRateLimitKeys', () => {
       'login:ip:1.2.3.4',
     ]);
   });
+
+  it('namespaces keys by scope when provided', () => {
+    expect(authRateLimitKeys('  User@Example.COM ', '1.2.3.4', 'mfa')).toEqual([
+      'mfa:email:user@example.com',
+      'mfa:ip:1.2.3.4',
+    ]);
+  });
 });
 
 function fakeStore(initial: Record<string, number>): AuthRateLimitStore {

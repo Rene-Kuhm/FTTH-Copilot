@@ -53,10 +53,16 @@ export function extractClientIp(xForwardedFor: string | null | undefined): strin
   return first && first.length > 0 ? first : null;
 }
 
-/** Rate-limit keys for a login attempt: always email, plus IP when present. */
-export function authRateLimitKeys(email: string, ip: string | null): string[] {
-  const keys = [`login:email:${email.trim().toLowerCase()}`];
-  if (ip) keys.push(`login:ip:${ip}`);
+export type AuthRateLimitScope = 'login' | 'mfa';
+
+/** Rate-limit keys for an auth attempt: always email, plus IP when present. */
+export function authRateLimitKeys(
+  email: string,
+  ip: string | null,
+  scope: AuthRateLimitScope = 'login',
+): string[] {
+  const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+  if (ip) keys.push(`${scope}:ip:${ip}`);
   return keys;
 }
 
