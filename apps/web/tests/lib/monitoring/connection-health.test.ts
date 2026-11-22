@@ -118,6 +118,36 @@ describe('evaluateConnectionHealth — pure classifier', () => {
     );
     expect(r).toBe('healthy');
   });
+
+  it('returns fresh when there has never been a successful tick and the last error is no longer recent', () => {
+    const r = evaluateConnectionHealth(
+      {
+        connectionId: 'c-1',
+        state: 'error',
+        lastRunAt: null,
+        lastError: 'NMS timeout',
+        lastErrorAt: 1000,
+      },
+      1000 + 6 * 60 * 1000,
+    );
+    expect(r).toBe('fresh');
+  });
+
+  it('returns recovered for an external snapshot whose historical error aged out while not stale', () => {
+    const r = evaluateConnectionHealth(
+      {
+        connectionId: 'c-1',
+        state: 'healthy',
+        lastRunAt: 4000,
+        lastError: 'NMS timeout',
+        lastErrorAt: 4500,
+      },
+      6000,
+      10_000,
+      1000,
+    );
+    expect(r).toBe('recovered');
+  });
 });
 
 describe('snapshotEvaluatedConnectionHealth — integration', () => {
