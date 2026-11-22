@@ -100,7 +100,7 @@ export async function reserveAuthQuotaForKeys(keys: string[]): Promise<AuthQuota
     return await reserveAuthQuota(keys, authRateLimitOptions());
   } catch (err) {
     warnDegraded('reservation', err);
-    return { allowed: true, retryAfter: 0, windowStart: new Date(0) };
+    return { allowed: true, retryAfter: 0, windowStart: new Date(0), counts: {} };
   }
 }
 
@@ -112,12 +112,13 @@ export async function reserveAuthQuotaForKeys(keys: string[]): Promise<AuthQuota
 export async function releaseAuthQuotaForKeys(
   keys: string[],
   windowStart?: Date,
+  counts?: Record<string, number>,
 ): Promise<void> {
   // Never refund a failed reservation that fell back to the epoch sentinel.
   if (windowStart?.getTime() === 0) return;
   const opts = authRateLimitOptions();
   try {
-    await releaseAuthQuota(keys, opts, undefined, windowStart);
+    await releaseAuthQuota(keys, opts, undefined, windowStart, counts);
   } catch (err) {
     warnDegraded('release', err);
   }

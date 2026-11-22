@@ -91,7 +91,7 @@ vi.mock('@ftth-copilot/db', () => ({
   reserveAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
-  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date }> => {
+  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date; counts: Record<string, number> }> => {
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
     const expiresAt = windowStartMs + opts.windowMs;
@@ -104,34 +104,25 @@ vi.mock('@ftth-copilot/db', () => ({
         allowed: false,
         retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
         windowStart: new Date(windowStartMs),
+        counts: {},
       };
     }
-    const counts = uniqueKeys.map((key) => {
+    const counts: Record<string, number> = {};
+    uniqueKeys.forEach((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
       mocks.buckets.set(bucketKey, { count, expiresAt });
-      return count;
+      counts[key] = count;
     });
-    if (counts.every((count) => count <= opts.max)) {
-      return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
-    }
-    for (const key of uniqueKeys) {
-      const bk = `${key}:${windowStartMs}`;
-      const cur = mocks.buckets.get(bk);
-      if (cur) mocks.buckets.set(bk, { count: Math.max(cur.count - 1, 0), expiresAt: cur.expiresAt });
-    }
-    return {
-      allowed: false,
-      retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
-      windowStart: new Date(windowStartMs),
-    };
+    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs), counts };
   },
   releaseAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
     _store?: unknown,
     windowStartDate?: Date,
+    expectedCounts: Record<string, number> = {},
   ): Promise<void> => {
     const windowStartMs = windowStartDate
       ? windowStartDate.getTime()
@@ -139,7 +130,7 @@ vi.mock('@ftth-copilot/db', () => ({
     for (const key of keys) {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
-      if (existing) {
+      if (existing && existing.count === expectedCounts[key]) {
         mocks.buckets.set(bucketKey, {
           count: Math.max(existing.count - 1, 0),
           expiresAt: existing.expiresAt,

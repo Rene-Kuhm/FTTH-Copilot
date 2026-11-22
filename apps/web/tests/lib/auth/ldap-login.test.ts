@@ -57,6 +57,7 @@ beforeEach(() => {
     allowed: true,
     retryAfter: 0,
     windowStart: new Date(1_700_000_000_000),
+    counts: {},
   });
   mocks.releaseAuthQuota.mockResolvedValue(undefined);
   mocks.authRateLimitKeys.mockReturnValue(['ip:203.0.113.10']);
@@ -248,11 +249,12 @@ describe('authenticateAndIssueLdapSession', () => {
       totpSecret: null,
     });
 
+    const reservedCounts = { 'login:email:jdoe@example.invalid': 1, 'login:ip:203.0.113.10': 1 };
     const res = await authenticateAndIssueLdapSession({
       req: makeReq(),
       username: 'jdoe@example.invalid',
       password: 'secret',
-      reservedQuota: { keys: reservedKeys, windowStart },
+      reservedQuota: { keys: reservedKeys, windowStart, counts: reservedCounts },
     });
 
     expect(res.status).toBe(200);
@@ -262,6 +264,7 @@ describe('authenticateAndIssueLdapSession', () => {
       expect.any(Object),
       undefined,
       windowStart,
+      reservedCounts,
     );
   });
 
@@ -280,24 +283,21 @@ describe('authenticateAndIssueLdapSession', () => {
       async (keys: string[], opts: { max: number; windowMs: number }) => {
         const uniqueKeys = [...new Set(keys)];
         if (uniqueKeys.some((k) => (buckets.get(k) ?? 0) >= opts.max)) {
-          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart, counts: {} };
         }
-        const counts = uniqueKeys.map((key) => {
+        const counts: Record<string, number> = {};
+        uniqueKeys.forEach((key) => {
           const next = (buckets.get(key) ?? 0) + 1;
           buckets.set(key, next);
-          return next;
+          counts[key] = next;
         });
-        if (counts.every((count) => count <= opts.max)) {
-          return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart };
-        }
-        uniqueKeys.forEach((k) => buckets.set(k, Math.max((buckets.get(k) ?? 0) - 1, 0)));
-        return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+        return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart, counts };
       },
     );
-    mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+    mocks.releaseAuthQuota.mockImplementation(async (keys: string[], _o?: unknown, _s?: unknown, _w?: Date, expected: Record<string, number> = {}) => {
       for (const key of keys) {
         const current = buckets.get(key) ?? 0;
-        buckets.set(key, Math.max(current - 1, 0));
+        if (current === expected[key]) buckets.set(key, Math.max(current - 1, 0));
       }
     });
 

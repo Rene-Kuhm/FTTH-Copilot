@@ -108,6 +108,7 @@ beforeEach(() => {
     allowed: true,
     retryAfter: 0,
     windowStart: new Date(1_700_000_000_000),
+    counts: {},
   });
   mocks.releaseAuthQuota.mockResolvedValue(undefined);
   mocks.authRateLimitKeys.mockReturnValue(['auth:ip:203.0.113.9']);
@@ -217,26 +218,23 @@ describe('handleSignup', () => {
       async (keys: string[], opts: { max: number; windowMs: number }) => {
         const uniqueKeys = [...new Set(keys)];
         if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
-          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs), counts: {} };
         }
-        const counts = uniqueKeys.map((key) => {
+        const counts: Record<string, number> = {};
+        uniqueKeys.forEach((key) => {
           const bucketKey = `${key}:${startMs}`;
           const next = (buckets.get(bucketKey) ?? 0) + 1;
           buckets.set(bucketKey, next);
-          return next;
+          counts[key] = next;
         });
-        if (counts.every((c) => c <= opts.max)) {
-          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
-        }
-        uniqueKeys.forEach((k) => buckets.set(`${k}:${startMs}`, Math.max((buckets.get(`${k}:${startMs}`) ?? 0) - 1, 0)));
-        return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        return { allowed: true, retryAfter: 0, windowStart: new Date(startMs), counts };
       },
     );
-    mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+    mocks.releaseAuthQuota.mockImplementation(async (keys: string[], _o?: unknown, _s?: unknown, _w?: Date, expected: Record<string, number> = {}) => {
       for (const key of keys) {
         const bucketKey = `${key}:${startMs}`;
         const current = buckets.get(bucketKey) ?? 0;
-        buckets.set(bucketKey, Math.max(current - 1, 0));
+        if (current === expected[key]) buckets.set(bucketKey, Math.max(current - 1, 0));
       }
     });
 
@@ -511,28 +509,18 @@ describe('handleLogin', () => {
               allowed: false,
               retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
               windowStart: new Date(startMs),
+              counts: {},
             };
           }
-          const counts = uniqueKeys.map((key) => {
+          const counts: Record<string, number> = {};
+          uniqueKeys.forEach((key) => {
             const bucketKey = `${key}:${startMs}`;
             const existing = buckets.get(bucketKey);
             const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
             buckets.set(bucketKey, { count, expiresAt: startMs + opts.windowMs });
-            return count;
+            counts[key] = count;
           });
-          if (counts.every((count) => count <= opts.max)) {
-            return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
-          }
-          for (const key of uniqueKeys) {
-            const bk = `${key}:${startMs}`;
-            const cur = buckets.get(bk);
-            if (cur) buckets.set(bk, { count: Math.max(cur.count - 1, 0), expiresAt: cur.expiresAt });
-          }
-          return {
-            allowed: false,
-            retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
-            windowStart: new Date(startMs),
-          };
+          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs), counts };
         },
       );
       mocks.releaseAuthQuota.mockImplementation(
@@ -541,12 +529,13 @@ describe('handleLogin', () => {
           opts: { max: number; windowMs: number },
           _store?: unknown,
           startDate?: Date,
+          expected: Record<string, number> = {},
         ) => {
           const startMs = startDate ? startDate.getTime() : windowStart(frozenNowMs, opts.windowMs);
           for (const key of keys) {
             const bucketKey = `${key}:${startMs}`;
             const existing = buckets.get(bucketKey);
-            if (existing) {
+            if (existing && existing.count === expected[key]) {
               buckets.set(bucketKey, {
                 count: Math.max(existing.count - 1, 0),
                 expiresAt: existing.expiresAt,
@@ -632,25 +621,22 @@ describe('handleLogin', () => {
       mocks.reserveAuthQuota.mockImplementation(async (keys: string[], opts: { max: number; windowMs: number }) => {
         const uniqueKeys = [...new Set(keys)];
         if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
-          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs), counts: {} };
         }
-        const counts = uniqueKeys.map((key) => {
+        const counts: Record<string, number> = {};
+        uniqueKeys.forEach((key) => {
           const bucketKey = `${key}:${startMs}`;
           const next = (buckets.get(bucketKey) ?? 0) + 1;
           buckets.set(bucketKey, next);
-          return next;
+          counts[key] = next;
         });
-        if (counts.every((c) => c <= opts.max)) {
-          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
-        }
-        uniqueKeys.forEach((k) => buckets.set(`${k}:${startMs}`, Math.max((buckets.get(`${k}:${startMs}`) ?? 0) - 1, 0)));
-        return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        return { allowed: true, retryAfter: 0, windowStart: new Date(startMs), counts };
       });
-      mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+      mocks.releaseAuthQuota.mockImplementation(async (keys: string[], _o?: unknown, _s?: unknown, _w?: Date, expected: Record<string, number> = {}) => {
         for (const key of keys) {
           const bucketKey = `${key}:${startMs}`;
           const current = buckets.get(bucketKey) ?? 0;
-          buckets.set(bucketKey, Math.max(current - 1, 0));
+          if (current === expected[key]) buckets.set(bucketKey, Math.max(current - 1, 0));
         }
       });
 

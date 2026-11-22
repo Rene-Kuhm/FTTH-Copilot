@@ -270,7 +270,7 @@ export async function handleLogin(req: Request) {
           username: email,
           password,
           code,
-          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart, counts: quota.counts },
         });
       }
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
@@ -285,7 +285,7 @@ export async function handleLogin(req: Request) {
           username: email,
           password,
           code,
-          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart, counts: quota.counts },
         });
       }
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
@@ -300,14 +300,14 @@ export async function handleLogin(req: Request) {
       return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
     }
     if (mfaGate.action === 'mfa_required') {
-      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
       return jsonResponse(
         { mfaRequired: true, tempToken: mfaGate.tempToken },
         { status: 200 },
       );
     }
     if (mfaGate.action === 'mfa_setup_required') {
-      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
       return jsonResponse(
         {
           error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
@@ -337,7 +337,7 @@ export async function handleLogin(req: Request) {
       user.id,
       true,
     );
-    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
 
     // Generate CSRF token for subsequent requests
     const { cookie: csrfCookie } = generateCsrfToken();

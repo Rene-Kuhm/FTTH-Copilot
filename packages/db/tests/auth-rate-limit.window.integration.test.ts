@@ -47,7 +47,7 @@ suite('auth-rate-limit window isolation (PostgreSQL integration)', () => {
     expect(resN1.allowed).toBe(true);
 
     // Refund window N after N+1 has already started.
-    await releaseAuthQuota(keys, opts, undefined, resN.windowStart);
+    await releaseAuthQuota(keys, opts, undefined, resN.windowStart, resN.counts);
 
     const rowsN = await prisma.authRateLimit.findMany({
       where: { key: { in: keys }, windowStart: resN.windowStart },

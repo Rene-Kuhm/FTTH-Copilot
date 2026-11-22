@@ -52,7 +52,7 @@ export interface LdapLoginAttemptInput {
   password: string;
   code?: string;
   /** Pre-reserved quota passed by handleLogin so only one owner reserves/releases per request. */
-  reservedQuota?: { keys: string[]; windowStart: Date };
+  reservedQuota?: { keys: string[]; windowStart: Date; counts?: Record<string, number> };
 }
 
 /**
@@ -72,9 +72,11 @@ export async function authenticateAndIssueLdapSession({
   // Single quota owner per request: reuse handleLogin's reservation when delegated, otherwise reserve here.
   let quotaKeys: string[];
   let quotaWindowStart: Date;
+  let quotaCounts: Record<string, number> | undefined;
   if (reservedQuota) {
     quotaKeys = reservedQuota.keys;
     quotaWindowStart = reservedQuota.windowStart;
+    quotaCounts = reservedQuota.counts;
   } else {
     quotaKeys = authQuotaKeys(username, clientIp);
     const reservation = await reserveAuthQuotaForKeys(quotaKeys);
@@ -85,6 +87,7 @@ export async function authenticateAndIssueLdapSession({
       );
     }
     quotaWindowStart = reservation.windowStart;
+    quotaCounts = reservation.counts;
   }
 
   const tenantSlug = process.env['LDAP_TENANT_SLUG']?.trim();
@@ -155,11 +158,11 @@ export async function authenticateAndIssueLdapSession({
     return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
   }
   if (mfaGate.action === 'mfa_required') {
-    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
+    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart, quotaCounts);
     return jsonResponse({ mfaRequired: true, tempToken: mfaGate.tempToken }, { status: 200 });
   }
   if (mfaGate.action === 'mfa_setup_required') {
-    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
+    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart, quotaCounts);
     return jsonResponse(
       {
         error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
@@ -193,7 +196,7 @@ export async function authenticateAndIssueLdapSession({
     user.id,
     true,
   );
-  await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
+  await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart, quotaCounts);
 
   const { cookie: csrfCookie } = generateCsrfToken();
   const headers = new Headers({ 'content-type': 'application/json' });
