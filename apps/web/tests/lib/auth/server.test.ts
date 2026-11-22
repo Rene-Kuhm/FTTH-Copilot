@@ -178,7 +178,7 @@ describe('handleSignup', () => {
     expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
   });
 
-  it('creates the tenant and an OWNER user, refunds the quota, and returns 201', async () => {
+  it('creates the tenant and an OWNER user, consumes the quota without refunding, and returns 201', async () => {
     const res = await handleSignup(
       post({ email: 'a@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme' }),
     );
@@ -193,12 +193,105 @@ describe('handleSignup', () => {
       ['signup:ip:203.0.113.9'],
       expect.any(Object),
     );
-    expect(mocks.releaseAuthQuota).toHaveBeenCalledWith(
-      ['signup:ip:203.0.113.9'],
-      expect.any(Object),
-      undefined,
-      expect.any(Date),
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+  });
+
+  it('consumes signup:ip quota on successful signups and atomically blocks the 4th attempt when AUTH_RATE_LIMIT_MAX=3', async () => {
+    const prevMax = process.env['AUTH_RATE_LIMIT_MAX'];
+    const prevWindowMs = process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+    process.env['AUTH_RATE_LIMIT_MAX'] = '3';
+    process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = '60000';
+
+    const frozenNowMs = 1_700_000_000_000;
+    const startMs = Math.floor(frozenNowMs / 60000) * 60000;
+    const buckets = new Map<string, number>();
+
+    mocks.extractClientIp.mockImplementation(
+      (xForwardedFor: string | null | undefined): string | null => {
+        if (!xForwardedFor) return null;
+        const first = xForwardedFor.split(',')[0]?.trim();
+        return first && first.length > 0 ? first : null;
+      },
     );
+    mocks.reserveAuthQuota.mockImplementation(
+      async (keys: string[], opts: { max: number; windowMs: number }) => {
+        const counts = keys.map((key) => {
+          const bucketKey = `${key}:${startMs}`;
+          const next = (buckets.get(bucketKey) ?? 0) + 1;
+          buckets.set(bucketKey, next);
+          return next;
+        });
+        return counts.every((c) => c <= opts.max)
+          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
+          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+      },
+    );
+    mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+      for (const key of keys) {
+        const bucketKey = `${key}:${startMs}`;
+        const current = buckets.get(bucketKey) ?? 0;
+        buckets.set(bucketKey, Math.max(current - 1, 0));
+      }
+    });
+
+    try {
+      const first = await handleSignup(
+        post(
+          { email: 'first@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme 1' },
+          { 'x-forwarded-for': '198.51.100.7' },
+        ),
+      );
+      expect(first.status).toBe(201);
+      expect(buckets.get(`signup:ip:198.51.100.7:${startMs}`)).toBe(1);
+      expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+
+      for (let i = 2; i <= 3; i++) {
+        const ok = await handleSignup(
+          post(
+            { email: `u${i}@b.com`, password: 'longenough1', name: 'X', tenantName: `Acme ${i}` },
+            { 'x-forwarded-for': '198.51.100.7' },
+          ),
+        );
+        expect(ok.status).toBe(201);
+      }
+      expect(buckets.get(`signup:ip:198.51.100.7:${startMs}`)).toBe(3);
+
+      mocks.prisma.user.create.mockClear();
+      mocks.prisma.tenant.create.mockClear();
+
+      const fourthSequential = await handleSignup(
+        post(
+          { email: 'u4@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme 4' },
+          { 'x-forwarded-for': '198.51.100.7' },
+        ),
+      );
+      expect(fourthSequential.status).toBe(429);
+      expect(fourthSequential.headers.get('retry-after')).toBe('60');
+      expect(mocks.prisma.user.create).not.toHaveBeenCalled();
+      expect(mocks.prisma.tenant.create).not.toHaveBeenCalled();
+
+      // Atomic gate under concurrent signups from a fresh IP
+      const concurrentResults = await Promise.all(
+        [1, 2, 3, 4].map((i) =>
+          handleSignup(
+            post(
+              { email: `c${i}@b.com`, password: 'longenough1', name: 'X', tenantName: `Conc ${i}` },
+              { 'x-forwarded-for': '198.51.100.8' },
+            ),
+          ),
+        ),
+      );
+      const statuses = concurrentResults.map((r) => r.status).sort((a, b) => a - b);
+      expect(statuses).toEqual([201, 201, 201, 429]);
+      expect(mocks.prisma.user.create).toHaveBeenCalledTimes(3);
+      expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+    } finally {
+      if (prevMax === undefined) delete process.env['AUTH_RATE_LIMIT_MAX'];
+      else process.env['AUTH_RATE_LIMIT_MAX'] = prevMax;
+
+      if (prevWindowMs === undefined) delete process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+      else process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = prevWindowMs;
+    }
   });
 
   it('stores a session and sets the session and CSRF cookies', async () => {
