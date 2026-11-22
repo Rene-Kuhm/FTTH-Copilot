@@ -128,6 +128,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns fresh when there has never been a successful tick and the last error is no longer recent', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'error',
         lastRunAt: null,
@@ -142,6 +143,7 @@ describe('evaluateConnectionHealth — pure classifier', () => {
   it('returns recovered for an external snapshot whose historical error aged out while not stale', () => {
     const r = evaluateConnectionHealth(
       {
+        tenantId: 'tenant-1',
         connectionId: 'c-1',
         state: 'healthy',
         lastRunAt: 4000,
