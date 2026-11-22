@@ -284,6 +284,9 @@ importers:
       '@ftth-copilot/detection':
         specifier: workspace:*
         version: link:../detection
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -312,6 +315,9 @@ importers:
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../db
+      '@ftth-copilot/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^22.10.0

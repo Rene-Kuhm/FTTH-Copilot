@@ -1,4 +1,6 @@
-export type DeviceStatus = 'online' | 'offline' | 'degraded';
+import type { DeviceStatus } from '@ftth-copilot/shared';
+
+export type { DeviceStatus };
 
 export interface StatusSample {
   /** Unix epoch milliseconds. */
