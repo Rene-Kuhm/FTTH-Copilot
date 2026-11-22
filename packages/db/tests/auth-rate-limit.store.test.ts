@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   upsert: vi.fn(),
+  queryRaw: vi.fn(),
+  executeRaw: vi.fn(),
 }));
 
 vi.mock('../src/client', () => ({
@@ -11,10 +13,17 @@ vi.mock('../src/client', () => ({
       findUnique: mocks.findUnique,
       upsert: mocks.upsert,
     },
+    $queryRaw: mocks.queryRaw,
+    $executeRaw: mocks.executeRaw,
   },
 }));
 
-import { checkAuthQuota, recordAuthAttempt } from '../src/auth-rate-limit';
+import {
+  checkAuthQuota,
+  recordAuthAttempt,
+  releaseAuthQuota,
+  reserveAuthQuota,
+} from '../src/auth-rate-limit';
 
 const NOW = new Date('2026-08-30T12:00:00.000Z');
 const OPTS = { max: 3, windowMs: 15 * 60 * 1000 };
@@ -22,6 +31,8 @@ const OPTS = { max: 3, windowMs: 15 * 60 * 1000 };
 beforeEach(() => {
   mocks.findUnique.mockReset();
   mocks.upsert.mockReset();
+  mocks.queryRaw.mockReset();
+  mocks.executeRaw.mockReset();
 });
 
 describe('default store (Prisma-backed)', () => {
@@ -50,5 +61,36 @@ describe('default store (Prisma-backed)', () => {
         select: { count: true },
       }),
     );
+  });
+
+  it('reserveAuthQuota executes a single atomic queryRaw upsert for all keys', async () => {
+    mocks.queryRaw.mockResolvedValue([{ count: 2 }, { count: 1 }]);
+    const decision = await reserveAuthQuota(
+      ['login:ip:1.2.3.4', 'login:email:a@b.c'],
+      OPTS,
+      undefined,
+      NOW,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.retryAfter).toBe(0);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reserveAuthQuota denies when any returned bucket count exceeds max', async () => {
+    mocks.queryRaw.mockResolvedValue([{ count: 4 }, { count: 1 }]);
+    const decision = await reserveAuthQuota(
+      ['login:email:a@b.c', 'login:ip:1.2.3.4'],
+      OPTS,
+      undefined,
+      NOW,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.retryAfter).toBeGreaterThan(0);
+  });
+
+  it('releaseAuthQuota executes a single executeRaw decrement for the reserved window', async () => {
+    mocks.executeRaw.mockResolvedValue(2);
+    await releaseAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
   });
 });

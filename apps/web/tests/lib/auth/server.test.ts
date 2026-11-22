@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   hashToken: vi.fn(),
   checkAuthQuota: vi.fn(),
   recordAuthAttempt: vi.fn(),
+  reserveAuthQuota: vi.fn(),
+  releaseAuthQuota: vi.fn(),
   authRateLimitKeys: vi.fn(),
   sessionCookieAttributes: vi.fn(),
   extractClientIp: vi.fn(),
@@ -45,6 +47,8 @@ vi.mock('@ftth-copilot/db', () => ({
   TOKEN_TTL_SECONDS: 3600,
   checkAuthQuota: mocks.checkAuthQuota,
   recordAuthAttempt: mocks.recordAuthAttempt,
+  reserveAuthQuota: mocks.reserveAuthQuota,
+  releaseAuthQuota: mocks.releaseAuthQuota,
   authRateLimitKeys: mocks.authRateLimitKeys,
   extractClientIp: mocks.extractClientIp,
   decryptApiKey: mocks.decryptApiKey,
@@ -100,6 +104,12 @@ beforeEach(() => {
   mocks.extractClientIp.mockReturnValue('203.0.113.9');
   mocks.checkAuthQuota.mockResolvedValue({ allowed: true, retryAfter: 60 });
   mocks.recordAuthAttempt.mockResolvedValue(undefined);
+  mocks.reserveAuthQuota.mockResolvedValue({
+    allowed: true,
+    retryAfter: 0,
+    windowStart: new Date(1_700_000_000_000),
+  });
+  mocks.releaseAuthQuota.mockResolvedValue(undefined);
   mocks.authRateLimitKeys.mockReturnValue(['auth:ip:203.0.113.9']);
   mocks.sessionCookieAttributes.mockReturnValue({
     httpOnly: true,
@@ -151,7 +161,11 @@ describe('handleSignup', () => {
   });
 
   it('rate-limits account creation per client IP', async () => {
-    mocks.checkAuthQuota.mockResolvedValue({ allowed: false, retryAfter: 120 });
+    mocks.reserveAuthQuota.mockResolvedValue({
+      allowed: false,
+      retryAfter: 120,
+      windowStart: new Date(1_700_000_000_000),
+    });
 
     const res = await handleSignup(
       post({ email: 'a@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme' }),
@@ -161,9 +175,10 @@ describe('handleSignup', () => {
     expect(res.headers.get('retry-after')).toBe('120');
     // The account must not be created when the quota is exhausted.
     expect(mocks.prisma.user.create).not.toHaveBeenCalled();
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
   });
 
-  it('creates the tenant and an OWNER user, and returns 201', async () => {
+  it('creates the tenant and an OWNER user, refunds the quota, and returns 201', async () => {
     const res = await handleSignup(
       post({ email: 'a@b.com', password: 'longenough1', name: 'X', tenantName: 'Acme' }),
     );
@@ -174,6 +189,16 @@ describe('handleSignup', () => {
     expect(body.tenant.id).toBe('ten-1');
     // The password hash must never leave the server.
     expect(JSON.stringify(body)).not.toMatch(/hashed|password/i);
+    expect(mocks.reserveAuthQuota).toHaveBeenCalledWith(
+      ['signup:ip:203.0.113.9'],
+      expect.any(Object),
+    );
+    expect(mocks.releaseAuthQuota).toHaveBeenCalledWith(
+      ['signup:ip:203.0.113.9'],
+      expect.any(Object),
+      undefined,
+      expect.any(Date),
+    );
   });
 
   it('stores a session and sets the session and CSRF cookies', async () => {
@@ -216,13 +241,19 @@ describe('handleLogin', () => {
   });
 
   it('rate-limits brute force with a retry-after header', async () => {
-    mocks.checkAuthQuota.mockResolvedValue({ allowed: false, retryAfter: 300 });
+    mocks.reserveAuthQuota.mockResolvedValue({
+      allowed: false,
+      retryAfter: 300,
+      windowStart: new Date(1_700_000_000_000),
+    });
 
     const res = await handleLogin(post({ email: 'a@b.com', password: 'whatever1' }));
 
     expect(res.status).toBe(429);
     expect(res.headers.get('retry-after')).toBe('300');
+    await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
     expect(mocks.verifyPassword).not.toHaveBeenCalled();
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
   });
 
   it('returns the same 401 for an unknown email and a wrong password', async () => {
@@ -239,13 +270,18 @@ describe('handleLogin', () => {
     expect(await unknown.json()).toEqual(await wrong.json());
   });
 
-  it('records the failure against every rate-limit key', async () => {
+  it('reserves against every rate-limit key and does not refund on failure', async () => {
     mocks.prisma.user.findUnique.mockResolvedValue(null);
     mocks.authRateLimitKeys.mockReturnValue(['auth:ip:1.1.1.1', 'auth:email:a@b.com']);
 
     await handleLogin(post({ email: 'ghost@example.com', password: 'whatever1' }));
 
-    expect(mocks.recordAuthAttempt).toHaveBeenCalledTimes(2);
+    expect(mocks.reserveAuthQuota).toHaveBeenCalledTimes(1);
+    expect(mocks.reserveAuthQuota).toHaveBeenCalledWith(
+      ['auth:ip:1.1.1.1', 'auth:email:a@b.com'],
+      expect.any(Object),
+    );
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
   });
 
   it('audits a failed login', async () => {
@@ -260,10 +296,11 @@ describe('handleLogin', () => {
     );
   });
 
-  it('issues a session and both cookies on success', async () => {
+  it('issues a session and both cookies on success and refunds the reservation', async () => {
     const res = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
 
     expect(res.status).toBe(200);
+    expect(mocks.releaseAuthQuota).toHaveBeenCalledTimes(1);
     const setCookies = res.headers.getSetCookie();
     expect(setCookies).toHaveLength(2);
     for (const entry of setCookies) {
@@ -283,7 +320,7 @@ describe('handleLogin', () => {
       );
     });
 
-    it('returns mfaRequired with a scoped token when no code is supplied', async () => {
+    it('returns mfaRequired with a scoped token when no code is supplied and refunds quota', async () => {
       mocks.issueToken.mockReturnValue({
         token: 'temp',
         tokenHash: 'sha256:temp',
@@ -298,9 +335,10 @@ describe('handleLogin', () => {
       // No session cookie before MFA is satisfied.
       expect(res.headers.get('set-cookie') ?? '').not.toContain(SESSION_COOKIE);
       expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+      expect(mocks.releaseAuthQuota).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects a wrong code without creating a session', async () => {
+    it('rejects a wrong code without creating a session or refunding quota', async () => {
       const res = await handleLogin(
         post({ email: 'user@example.com', password: 'correct-horse', code: '000000' }),
       );
@@ -308,9 +346,10 @@ describe('handleLogin', () => {
       expect(res.status).toBe(401);
       await expect(res.json()).resolves.toMatchObject({ error: 'Invalid MFA code' });
       expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+      expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
     });
 
-    it('completes login when the submitted code is correct', async () => {
+    it('completes login when the submitted code is correct and refunds quota', async () => {
       // Regression: the handler re-read req.json() after already consuming the
       // body, which threw "Body is unusable". The catch turned it into an empty
       // object, so the code was never seen and MFA login could never finish.
@@ -327,6 +366,7 @@ describe('handleLogin', () => {
       });
       expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
       expect(mocks.prisma.session.create).toHaveBeenCalled();
+      expect(mocks.releaseAuthQuota).toHaveBeenCalledTimes(1);
     });
 
     it('consumes failure quota on invalid inline MFA codes without penalizing valid codes', async () => {
@@ -358,30 +398,45 @@ describe('handleLogin', () => {
         if (ip) keys.push(`login:ip:${ip}`);
         return keys;
       });
-      mocks.checkAuthQuota.mockImplementation(
-        async (key: string, opts: { max: number; windowMs: number }) => {
+      mocks.reserveAuthQuota.mockImplementation(
+        async (keys: string[], opts: { max: number; windowMs: number }) => {
           const nowMs = frozenNowMs;
           const startMs = windowStart(nowMs, opts.windowMs);
-          const bucket = buckets.get(`${key}:${startMs}`);
-          const count = bucket && bucket.expiresAt > nowMs ? bucket.count : 0;
-          if (count < opts.max) {
-            return { allowed: true, retryAfter: 0 };
+          const counts = keys.map((key) => {
+            const bucketKey = `${key}:${startMs}`;
+            const existing = buckets.get(bucketKey);
+            const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
+            buckets.set(bucketKey, { count, expiresAt: startMs + opts.windowMs });
+            return count;
+          });
+          if (counts.every((count) => count <= opts.max)) {
+            return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
           }
-          return { allowed: false, retryAfter: retryAfter(nowMs, startMs, opts.windowMs) };
+          return {
+            allowed: false,
+            retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
+            windowStart: new Date(startMs),
+          };
         },
       );
-      mocks.recordAuthAttempt.mockImplementation(
-        async (key: string, opts: { max: number; windowMs: number }) => {
-          const nowMs = frozenNowMs;
-          const startMs = windowStart(nowMs, opts.windowMs);
-          const bucketKey = `${key}:${startMs}`;
-          const existing = buckets.get(bucketKey);
-          const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
-          buckets.set(bucketKey, { count, expiresAt: startMs + opts.windowMs });
-          if (count <= opts.max) {
-            return { allowed: true, retryAfter: 0 };
+      mocks.releaseAuthQuota.mockImplementation(
+        async (
+          keys: string[],
+          opts: { max: number; windowMs: number },
+          _store?: unknown,
+          startDate?: Date,
+        ) => {
+          const startMs = startDate ? startDate.getTime() : windowStart(frozenNowMs, opts.windowMs);
+          for (const key of keys) {
+            const bucketKey = `${key}:${startMs}`;
+            const existing = buckets.get(bucketKey);
+            if (existing) {
+              buckets.set(bucketKey, {
+                count: Math.max(existing.count - 1, 0),
+                expiresAt: existing.expiresAt,
+              });
+            }
           }
-          return { allowed: false, retryAfter: retryAfter(nowMs, startMs, opts.windowMs) };
         },
       );
 
@@ -401,7 +456,9 @@ describe('handleLogin', () => {
         );
         expect(okRes.status).toBe(200);
         expect(mocks.prisma.session.create).toHaveBeenCalledTimes(1);
-        expect(buckets.size).toBe(0);
+        for (const bucket of buckets.values()) {
+          expect(bucket.count).toBe(0);
+        }
 
         mocks.prisma.session.create.mockClear();
 
