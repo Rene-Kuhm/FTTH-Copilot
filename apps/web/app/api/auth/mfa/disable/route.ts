@@ -15,8 +15,8 @@ import { isTenantMfaRequired } from '@/lib/auth/mfa-policy';
 import {
   AUTH_QUOTA_ERROR_MESSAGE,
   authQuotaKeys,
-  checkAuthQuotaForKeys,
-  recordAuthFailures,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
 } from '@/lib/auth/quota';
 import { prisma, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
   const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
-  const quota = await checkAuthQuotaForKeys(rateKeys);
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return NextResponse.json(
       { error: AUTH_QUOTA_ERROR_MESSAGE },
@@ -63,7 +63,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const secret = decryptApiKey(dbUser.totpSecret);
   if (!verifyTOTP(secret, body.code)) {
-    await recordAuthFailures(rateKeys);
     return NextResponse.json({ error: 'Código MFA inválido' }, { status: 401 });
   }
 
@@ -71,6 +70,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     where: { id: user.id },
     data: { mfaEnabled: false, totpSecret: null },
   });
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({ ok: true, message: 'MFA deshabilitado correctamente' });
 }

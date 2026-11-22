@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   },
   checkAuthQuota: vi.fn(),
   recordAuthAttempt: vi.fn(),
+  reserveAuthQuota: vi.fn(),
+  releaseAuthQuota: vi.fn(),
   authRateLimitKeys: vi.fn(),
   extractClientIp: vi.fn(),
   hashPassword: vi.fn(),
@@ -25,6 +27,8 @@ vi.mock('@ftth-copilot/db', () => ({
   TOKEN_TTL_SECONDS: 3600,
   checkAuthQuota: mocks.checkAuthQuota,
   recordAuthAttempt: mocks.recordAuthAttempt,
+  reserveAuthQuota: mocks.reserveAuthQuota,
+  releaseAuthQuota: mocks.releaseAuthQuota,
   authRateLimitKeys: mocks.authRateLimitKeys,
   extractClientIp: mocks.extractClientIp,
   hashPassword: mocks.hashPassword,
@@ -39,6 +43,7 @@ vi.mock('@ftth-copilot/soc', () => ({
 }));
 
 const { authenticateAndIssueLdapSession } = await import('@/lib/auth/ldap-login');
+const { AUTH_QUOTA_ERROR_MESSAGE } = await import('@/lib/auth/quota');
 const { totp } = await import('@/lib/auth/totp');
 
 const ORIGINAL_SLUG = process.env['LDAP_TENANT_SLUG'];
@@ -48,6 +53,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env['LDAP_TENANT_SLUG'] = 'isp-demo';
   mocks.checkAuthQuota.mockResolvedValue({ allowed: true, retryAfter: 60 });
+  mocks.reserveAuthQuota.mockResolvedValue({
+    allowed: true,
+    retryAfter: 0,
+    windowStart: new Date(1_700_000_000_000),
+  });
+  mocks.releaseAuthQuota.mockResolvedValue(undefined);
   mocks.authRateLimitKeys.mockReturnValue(['ip:203.0.113.10']);
   mocks.extractClientIp.mockReturnValue('203.0.113.10');
   mocks.hashPassword.mockResolvedValue('random-hash');
@@ -93,7 +104,27 @@ describe('authenticateAndIssueLdapSession', () => {
     expect(mocks.authenticateLdapUser).not.toHaveBeenCalled();
   });
 
-  it('returns 401 and records failed attempt when LDAP rejects credentials', async () => {
+  it('returns 429 with retry-after when atomic reservation denies the attempt', async () => {
+    mocks.reserveAuthQuota.mockResolvedValueOnce({
+      allowed: false,
+      retryAfter: 120,
+      windowStart: new Date(1_700_000_000_000),
+    });
+
+    const res = await authenticateAndIssueLdapSession({
+      req: makeReq(),
+      username: 'jdoe',
+      password: 'secret',
+    });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('120');
+    await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+    expect(mocks.authenticateLdapUser).not.toHaveBeenCalled();
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 and keeps reservation consumed when LDAP rejects credentials', async () => {
     mocks.authenticateLdapUser.mockResolvedValueOnce({ ok: false, error: 'Invalid credentials' });
     const res = await authenticateAndIssueLdapSession({
       req: makeReq(),
@@ -101,7 +132,8 @@ describe('authenticateAndIssueLdapSession', () => {
       password: 'wrong',
     });
     expect(res.status).toBe(401);
-    expect(mocks.recordAuthAttempt).toHaveBeenCalledTimes(1);
+    expect(mocks.reserveAuthQuota).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
     expect(mocks.auditLogin).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'ten-1', actorId: 'jdoe' }),
       'jdoe',
@@ -109,7 +141,7 @@ describe('authenticateAndIssueLdapSession', () => {
     );
   });
 
-  it('provisions new LDAP user with mapped role and issues session cookies', async () => {
+  it('provisions new LDAP user with mapped role, refunds quota, and issues session cookies', async () => {
     mocks.authenticateLdapUser.mockResolvedValueOnce({
       ok: true,
       user: {
@@ -148,10 +180,11 @@ describe('authenticateAndIssueLdapSession', () => {
       }),
     );
     expect(mocks.prisma.session.create).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseAuthQuota).toHaveBeenCalledTimes(1);
     expect(res.headers.get('set-cookie')).toContain('ftth_session=session-token');
   });
 
-  it('blocks LDAP login with 403 MFA_SETUP_REQUIRED when tenant mandates MFA and user has no TOTP', async () => {
+  it('blocks LDAP login with 403 MFA_SETUP_REQUIRED when tenant mandates MFA and refunds quota', async () => {
     mocks.prisma.tenantPolicy.findUnique.mockResolvedValueOnce({ requireMfa: true });
     mocks.authenticateLdapUser.mockResolvedValueOnce({
       ok: true,
@@ -187,7 +220,49 @@ describe('authenticateAndIssueLdapSession', () => {
       tempToken: 'temp-token',
     });
     expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+    expect(mocks.releaseAuthQuota).toHaveBeenCalledTimes(1);
     expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('reuses reservedQuota from handleLogin without double-reserving and refunds on success', async () => {
+    const windowStart = new Date(1_700_000_000_000);
+    const reservedKeys = ['login:email:jdoe@example.invalid', 'login:ip:203.0.113.10'];
+
+    mocks.authenticateLdapUser.mockResolvedValueOnce({
+      ok: true,
+      user: {
+        dn: 'uid=jdoe,ou=users,dc=example,dc=com',
+        email: 'jdoe@example.invalid',
+        name: 'Jane Doe',
+        groups: ['CN=NOC-Admins'],
+        role: 'ADMIN',
+      },
+    });
+    mocks.prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'usr-ldap-1',
+      email: 'jdoe@example.invalid',
+      name: 'Jane Doe',
+      role: 'ADMIN',
+      tenantId: 'ten-1',
+      mfaEnabled: false,
+      totpSecret: null,
+    });
+
+    const res = await authenticateAndIssueLdapSession({
+      req: makeReq(),
+      username: 'jdoe@example.invalid',
+      password: 'secret',
+      reservedQuota: { keys: reservedKeys, windowStart },
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.reserveAuthQuota).not.toHaveBeenCalled();
+    expect(mocks.releaseAuthQuota).toHaveBeenCalledWith(
+      reservedKeys,
+      expect.any(Object),
+      undefined,
+      windowStart,
+    );
   });
 
   it('records failed attempts on invalid MFA code until the quota bucket is exhausted', async () => {
@@ -195,24 +270,30 @@ describe('authenticateAndIssueLdapSession', () => {
     process.env['AUTH_RATE_LIMIT_MAX'] = String(maxAttempts);
 
     const buckets = new Map<string, number>();
+    const frozenWindowStart = new Date(1_700_000_000_000);
     mocks.authRateLimitKeys.mockImplementation((email: string, ip: string | null) => {
       const keys = [`login:email:${email.trim().toLowerCase()}`];
       if (ip) keys.push(`login:ip:${ip}`);
       return keys;
     });
-    mocks.checkAuthQuota.mockImplementation(
-      async (key: string, opts: { max: number; windowMs: number }) => {
-        const count = buckets.get(key) ?? 0;
-        return count < opts.max ? { allowed: true, retryAfter: 0 } : { allowed: false, retryAfter: 45 };
+    mocks.reserveAuthQuota.mockImplementation(
+      async (keys: string[], opts: { max: number; windowMs: number }) => {
+        const counts = keys.map((key) => {
+          const next = (buckets.get(key) ?? 0) + 1;
+          buckets.set(key, next);
+          return next;
+        });
+        return counts.every((count) => count <= opts.max)
+          ? { allowed: true, retryAfter: 0, windowStart: frozenWindowStart }
+          : { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
       },
     );
-    mocks.recordAuthAttempt.mockImplementation(
-      async (key: string, opts: { max: number; windowMs: number }) => {
-        const next = (buckets.get(key) ?? 0) + 1;
-        buckets.set(key, next);
-        return next <= opts.max ? { allowed: true, retryAfter: 0 } : { allowed: false, retryAfter: 45 };
-      },
-    );
+    mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+      for (const key of keys) {
+        const current = buckets.get(key) ?? 0;
+        buckets.set(key, Math.max(current - 1, 0));
+      }
+    });
 
     const secret = 'JBSWY3DPEHPK3PXP';
     mocks.decryptApiKey.mockReturnValue(secret);
@@ -251,7 +332,7 @@ describe('authenticateAndIssueLdapSession', () => {
       expect(await res.json()).toEqual({ error: 'Invalid MFA code' });
     }
 
-    expect(mocks.recordAuthAttempt).toHaveBeenCalledTimes(maxAttempts * 2);
+    expect(mocks.reserveAuthQuota).toHaveBeenCalledTimes(maxAttempts);
     expect(buckets.get('login:email:jdoe')).toBe(maxAttempts);
     expect(buckets.get('login:ip:203.0.113.10')).toBe(maxAttempts);
 
@@ -263,6 +344,7 @@ describe('authenticateAndIssueLdapSession', () => {
     });
     expect(blockedRes.status).toBe(429);
     expect(blockedRes.headers.get('retry-after')).toBe('45');
+    await expect(blockedRes.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
     expect(mocks.authenticateLdapUser).toHaveBeenCalledTimes(maxAttempts);
   });
 

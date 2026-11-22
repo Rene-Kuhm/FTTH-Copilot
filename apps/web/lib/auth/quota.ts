@@ -5,8 +5,14 @@ import {
   authRateLimitKeys,
   checkAuthQuota,
   recordAuthAttempt,
+  releaseAuthQuota,
+  reserveAuthQuota,
 } from '@ftth-copilot/db';
-import type { AuthQuotaOptions, AuthRateLimitScope } from '@ftth-copilot/db';
+import type {
+  AuthQuotaOptions,
+  AuthQuotaReservation,
+  AuthRateLimitScope,
+} from '@ftth-copilot/db';
 
 export const AUTH_QUOTA_ERROR_MESSAGE = 'Demasiados intentos. Probá de nuevo más tarde.';
 
@@ -33,7 +39,9 @@ export function authQuotaKeys(
   clientIp: string | null,
   scope?: AuthRateLimitScope,
 ): string[] {
-  return authRateLimitKeys(email, clientIp, scope);
+  return scope === undefined
+    ? authRateLimitKeys(email, clientIp)
+    : authRateLimitKeys(email, clientIp, scope);
 }
 
 /**
@@ -60,4 +68,24 @@ export async function recordAuthFailures(keys: string[]): Promise<void> {
   for (const key of keys) {
     await recordAuthAttempt(key, opts);
   }
+}
+
+/**
+ * Atomically reserve one attempt across every rate-limit key before
+ * performing expensive credential verification.
+ */
+export async function reserveAuthQuotaForKeys(keys: string[]): Promise<AuthQuotaReservation> {
+  return reserveAuthQuota(keys, authRateLimitOptions());
+}
+
+/**
+ * Refund a previously reserved attempt across `keys` when authentication
+ * succeeds or delegates to the second-factor step.
+ */
+export async function releaseAuthQuotaForKeys(
+  keys: string[],
+  windowStart?: Date,
+): Promise<void> {
+  const opts = authRateLimitOptions();
+  await releaseAuthQuota(keys, opts, undefined, windowStart);
 }

@@ -17,8 +17,6 @@ import {
   COOKIE_NAME,
   sessionCookieAttributes,
   TOKEN_TTL_SECONDS,
-  checkAuthQuota,
-  recordAuthAttempt,
   extractClientIp,
   decryptApiKey,
 } from '@ftth-copilot/db';
@@ -32,9 +30,8 @@ import { authenticateAndIssueLdapSession } from './ldap-login';
 import {
   AUTH_QUOTA_ERROR_MESSAGE,
   authQuotaKeys,
-  authRateLimitOptions,
-  checkAuthQuotaForKeys,
-  recordAuthFailures,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
 } from './quota';
 import type { Role } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
@@ -170,17 +167,13 @@ export async function handleSignup(req: Request) {
   // Rate-limit account creation per client IP to block mass signup and email
   // enumeration abuse.
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  if (clientIp) {
-    const key = `signup:ip:${clientIp}`;
-    const opts = authRateLimitOptions();
-    const decision = await checkAuthQuota(key, opts);
-    if (!decision.allowed) {
-      return jsonResponse(
-        { error: 'Demasiados registros. Probá de nuevo más tarde.' },
-        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
-      );
-    }
-    await recordAuthAttempt(key, opts);
+  const signupKeys = clientIp ? [`signup:ip:${clientIp}`] : [];
+  const signupQuota = signupKeys.length > 0 ? await reserveAuthQuotaForKeys(signupKeys) : null;
+  if (signupQuota && !signupQuota.allowed) {
+    return jsonResponse(
+      { error: 'Demasiados registros. Probá de nuevo más tarde.' },
+      { status: 429, headers: { 'retry-after': String(signupQuota.retryAfter) } },
+    );
   }
 
   try {
@@ -255,11 +248,11 @@ export async function handleLogin(req: Request) {
   }
   const { email, password } = parsed.data;
 
-  // Brute-force guard: reject early when this email or IP is already over its
-  // failure budget, and record failures on the slow paths below.
+  // Brute-force guard: atomically reserve an attempt across email + IP before
+  // expensive credential checks; valid logins refund the reservation below.
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
   const rateKeys = authQuotaKeys(email, clientIp);
-  const quota = await checkAuthQuotaForKeys(rateKeys);
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
   if (!quota.allowed) {
     return jsonResponse(
       { error: AUTH_QUOTA_ERROR_MESSAGE },
@@ -272,9 +265,14 @@ export async function handleLogin(req: Request) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       if (process.env['LDAP_ENABLED'] === 'true') {
-        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+        return authenticateAndIssueLdapSession({
+          req,
+          username: email,
+          password,
+          code,
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+        });
       }
-      await recordAuthFailures(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined }, email, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -282,9 +280,14 @@ export async function handleLogin(req: Request) {
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       if (process.env['LDAP_ENABLED'] === 'true') {
-        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+        return authenticateAndIssueLdapSession({
+          req,
+          username: email,
+          password,
+          code,
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+        });
       }
-      await recordAuthFailures(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined }, user.id, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -294,16 +297,17 @@ export async function handleLogin(req: Request) {
     const tenantRequiresMfa = await isTenantMfaRequired(user.tenantId);
     const mfaGate = evaluateMfaGate(user, tenantRequiresMfa, code);
     if (mfaGate.action === 'invalid_code') {
-      await recordAuthFailures(rateKeys);
       return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
     }
     if (mfaGate.action === 'mfa_required') {
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
       return jsonResponse(
         { mfaRequired: true, tempToken: mfaGate.tempToken },
         { status: 200 },
       );
     }
     if (mfaGate.action === 'mfa_setup_required') {
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
       return jsonResponse(
         {
           error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
@@ -333,6 +337,7 @@ export async function handleLogin(req: Request) {
       user.id,
       true,
     );
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
     // Generate CSRF token for subsequent requests
     const { cookie: csrfCookie } = generateCsrfToken();

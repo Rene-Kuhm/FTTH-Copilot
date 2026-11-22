@@ -17,6 +17,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'tests/**/*.integration.test.ts',
+      'tests/auth-rate-limit.concurrency.integration.test.ts',
       'tests/investigation-model.test.ts',
       'tests/investigation-store.integration.test.ts',
       'tests/seed.test.ts',

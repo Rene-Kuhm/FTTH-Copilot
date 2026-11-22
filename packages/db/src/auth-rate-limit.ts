@@ -6,11 +6,21 @@
  * an attacker has not authenticated yet. The store is injectable so the logic
  * can be unit-tested without a database.
  */
+import { randomUUID } from 'node:crypto';
+import { Prisma } from './generated/client/index.js';
 import { prisma } from './client';
+
+export type AuthRateLimitScope = 'login' | 'mfa';
 
 export interface AuthQuotaOptions {
   max: number;
   windowMs: number;
+}
+
+export interface AuthQuotaReservation {
+  allowed: boolean;
+  retryAfter: number;
+  windowStart: Date;
 }
 
 export interface AuthRateLimitStore {
@@ -23,7 +33,14 @@ export interface AuthRateLimitStore {
   increment(key: string, windowStart: Date, expiresAt: Date): Promise<number>;
 }
 
-const prismaStore: AuthRateLimitStore = {
+export interface AtomicAuthRateLimitStore extends AuthRateLimitStore {
+  /** Atomically increments all keys in the window and returns the resulting counts. */
+  reserve(keys: string[], windowStart: Date, expiresAt: Date): Promise<number[]>;
+  /** Decrements (floors at 0) all keys in the window to refund a valid attempt. */
+  release(keys: string[], windowStart: Date): Promise<void>;
+}
+
+const prismaStore: AtomicAuthRateLimitStore = {
   async findCount(key, windowStart) {
     return prisma.authRateLimit.findUnique({
       where: { key_windowStart: { key, windowStart } },
@@ -39,6 +56,31 @@ const prismaStore: AuthRateLimitStore = {
     });
     return bucket.count;
   },
+  async reserve(keys, windowStart, expiresAt) {
+    const uniqueKeys = [...new Set(keys)].sort();
+    if (uniqueKeys.length === 0) return [];
+    const rows = uniqueKeys.map(
+      (key) => Prisma.sql`(${randomUUID()}, ${key}, ${windowStart}, ${expiresAt}, 1)`,
+    );
+    const result = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      INSERT INTO "auth_rate_limits" ("id", "key", "windowStart", "expiresAt", "count")
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("key", "windowStart")
+      DO UPDATE SET "count" = "auth_rate_limits"."count" + 1
+      RETURNING "count"
+    `);
+    return result.map((row) => Number(row.count));
+  },
+  async release(keys, windowStart) {
+    const uniqueKeys = [...new Set(keys)].sort();
+    if (uniqueKeys.length === 0) return;
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE "auth_rate_limits"
+      SET "count" = GREATEST("count" - 1, 0)
+      WHERE "windowStart" = ${windowStart}
+        AND "key" IN (${Prisma.join(uniqueKeys)})
+    `);
+  },
 };
 
 /** Start of the fixed window containing `now` for the given window length. */
@@ -53,9 +95,7 @@ export function extractClientIp(xForwardedFor: string | null | undefined): strin
   return first && first.length > 0 ? first : null;
 }
 
-export type AuthRateLimitScope = 'login' | 'mfa';
-
-/** Rate-limit keys for an auth attempt: always email, plus IP when present. */
+/** Rate-limit keys for an auth operation: always email, plus IP when present. */
 export function authRateLimitKeys(
   email: string,
   ip: string | null,
@@ -101,4 +141,44 @@ export async function recordAuthAttempt(
   const count = await store.increment(key, windowStart, windowEnd);
   if (count <= opts.max) return { allowed: true, retryAfter: 0 };
   return { allowed: false, retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs) };
+}
+
+/**
+ * Atomically reserves one attempt across all `keys` in a single operation and
+ * decides whether every bucket remains within `opts.max`.
+ */
+export async function reserveAuthQuota(
+  keys: string[],
+  opts: AuthQuotaOptions,
+  store: AtomicAuthRateLimitStore = prismaStore,
+  now: Date = new Date(),
+): Promise<AuthQuotaReservation> {
+  const windowStart = computeWindowStart(now, opts.windowMs);
+  if (keys.length === 0) {
+    return { allowed: true, retryAfter: 0, windowStart };
+  }
+  const windowEnd = new Date(windowStart.getTime() + opts.windowMs);
+  const counts = await store.reserve(keys, windowStart, windowEnd);
+  if (counts.every((count) => count <= opts.max)) {
+    return { allowed: true, retryAfter: 0, windowStart };
+  }
+  return {
+    allowed: false,
+    retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs),
+    windowStart,
+  };
+}
+
+/**
+ * Refunds a previously reserved attempt across `keys` (flooring at 0) when
+ * authentication succeeds.
+ */
+export async function releaseAuthQuota(
+  keys: string[],
+  opts: AuthQuotaOptions,
+  store: AtomicAuthRateLimitStore = prismaStore,
+  windowStart: Date = computeWindowStart(new Date(), opts.windowMs),
+): Promise<void> {
+  if (keys.length === 0) return;
+  await store.release(keys, windowStart);
 }
