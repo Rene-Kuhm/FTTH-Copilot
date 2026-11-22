@@ -10,6 +10,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  checkAuthQuotaForKeys,
+  recordAuthFailures,
+} from '@/lib/auth/quota';
 import { prisma, issueToken, hashToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 import { auditAuth } from '@ftth-copilot/soc';
@@ -28,6 +34,13 @@ function setSessionCookie(token: string): string {
   if (attrs.sameSite === 'lax') parts.push('SameSite=Lax');
   if (attrs.secure) parts.push('Secure');
   return parts.join('; ');
+}
+
+function quotaExceededResponse(retryAfter: number): NextResponse {
+  return NextResponse.json(
+    { error: AUTH_QUOTA_ERROR_MESSAGE },
+    { status: 429, headers: { 'retry-after': String(retryAfter) } },
+  );
 }
 
 /**
@@ -71,14 +84,21 @@ async function handleMfaLogin(
   password: string,
   code: string,
 ): Promise<NextResponse> {
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   const { verifyPassword } = await import('@ftth-copilot/db');
 
   // Verify credentials
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    const ip = extractClientIp(req.headers.get('x-forwarded-for'));
+    await recordAuthFailures(rateKeys);
     await auditAuth.login(
-      { tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined },
+      { tenantId: 'unknown', actorId: 'unknown', ipAddress: clientIp ?? undefined },
       email,
       false,
     );
@@ -87,9 +107,9 @@ async function handleMfaLogin(
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    const ip = extractClientIp(req.headers.get('x-forwarded-for'));
+    await recordAuthFailures(rateKeys);
     await auditAuth.login(
-      { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined },
+      { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: clientIp ?? undefined },
       user.id,
       false,
     );
@@ -100,6 +120,7 @@ async function handleMfaLogin(
   if (user.mfaEnabled && user.totpSecret) {
     const secret = decryptApiKey(user.totpSecret);
     if (!verifyTOTP(secret, code)) {
+      await recordAuthFailures(rateKeys);
       return NextResponse.json({ error: 'Invalid MFA code' }, { status: 401 });
     }
   } else if (user.mfaEnabled) {
@@ -161,8 +182,16 @@ async function handleSetupVerification(
     return NextResponse.json({ error: 'MFA already enabled' }, { status: 409 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   const secret = decryptApiKey(dbUser.totpSecret);
   if (!verifyTOTP(secret, code)) {
+    await recordAuthFailures(rateKeys);
     return NextResponse.json({ error: 'Invalid verification code' }, { status: 401 });
   }
 
@@ -231,6 +260,13 @@ async function handleMfaContinue(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   // Verify MFA code
   if (!user.totpSecret) {
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
@@ -259,6 +295,7 @@ async function handleMfaContinue(
 
   const secret = decryptApiKey(user.totpSecret);
   if (!verifyTOTP(secret, code)) {
+    await recordAuthFailures(rateKeys);
     if (attemptRecord.count === MAX_TEMP_TOKEN_TOTP_ATTEMPTS) {
       await lockTempToken(usedKey, tokenExpiresAt);
       return NextResponse.json({ error: 'Invalid or expired temp token' }, { status: 401 });

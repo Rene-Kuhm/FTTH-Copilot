@@ -19,7 +19,6 @@ import {
   TOKEN_TTL_SECONDS,
   checkAuthQuota,
   recordAuthAttempt,
-  authRateLimitKeys,
   extractClientIp,
   decryptApiKey,
 } from '@ftth-copilot/db';
@@ -30,7 +29,14 @@ import {
 } from './csrf';
 import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
 import { authenticateAndIssueLdapSession } from './ldap-login';
-import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  authRateLimitOptions,
+  checkAuthQuotaForKeys,
+  recordAuthFailures,
+} from './quota';
+import type { Role } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
 
 const log = createLogger({ name: 'auth' });
@@ -52,25 +58,6 @@ const loginSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
 });
-
-function positiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function authRateLimitOptions(): AuthQuotaOptions {
-  return {
-    max: positiveInt(process.env['AUTH_RATE_LIMIT_MAX'], 10),
-    windowMs: positiveInt(process.env['AUTH_RATE_LIMIT_WINDOW_MS'], 15 * 60 * 1000),
-  };
-}
-
-async function recordFailedLogins(keys: string[]): Promise<void> {
-  const opts = authRateLimitOptions();
-  for (const key of keys) {
-    await recordAuthAttempt(key, opts);
-  }
-}
 
 export interface CurrentUser {
   id: string;
@@ -269,16 +256,13 @@ export async function handleLogin(req: Request) {
   // Brute-force guard: reject early when this email or IP is already over its
   // failure budget, and record failures on the slow paths below.
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authRateLimitKeys(email, clientIp);
-  const rateOpts = authRateLimitOptions();
-  for (const key of rateKeys) {
-    const decision = await checkAuthQuota(key, rateOpts);
-    if (!decision.allowed) {
-      return jsonResponse(
-        { error: 'Demasiados intentos. Probá de nuevo más tarde.' },
-        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
-      );
-    }
+  const rateKeys = authQuotaKeys(email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return jsonResponse(
+      { error: AUTH_QUOTA_ERROR_MESSAGE },
+      { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
+    );
   }
 
   try {
@@ -288,7 +272,7 @@ export async function handleLogin(req: Request) {
       if (process.env['LDAP_ENABLED'] === 'true') {
         return authenticateAndIssueLdapSession({ req, username: email, password, code });
       }
-      await recordFailedLogins(rateKeys);
+      await recordAuthFailures(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined }, email, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -298,7 +282,7 @@ export async function handleLogin(req: Request) {
       if (process.env['LDAP_ENABLED'] === 'true') {
         return authenticateAndIssueLdapSession({ req, username: email, password, code });
       }
-      await recordFailedLogins(rateKeys);
+      await recordAuthFailures(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined }, user.id, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -308,6 +292,7 @@ export async function handleLogin(req: Request) {
     const tenantRequiresMfa = await isTenantMfaRequired(user.tenantId);
     const mfaGate = evaluateMfaGate(user, tenantRequiresMfa, code);
     if (mfaGate.action === 'invalid_code') {
+      await recordAuthFailures(rateKeys);
       return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
     }
     if (mfaGate.action === 'mfa_required') {

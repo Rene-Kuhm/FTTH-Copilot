@@ -12,7 +12,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
 import { isTenantMfaRequired } from '@/lib/auth/mfa-policy';
-import { prisma, decryptApiKey } from '@ftth-copilot/db';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  checkAuthQuotaForKeys,
+  recordAuthFailures,
+} from '@/lib/auth/quota';
+import { prisma, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 
 export const runtime = 'nodejs';
@@ -45,8 +51,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'MFA is not enabled' }, { status: 400 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: AUTH_QUOTA_ERROR_MESSAGE },
+      { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
+    );
+  }
+
   const secret = decryptApiKey(dbUser.totpSecret);
   if (!verifyTOTP(secret, body.code)) {
+    await recordAuthFailures(rateKeys);
     return NextResponse.json({ error: 'Código MFA inválido' }, { status: 401 });
   }
 

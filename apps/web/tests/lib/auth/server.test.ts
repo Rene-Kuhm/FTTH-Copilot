@@ -64,6 +64,7 @@ vi.mock('next/headers', () => ({
 
 const { handleSignup, handleLogin, handleLogout, handleMe, getCurrentUser } =
   await import('@/lib/auth/server');
+const { AUTH_QUOTA_ERROR_MESSAGE } = await import('@/lib/auth/quota');
 
 const SESSION_COOKIE = 'ftth_session';
 
@@ -318,6 +319,112 @@ describe('handleLogin', () => {
       });
       expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
       expect(mocks.prisma.session.create).toHaveBeenCalled();
+    });
+
+    it('consumes failure quota on invalid inline MFA codes without penalizing valid codes', async () => {
+      const prevMax = process.env['AUTH_RATE_LIMIT_MAX'];
+      const prevWindowMs = process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+      process.env['AUTH_RATE_LIMIT_MAX'] = '3';
+      process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = '60000';
+
+      interface QuotaBucket {
+        count: number;
+        expiresAt: number;
+      }
+      const frozenNowMs = 1_700_000_000_000;
+      const buckets = new Map<string, QuotaBucket>();
+      const windowStart = (nowMs: number, windowMs: number) =>
+        Math.floor(nowMs / windowMs) * windowMs;
+      const retryAfter = (nowMs: number, startMs: number, windowMs: number) =>
+        Math.max(1, Math.ceil((startMs + windowMs - nowMs) / 1000));
+
+      mocks.extractClientIp.mockImplementation(
+        (xForwardedFor: string | null | undefined): string | null => {
+          if (!xForwardedFor) return null;
+          const first = xForwardedFor.split(',')[0]?.trim();
+          return first && first.length > 0 ? first : null;
+        },
+      );
+      mocks.authRateLimitKeys.mockImplementation((email: string, ip: string | null): string[] => {
+        const keys = [`login:email:${email.trim().toLowerCase()}`];
+        if (ip) keys.push(`login:ip:${ip}`);
+        return keys;
+      });
+      mocks.checkAuthQuota.mockImplementation(
+        async (key: string, opts: { max: number; windowMs: number }) => {
+          const nowMs = frozenNowMs;
+          const startMs = windowStart(nowMs, opts.windowMs);
+          const bucket = buckets.get(`${key}:${startMs}`);
+          const count = bucket && bucket.expiresAt > nowMs ? bucket.count : 0;
+          if (count < opts.max) {
+            return { allowed: true, retryAfter: 0 };
+          }
+          return { allowed: false, retryAfter: retryAfter(nowMs, startMs, opts.windowMs) };
+        },
+      );
+      mocks.recordAuthAttempt.mockImplementation(
+        async (key: string, opts: { max: number; windowMs: number }) => {
+          const nowMs = frozenNowMs;
+          const startMs = windowStart(nowMs, opts.windowMs);
+          const bucketKey = `${key}:${startMs}`;
+          const existing = buckets.get(bucketKey);
+          const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
+          buckets.set(bucketKey, { count, expiresAt: startMs + opts.windowMs });
+          if (count <= opts.max) {
+            return { allowed: true, retryAfter: 0 };
+          }
+          return { allowed: false, retryAfter: retryAfter(nowMs, startMs, opts.windowMs) };
+        },
+      );
+
+      try {
+        const totp = await import('@/lib/auth/totp');
+        const validCode = totp.totp('JBSWY3DPEHPK3PXP');
+        let invalidCode = String((Number(validCode) + 1) % 1_000_000).padStart(6, '0');
+        while (invalidCode === validCode || totp.verifyTOTP('JBSWY3DPEHPK3PXP', invalidCode)) {
+          invalidCode = String((Number(invalidCode) + 1) % 1_000_000).padStart(6, '0');
+        }
+
+        const okRes = await handleLogin(
+          post(
+            { email: 'user@example.com', password: 'correct-horse', code: validCode },
+            { 'x-forwarded-for': '198.51.100.1' },
+          ),
+        );
+        expect(okRes.status).toBe(200);
+        expect(mocks.prisma.session.create).toHaveBeenCalledTimes(1);
+        expect(buckets.size).toBe(0);
+
+        mocks.prisma.session.create.mockClear();
+
+        for (let i = 1; i <= 3; i++) {
+          const badRes = await handleLogin(
+            post(
+              { email: 'user@example.com', password: 'correct-horse', code: invalidCode },
+              { 'x-forwarded-for': `198.51.100.${10 + i}` },
+            ),
+          );
+          expect(badRes.status).toBe(401);
+          await expect(badRes.json()).resolves.toEqual({ error: 'Invalid MFA code' });
+        }
+
+        const throttled = await handleLogin(
+          post(
+            { email: 'user@example.com', password: 'correct-horse', code: validCode },
+            { 'x-forwarded-for': '198.51.100.99' },
+          ),
+        );
+        expect(throttled.status).toBe(429);
+        expect(throttled.headers.get('retry-after')).toMatch(/^[1-9]\d*$/);
+        await expect(throttled.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+        expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+      } finally {
+        if (prevMax === undefined) delete process.env['AUTH_RATE_LIMIT_MAX'];
+        else process.env['AUTH_RATE_LIMIT_MAX'] = prevMax;
+
+        if (prevWindowMs === undefined) delete process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
+        else process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = prevWindowMs;
+      }
     });
   });
 });

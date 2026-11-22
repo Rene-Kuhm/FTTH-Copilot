@@ -9,7 +9,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma, verifyToken, hashToken, encryptApiKey } from '@ftth-copilot/db';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  checkAuthQuotaForKeys,
+  recordAuthFailures,
+} from '@/lib/auth/quota';
+import { prisma, verifyToken, hashToken, encryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { generateSecret, generateOtpAuthUri } from '@/lib/auth/totp';
 
 export const runtime = 'nodejs';
@@ -137,12 +143,23 @@ export async function DELETE(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp);
+  const quota = await checkAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: AUTH_QUOTA_ERROR_MESSAGE },
+      { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
+    );
+  }
+
   // Decrypt and verify
   const { decryptApiKey } = await import('@ftth-copilot/db');
   const secret = decryptApiKey(dbUser.totpSecret);
 
   const { verifyTOTP } = await import('@/lib/auth/totp');
   if (!verifyTOTP(secret, body.code)) {
+    await recordAuthFailures(rateKeys);
     return NextResponse.json({ error: 'Invalid verification code' }, { status: 401 });
   }
 

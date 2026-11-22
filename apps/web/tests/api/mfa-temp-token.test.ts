@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     authRateLimit: { create: vi.fn(), findUnique: vi.fn(), upsert: vi.fn() },
   },
   decryptApiKey: vi.fn(),
+  checkAuthQuota: vi.fn(),
+  recordAuthAttempt: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/totp', () => ({
@@ -29,6 +31,8 @@ vi.mock('@ftth-copilot/db', async () => {
     ...actual,
     prisma: mocks.prisma,
     decryptApiKey: mocks.decryptApiKey,
+    checkAuthQuota: mocks.checkAuthQuota,
+    recordAuthAttempt: mocks.recordAuthAttempt,
   };
 });
 
@@ -38,6 +42,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.usedTempKeys.clear();
   mocks.failCounts.clear();
+  mocks.checkAuthQuota.mockResolvedValue({ allowed: true, retryAfter: 0 });
+  mocks.recordAuthAttempt.mockResolvedValue({ allowed: true, retryAfter: 0 });
   process.env['JWT_SECRET'] = 'test-secret-for-mfa-temp-token-tests-32b';
   mocks.prisma.authRateLimit.findUnique.mockImplementation(
     async ({ where }: { where: { key_windowStart: { key: string } } }) => {
