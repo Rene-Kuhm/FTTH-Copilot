@@ -50,7 +50,7 @@ describe('authRateLimitKeys', () => {
     ]);
   });
 
-  it('supports explicit login scope and isolates keys under the mfa scope', () => {
+  it('supports explicit login scope and isolates keys under the mfa and oidc scopes', () => {
     expect(authRateLimitKeys('a@b.c', '1.2.3.4', 'login')).toEqual([
       'login:email:a@b.c',
       'login:ip:1.2.3.4',
@@ -62,6 +62,13 @@ describe('authRateLimitKeys', () => {
       'mfa:email:a@b.c',
       'mfa:ip:1.2.3.4',
     ]);
+    expect(authRateLimitKeys('  User@Example.COM ', '1.2.3.4', 'oidc')).toEqual([
+      'oidc:email:user@example.com',
+      'oidc:ip:1.2.3.4',
+    ]);
+    expect(authRateLimitKeys(null, '1.2.3.4', 'oidc')).toEqual(['oidc:ip:1.2.3.4']);
+    expect(authRateLimitKeys('a@b.c', null, 'oidc')).toEqual(['oidc:email:a@b.c']);
+    expect(authRateLimitKeys(null, null, 'oidc')).toEqual([]);
   });
 });
 

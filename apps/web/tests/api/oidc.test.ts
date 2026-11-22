@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  buckets: new Map<string, { count: number; expiresAt: number }>(),
   discovery: vi.fn(),
   randomPKCECodeVerifier: vi.fn(() => 'pkce-verifier-123'),
   calculatePKCECodeChallenge: vi.fn(async () => 'pkce-challenge-123'),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   authorizationCodeGrant: vi.fn(),
   fetchUserInfo: vi.fn(),
   tenantFindUnique: vi.fn(),
+  tenantPolicyFindUnique: vi.fn(),
   userIdentityFindUnique: vi.fn(),
   userIdentityCreate: vi.fn(),
   userFindUnique: vi.fn(),
@@ -21,7 +23,21 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   audit: vi.fn(),
   auditLogin: vi.fn(),
+  authRateLimitKeys: vi.fn(),
+  reserveAuthQuota: vi.fn(),
+  releaseAuthQuota: vi.fn(),
+  extractClientIp: vi.fn(() => '192.0.2.10'),
 }));
+
+const FROZEN_NOW_MS = 1_700_000_000_000;
+
+function computeWindowStartMs(nowMs: number, windowMs: number): number {
+  return Math.floor(nowMs / windowMs) * windowMs;
+}
+
+function retryAfterSeconds(nowMs: number, windowStartMs: number, windowMs: number): number {
+  return Math.max(1, Math.ceil((windowStartMs + windowMs - nowMs) / 1000));
+}
 
 vi.mock('openid-client', () => ({
   discovery: mocks.discovery,
@@ -38,6 +54,7 @@ vi.mock('openid-client', () => ({
 vi.mock('@ftth-copilot/db', () => ({
   prisma: {
     tenant: { findUnique: mocks.tenantFindUnique },
+    tenantPolicy: { findUnique: mocks.tenantPolicyFindUnique },
     userIdentity: { findUnique: mocks.userIdentityFindUnique, create: mocks.userIdentityCreate },
     user: {
       findUnique: mocks.userFindUnique,
@@ -59,10 +76,12 @@ vi.mock('@ftth-copilot/db', () => ({
   COOKIE_NAME: 'ftth_session',
   sessionCookieAttributes: () => ({ path: '/', sameSite: 'lax', secure: false }),
   TOKEN_TTL_SECONDS: 604800,
-  checkAuthQuota: vi.fn(async () => ({ allowed: true })),
+  checkAuthQuota: vi.fn(async () => ({ allowed: true, retryAfter: 0 })),
   recordAuthAttempt: vi.fn(),
-  authRateLimitKeys: vi.fn(() => []),
-  extractClientIp: vi.fn(() => '192.0.2.10'),
+  authRateLimitKeys: mocks.authRateLimitKeys,
+  reserveAuthQuota: mocks.reserveAuthQuota,
+  releaseAuthQuota: mocks.releaseAuthQuota,
+  extractClientIp: mocks.extractClientIp,
   decryptApiKey: vi.fn(),
 }));
 
@@ -86,6 +105,8 @@ const ENV_KEYS = [
   'OIDC_AUTO_PROVISION',
   'OIDC_ROLE_CLAIM',
   'OIDC_ROLE_MAP',
+  'AUTH_RATE_LIMIT_MAX',
+  'AUTH_RATE_LIMIT_WINDOW_MS',
 ] as const;
 
 function setValidOidcEnv(overrides: Record<string, string | undefined> = {}) {
@@ -108,9 +129,67 @@ function setValidOidcEnv(overrides: Record<string, string | undefined> = {}) {
 describe('OIDC API routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.buckets.clear();
     for (const k of ENV_KEYS) delete process.env[k];
     mocks.discovery.mockResolvedValue({ serverMetadata: () => ({}) });
     mocks.tenantFindUnique.mockResolvedValue({ id: 'tenant-1', slug: 'demo-isp' });
+    mocks.tenantPolicyFindUnique.mockResolvedValue(null);
+    mocks.extractClientIp.mockReturnValue('192.0.2.10');
+    mocks.authRateLimitKeys.mockImplementation(
+      (email: string | null, ip: string | null, scope: 'login' | 'mfa' | 'oidc' = 'login') => {
+        const keys: string[] = [];
+        if (email !== null && email.trim().length > 0) {
+          keys.push(`${scope}:email:${email.trim().toLowerCase()}`);
+        }
+        if (ip) keys.push(`${scope}:ip:${ip}`);
+        return keys;
+      },
+    );
+    mocks.reserveAuthQuota.mockImplementation(
+      async (keys: string[], opts: { max: number; windowMs: number }) => {
+        const nowMs = FROZEN_NOW_MS;
+        const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
+        const expiresAt = windowStartMs + opts.windowMs;
+        if (keys.length === 0) {
+          return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
+        }
+        const counts = keys.map((key) => {
+          const bucketKey = `${key}:${windowStartMs}`;
+          const existing = mocks.buckets.get(bucketKey);
+          const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
+          mocks.buckets.set(bucketKey, { count, expiresAt });
+          return count;
+        });
+        if (counts.every((c) => c <= opts.max)) {
+          return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
+        }
+        return {
+          allowed: false,
+          retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+          windowStart: new Date(windowStartMs),
+        };
+      },
+    );
+    mocks.releaseAuthQuota.mockImplementation(
+      async (
+        keys: string[],
+        opts: { max: number; windowMs: number },
+        _store: unknown,
+        windowStart: Date = new Date(computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs)),
+      ) => {
+        const windowStartMs = windowStart.getTime();
+        for (const key of keys) {
+          const bucketKey = `${key}:${windowStartMs}`;
+          const existing = mocks.buckets.get(bucketKey);
+          if (existing) {
+            mocks.buckets.set(bucketKey, {
+              count: Math.max(existing.count - 1, 0),
+              expiresAt: existing.expiresAt,
+            });
+          }
+        }
+      },
+    );
     mocks.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         userIdentity: { create: mocks.userIdentityCreate },
@@ -350,5 +429,312 @@ describe('OIDC API routes', () => {
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('/login?mfa=required&tempToken=temp-user-mfa');
     expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('rate-limits repeated failed code exchanges from the same IP with 429 and retry-after', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '3', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+
+    for (let i = 0; i < 3; i++) {
+      mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
+      const res = await oidcCallbackGet(
+        new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
+          headers: {
+            cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+            'x-forwarded-for': '198.51.100.42',
+          },
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toContain('/login?error=oidc_callback_failed');
+    }
+
+    const blocked = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.42',
+        },
+      }),
+    );
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(mocks.authorizationCodeGrant).toHaveBeenCalledTimes(3);
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('charges callback rejections after identity resolution to oidc:email: and blocks on 429', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '2', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+
+    for (let i = 0; i < 2; i++) {
+      mocks.extractClientIp.mockReturnValueOnce(`203.0.113.${10 + i}`);
+      mocks.authorizationCodeGrant.mockResolvedValueOnce({
+        claims: () => ({
+          sub: `sub-evil-${i}`,
+          iss: 'https://idp.example.com/realms/ftth',
+          aud: 'ftth-web',
+          exp: Math.floor(Date.now() / 1000) + 600,
+          nonce: 'nonce-123',
+          email: 'attacker@untrusted.example',
+          email_verified: true,
+        }),
+        access_token: 'at-1',
+      });
+      mocks.userIdentityFindUnique.mockResolvedValueOnce(null);
+      mocks.userFindUnique.mockResolvedValueOnce(null);
+
+      const res = await oidcCallbackGet(
+        new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+          headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toContain('/login?error=oidc_domain_not_allowed');
+    }
+
+    mocks.extractClientIp.mockReturnValueOnce('203.0.113.99');
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-evil-2',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'attacker@untrusted.example',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce(null);
+
+    const blocked = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('requires MFA enrollment and emits no session when tenant requires MFA and user has no TOTP', async () => {
+    setValidOidcEnv();
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: true });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-nomfa',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'nomfa@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-nomfa',
+      userId: 'user-nomfa',
+      tenantId: 'tenant-1',
+    });
+    const noMfaUser = {
+      id: 'user-nomfa',
+      email: 'nomfa@example.com',
+      name: 'No MFA User',
+      role: 'OPERATOR',
+      tenantId: 'tenant-1',
+      mfaEnabled: false,
+      totpSecret: null,
+    };
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-nomfa' })
+      .mockResolvedValueOnce(noMfaUser);
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toContain(
+      '/login?mfa=setup_required&tempToken=temp-user-nomfa',
+    );
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).not.toContain('ftth_session=');
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('redirects with tempToken and emits no session when tenant requires MFA and user has TOTP', async () => {
+    setValidOidcEnv();
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: true });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-mfa-policy',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-mfa-p',
+      userId: 'user-mfa-p',
+      tenantId: 'tenant-1',
+    });
+    mocks.userFindUnique.mockResolvedValueOnce({
+      id: 'user-mfa-p',
+      email: 'mfa-policy@example.com',
+      name: 'MFA Policy User',
+      role: 'ADMIN',
+      tenantId: 'tenant-1',
+      mfaEnabled: true,
+      totpSecret: 'enc-totp-secret',
+    });
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toContain(
+      '/login?mfa=required&tempToken=temp-user-mfa-p',
+    );
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).not.toContain('ftth_session=');
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('issues session and refunds quota when tenant does not require MFA and user has no TOTP', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '2', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: false });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-ok',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'ok@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-ok',
+      userId: 'user-ok',
+      tenantId: 'tenant-1',
+    });
+    const okUser = {
+      id: 'user-ok',
+      email: 'ok@example.com',
+      name: 'OK User',
+      role: 'MEMBER',
+      tenantId: 'tenant-1',
+      mfaEnabled: false,
+      totpSecret: null,
+    };
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-ok' })
+      .mockResolvedValueOnce(okUser);
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('http://localhost:3001/app');
+    const cookies = res.headers.get('set-cookie') ?? '';
+    expect(cookies).toContain('ftth_session=');
+    expect(mocks.sessionCreate).toHaveBeenCalledTimes(1);
+
+    // Refunded: every oidc bucket created during the callback is back at 0
+    for (const [bucketKey, bucket] of mocks.buckets.entries()) {
+      expect(bucketKey).toMatch(/^oidc:/);
+      expect(bucket.count).toBe(0);
+    }
+  });
+
+  it('uses oidc: keys isolated from login: and mfa: buckets', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '1', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    const expiresAt = windowStartMs + 900_000;
+    mocks.buckets.set(`login:ip:192.0.2.10:${windowStartMs}`, { count: 99, expiresAt });
+    mocks.buckets.set(`login:email:isolated@example.com:${windowStartMs}`, { count: 99, expiresAt });
+    mocks.buckets.set(`mfa:ip:192.0.2.10:${windowStartMs}`, { count: 99, expiresAt });
+    mocks.buckets.set(`mfa:email:isolated@example.com:${windowStartMs}`, { count: 99, expiresAt });
+
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-iso',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'isolated@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-iso',
+      userId: 'user-iso',
+      tenantId: 'tenant-1',
+    });
+    const isoUser = {
+      id: 'user-iso',
+      email: 'isolated@example.com',
+      name: 'Isolated User',
+      role: 'MEMBER',
+      tenantId: 'tenant-1',
+      mfaEnabled: false,
+      totpSecret: null,
+    };
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-iso' })
+      .mockResolvedValueOnce(isoUser);
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('http://localhost:3001/app');
+    expect(mocks.authRateLimitKeys).toHaveBeenCalledWith(null, '192.0.2.10', 'oidc');
+    expect(mocks.authRateLimitKeys).toHaveBeenCalledWith('isolated@example.com', null, 'oidc');
+    expect(mocks.buckets.get(`login:ip:192.0.2.10:${windowStartMs}`)?.count).toBe(99);
+    expect(mocks.buckets.get(`mfa:email:isolated@example.com:${windowStartMs}`)?.count).toBe(99);
   });
 });

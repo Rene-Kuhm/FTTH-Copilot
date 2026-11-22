@@ -98,7 +98,8 @@ FTTH-Copilot implements **OAuth 2.0 Authorization Code + PKCE (S256)** via `open
 - **Callback:** `GET /api/auth/oidc/callback`
 - **Scope v1:** single IdP per installation bound to one tenant (`OIDC_TENANT_SLUG`).
 - **Identity resolution:** matches `(issuer, subject)` in `UserIdentity`; on first login, links to an existing tenant user only when `email_verified === true` and the domain is in `OIDC_ALLOWED_EMAIL_DOMAINS`, or auto-provisions if `OIDC_AUTO_PROVISION=true`.
-- **MFA:** if the user has TOTP enabled locally, TOTP verification is still required after the OIDC callback.
+- **MFA:** enforces both local TOTP and tenant-level mandatory MFA (`TenantPolicy.requireMfa`); when MFA is required, no session is issued without a second factor (users with TOTP are redirected to `/login?mfa=required&tempToken=...`, and un-enrolled users in MFA-required tenants are redirected to `/login?mfa=setup_required&tempToken=...`).
+- **Rate limiting:** `GET /api/auth/oidc/callback` reserves and refunds brute-force quota in the dedicated `oidc:` namespace (`oidc:ip:...` before code exchange and `oidc:email:...` after identity resolution), isolated from `login:` and `mfa:` buckets.
 
 ### Environment variables
 

@@ -22,11 +22,17 @@ import {
 import {
   prisma,
   hashPassword,
-  issueToken,
   sessionCookieAttributes,
   extractClientIp,
 } from '@ftth-copilot/db';
 import { audit, auditAuth } from '@ftth-copilot/soc';
+import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
+} from './quota';
 import { issueSessionForUser } from './server';
 
 const log = createLogger({ name: 'oidc' });
@@ -445,6 +451,33 @@ function redirectToLoginError(req: Request, errorCode: string): Response {
   });
 }
 
+function redirectToLoginMfa(
+  req: Request,
+  mfaState: 'required' | 'setup_required',
+  tempToken: string,
+): Response {
+  const mfaUrl = new URL('/login', req.url);
+  mfaUrl.searchParams.set('mfa', mfaState);
+  mfaUrl.searchParams.set('tempToken', tempToken);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: mfaUrl.toString(),
+      'set-cookie': clearOidcTxCookieHeader(),
+    },
+  });
+}
+
+function rateLimitedResponse(retryAfter: number): Response {
+  return new Response(JSON.stringify({ error: AUTH_QUOTA_ERROR_MESSAGE }), {
+    status: 429,
+    headers: {
+      'content-type': 'application/json',
+      'retry-after': String(retryAfter),
+    },
+  });
+}
+
 export async function handleOidcLogin(req: Request): Promise<Response> {
   let cfg: OidcConfig;
   try {
@@ -529,7 +562,14 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     return redirectToLoginError(req, 'oidc_invalid_state');
   }
 
-  const ip = extractClientIp(req.headers.get('x-forwarded-for')) ?? undefined;
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const ip = clientIp ?? undefined;
+
+  const ipKeys = authQuotaKeys(null, clientIp, 'oidc');
+  const ipQuota = await reserveAuthQuotaForKeys(ipKeys);
+  if (!ipQuota.allowed) {
+    return rateLimitedResponse(ipQuota.retryAfter);
+  }
 
   let claims: Record<string, unknown>;
   let accessToken: string | undefined;
@@ -608,6 +648,12 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
   const emailVerified = mergedClaims['email_verified'] === true;
   const groups = extractGroupsFromClaims(mergedClaims, cfg.roleClaim);
 
+  let emailKeys = rawEmail ? authQuotaKeys(rawEmail, null, 'oidc') : [];
+  let emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
+  if (emailQuota && !emailQuota.allowed) {
+    return rateLimitedResponse(emailQuota.retryAfter);
+  }
+
   const existingUserInTenant = rawEmail
     ? await prisma.user.findUnique({
         where: { tenantId_email: { tenantId: tenant.id, email: rawEmail } },
@@ -656,6 +702,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     role: 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
     tenantId: string;
     mfaEnabled: boolean;
+    totpSecret?: string | null;
   };
 
   if (decision.action === 'login') {
@@ -668,6 +715,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
         role: true,
         tenantId: true,
         mfaEnabled: true,
+        totpSecret: true,
       },
     });
     if (!found || found.tenantId !== tenant.id) {
@@ -695,6 +743,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
           role: true,
           tenantId: true,
           mfaEnabled: true,
+          totpSecret: true,
         },
       });
       return { user, identityId: created.id };
@@ -743,6 +792,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
             role: true,
             tenantId: true,
             mfaEnabled: true,
+            totpSecret: true,
           },
         });
         await txDb.userIdentity.create({
@@ -795,24 +845,42 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     }
   }
 
-  // If the user has TOTP MFA enabled, require MFA verification before issuing a full session
-  if (userRecord.mfaEnabled) {
-    const { token: tempToken } = issueToken(
-      userRecord.id,
-      userRecord.tenantId,
-      userRecord.role,
-      true,
-    );
-    const mfaUrl = new URL('/login', req.url);
-    mfaUrl.searchParams.set('mfa', 'required');
-    mfaUrl.searchParams.set('tempToken', tempToken);
-    return new Response(null, {
-      status: 302,
-      headers: {
-        location: mfaUrl.toString(),
-        'set-cookie': clearOidcTxCookieHeader(),
-      },
-    });
+  if (emailKeys.length === 0) {
+    emailKeys = authQuotaKeys(userRecord.email, null, 'oidc');
+    emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
+    if (emailQuota && !emailQuota.allowed) {
+      return rateLimitedResponse(emailQuota.retryAfter);
+    }
+  }
+
+  const releaseOidcQuotas = async (): Promise<void> => {
+    if (ipKeys.length > 0) {
+      await releaseAuthQuotaForKeys(ipKeys, ipQuota.windowStart);
+    }
+    if (emailQuota && emailKeys.length > 0) {
+      await releaseAuthQuotaForKeys(emailKeys, emailQuota.windowStart);
+    }
+  };
+
+  // Enforce user-level TOTP and tenant-level mandatory MFA policy
+  const tenantRequiresMfa = await isTenantMfaRequired(userRecord.tenantId);
+  const mfaGate = evaluateMfaGate(
+    {
+      id: userRecord.id,
+      tenantId: userRecord.tenantId,
+      role: userRecord.role,
+      mfaEnabled: userRecord.mfaEnabled,
+      totpSecret: userRecord.totpSecret ?? (userRecord.mfaEnabled ? 'configured' : null),
+    },
+    tenantRequiresMfa,
+  );
+  if (mfaGate.action === 'mfa_required') {
+    await releaseOidcQuotas();
+    return redirectToLoginMfa(req, 'required', mfaGate.tempToken);
+  }
+  if (mfaGate.action === 'mfa_setup_required') {
+    await releaseOidcQuotas();
+    return redirectToLoginMfa(req, 'setup_required', mfaGate.tempToken);
   }
 
   const { sessionCookie, csrfCookie } = await issueSessionForUser(userRecord, req);
@@ -829,6 +897,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     true,
     { provider: 'oidc', issuer: cfg.issuer },
   );
+  await releaseOidcQuotas();
 
   const appUrl = new URL('/app', req.url);
   const headers = new Headers();

@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from './generated/client/index.js';
 import { prisma } from './client';
 
-export type AuthRateLimitScope = 'login' | 'mfa';
+export type AuthRateLimitScope = 'login' | 'mfa' | 'oidc';
 
 export interface AuthQuotaOptions {
   max: number;
@@ -95,13 +95,19 @@ export function extractClientIp(xForwardedFor: string | null | undefined): strin
   return first && first.length > 0 ? first : null;
 }
 
-/** Rate-limit keys for an auth operation: always email, plus IP when present. */
+/** Rate-limit keys for an auth operation: normalized email (when present) and IP (when present). */
 export function authRateLimitKeys(
-  email: string,
+  email: string | null,
   ip: string | null,
   scope: AuthRateLimitScope = 'login',
 ): string[] {
-  const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+  const keys: string[] = [];
+  if (email !== null) {
+    const normalized = email.trim().toLowerCase();
+    if (normalized.length > 0) {
+      keys.push(`${scope}:email:${normalized}`);
+    }
+  }
   if (ip) keys.push(`${scope}:ip:${ip}`);
   return keys;
 }
