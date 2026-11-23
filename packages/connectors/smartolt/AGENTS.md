@@ -104,6 +104,8 @@ regenera con:
 pnpm --filter @ftth-copilot/connectors-smartolt contract:sync
 ```
 
+La sincronización acepta JSON de hasta 16 MiB y publica el subconjunto de forma atómica en `contract/`.
+
 `tests/contract.test.ts` corre offline contra ese archivo: falla si el cliente pide una ruta o un
 query que la especificación no declara, si el pedido de la URL del stream no está en el contrato, y
 si los ejemplos oficiales (respuestas y eventos) dejan de parsear con `src/schemas.ts`. Si el
