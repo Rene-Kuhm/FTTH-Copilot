@@ -95,21 +95,24 @@ vi.mock('@ftth-copilot/db', () => ({
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
     const expiresAt = windowStartMs + opts.windowMs;
-    const counts = keys.map((key) => {
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.some((k) => {
+      const b = mocks.buckets.get(`${k}:${windowStartMs}`);
+      return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+    })) {
+      return {
+        allowed: false,
+        retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+        windowStart: new Date(windowStartMs),
+      };
+    }
+    uniqueKeys.forEach((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
       mocks.buckets.set(bucketKey, { count, expiresAt });
-      return count;
     });
-    if (counts.every((count) => count <= opts.max)) {
-      return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
-    }
-    return {
-      allowed: false,
-      retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
-      windowStart: new Date(windowStartMs),
-    };
+    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
   },
   releaseAuthQuota: async (
     keys: string[],
@@ -120,7 +123,7 @@ vi.mock('@ftth-copilot/db', () => ({
     const windowStartMs = windowStartDate
       ? windowStartDate.getTime()
       : computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs);
-    for (const key of keys) {
+    for (const key of new Set(keys)) {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       if (existing) {

@@ -68,7 +68,7 @@ vi.mock('next/headers', () => ({
 
 const { handleSignup, handleLogin, handleLogout, handleMe, getCurrentUser } =
   await import('@/lib/auth/server');
-const { AUTH_QUOTA_ERROR_MESSAGE } = await import('@/lib/auth/quota');
+const { AUTH_QUOTA_ERROR_MESSAGE, checkAuthQuotaForKeys } = await import('@/lib/auth/quota');
 
 const SESSION_COOKIE = 'ftth_session';
 
@@ -215,22 +215,21 @@ describe('handleSignup', () => {
     );
     mocks.reserveAuthQuota.mockImplementation(
       async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        }
+        uniqueKeys.forEach((key) => {
           const bucketKey = `${key}:${startMs}`;
-          const next = (buckets.get(bucketKey) ?? 0) + 1;
-          buckets.set(bucketKey, next);
-          return next;
+          buckets.set(bucketKey, (buckets.get(bucketKey) ?? 0) + 1);
         });
-        return counts.every((c) => c <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
-          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
       },
     );
     mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
-      for (const key of keys) {
+      for (const key of new Set(keys)) {
         const bucketKey = `${key}:${startMs}`;
-        const current = buckets.get(bucketKey) ?? 0;
-        buckets.set(bucketKey, Math.max(current - 1, 0));
+        buckets.set(bucketKey, Math.max((buckets.get(bucketKey) ?? 0) - 1, 0));
       }
     });
 
@@ -267,6 +266,7 @@ describe('handleSignup', () => {
       );
       expect(fourthSequential.status).toBe(429);
       expect(fourthSequential.headers.get('retry-after')).toBe('60');
+      expect(buckets.get(`signup:ip:198.51.100.7:${startMs}`)).toBe(3);
       expect(mocks.prisma.user.create).not.toHaveBeenCalled();
       expect(mocks.prisma.tenant.create).not.toHaveBeenCalled();
 
@@ -495,21 +495,20 @@ describe('handleLogin', () => {
         async (keys: string[], opts: { max: number; windowMs: number }) => {
           const nowMs = frozenNowMs;
           const startMs = windowStart(nowMs, opts.windowMs);
-          const counts = keys.map((key) => {
+          const uniqueKeys = [...new Set(keys)];
+          if (uniqueKeys.some((k) => {
+            const b = buckets.get(`${k}:${startMs}`);
+            return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+          })) {
+            return { allowed: false, retryAfter: retryAfter(nowMs, startMs, opts.windowMs), windowStart: new Date(startMs) };
+          }
+          uniqueKeys.forEach((key) => {
             const bucketKey = `${key}:${startMs}`;
             const existing = buckets.get(bucketKey);
             const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
             buckets.set(bucketKey, { count, expiresAt: startMs + opts.windowMs });
-            return count;
           });
-          if (counts.every((count) => count <= opts.max)) {
-            return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
-          }
-          return {
-            allowed: false,
-            retryAfter: retryAfter(nowMs, startMs, opts.windowMs),
-            windowStart: new Date(startMs),
-          };
+          return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
         },
       );
       mocks.releaseAuthQuota.mockImplementation(
@@ -520,7 +519,7 @@ describe('handleLogin', () => {
           startDate?: Date,
         ) => {
           const startMs = startDate ? startDate.getTime() : windowStart(frozenNowMs, opts.windowMs);
-          for (const key of keys) {
+          for (const key of new Set(keys)) {
             const bucketKey = `${key}:${startMs}`;
             const existing = buckets.get(bucketKey);
             if (existing) {
@@ -607,21 +606,20 @@ describe('handleLogin', () => {
         },
       );
       mocks.reserveAuthQuota.mockImplementation(async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(`${k}:${startMs}`) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        }
+        uniqueKeys.forEach((key) => {
           const bucketKey = `${key}:${startMs}`;
-          const next = (buckets.get(bucketKey) ?? 0) + 1;
-          buckets.set(bucketKey, next);
-          return next;
+          buckets.set(bucketKey, (buckets.get(bucketKey) ?? 0) + 1);
         });
-        return counts.every((c) => c <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: new Date(startMs) }
-          : { allowed: false, retryAfter: 60, windowStart: new Date(startMs) };
+        return { allowed: true, retryAfter: 0, windowStart: new Date(startMs) };
       });
       mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
-        for (const key of keys) {
+        for (const key of new Set(keys)) {
           const bucketKey = `${key}:${startMs}`;
-          const current = buckets.get(bucketKey) ?? 0;
-          buckets.set(bucketKey, Math.max(current - 1, 0));
+          buckets.set(bucketKey, Math.max((buckets.get(bucketKey) ?? 0) - 1, 0));
         }
       });
 
@@ -641,6 +639,44 @@ describe('handleLogin', () => {
         if (prevWindowMs === undefined) delete process.env['AUTH_RATE_LIMIT_WINDOW_MS'];
         else process.env['AUTH_RATE_LIMIT_WINDOW_MS'] = prevWindowMs;
       }
+    });
+  });
+
+  describe('quota-store outage handling', () => {
+    it('returns 429 without verifying password when quota store fails on wrong password', async () => {
+      mocks.reserveAuthQuota.mockRejectedValue(new Error('DB down'));
+      mocks.verifyPassword.mockResolvedValue(false);
+      const res = await handleLogin(post({ email: 'user@example.com', password: 'wrong-password' }));
+      expect(res.status).toBe(429);
+      await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+      expect(mocks.verifyPassword).not.toHaveBeenCalled();
+    });
+
+    it('returns 429 without verifying TOTP when quota store fails on wrong TOTP code', async () => {
+      mocks.reserveAuthQuota.mockRejectedValue(new Error('DB down'));
+      mocks.prisma.user.findUnique.mockResolvedValue(dbUser({ mfaEnabled: true, totpSecret: 'encrypted' }));
+      const res = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse', code: '000000' }));
+      expect(res.status).toBe(429);
+      await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+    });
+
+    it('returns 429 on reserve outage and 200 when only release fails', async () => {
+      mocks.reserveAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+      const resReserveFail = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
+      expect(resReserveFail.status).toBe(429);
+      expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+
+      mocks.releaseAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+      const resReleaseFail = await handleLogin(post({ email: 'user@example.com', password: 'correct-horse' }));
+      expect(resReleaseFail.status).toBe(200);
+      expect(mocks.prisma.session.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails closed in checkAuthQuotaForKeys when quota store throws', async () => {
+      mocks.checkAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+      const decision = await checkAuthQuotaForKeys(['login:ip:203.0.113.9']);
+      expect(decision.allowed).toBe(false);
+      expect(decision.retryAfter).toBeGreaterThan(0);
     });
   });
 });

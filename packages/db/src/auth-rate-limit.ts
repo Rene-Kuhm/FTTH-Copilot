@@ -34,9 +34,9 @@ export interface AuthRateLimitStore {
 }
 
 export interface AtomicAuthRateLimitStore extends AuthRateLimitStore {
-  /** Atomically increments all keys in the window and returns the resulting counts. */
-  reserve(keys: string[], windowStart: Date, expiresAt: Date): Promise<number[]>;
-  /** Decrements (floors at 0) all keys in the window to refund a valid attempt. */
+  /** Atomically reserves one attempt across all `keys` if every key is below `max`. */
+  reserve(keys: string[], windowStart: Date, expiresAt: Date, max: number): Promise<Array<{ key: string; count: number }>>;
+  /** Refunds a reserved attempt for `keys` in `windowStart` (flooring at 0). */
   release(keys: string[], windowStart: Date): Promise<void>;
 }
 
@@ -56,30 +56,50 @@ const prismaStore: AtomicAuthRateLimitStore = {
     });
     return bucket.count;
   },
-  async reserve(keys, windowStart, expiresAt) {
+  async reserve(keys, windowStart, expiresAt, max) {
     const uniqueKeys = [...new Set(keys)].sort();
     if (uniqueKeys.length === 0) return [];
-    const rows = uniqueKeys.map(
-      (key) => Prisma.sql`(${randomUUID()}, ${key}, ${windowStart}, ${expiresAt}, 1)`,
-    );
-    const result = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
-      INSERT INTO "auth_rate_limits" ("id", "key", "windowStart", "expiresAt", "count")
-      VALUES ${Prisma.join(rows)}
-      ON CONFLICT ("key", "windowStart")
-      DO UPDATE SET "count" = "auth_rate_limits"."count" + 1
-      RETURNING "count"
-    `);
-    return result.map((row) => Number(row.count));
+    return prisma.$transaction(async (tx) => {
+      const lockExisting = () => tx.$queryRaw<Array<{ key: string; count: number }>>(Prisma.sql`
+        SELECT "key", "count" FROM "auth_rate_limits"
+        WHERE "windowStart" = ${windowStart} AND "key" IN (${Prisma.join(uniqueKeys)})
+        ORDER BY "key" FOR UPDATE`);
+
+      // Lock existing rows in key order before reading counts or creating missing buckets.
+      let locked = await lockExisting();
+      if (locked.some((r) => Number(r.count) >= max)) return [];
+      if (locked.length < uniqueKeys.length) {
+        const lockedKeys = new Set(locked.map((r) => r.key));
+        const rows = uniqueKeys.filter((k) => !lockedKeys.has(k)).map((k) => Prisma.sql`(${randomUUID()}, ${k})`);
+        await tx.$executeRaw(Prisma.sql`
+          WITH candidate("id", "key") AS (VALUES ${Prisma.join(rows)})
+          INSERT INTO "auth_rate_limits" ("id", "key", "windowStart", "expiresAt", "count")
+          SELECT c."id", c."key", ${windowStart}, ${expiresAt}, 0 FROM candidate c
+          ON CONFLICT ("key", "windowStart") DO NOTHING`);
+        locked = await lockExisting();
+        if (locked.length < uniqueKeys.length || locked.some((r) => Number(r.count) >= max)) return [];
+      }
+      const updated = await tx.$queryRaw<Array<{ key: string; count: number }>>(Prisma.sql`
+        UPDATE "auth_rate_limits" SET "count" = "count" + 1
+        WHERE "windowStart" = ${windowStart} AND "key" IN (${Prisma.join(uniqueKeys)})
+        RETURNING "key", "count"`);
+      return updated.map((r) => ({ key: r.key, count: Number(r.count) }));
+    });
   },
   async release(keys, windowStart) {
     const uniqueKeys = [...new Set(keys)].sort();
     if (uniqueKeys.length === 0) return;
-    await prisma.$executeRaw(Prisma.sql`
-      UPDATE "auth_rate_limits"
-      SET "count" = GREATEST("count" - 1, 0)
-      WHERE "windowStart" = ${windowStart}
-        AND "key" IN (${Prisma.join(uniqueKeys)})
-    `);
+    await prisma.$transaction(async (tx) => {
+      // Lock in key order before decrementing so refunds serialize with reservations.
+      const locked = await tx.$queryRaw<Array<{ key: string }>>(Prisma.sql`
+        SELECT "key" FROM "auth_rate_limits"
+        WHERE "windowStart" = ${windowStart} AND "key" IN (${Prisma.join(uniqueKeys)})
+        ORDER BY "key" FOR UPDATE`);
+      if (locked.length === 0) return;
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "auth_rate_limits" SET "count" = GREATEST("count" - 1, 0)
+        WHERE "windowStart" = ${windowStart} AND "key" IN (${Prisma.join(uniqueKeys)})`);
+    });
   },
 };
 
@@ -160,19 +180,17 @@ export async function reserveAuthQuota(
   now: Date = new Date(),
 ): Promise<AuthQuotaReservation> {
   const windowStart = computeWindowStart(now, opts.windowMs);
-  if (keys.length === 0) {
-    return { allowed: true, retryAfter: 0, windowStart };
-  }
+  const uniqueKeys = [...new Set(keys)].sort();
+  if (uniqueKeys.length === 0) return { allowed: true, retryAfter: 0, windowStart };
   const windowEnd = new Date(windowStart.getTime() + opts.windowMs);
-  const counts = await store.reserve(keys, windowStart, windowEnd);
-  if (counts.every((count) => count <= opts.max)) {
+  const reserved = await store.reserve(uniqueKeys, windowStart, windowEnd, opts.max);
+  const counts = Object.fromEntries(reserved.map((r) => [r.key, r.count]));
+  if (reserved.length === uniqueKeys.length && uniqueKeys.every((k) => (counts[k] ?? opts.max + 1) <= opts.max)) {
     return { allowed: true, retryAfter: 0, windowStart };
   }
-  return {
-    allowed: false,
-    retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs),
-    windowStart,
-  };
+  const reservedKeys = [...new Set(reserved.map((r) => r.key))];
+  if (reservedKeys.length > 0) await store.release(reservedKeys, windowStart);
+  return { allowed: false, retryAfter: retryAfterSeconds(now, windowStart, opts.windowMs), windowStart };
 }
 
 /**
@@ -185,6 +203,7 @@ export async function releaseAuthQuota(
   store: AtomicAuthRateLimitStore = prismaStore,
   windowStart: Date = computeWindowStart(new Date(), opts.windowMs),
 ): Promise<void> {
-  if (keys.length === 0) return;
-  await store.release(keys, windowStart);
+  const uniqueKeys = [...new Set(keys)].sort();
+  if (uniqueKeys.length === 0) return;
+  await store.release(uniqueKeys, windowStart);
 }

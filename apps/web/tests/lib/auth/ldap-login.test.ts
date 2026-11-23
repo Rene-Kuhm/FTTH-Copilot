@@ -124,6 +124,14 @@ describe('authenticateAndIssueLdapSession', () => {
     expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
   });
 
+  it('returns 429 without calling LDAP when quota store throws', async () => {
+    mocks.reserveAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+    const res = await authenticateAndIssueLdapSession({ req: makeReq(), username: 'jdoe', password: 'secret' });
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+    expect(mocks.authenticateLdapUser).not.toHaveBeenCalled();
+  });
+
   it('returns 401 and keeps reservation consumed when LDAP rejects credentials', async () => {
     mocks.authenticateLdapUser.mockResolvedValueOnce({ ok: false, error: 'Invalid credentials' });
     const res = await authenticateAndIssueLdapSession({
@@ -278,20 +286,17 @@ describe('authenticateAndIssueLdapSession', () => {
     });
     mocks.reserveAuthQuota.mockImplementation(
       async (keys: string[], opts: { max: number; windowMs: number }) => {
-        const counts = keys.map((key) => {
-          const next = (buckets.get(key) ?? 0) + 1;
-          buckets.set(key, next);
-          return next;
-        });
-        return counts.every((count) => count <= opts.max)
-          ? { allowed: true, retryAfter: 0, windowStart: frozenWindowStart }
-          : { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+        const uniqueKeys = [...new Set(keys)];
+        if (uniqueKeys.some((k) => (buckets.get(k) ?? 0) >= opts.max)) {
+          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
+        }
+        uniqueKeys.forEach((key) => buckets.set(key, (buckets.get(key) ?? 0) + 1));
+        return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart };
       },
     );
     mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
-      for (const key of keys) {
-        const current = buckets.get(key) ?? 0;
-        buckets.set(key, Math.max(current - 1, 0));
+      for (const key of new Set(keys)) {
+        buckets.set(key, Math.max((buckets.get(key) ?? 0) - 1, 0));
       }
     });
 
@@ -346,6 +351,8 @@ describe('authenticateAndIssueLdapSession', () => {
     expect(blockedRes.headers.get('retry-after')).toBe('45');
     await expect(blockedRes.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
     expect(mocks.authenticateLdapUser).toHaveBeenCalledTimes(maxAttempts);
+    expect(buckets.get('login:email:jdoe')).toBe(maxAttempts);
+    expect(buckets.get('login:ip:203.0.113.10')).toBe(maxAttempts);
   });
 
   it('emits ftth_session and ftth_csrf as two separate Set-Cookie headers', async () => {

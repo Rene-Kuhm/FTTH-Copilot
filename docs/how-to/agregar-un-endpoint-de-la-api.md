@@ -26,11 +26,13 @@ clasificación el middleware aplica **sólo**:
 > **El middleware nunca aplica auth a las rutas de API.** La autorización vive dentro de
 > cada handler. Si tu handler no resuelve la sesión, tu endpoint queda abierto.
 
-El rate limit del middleware es **en memoria y por instancia**
-(`apps/web/middleware/rate-limit.ts`): en despliegues multi-instancia no es un límite
-global. Por eso las rutas que cambian estado agregan, en el handler, un límite
-**global** contado en la Redis compartida (paso 5). Las cuotas de negocio, que sí van a
-la base, están aparte.
+El rate limit del proxy/middleware (`apps/web/middleware.ts` →
+`apps/web/middleware/rate-limit.ts`) corre en el runtime **Edge** (sin TCP), así que
+es **en memoria y por instancia**: en despliegues multi-réplica no coordina entre
+instancias. Por eso las rutas que cambian estado corren en **Node** y aplican, en el
+handler, el store compartido de `apps/web/lib/rate-limit-store.ts` sobre la Redis de
+`REDIS_URL` (paso 5); sin `REDIS_URL` ese store cae a memoria por instancia y avisa en
+los logs. Las cuotas de negocio, que sí van a la base, están aparte.
 
 ## 2. Resolvé la sesión y el permiso
 
@@ -200,11 +202,13 @@ de la cuota.
 
 Dos reglas del almacén (`apps/web/lib/rate-limit-store.ts`):
 
-- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria y queda por
-  instancia. Es lo esperado en el modo embebido y en desarrollo local.
+- **Sin `REDIS_URL` no se cae nada**: el límite cae al almacén en memoria, queda por
+  instancia y se avisa en los logs. Es lo esperado en el modo embebido y en desarrollo
+  local.
 - **Si la Redis falla, la petición pasa**: un limiter que tumba la API cuando parpadea
-  la Redis es peor que no tener limiter. El middleware de Edge sigue aplicando su
-  límite en memoria como red de seguridad.
+  la Redis es peor que no tener limiter; la cuenta se reanuda cuando Redis vuelve, el
+  aviso queda en los logs y el middleware de Edge sigue aplicando su límite en memoria
+  como red de seguridad.
 
 ### 5.2 Cuotas de negocio (en la base)
 
