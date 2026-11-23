@@ -153,21 +153,25 @@ describe('OIDC API routes', () => {
         if (keys.length === 0) {
           return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
         }
-        const counts = keys.map((key) => {
+        const uniqueKeys = [...new Set(keys)];
+        const blocked = uniqueKeys.some((key) => {
+          const existing = mocks.buckets.get(`${key}:${windowStartMs}`);
+          return (existing && existing.expiresAt > nowMs ? existing.count : 0) >= opts.max;
+        });
+        if (blocked) {
+          return {
+            allowed: false,
+            retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+            windowStart: new Date(windowStartMs),
+          };
+        }
+        for (const key of uniqueKeys) {
           const bucketKey = `${key}:${windowStartMs}`;
           const existing = mocks.buckets.get(bucketKey);
           const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
           mocks.buckets.set(bucketKey, { count, expiresAt });
-          return count;
-        });
-        if (counts.every((c) => c <= opts.max)) {
-          return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
         }
-        return {
-          allowed: false,
-          retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
-          windowStart: new Date(windowStartMs),
-        };
+        return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
       },
     );
     mocks.releaseAuthQuota.mockImplementation(
@@ -481,6 +485,7 @@ describe('OIDC API routes', () => {
 
   it('rate-limits repeated failed code exchanges from the same IP with 429 and retry-after', async () => {
     setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '3', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    mocks.extractClientIp.mockReturnValue('198.51.100.42');
     const txToken = await signOidcTxCookie({
       state: 'state-123',
       nonce: 'nonce-123',
@@ -513,6 +518,8 @@ describe('OIDC API routes', () => {
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     expect(mocks.authorizationCodeGrant).toHaveBeenCalledTimes(3);
     expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.42:${windowStartMs}`)?.count).toBe(3);
   });
 
   it('charges callback rejections after identity resolution to oidc:email: and blocks on 429', async () => {
@@ -572,6 +579,11 @@ describe('OIDC API routes', () => {
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    expect(
+      mocks.buckets.get(`oidc:email:attacker@untrusted.example:${windowStartMs}`)?.count,
+    ).toBe(2);
+    expect(mocks.buckets.get(`oidc:ip:203.0.113.99:${windowStartMs}`)?.count).toBe(1);
   });
 
   it('requires MFA enrollment and emits no session when tenant requires MFA and user has no TOTP', async () => {
