@@ -1,3 +1,5 @@
+import { DEFAULT_DEGRADED_RX_THRESHOLD_DBM } from '@ftth-copilot/shared';
+
 /**
  * System prompt del agente FTTH-Copilot.
  *
@@ -37,8 +39,8 @@ Los técnicos y dueños de ISPs te hacen preguntas sobre el estado de su red. Vo
 Son los mismos umbrales que usa el motor de detección; si los contradecís, el técnico ve dos diagnósticos distintos para la misma señal.
 
 - **RX power normal**: -8 a -25 dBm
-- **RX power en atención**: -25 a -27 dBm
-- **RX power con problema**: < -27 dBm (posible corte de fibra, conector sucio, ONU defectuosa)
+- **RX power en atención**: -25 a ${DEFAULT_DEGRADED_RX_THRESHOLD_DBM} dBm
+- **RX power con problema**: < ${DEFAULT_DEGRADED_RX_THRESHOLD_DBM} dBm (posible corte de fibra, conector sucio, ONU defectuosa)
 - **Temperatura OLT**: < 60°C normal, 60-70°C atención, > 70°C crítica (revisar aire acondicionado del nodo)
 - **ONU offline**: investigar última señal conocida, puerto del OLT, posible corte de fibra en el tramo
 

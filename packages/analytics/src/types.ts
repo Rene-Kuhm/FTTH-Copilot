@@ -2,24 +2,19 @@
  * Neutral (DB-agnostic) types for time-series metrics ingestion.
  * Kept independent from Prisma so the collector can be unit-tested without a
  * database; `ingest.ts` maps these to the generated Prisma enums.
+ *
+ * Canonical definitions of `DeviceKind`, `MetricKind`, `DeviceStatus`, and
+ * `SampleMeta` live in `@ftth-copilot/shared` and are re-exported here to
+ * preserve the public API of `@ftth-copilot/analytics`.
  */
+import type {
+  DeviceKind,
+  DeviceStatus,
+  MetricKind,
+  SampleMeta,
+} from '@ftth-copilot/shared';
 
-export type DeviceKind = 'OLT' | 'ONU';
-
-export type MetricKind =
-  | 'RX_POWER_DBM'
-  | 'TX_POWER_DBM'
-  | 'TEMPERATURE_CELSIUS'
-  | 'UPTIME_SECONDS'
-  | 'STATUS'
-  | 'FEC_CORRECTED'
-  | 'FEC_UNCORRECTED'
-  | 'BIAS_CURRENT_MA'
-  | 'ONT_TEMPERATURE_CELSIUS'
-  | 'LOS_SECONDS_TOTAL'
-  | 'TRAFFIC_THROUGHPUT_MBPS';
-
-export type DeviceStatus = 'online' | 'offline' | 'degraded';
+export type { DeviceKind, DeviceStatus, MetricKind, SampleMeta };
 
 export interface MetricPoint {
   tenantId: string;
@@ -33,11 +28,6 @@ export interface MetricPoint {
   valueText?: string;
   /** ISO-8601 timestamp of when the sample was taken. */
   sampledAt: string;
-}
-
-export interface SampleMeta {
-  tenantId: string;
-  connectionId: string;
 }
 
 export interface CollectOptions {

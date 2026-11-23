@@ -37,9 +37,9 @@ export const TOPOLOGY_EDGE_SCHEMA = 'ftth.topology-edge.v1' as const;
 export const VERDICT_LOG_SCHEMA = 'ftth.verdict-log.v1' as const;
 
 /**
- * VerdictCode — mirrored from the `VerdictCode` union in
- * `@ftth-copilot/evidence`. The wire contract uses the same values so a
- * producer can emit a row without mapping.
+ * VerdictCode — canonical closed classification for TruthGate evidence
+ * verdicts. Re-exported by the evidence layer so all packages share
+ * the same wire and domain contract.
  */
 export const VerdictCodeSchema = z.enum(['ok', 'low_confidence', 'stale', 'incomplete']);
 export type VerdictCode = z.infer<typeof VerdictCodeSchema>;
@@ -58,13 +58,23 @@ export type VerdictCode = z.infer<typeof VerdictCodeSchema>;
 export const verdictCodesSchema = z.array(VerdictCodeSchema);
 
 /**
- * VerdictSeverity — mirrored from the `VerdictSeverity` union in
- * `@ftth-copilot/evidence`. Independent dimension from `code`: code is
- * the "what happened" classification; severity is the "how loud should we
- * be" classification.
+ * VerdictSeverity — canonical severity classification for TruthGate
+ * verdicts. Independent dimension from `code`: code is the "what happened"
+ * classification; severity is the "how loud should we be" classification.
  */
 export const VerdictSeveritySchema = z.enum(['ok', 'info', 'warning', 'critical']);
 export type VerdictSeverity = z.infer<typeof VerdictSeveritySchema>;
+
+/**
+ * Canonical TruthGate verdict emitted per tool call and accumulated onto
+ * `AgentResult.verdicts`.
+ */
+export interface Verdict {
+  toolName: string;
+  code: VerdictCode;
+  reason: string;
+  severity: VerdictSeverity;
+}
 
 /** Node kinds allowed on either side of a `TopologyEdge`. */
 export const topologyNodeKindSchema = z.enum(['OLT', 'PON_PORT', 'SPLITTER', 'CTO', 'ONU']);
@@ -224,8 +234,8 @@ export type Abstention = z.infer<typeof abstentionSchema>;
 
 /**
  * Stable JSON envelope for a confirmed incident. Two confirmation paths feed
- * this table (operator + agent); the sparse-first BM25 retriever in
- * `@ftth-copilot/evidence` consumes it via the `RelevantIncidentResult`
+ * this table (operator + agent); the sparse-first BM25 retriever in the
+ * evidence layer consumes it via the `RelevantIncidentResult`
  * subtype (adds `score`).
  *
  * Fields:
@@ -356,8 +366,8 @@ export type TenantPolicy = z.infer<typeof tenantPolicySchema>;
 //
 // Stable JSON envelope for a single directed edge in the FTTH hierarchy
 // (OLT → PON_PORT → SPLITTER → CTO → ONU). One row per edge; the BFS
-// helpers (`bfsDownstream`, `bfsAncestors`, `topologyPath`) in
-// `@ftth-copilot/evidence/src/topology.ts` traverse the live graph filtered
+// helpers (`bfsDownstream`, `bfsAncestors`, `topologyPath`) in the
+// evidence layer traverse the live graph filtered
 // by `validTo === null`.
 //
 // Field bounds:

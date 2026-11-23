@@ -237,13 +237,11 @@ describe('evidence.provenance.v1', () => {
 });
 
 import type { AgentResult, ChatResponse } from '../src/index';
-import type { Verdict } from '@ftth-copilot/evidence';
 import {
   verdictCodesSchema,
+  type Verdict,
   type VerdictCode as SharedVerdictCode,
 } from '../src/contracts';
-// `SharedVerdictCode` is the local zod-derived alias for the wire contract;
-// kept identical to `@ftth-copilot/evidence`'s `VerdictCode` by design.
 
 describe('AgentResult backward compatibility (Fase B)', () => {
   it('still type-checks with no verdicts field (existing consumers)', () => {
@@ -252,7 +250,7 @@ describe('AgentResult backward compatibility (Fase B)', () => {
     expect(legacy.toolCalls).toEqual([]);
   });
 
-  it('accepts an optional verdicts array of the @ftth-copilot/evidence shape', () => {
+  it('accepts an optional verdicts array of the canonical Verdict shape', () => {
     const verdicts: Verdict[] = [
       {
         toolName: 'list_olts',

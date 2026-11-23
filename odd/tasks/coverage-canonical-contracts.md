@@ -72,11 +72,13 @@ constante para el umbral de RX power degradado.
 
 | ID | Specs | Ruta | Superficie | Commit |
 |---|---|---|---|---|
-| T1 | S1, S2, S3 | `packages/investigations` | `packages/investigations/tests/`, `packages/investigations/vitest.config.ts` | `test(investigations): ...` |
-| T2 | S1, S2, S3 | `apps/web` | `apps/web/tests/lib/monitoring/` | `test(web): ...` |
-| T3 | S4, S7, S9 | `packages/shared` + `packages/evidence` | `packages/shared/src/`, `packages/shared/tests/`, `packages/shared/package.json`, `packages/evidence/src/`, `packages/evidence/package.json` | `refactor(shared): ...` |
-| T4 | S5, S7, S9 | `packages/shared` + `packages/analytics` + `packages/alerts` | `packages/shared/src/`, `packages/analytics/src/`, `packages/analytics/package.json`, `packages/alerts/src/`, `packages/alerts/package.json` | `refactor(shared): ...` |
-| T5 | S6, S7, S9 | `packages/shared` + `packages/agent-core` + `packages/detection` | `packages/shared/src/`, `packages/agent-core/src/`, `packages/detection/src/`, tests de los tres | `refactor(shared): ...` |
+| T1 | S1, S2, S3 | `packages/investigations` | `packages/investigations/tests/`, `packages/investigations/vitest.config.ts` | `7658451` test(investigations): cobertura de comportamiento del pipeline · `b18b64a` test(investigations): cobertura de comportamiento de la cuota |
+| T2 | S1, S2, S3 | `apps/web` | `apps/web/tests/lib/monitoring/` | `d61b3df` test(web): cobertura de comportamiento del monitoreo de salud |
+| T3 | S4, S7, S9 | `packages/shared` + `packages/evidence` | `packages/shared/src/`, `packages/shared/tests/`, `packages/shared/package.json`, `packages/evidence/src/`, `packages/evidence/tests/` | `20d8b1c` refactor(shared): el veredicto vive en shared y evidence lo reexporta |
+| T4 | S5, S7, S9 | `packages/shared` + `packages/analytics` + `packages/alerts` | `packages/shared/src/`, `packages/shared/tests/`, `packages/analytics/`, `packages/alerts/` | `b150c11` refactor(shared): los tipos de dominio quedan en shared |
+| T5 | S6, S7, S9 | `packages/shared` + `packages/agent-core` + `packages/detection` | `packages/shared/src/`, `packages/shared/tests/`, `packages/agent-core/`, `packages/detection/` | `578e898` refactor(shared): el umbral de rx power degradado vive en shared |
+
+Plan: `503f956` docs(odd): plan de cobertura de modulos y contratos canonicos
 
 Ramas:
 
@@ -126,3 +128,115 @@ Ramas:
   `@ftth-copilot/evidence`. Para no tocarlo, `evidence` debe **reexportar** los tipos canónicos
   desde `shared`, de modo que la API pública de `evidence` no cambie y el import hacia arriba
   desaparezca sólo de `shared`.
+
+### L3 — Ítem 1 (COBERTURA): resultado en `test/zero-coverage-modules`
+
+RED medido antes de escribir (no estimado):
+
+- `packages/investigations`: `pnpm --filter @ftth-copilot/investigations test:coverage` → `No test
+  files found`, 0/0 en las cuatro métricas. La corrida unitaria excluía
+  `tests/**/*.integration.test.ts` y el package no tenía bloque `coverage`, así que `src/**` nunca
+  se midió.
+- `apps/web`: `lib/monitoring` en 63.54% stmts / 75.75% branch / 50% funcs / 62.79% lines. El
+  "19%/9% branches" del enunciado corresponde a `worker-health.ts` (19.51% / 9.09% / 7.14% / 21.05%),
+  no al directorio.
+
+GREEN medido después:
+
+| Módulo | Antes | Después |
+|---|---|---|
+| `investigations/src/pipeline.ts` | no medido (0/0) | 100% stmts (23/23), 100% branch (6/6), 100% funcs (8/8), 100% lines (20/20) |
+| `investigations/src/quota.ts` | no medido (0/0) | 100% stmts (26/26), 100% branch (12/12), 100% funcs (6/6), 100% lines (26/26) |
+| `apps/web/lib/monitoring` (directorio) | 63.54 / 75.75 / 50 / 62.79 | 100 / 98.48 / 100 / 100 |
+| `apps/web/lib/monitoring/worker-health.ts` | 19.51 / 9.09 / 7.14 / 21.05 | 100 / 100 / 100 / 100 |
+| `apps/web/lib/monitoring/connection-health.ts` | 94.87 / 89.13 / 100 / 93.93 | 100 / 100 / 100 / 100 |
+| `apps/web/lib/monitoring/database-health.ts` | 100 / 88.88 / 100 / 100 | 100 / 88.88 / 100 / 100 |
+
+- 16 tests nuevos en `packages/investigations` (8 de pipeline, 8 de quota) y 5 archivos de test en
+  `apps/web/tests/lib/monitoring/`.
+- Se agregó `coverage.include: ['src/**/*.ts']` a `packages/investigations/vitest.config.ts`
+  para que la cobertura del package sea medible. **Sin thresholds nuevos** y **sin bajar ninguno**:
+  el package no tenía umbrales y los de `apps/web` (22/22/18/15) quedaron intactos.
+- `database-health.ts` conserva una rama sin cubrir (88.88% branch): la línea 31 hace
+  `if (timer) clearTimeout(timer)` y `timer` se asigna de forma sincrónica dentro del executor de
+  `new Promise`, así que la rama `false` es inalcanzable por construcción.
+- `event-ingest.ts` y `scheduler-health.ts` siguen apareciendo como 0/0 en el reporte: son barras de
+  re-export puro, sin código propio ejecutable. Lo que se verificó es el **cableado** (que delegan
+  en `@ftth-copilot/ingest` y `@ftth-copilot/scheduler`), no su lógica, que vive en esos packages.
+- **Bugs reales encontrados: ninguno.** Los dos writers buscaron fallos de comportamiento y no
+  encontraron ninguno; por eso no hay commit `fix:`.
+
+### L4 — Ítem 2 (CONTRATOS CANÓNICOS): resultado en `refactor/canonical-domain-contracts`
+
+Rama apilada sobre `test/zero-coverage-modules`. Tres unidades de comportamiento, tres commits.
+
+- **T3 (`20d8b1c`)** — `Verdict`, `VerdictCode` y `VerdictSeverity` quedan definidos **una sola
+  vez** en `packages/shared/src/contracts.ts` (`VerdictCode` y `VerdictSeverity` derivados de los
+  schemas Zod que ya existían). `packages/evidence/src/types.ts` los **reexporta** desde
+  `@ftth-copilot/shared`, de modo que la API pública de `evidence` no cambia y `packages/eval`
+  (superficie protegida) sigue importando desde `evidence` sin haber sido tocado. Se eliminó el
+  `import type { Verdict, VerdictCode } from '@ftth-copilot/evidence'` de `packages/shared/src/index.ts`
+  y con él el `peerDependencies['@ftth-copilot/evidence']` de `packages/shared/package.json`. La
+  guarda anti-deriva se mudó a `packages/evidence/tests/verdict-contract.test.ts`, que es la capa
+  que puede ver ambas fuentes.
+- **T4 (`b150c11`)** — `DeviceKind`, `MetricKind`, `DeviceStatus` y `SampleMeta` quedan en
+  `packages/shared/src/domain.ts`. `analytics` y `alerts` los reexportan y conservan exactamente
+  los mismos nombres públicos (`alerts` no expone `SampleMeta`, porque nunca lo expuso). Se
+  descubrió y unificó una **tercera** copia de `DeviceStatus` en `packages/analytics/src/sla.ts`.
+  `analytics` y `alerts` declaran ahora `@ftth-copilot/shared` como dependencia (L2 → L0, sin
+  ciclos). `packages/analytics/tests/prisma-enum-sync.test.ts` verifica en runtime y a nivel de
+  tipos que la unión canónica tiene exactamente los mismos miembros que los enums Prisma de
+  `@ftth-copilot/db` (que no se tocó: es superficie protegida).
+- **T5 (`578e898`)** — `DEFAULT_DEGRADED_RX_THRESHOLD_DBM = -27` queda en
+  `packages/shared/src/constants.ts` y reemplaza los literales de `agent-core/src/alerts.ts`,
+  `agent-core/src/investigation-facts.ts`, `detection/src/signal-drift.ts`,
+  `agent-core/src/prompts/system.ts` y `agent-core/src/tools/index.ts`. `detection` no declaraba
+  ninguna dependencia y ahora declara `@ftth-copilot/shared`.
+
+Cero cambio de comportamiento en T5, demostrado con tests de caracterización previos: el prompt
+(`- **RX power en atención**: -25 a -27 dBm` / `- **RX power con problema**: < -27 dBm (posible
+corte de fibra, conector sucio, ONU defectuosa)`), la descripción de la herramienta
+(`Umbral de RX power. Sugeridos: -25 (atención), -27 (problema). Son los mismos umbrales que usa el
+motor de detección.`) y el mensaje de la alerta (`ONU onu-below (Debajo) tiene RX power de -27.1
+dBm (umbral: -27 dBm).`) quedan idénticos byte a byte.
+
+`pnpm contract:check` (89 operaciones, 3 artefactos) y `pnpm c4:check` (4 vistas) en verde en las
+tres unidades. `docs/architecture/c4/model.d2` no modela las aristas tocadas, así que no se regeneró
+ninguna vista. `ARCHITECTURE.md` sí afirmaba la tabla de dependencias por capa: se actualizó en el
+mismo commit de cada cambio (T4 y T5).
+
+### L5 — Límites de lo entregado
+
+- `packages/scheduler/src/event-points.ts` **no existe** en v0.8.0 y
+  `DEFAULT_DEGRADED_RX_THRESHOLD_DBM` no aparecía en ningún archivo de la base. La equivalencia
+  real era el literal de `agent-core/src/alerts.ts` y el default de `detection/src/signal-drift.ts`.
+  Se usó ese nombre para el canónico, sin inventar el módulo ausente.
+- `event-ingest.ts`, `scheduler-health.ts` y `worker-health.ts` **no están** en
+  `packages/investigations`: viven en `apps/web/lib/monitoring/`. Los tres se cubrieron ahí.
+- Quedan fuera de alcance, reportados para el dueño: `packages/detection/src/types.ts` define su
+  propio `DeviceKind` (semántica de detector, no la de telemetría) y
+  `apps/web/components/FiberPlanViewer.tsx` define un `DeviceKind` más ancho
+  (`PON_PORT | SPLITTER | CTO | ONU | OLT`) que es el del plano de fibra, no el de telemetría.
+- El umbral de "atención" de -25 dBm sigue como literal en `investigation-facts.ts` y en los textos
+  del prompt y de la herramienta: el pedido nombraba sólo -27.
+- No se ejecutó `pnpm test:e2e` (Playwright, requiere Postgres) ni los tests de integración que
+  requieren base real.
+
+### L6 — Gates finales (ejecutados sobre `refactor/canonical-domain-contracts`)
+
+| Gate | Comando | Resultado |
+|---|---|---|
+| Lint + types + tests del monorepo | `pnpm turbo run lint typecheck test --force` | **73/73 tareas exitosas**, 0 cacheadas, 25.0s. 0 errores de ESLint. 1 warning preexistente en `apps/web/app/layout.tsx:70` (`@next/next/no-page-custom-font`), archivo que ninguna de las unidades tocó. |
+| Contrato HTTP | `pnpm contract:check` | exit 0 — `contrato al día: 89 operaciones, 3 artefactos.` |
+| Arquitectura C4 | `pnpm c4:check` | exit 0 — `vistas C4 al día: 4 vistas.` |
+| Cobertura del monorepo | `pnpm test:coverage-check` | exit 0 — **25/25 tareas exitosas** (1 cacheada, 24 ejecutadas), 14.6s. Ningún umbral de cobertura falló. `apps/web/lib/monitoring` queda en 100 / 98.48 / 100 / 100. |
+
+Los tres gates correron sobre el árbol completo, con la rama Item 2 apilada encima de Item 1.
+
+### L7 — Límites de slice para la publicación
+
+La rama `refactor/canonical-domain-contracts` es apilada sobre `test/zero-coverage-modules`, así
+que el diff de Item 2 contra `test/zero-coverage-modules` son 3 commits (~250 líneas de fuente y
+tests). El diff completo contra `origin/main` son 7 commits y ~1.760 líneas, por encima del slice
+de ~400 líneas: **el supervisor decide la forma de publicación** (PR encadenado por unidad de
+comportamiento).
