@@ -213,7 +213,8 @@ test.describe("InvestigationCard — Gate 3 UI E2E Acceptance", () => {
   }) => {
     await mockSessionAndBase(page);
 
-    let pendingServed = false;
+    // Keep polling pending until the UI assertion has observed that state.
+    let pendingObserved = false;
     await page.route("**/api/incidents/inc-card-1/investigate", async (route) => {
       if (route.request().method() === "POST") {
         let body: { refresh?: boolean } = {};
@@ -241,8 +242,7 @@ test.describe("InvestigationCard — Gate 3 UI E2E Acceptance", () => {
         });
       }
 
-      if (!pendingServed) {
-        pendingServed = true;
+      if (!pendingObserved) {
         return fulfillJson(
           route,
           {
@@ -277,6 +277,7 @@ test.describe("InvestigationCard — Gate 3 UI E2E Acceptance", () => {
     // In-flight pending indicator should appear during pending status
     const pendingMsg = page.getByTestId("investigation-pending-inc-card-1");
     await expect(pendingMsg).toBeVisible({ timeout: 10_000 });
+    pendingObserved = true;
 
     // After poll resolves, the result appears
     const badge = page.getByTestId("investigation-sufficiency-badge-inc-card-1");

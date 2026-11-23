@@ -47,6 +47,33 @@ sintéticos, un spool en un directorio temporal y fallos inyectados en `fetch` y
 La recuperación de SmartOLT y Mikrowisp se verifica en la siguiente consulta del llamador.
 La prueba del worker recrea sus módulos de drenaje en el mismo proceso. Redis, el motor real
 de PostgreSQL, el arranque del servicio y la supervisión de procesos quedan fuera de esta suite.
+### Compatibilidad de la UI con Playwright
+
+`pnpm test:e2e:compat` combina Chromium, Firefox y WebKit con tres tamaños de viewport.
+
+| Perfil | Viewport (px CSS) | Táctil |
+|--------|-------------------|--------|
+| `mobile` | 390 × 844 | Sí |
+| `tablet` | 768 × 1024 | Sí |
+| `desktop` | 1440 × 900 | No |
+
+Los perfiles táctiles emulan el viewport y la entrada táctil con el agente de usuario estándar de cada motor. La matriz cubre los flujos de autenticación de la UI, onboarding, conectores, chat, dashboard, alertas, incidentes, investigaciones, feedback, topología y roles. `pnpm test:e2e` incluye además los contratos HTTP de autenticación real y de identidad en el middleware.
+
+Prepará el entorno E2E con un Postgres de pruebas y valores de prueba para `DATABASE_URL`, `JWT_SECRET` y `KMS_MASTER_KEY`, como en el [workflow de CI](../.github/workflows/ci.yml). Usá el mismo entorno al compilar y al ejecutar. Playwright levanta el build en el puerto local 3011.
+
+```bash
+pnpm --filter @ftth-copilot/web exec playwright install --with-deps chromium firefox webkit
+export ENABLE_TEST_AUTH_BYPASS=true
+pnpm build
+pnpm test:e2e:compat --list
+pnpm test:e2e:compat
+```
+
+`--list` enumera los proyectos sin arrancar los navegadores. Si falta un binario o una biblioteca del sistema, Playwright informa el error al ejecutar su proyecto. En Linux, WebKit requiere las bibliotecas de una distribución compatible con la versión de Playwright instalada. Para correr una parte de la matriz con los motores disponibles, elegí los proyectos con `--project`. Registrá los proyectos omitidos y el motivo junto con los resultados.
+
+```bash
+pnpm test:e2e:compat --project=firefox-mobile --project=firefox-tablet --project=firefox-desktop
+```
 
 ## 2. La app contra fixtures (modo demo)
 
