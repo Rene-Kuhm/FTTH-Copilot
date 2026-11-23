@@ -9,8 +9,8 @@
  *
  * Este registro guarda un guardia (y el contador de cada endpoint con tope
  * propio) por cuenta, así que dos instancias para la misma cuenta gastan el
- * mismo presupuesto. La clave de la cuenta es la URL base más un HMAC de la API
- * key (con una clave aleatoria del proceso): el mapa vive en memoria del proceso y no tiene por qué tener la
+ * mismo presupuesto. La clave de la cuenta es la URL base más un identificador
+ * opaco y aleatorio asignado a la API key dentro del proceso: el mapa vive en memoria del proceso y no tiene por qué tener la
  * credencial en claro como clave.
  *
  * El alcance es el proceso, igual que el guardia que reemplaza: dos procesos
@@ -18,7 +18,7 @@
  * requeriría un almacén externo, que hoy no existe y no hace falta: el trabajo
  * de fondo lo corre un solo proceso.
  */
-import { createHmac, randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   SmartoltHourlyBudget,
   SmartoltRateGovernor,
@@ -35,14 +35,20 @@ export interface SmartoltAccountIdentity {
 }
 
 /**
- * Clave aleatoria del proceso para el HMAC. La API key no es una contraseña de
- * usuario que se almacene: el digest solo existe en memoria, para distinguir
- * cuentas dentro del proceso, y no sobrevive a un reinicio.
+ * Identificador opaco por API key, solo en memoria del proceso. No se deriva
+ * de la credencial (no hay hash que se pueda atacar): la key solo sirve para
+ * reconocer que dos instancias son la misma cuenta, y el id que sale de acá es
+ * lo único que viaja en las claves de los mapas y en cualquier log.
  */
-const KEY_DIGEST_SECRET = randomBytes(32);
+const ACCOUNT_IDS = new Map<string, string>();
 
-/** Cuántos caracteres del digest entran en la clave. */
-const KEY_HASH_CHARS = 16;
+function accountIdFor(apiKey: string): string {
+  const known = ACCOUNT_IDS.get(apiKey);
+  if (known !== undefined) return known;
+  const created = randomUUID();
+  ACCOUNT_IDS.set(apiKey, created);
+  return created;
+}
 
 /**
  * La URL base sin la barra final, para que dos formas de escribirla den la
@@ -57,17 +63,13 @@ function normalizeBaseUrl(raw: string): string {
 }
 
 /**
- * La clave de la cuenta: URL base + hash de la API key.
+ * La clave de la cuenta: URL base + identificador opaco de la API key.
  *
- * Nunca la key cruda. El hash alcanza para distinguir dos cuentas del mismo
- * subdominio y no sirve para recuperar la credencial.
+ * Nunca la key cruda. El identificador distingue dos cuentas del mismo
+ * subdominio y no permite recuperar la credencial.
  */
 export function smartoltAccountKey(identity: SmartoltAccountIdentity): string {
-  const digest = createHmac('sha256', KEY_DIGEST_SECRET)
-    .update(identity.apiKey, 'utf8')
-    .digest('hex')
-    .slice(0, KEY_HASH_CHARS);
-  return `${normalizeBaseUrl(identity.apiBaseUrl)}#${digest}`;
+  return `${normalizeBaseUrl(identity.apiBaseUrl)}#${accountIdFor(identity.apiKey)}`;
 }
 
 const GOVERNORS = new Map<string, SmartoltRateGovernor>();
@@ -113,4 +115,5 @@ export function getAccountHourlyBudget(
 export function __resetSmartoltAccountBudgetsForTests(): void {
   GOVERNORS.clear();
   BUDGETS.clear();
+  ACCOUNT_IDS.clear();
 }

@@ -87,18 +87,13 @@ async function rest(
   return { status: response.status, body: parsed };
 }
 
-/** Message RouterOS put in a REST error body, for readable failures. */
+/**
+ * What goes into an error message about a REST failure: the HTTP status only.
+ * The body is never echoed: RouterOS can reflect request data in it, and these
+ * errors end up in the console.
+ */
 function restError(result: RestResult): string {
-  if (result.body && typeof result.body === 'object') {
-    const record = result.body as Record<string, unknown>;
-    const message = record.message;
-    const detail = record.detail;
-    if (typeof message === 'string') {
-      return typeof detail === 'string' ? `${message} (${detail})` : message;
-    }
-  }
-  // Never echo an unrecognized body: RouterOS can reflect request data in it.
-  return 'unrecognized error body';
+  return `HTTP ${String(Number(result.status))}`;
 }
 
 /**

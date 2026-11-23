@@ -71,7 +71,7 @@ describe('la clave de cuenta', () => {
 
     expect(key).not.toContain(API_KEY);
     expect(key).toContain('demo.smartolt.com');
-    expect(key).toMatch(/#[0-9a-f]{16}$/);
+    expect(key).toMatch(/#[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
   });
 
   it('normaliza la barra final de la URL base', () => {
