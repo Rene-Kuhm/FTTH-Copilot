@@ -163,6 +163,8 @@ Variables opcionales: `SYSLOG_HOST` (default `127.0.0.1`), `SYSLOG_PORT` (defaul
 
 ### `pnpm test:mock-nms` — NMS mock (HTTP)
 
+El registro de solicitudes escapa caracteres de control y separadores de línea en la ruta.
+
 Levanta un servidor HTTP en `:5515` que responde con las formas reales de SmartOLT (`get_olts`, `get_all_onus_details`) y Mikrowisp (`GetRouters`, `GetMonitoreo`). Las rutas se eligen por prefijo:
 
 ```text
