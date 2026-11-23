@@ -120,6 +120,9 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "test:property": {
+      "cache": false
+    },
     "test:coverage": {
       "dependsOn": ["^build", "@ftth-copilot/db#db:generate"],
       "outputs": ["coverage/**"]

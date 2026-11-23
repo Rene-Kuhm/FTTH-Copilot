@@ -47,6 +47,8 @@ export interface SessionClaims {
   tenantId: string;
   role: Role;
   isTemp?: boolean;
+  /** Unique per issued token, so two tokens in the same second never collide. */
+  jti?: string;
   iat: number;
   exp: number;
 }
@@ -73,7 +75,9 @@ export function issueToken(userId: string, tenantId: string, role: Role, isTemp 
   const token = jwt.sign(
     { sub: userId, tenantId, role, isTemp } as Omit<SessionClaims, 'iat' | 'exp'>,
     getJwtSecret(),
-    { algorithm: 'HS256', expiresIn: ttl },
+    // `jti` keeps the JWT unique: `iat` has one-second resolution and
+    // Session.tokenHash is unique, so identical claims would collide.
+    { algorithm: 'HS256', expiresIn: ttl, jwtid: crypto.randomUUID() },
   );
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + ttl * 1000);
