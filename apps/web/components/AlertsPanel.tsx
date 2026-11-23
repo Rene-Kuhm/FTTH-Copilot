@@ -306,17 +306,17 @@ export function AlertsPanel() {
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 sm:px-5">
+      <div className="flex flex-wrap items-center gap-x-2 px-3 sm:px-5">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center justify-between gap-4 py-4 text-left"
+          className="flex min-w-0 flex-1 basis-60 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4 text-left"
           style={{ color: 'var(--color-text)' }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <span
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
               style={{
                 background: 'color-mix(in srgb, var(--color-warning) 10%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--color-warning) 25%, transparent)',
@@ -338,7 +338,7 @@ export function AlertsPanel() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {counts.critical > 0 && (
               <span style={SEVERITY_STYLE.critical.chip}>
                 <XCircleIcon className="h-3.5 w-3.5" />
@@ -360,7 +360,7 @@ export function AlertsPanel() {
             />
           </div>
         </button>
-        <button type="button" onClick={() => void load()} className="btn-outline">
+        <button type="button" onClick={() => void load()} className="btn-outline my-2 shrink-0">
           Actualizar
         </button>
       </div>
