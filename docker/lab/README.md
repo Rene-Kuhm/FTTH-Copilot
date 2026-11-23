@@ -41,7 +41,7 @@ tomadas del repositorio de LibreNMS:
 | Dónde se descargan | `docker/lab/captures/` (ignorado por `.gitignore`) |
 
 `pnpm lab:up` ejecuta `scripts/lab/fetch-captures.ts`, que baja cada archivo del
-commit fijo, verifica que tenga `sysDescr` (`1.3.6.1.2.1.1.1.0`) y lo escribe de
+commit fijo, acepta texto plano o binario genérico de hasta 16 MiB, verifica que tenga `sysDescr` (`1.3.6.1.2.1.1.1.0`) y lo escribe de
 forma atómica. `pnpm lab:check` verifica contra ese mismo archivo, así que no hay
 valores esperados escritos a mano que puedan desincronizarse.
 

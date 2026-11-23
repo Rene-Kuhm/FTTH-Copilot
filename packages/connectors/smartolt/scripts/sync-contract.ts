@@ -14,9 +14,9 @@
  * el subconjunto con la información de procedencia. Revisar el diff a mano es
  * parte del trámite.
  */
-import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readArtifactText, writeArtifact } from '../../../../scripts/lib/http-artifact.ts';
 
 /** La especificación oficial, machine-readable. */
 const SOURCE_URL = 'https://www.smartolt.com/openapi.json';
@@ -54,7 +54,8 @@ const EVENT_TYPES: readonly string[] = [
 ];
 
 /** Dónde queda el subconjunto, relativo a este script. */
-const OUTPUT_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'contract', 'smartolt-openapi.subset.json');
+const CONTRACT_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), '..', 'contract');
+const OUTPUT_PATH = join(CONTRACT_DIRECTORY, 'smartolt-openapi.subset.json');
 
 interface OpenApiDocument {
   openapi?: string;
@@ -108,7 +109,8 @@ async function main(): Promise<void> {
   if (!response.ok) {
     throw new Error(`No se pudo leer ${SOURCE_URL}: HTTP ${response.status}`);
   }
-  const document = (await response.json()) as OpenApiDocument;
+  const content = await readArtifactText(response, ['application/json']);
+  const document = JSON.parse(content) as OpenApiDocument;
   const paths = extractSubset(document);
   const eventExamples = extractEventExamples(document);
   const found = Object.keys(paths);
@@ -155,7 +157,7 @@ async function main(): Promise<void> {
     eventExamples,
   };
 
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(subset, null, 2)}\n`, 'utf8');
+  writeArtifact(CONTRACT_DIRECTORY, OUTPUT_PATH, `${JSON.stringify(subset, null, 2)}\n`);
   console.log(`Contrato SmartOLT actualizado: ${found.length} endpoints → ${OUTPUT_PATH}`);
 }
 

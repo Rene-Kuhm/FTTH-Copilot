@@ -10,9 +10,9 @@
  *
  *   node --experimental-strip-types scripts/sync-contract.ts
  */
-import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readArtifactText, writeArtifact } from '../../../../scripts/lib/http-artifact.ts';
 
 /** El espejo machine-readable que se consume (revisión fija, no "latest"). */
 const SOURCE_URL = 'https://skmtc.dev/mikrosystem/apis/mikrowisp/revisions/636806eac943?raw';
@@ -29,12 +29,8 @@ const CONTRACT_PATH_PATTERNS: readonly RegExp[] = [
 ];
 
 /** Dónde queda el subconjunto, relativo a este script. */
-const OUTPUT_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'contract',
-  'mikrowisp-openapi.subset.json',
-);
+const CONTRACT_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), '..', 'contract');
+const OUTPUT_PATH = join(CONTRACT_DIRECTORY, 'mikrowisp-openapi.subset.json');
 
 interface OpenApiDocument {
   openapi?: string;
@@ -61,7 +57,8 @@ async function main(): Promise<void> {
   if (!response.ok) {
     throw new Error(`No se pudo leer ${SOURCE_URL}: HTTP ${response.status}`);
   }
-  const document = (await response.json()) as OpenApiDocument;
+  const content = await readArtifactText(response, ['application/json']);
+  const document = JSON.parse(content) as OpenApiDocument;
   const paths = extractSubset(document);
   const found = Object.keys(paths);
 
@@ -102,7 +99,7 @@ async function main(): Promise<void> {
     paths,
   };
 
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(subset, null, 2)}\n`, 'utf8');
+  writeArtifact(CONTRACT_DIRECTORY, OUTPUT_PATH, `${JSON.stringify(subset, null, 2)}\n`);
   console.log(`Contrato Mikrowisp actualizado: ${found.length} endpoints → ${OUTPUT_PATH}`);
 }
 

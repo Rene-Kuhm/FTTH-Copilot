@@ -19,6 +19,7 @@ import {
   captureUrl,
 } from './lib/captures.ts';
 import { parseSysDescr } from './lib/snmprec.ts';
+import { readArtifactText, writeArtifact } from '../lib/http-artifact.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 const CAPTURES_DIR = path.join(REPO_ROOT, CAPTURES_DIRECTORY);
@@ -48,25 +49,17 @@ async function download(file: string): Promise<string> {
   if (!response.ok) {
     throw new Error(`GET ${url} answered ${response.status} ${response.statusText}`);
   }
-  const content = await response.text();
+  const content = await readArtifactText(response, ['text/plain', 'application/octet-stream']);
   if (content.trim() === '') throw new Error(`${file}: the download is empty`);
   return content;
 }
 
-/**
- * Write the capture and the .gitignore marker atomically: a truncated file
- * would be served by snmpsim as a half-empty device.
- */
-function writeCapture(file: string, content: string): void {
-  const destination = path.join(REPO_ROOT, captureRelativePath(file));
-  const temporary = `${destination}.partial`;
-  fs.writeFileSync(temporary, content, 'utf8');
-  fs.renameSync(temporary, destination);
-}
-
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
+  const parent = path.dirname(CAPTURES_DIR);
+  if (fs.realpathSync(parent) !== parent) fail('unexpected captures parent directory');
   fs.mkdirSync(CAPTURES_DIR, { recursive: true });
+  if (fs.realpathSync(CAPTURES_DIR) !== CAPTURES_DIR) fail('unexpected captures directory');
 
   const present = new Set(presentFiles());
   const downloaded: string[] = [];
@@ -89,7 +82,7 @@ async function main(): Promise<void> {
     if (sysDescr === null) {
       fail(`${file}: the capture has no usable sysDescr (${captureUrl(file)})`);
     }
-    writeCapture(file, content);
+    writeArtifact(CAPTURES_DIR, path.join(REPO_ROOT, captureRelativePath(file)), content);
     downloaded.push(file);
     console.log(`ok (sysDescr: ${sysDescr})`);
   }

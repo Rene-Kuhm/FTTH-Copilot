@@ -113,7 +113,7 @@ Debe responder `200 {ok:true, latencyMs}`. El `ping()` del cliente SmartOLT llam
 En la terminal donde corre el mock vas a ver la traza de cada request:
 
 ```text
-<-- GET /smartolt/api/system/get_olts  ->  200
+{"method":"GET","path":"/smartolt/api/system/get_olts","status":200}
 ```
 
 ## 6. `DEMO_MODE_ENABLED` y su diferencia con el mock
