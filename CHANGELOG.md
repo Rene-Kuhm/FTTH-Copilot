@@ -12,6 +12,43 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.10.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.9.0...v0.10.0) (2026-11-23)
+
+
+### Added
+
+* **lab:** banco de pruebas virtual y endurecimiento de conectores ([#410](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/410)) ([eb481b4](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/eb481b4035533017787de057e9e6afd6e484f4fe))
+
+
+### Fixed
+
+* **auth:** add a unique jti so two tokens issued in the same second do not collide ([#416](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/416)) ([f1066d2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/f1066d2ed6d45653509bc84eba694330901140d0))
+
+
+### Tests
+
+* **chaos:** inject faults in connectors, worker ingest and Laya circuit breaker ([#412](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/412)) ([82e24b2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/82e24b24b7f3b00b40da3457532b0a17b856fb71))
+* **fuzz:** fuzzing con fast-check de syslog, SNMP, conectores y API ([#413](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/413)) ([4b02e03](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4b02e036862f240c3be8f8b6aa4320aa30ff0c74))
+* **mutation:** StrykerJS sobre detection, evidence y shared ([#415](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/415)) ([9d0d2b7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/9d0d2b7859a4fe58036b1ec4570afcc502417b3d))
+* **perf:** add performance, load and spike harness for api, ingest and spool ([#407](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/407)) ([49a10cb](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/49a10cb630df918e79ca5cd857dbd5d97987db27))
+* **property:** invariantes con fast-check para detection, evidence, shared y alerts ([#408](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/408)) ([2ff7fe1](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2ff7fe18063ddc0a4afd42f71b8755f43d25703c))
+* **security:** SAST, auditoría de dependencias y controles HTTP locales ([#409](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/409)) ([790fbc7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/790fbc7a3ad48d40c76d318ded5042ee43946880))
+* **web:** accesibilidad (axe) y regresión visual, con los arreglos que destapó ([#417](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/417)) ([0ca190d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0ca190dd727712d75161aab6e2ca915e15c7d715))
+* **web:** matriz de compatibilidad entre navegadores y dispositivos ([#418](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/418)) ([b2b904a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b2b904a1d15dd6fe86213b98df02b3417fafd33e))
+* **worker:** add stress and soak harness; allow syslog loopback bind via SYSLOG_BIND_ADDRESS ([#414](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/414)) ([c9c5ac9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c9c5ac93872504c65a46e6e8164c6a049ea4ecf3))
+
+
+### Build
+
+* **deps:** bump the github-actions group across 1 directory with 3 updates ([#422](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/422)) ([59652db](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/59652db614947f967285559b9fcfac158f1874b3))
+* **hooks:** vendor lefthook, prettier and commitlint and typecheck changed packages on commit ([#419](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/419)) ([45e6277](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/45e6277030cdac31f45c2059ae1f661403150ae0))
+
+
+### CI
+
+* make the UI quality job part of the CI Success gate ([#421](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/421)) ([53faddd](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/53fadddf8c09e673b9caa186af4bea6f1fc9e534))
+* **web:** accesibilidad, visual y matriz con WebKit en la imagen de Playwright ([#420](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/420)) ([146cc9b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/146cc9b5de1cd9ea4a1db0d87498e1b43813d806))
+
 ## [0.9.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.8.0...v0.9.0) (2026-11-23)
 
 
