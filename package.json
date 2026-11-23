@@ -54,7 +54,9 @@
     "security:sast": "node scripts/security/sast.mjs",
     "security:sast:eslint": "eslint --config eslint.config.security.mjs apps/web packages services",
     "security:sast:semgrep": "semgrep scan --config scripts/security/semgrep.yml --metrics=off --disable-version-check --strict --error apps/web packages services docker-compose.yml docker-compose.*.yml",
-    "security:audit": "pnpm audit"
+    "security:audit": "pnpm audit",
+    "security:dast": "pnpm --filter @ftth-copilot/web test:security",
+    "security:check": "pnpm security:sast && pnpm security:dast"
   },
   "overrides": {
     "brace-expansion": ">=1.1.20"
