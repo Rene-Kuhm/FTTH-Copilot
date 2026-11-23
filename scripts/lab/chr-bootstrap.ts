@@ -97,7 +97,8 @@ function restError(result: RestResult): string {
       return typeof detail === 'string' ? `${message} (${detail})` : message;
     }
   }
-  return JSON.stringify(result.body);
+  // Never echo an unrecognized body: RouterOS can reflect request data in it.
+  return 'unrecognized error body';
 }
 
 /**

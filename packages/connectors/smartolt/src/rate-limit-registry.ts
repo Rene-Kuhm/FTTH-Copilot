@@ -9,8 +9,8 @@
  *
  * Este registro guarda un guardia (y el contador de cada endpoint con tope
  * propio) por cuenta, así que dos instancias para la misma cuenta gastan el
- * mismo presupuesto. La clave de la cuenta es la URL base más un hash de la API
- * key: el mapa vive en memoria del proceso y no tiene por qué tener la
+ * mismo presupuesto. La clave de la cuenta es la URL base más un HMAC de la API
+ * key (con una clave aleatoria del proceso): el mapa vive en memoria del proceso y no tiene por qué tener la
  * credencial en claro como clave.
  *
  * El alcance es el proceso, igual que el guardia que reemplaza: dos procesos
@@ -18,7 +18,7 @@
  * requeriría un almacén externo, que hoy no existe y no hace falta: el trabajo
  * de fondo lo corre un solo proceso.
  */
-import { createHash } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import {
   SmartoltHourlyBudget,
   SmartoltRateGovernor,
@@ -34,7 +34,14 @@ export interface SmartoltAccountIdentity {
   apiKey: string;
 }
 
-/** Cuántos caracteres del hash entran en la clave. */
+/**
+ * Clave aleatoria del proceso para el HMAC. La API key no es una contraseña de
+ * usuario que se almacene: el digest solo existe en memoria, para distinguir
+ * cuentas dentro del proceso, y no sobrevive a un reinicio.
+ */
+const KEY_DIGEST_SECRET = randomBytes(32);
+
+/** Cuántos caracteres del digest entran en la clave. */
 const KEY_HASH_CHARS = 16;
 
 /**
@@ -56,7 +63,7 @@ function normalizeBaseUrl(raw: string): string {
  * subdominio y no sirve para recuperar la credencial.
  */
 export function smartoltAccountKey(identity: SmartoltAccountIdentity): string {
-  const digest = createHash('sha256')
+  const digest = createHmac('sha256', KEY_DIGEST_SECRET)
     .update(identity.apiKey, 'utf8')
     .digest('hex')
     .slice(0, KEY_HASH_CHARS);

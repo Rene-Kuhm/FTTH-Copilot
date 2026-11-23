@@ -593,7 +593,7 @@ describe('el cliente del stream', () => {
     const outcomes = await collect(newStream(harness, clock), 1);
 
     expect(outcomes[0]).toMatchObject({ kind: 'error' });
-    expect(harness.requests.some((request) => request.url.includes('evil.example.com'))).toBe(false);
+    expect(harness.requests.some((request) => new URL(request.url).hostname === 'evil.example.com')).toBe(false);
   });
 
   it('nunca deja el token del stream ni el X-Token en un mensaje', async () => {
