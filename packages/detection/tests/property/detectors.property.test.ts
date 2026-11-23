@@ -293,13 +293,9 @@ describe('pure detector properties', () => {
           const baselineSamples: NumericSample[] = [
             -22, -22.5, -21.5, -22, -22.5, -21.5, -22, -22.5, -21.5, -22, -40,
           ].map((v, i) => ({ t: nowA - (10 - i) * 3_600_000, v }));
-          const flapSamples: StatusSample[] = [
-            'online',
-            'offline',
-            'online',
-            'offline',
-            'online',
-          ].map((status, i) => ({ t: nowA - (4 - i) * 60_000, status }));
+          const flapSamples = (['online', 'offline', 'online', 'offline', 'online'] as const).map(
+            (status, i) => ({ t: nowA - (4 - i) * 60_000, status }),
+          );
           const rebootSamples: UptimeSample[] = [500, 10, 400, 10, 300, 10].map(
             (uptimeSeconds, i) => ({ t: nowA - (5 - i) * 60_000, uptimeSeconds }),
           );

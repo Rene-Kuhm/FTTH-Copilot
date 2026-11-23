@@ -9,7 +9,7 @@
  * Invariants verified:
  *   - S-1: `schema.parse(input)` deep-equals `input` (unconditionally for `.strict()` schemas;
  *     for canonical inputs without unknown top-level keys on the 4 non-strict schemas that strip
- *     unknown top-level keys).
+ *     unknown top-level keys). Canonical values also survive JSON serialization and reparsing.
  *   - S-2: `schema.parse(schema.parse(input))` deep-equals `schema.parse(input)` (idempotence),
  *     including non-strict schemas receiving unknown top-level keys.
  *   - S-3: `tenantId` survives parsing unchanged and is never defaulted; empty `tenantId` is rejected.
@@ -367,6 +367,20 @@ describe('Canonical Zod contract properties (S-1..S-5, S-9)', () => {
         { seed: SEED, numRuns: RUNS },
       );
     });
+
+    it.each(ALL_OBJECT_SCHEMAS)(
+      'S-1: $name preserves its JSON representation after serialization and reparsing',
+      ({ schema, arb }) => {
+        fc.assert(
+          fc.property(arb, (input) => {
+            const wireValue: unknown = JSON.parse(JSON.stringify(schema.parse(input)));
+            const reparsed = schema.parse(wireValue);
+            expect(JSON.parse(JSON.stringify(reparsed))).toStrictEqual(wireValue);
+          }),
+          { seed: SEED, numRuns: RUNS },
+        );
+      },
+    );
   });
 
   describe('S-2: parse idempotence', () => {

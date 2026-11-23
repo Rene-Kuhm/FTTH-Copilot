@@ -3,7 +3,7 @@
  * `@ftth-copilot/evidence`.
  *
  * Reproducibility: every property uses `SEED = 20260923` and `RUNS = 200`.
- * Covered invariants: E-5, E-6.
+ * Covered invariants: E-5, E-6, E-12.
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
@@ -14,6 +14,7 @@ import {
 } from '@ftth-copilot/shared';
 import { correlateByTopologyAndTime } from '../../src/topology-correlation';
 import {
+  BASE_TIME_MS,
   SYNTHETIC_TENANTS,
   buildTenantTopologyEdges,
   correlationConfigArb,
@@ -24,8 +25,9 @@ import {
 const SEED = 20260923;
 const RUNS = 200;
 
+const CTO_COUNT = 4;
 const ONUS_PER_CTO = 4;
-const TOTAL_ONUS = ONUS_PER_CTO * 4;
+const TOTAL_ONUS = ONUS_PER_CTO * CTO_COUNT;
 
 const MIXED_EDGES = SYNTHETIC_TENANTS.flatMap((t) =>
   buildTenantTopologyEdges(t, ONUS_PER_CTO),
@@ -47,7 +49,7 @@ function sortGroupsCanonically(
   });
 }
 
-describe('Topology & time correlation properties (E-5..E-6)', () => {
+describe('Topology & time correlation properties', () => {
   it('E-5: correlateByTopologyAndTime isolates target tenant, references only input events of that tenant, and validates against topologyCorrelationGroupSchema', () => {
     fc.assert(
       fc.property(
@@ -134,6 +136,57 @@ describe('Topology & time correlation properties (E-5..E-6)', () => {
             sortGroupsCanonically(originalGroups),
           );
           expect(permutedGroups).toEqual(originalGroups);
+        },
+      ),
+      { seed: SEED, numRuns: RUNS },
+    );
+  });
+
+  it('E-12: events at the window boundary form a group per tenant even when topology IDs coincide', () => {
+    const tenants = SYNTHETIC_TENANTS.slice(0, 2);
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 600_000 }),
+        fc.integer({ min: -3_600_000, max: 3_600_000 }),
+        fc.integer({ min: 1, max: CTO_COUNT }),
+        (timeWindowMs, offsetMs, ctoNumber) => {
+          const config = { timeWindowMs, minAffectedCount: 2, minAffectedRatio: 0.5 };
+          const startMs = BASE_TIME_MS + offsetMs;
+          const windowStart = new Date(startMs).toISOString();
+          const windowEnd = new Date(startMs + timeWindowMs).toISOString();
+          const firstOnu = (ctoNumber - 1) * ONUS_PER_CTO + 1;
+          const affectedDeviceIds = [`ONU-${firstOnu}`, `ONU-${firstOnu + 1}`].sort();
+          const events: TopologyCorrelationEvent[] = tenants.flatMap((tenantId) =>
+            affectedDeviceIds.map((deviceId, index) => ({
+              tenantId,
+              deviceId,
+              deviceKind: 'ONU',
+              timestamp: index === 0 ? windowStart : windowEnd,
+              sourceEventId: `${tenantId}-${deviceId}`,
+            })),
+          );
+
+          const groups = correlateByTopologyAndTime(events, MIXED_EDGES, config);
+          expect(groups).toHaveLength(tenants.length);
+          expect(new Set(groups.map(({ groupId }) => groupId)).size).toBe(tenants.length);
+          for (const tenantId of tenants) {
+            expect(groups.filter((group) => group.tenantId === tenantId)).toEqual([
+              expect.objectContaining({
+                ancestorKind: 'CTO',
+                ancestorId: `CTO-${ctoNumber}`,
+                windowStart,
+                windowEnd,
+                affectedDeviceIds,
+                evidenceEventIds: affectedDeviceIds.map((deviceId) => `${tenantId}-${deviceId}`),
+              }),
+            ]);
+          }
+
+          const beyondWindow = new Date(startMs + timeWindowMs + 1).toISOString();
+          const separatedEvents = events.map((event) =>
+            event.timestamp === windowEnd ? { ...event, timestamp: beyondWindow } : event,
+          );
+          expect(correlateByTopologyAndTime(separatedEvents, MIXED_EDGES, config)).toEqual([]);
         },
       ),
       { seed: SEED, numRuns: RUNS },

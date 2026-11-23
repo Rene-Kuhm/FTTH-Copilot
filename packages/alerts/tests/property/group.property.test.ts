@@ -91,7 +91,7 @@ describe('groupRows property-based invariants', () => {
       .chain((rows) =>
         fc.tuple(
           fc.constant(rows),
-          rows.length === 0 ? fc.constant([]) : fc.shuffledSubarray(rows, { minLength: rows.length, maxLength: rows.length }),
+          fc.shuffledSubarray(rows, { minLength: rows.length, maxLength: rows.length }),
         ),
       );
 

@@ -22,7 +22,7 @@ En FTTH-Copilot este enfoque aporta cuatro garantías concretas:
 pnpm test:property
 ```
 
-Ejecuta `turbo run test:property` sobre los cuatro paquetes con suite de propiedades (`@ftth-copilot/detection`, `@ftth-copilot/shared`, `@ftth-copilot/evidence` y `@ftth-copilot/alerts`).
+Ejecuta `turbo run test:property` sobre los cuatro paquetes con suite de propiedades (`@ftth-copilot/detection`, `@ftth-copilot/shared`, `@ftth-copilot/evidence` y `@ftth-copilot/alerts`). Vitest usa las fuentes TypeScript directamente. La tarea corre en cada invocación, sin build previo ni generación de Prisma.
 
 ### Ejecución focalizada por paquete
 
@@ -94,7 +94,7 @@ La suite queda en verde hoy precisamente porque ambos casos están marcados con 
 
 | ID | Ley verificada | Archivo |
 |---|---|---|
-| `S-1` | `schema.parse(input)` hace round-trip en esquemas `.strict()`, en forma canónica para los 4 esquemas no estrictos y en `verdictCodesSchema` | [`packages/shared/tests/property/contracts.property.test.ts`](../packages/shared/tests/property/contracts.property.test.ts) |
+| `S-1` | El parseo preserva los valores canónicos, incluido `verdictCodesSchema`. Los contratos de objeto conservan su representación al serializar a JSON y volver a validar | [`packages/shared/tests/property/contracts.property.test.ts`](../packages/shared/tests/property/contracts.property.test.ts) |
 | `S-2` | `schema.parse(schema.parse(input))` es idempotente incluso cuando esquemas no estrictos descartan claves desconocidas | [`packages/shared/tests/property/contracts.property.test.ts`](../packages/shared/tests/property/contracts.property.test.ts) |
 | `S-3` | `tenantId` se preserva sin cambios ni valores por defecto y un `tenantId` vacío es rechazado | [`packages/shared/tests/property/contracts.property.test.ts`](../packages/shared/tests/property/contracts.property.test.ts) |
 | `S-4` | Todos los esquemas `.strict()` rechazan cualquier clave desconocida adicional de primer nivel | [`packages/shared/tests/property/contracts.property.test.ts`](../packages/shared/tests/property/contracts.property.test.ts) |
@@ -120,6 +120,7 @@ La suite queda en verde hoy precisamente porque ambos casos están marcados con 
 | `E-9` | `assessFreshness` es determinista para `nowMs` fijo y devuelve `error`/`future-sample` si alguna muestra supera la tolerancia de 60 s hacia el futuro | [`packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts`](../packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts) |
 | `E-10` | `detectCounterReset` devuelve `null` para series no decrecientes y el índice exacto del primer decremento en caso contrario | [`packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts`](../packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts) |
 | `E-11` | `retrieveRelevantIncidents` aísla por `tenantId`, respeta `limit`, ordena por relevancia descendente y rechaza `tenantId` vacío | [`packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts`](../packages/evidence/tests/property/evidence-collection-and-quality.property.test.ts) |
+| `E-12` | Con IDs de topología compartidos, los eventos forman un grupo independiente por tenant justo en el límite de la ventana. Un milisegundo adicional separa los eventos y ya no se alcanza el mínimo por grupo | [`packages/evidence/tests/property/topology-correlation.property.test.ts`](../packages/evidence/tests/property/topology-correlation.property.test.ts) |
 
 ### `@ftth-copilot/alerts`
 
