@@ -45,4 +45,32 @@ describe('detectSignalDrift', () => {
     const f = detectSignalDrift('ONU', 'onu-1', series([-22, -23, -24, -25, -26]), { now: NOW });
     expect(f!.detectedAt).toBe(new Date(NOW).toISOString());
   });
+
+  it('characterizes default threshold (-27 dBm) and explicit thresholdDbm override', () => {
+    const defaultFinding = detectSignalDrift('ONU', 'onu-1', series([-22, -23, -24, -25, -26]), {
+      now: NOW,
+    });
+    expect(defaultFinding).not.toBeNull();
+    expect(defaultFinding!.etaMs).toBeCloseTo(DAY, 5);
+    expect(defaultFinding!.description).toBe(
+      'La potencia RX baja a -1.00 dBm/día y alcanzaría -27 dBm en ~1.0 día(s).',
+    );
+
+    const customFinding = detectSignalDrift('ONU', 'onu-1', series([-22, -23, -24, -25, -26]), {
+      now: NOW,
+      thresholdDbm: -28,
+    });
+    expect(customFinding).not.toBeNull();
+    expect(customFinding!.etaMs).toBeCloseTo(2 * DAY, 5);
+    expect(customFinding!.description).toBe(
+      'La potencia RX baja a -1.00 dBm/día y alcanzaría -28 dBm en ~2.0 día(s).',
+    );
+
+    expect(
+      detectSignalDrift('ONU', 'onu-1', series([-22, -23, -24, -25, -26]), {
+        now: NOW,
+        thresholdDbm: -25,
+      }),
+    ).toBeNull();
+  });
 });
