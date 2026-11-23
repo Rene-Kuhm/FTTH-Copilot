@@ -34,15 +34,15 @@ S11. "No declares verde un check que no corrió."
 
 ## Tasks
 
-| ID | Task | Specs | Route | Commit |
-|----|------|-------|-------|--------|
-| T1 | Harness StrykerJS + línea base medida de `packages/detection` | S1, S2, S4, S5, S6, S7 | writer (`gentle-ai-worker`) | `build(tooling): add Stryker mutation testing for detection, evidence and shared` |
-| T2 | Línea base medida de `packages/evidence` y `packages/shared` | S1, S2, S4 | writer (`gentle-ai-worker`) | mismo commit que T1 (mismo archivo de tooling) |
-| T3 | Tests que maten los sobrevivientes relevantes de `packages/detection` | S3 | writer (`gentle-ai-worker`) | `test(detection): cover surviving mutants in the signal detectors` |
-| T4 | Tests que maten los sobrevivientes relevantes de `packages/evidence` | S3 | writer (`gentle-ai-worker`) | `test(evidence): cover surviving mutants in the truth gate` |
-| T5 | Tests que maten los sobrevivientes relevantes de `packages/shared` | S3 | writer (`gentle-ai-worker`) | `test(shared): cover surviving mutants in redaction and learning` |
-| T7 | `docs/testing-mutation.md` con los scores post T3-T5 y el ratchet | S2, S4 | writer (`gentle-ai-worker`) | `docs(testing): refresh the mutation baselines after closing survivors` |
-| T6 | `REPORT.md` sin commitear | S10, S11 | writer (`gentle-ai-worker`) | ninguno (queda untracked) |
+| ID | Task | Specs | Route | Commit | Risk |
+|----|------|-------|-------|--------|------|
+| T1 | Harness StrykerJS + línea base medida de `packages/detection` | S1, S2, S4, S5, S6, S7 | writer (`gentle-ai-worker`) | `325585e` `build(tools): add StrykerJS mutation testing for detection, evidence and shared` | Risk: item 5 (dependencias de dev nuevas en tres workspaces + `pnpm-lock.yaml`) |
+| T2 | Línea base medida de `packages/evidence` y `packages/shared` | S1, S2, S4 | writer (`gentle-ai-worker`) | mismo commit que T1 (mismo archivo de tooling) | Risk: item 5 (misma unidad de tooling que T1) |
+| T3 | Tests que maten los sobrevivientes relevantes de `packages/detection` | S3 | writer (`gentle-ai-worker`) | `test(detection): cover surviving mutants in the signal detectors` | Risk: none |
+| T4 | Tests que maten los sobrevivientes relevantes de `packages/evidence` | S3 | writer (`gentle-ai-worker`) | `test(evidence): cover surviving mutants in the truth gate` | Risk: none |
+| T5 | Tests que maten los sobrevivientes relevantes de `packages/shared` | S3 | writer (`gentle-ai-worker`) | `test(shared): cover surviving mutants in redaction and learning` | Risk: none |
+| T7 | `docs/testing-mutation.md` con los scores post T3-T5 y el ratchet | S2, S4 | writer (`gentle-ai-worker`) | `docs(testing): refresh the mutation baselines after closing survivors` | Risk: none |
+| T6 | `REPORT.md` sin commitear | S10, S11 | writer (`gentle-ai-worker`) | ninguno (queda untracked) | Risk: none |
 
 ## Log
 
