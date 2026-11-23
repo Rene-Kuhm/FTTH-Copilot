@@ -27,6 +27,7 @@
     "test:coverage": "turbo run test:coverage",
     "test:coverage-check": "turbo run test:coverage",
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
+    "test:perf": "node --import tsx scripts/perf/index.ts",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",
     "test:mock-nms": "tsx scripts/mock-nms.ts",
