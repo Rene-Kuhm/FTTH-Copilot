@@ -48,6 +48,9 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.65.1-noble
       options: --ipc=host
     env:
+      # Firefox no arranca si $HOME no es del usuario actual, y en un job con
+      # `container:` GitHub lo apunta a /github/home.
+      HOME: /root
       # Valores de prueba: ninguna llamada llega a una base de datos real.
       DATABASE_URL: postgresql://ftth:ftth@127.0.0.1:5432/ftth_copilot_e2e
       JWT_SECRET: e2e-jwt-secret-for-playwright-only
