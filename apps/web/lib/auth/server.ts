@@ -17,9 +17,6 @@ import {
   COOKIE_NAME,
   sessionCookieAttributes,
   TOKEN_TTL_SECONDS,
-  checkAuthQuota,
-  recordAuthAttempt,
-  authRateLimitKeys,
   extractClientIp,
   decryptApiKey,
 } from '@ftth-copilot/db';
@@ -30,7 +27,13 @@ import {
 } from './csrf';
 import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
 import { authenticateAndIssueLdapSession } from './ldap-login';
-import type { Role, AuthQuotaOptions } from '@ftth-copilot/db';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
+} from './quota';
+import type { Role } from '@ftth-copilot/db';
 import { auditAuth } from '@ftth-copilot/soc';
 
 const log = createLogger({ name: 'auth' });
@@ -53,25 +56,6 @@ const loginSchema = z.object({
   password: passwordSchema,
 });
 
-function positiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function authRateLimitOptions(): AuthQuotaOptions {
-  return {
-    max: positiveInt(process.env['AUTH_RATE_LIMIT_MAX'], 10),
-    windowMs: positiveInt(process.env['AUTH_RATE_LIMIT_WINDOW_MS'], 15 * 60 * 1000),
-  };
-}
-
-async function recordFailedLogins(keys: string[]): Promise<void> {
-  const opts = authRateLimitOptions();
-  for (const key of keys) {
-    await recordAuthAttempt(key, opts);
-  }
-}
-
 export interface CurrentUser {
   id: string;
   email: string;
@@ -82,13 +66,19 @@ export interface CurrentUser {
   tenant: { id: string; name: string; slug: string };
 }
 
-function jsonResponse(body: unknown, init?: ResponseInit) {
+function jsonResponse(body: unknown, init?: ResponseInit, setCookies?: string[]) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  if (setCookies) {
+    for (const cookie of setCookies) {
+      headers.append('set-cookie', cookie);
+    }
+  }
   return new NextResponse(JSON.stringify(body), {
     ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...init?.headers,
-    },
+    headers,
   });
 }
 
@@ -177,17 +167,13 @@ export async function handleSignup(req: Request) {
   // Rate-limit account creation per client IP to block mass signup and email
   // enumeration abuse.
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  if (clientIp) {
-    const key = `signup:ip:${clientIp}`;
-    const opts = authRateLimitOptions();
-    const decision = await checkAuthQuota(key, opts);
-    if (!decision.allowed) {
-      return jsonResponse(
-        { error: 'Demasiados registros. Probá de nuevo más tarde.' },
-        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
-      );
-    }
-    await recordAuthAttempt(key, opts);
+  const signupKeys = clientIp ? [`signup:ip:${clientIp}`] : [];
+  const signupQuota = signupKeys.length > 0 ? await reserveAuthQuotaForKeys(signupKeys) : null;
+  if (signupQuota && !signupQuota.allowed) {
+    return jsonResponse(
+      { error: 'Demasiados registros. Probá de nuevo más tarde.' },
+      { status: 429, headers: { 'retry-after': String(signupQuota.retryAfter) } },
+    );
   }
 
   try {
@@ -227,12 +213,8 @@ export async function handleSignup(req: Request) {
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
         tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
       },
-      {
-        status: 201,
-        headers: {
-          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-        },
-      },
+      { status: 201 },
+      [setSessionCookie(token), csrfCookie],
     );
   } catch (err) {
     const info = describeError(err);
@@ -266,19 +248,16 @@ export async function handleLogin(req: Request) {
   }
   const { email, password } = parsed.data;
 
-  // Brute-force guard: reject early when this email or IP is already over its
-  // failure budget, and record failures on the slow paths below.
+  // Brute-force guard: atomically reserve an attempt across email + IP before
+  // expensive credential checks; valid logins refund the reservation below.
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authRateLimitKeys(email, clientIp);
-  const rateOpts = authRateLimitOptions();
-  for (const key of rateKeys) {
-    const decision = await checkAuthQuota(key, rateOpts);
-    if (!decision.allowed) {
-      return jsonResponse(
-        { error: 'Demasiados intentos. Probá de nuevo más tarde.' },
-        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
-      );
-    }
+  const rateKeys = authQuotaKeys(email, clientIp);
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return jsonResponse(
+      { error: AUTH_QUOTA_ERROR_MESSAGE },
+      { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
+    );
   }
 
   try {
@@ -286,9 +265,14 @@ export async function handleLogin(req: Request) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       if (process.env['LDAP_ENABLED'] === 'true') {
-        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+        return authenticateAndIssueLdapSession({
+          req,
+          username: email,
+          password,
+          code,
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+        });
       }
-      await recordFailedLogins(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined }, email, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -296,9 +280,14 @@ export async function handleLogin(req: Request) {
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       if (process.env['LDAP_ENABLED'] === 'true') {
-        return authenticateAndIssueLdapSession({ req, username: email, password, code });
+        return authenticateAndIssueLdapSession({
+          req,
+          username: email,
+          password,
+          code,
+          reservedQuota: { keys: rateKeys, windowStart: quota.windowStart },
+        });
       }
-      await recordFailedLogins(rateKeys);
       const ip = extractClientIp(req.headers.get('x-forwarded-for'));
       await auditAuth.login({ tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined }, user.id, false);
       return jsonResponse({ error: 'Invalid credentials' }, { status: 401 });
@@ -311,12 +300,14 @@ export async function handleLogin(req: Request) {
       return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
     }
     if (mfaGate.action === 'mfa_required') {
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
       return jsonResponse(
         { mfaRequired: true, tempToken: mfaGate.tempToken },
         { status: 200 },
       );
     }
     if (mfaGate.action === 'mfa_setup_required') {
+      await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
       return jsonResponse(
         {
           error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
@@ -346,18 +337,15 @@ export async function handleLogin(req: Request) {
       user.id,
       true,
     );
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
     // Generate CSRF token for subsequent requests
     const { cookie: csrfCookie } = generateCsrfToken();
 
     return jsonResponse(
       { user: { id: user.id, email: user.email, name: user.name, role: user.role } },
-      {
-        status: 200,
-        headers: {
-          'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-        },
-      },
+      { status: 200 },
+      [setSessionCookie(token), csrfCookie],
     );
   } catch (err) {
     const info = describeError(err);
@@ -394,7 +382,8 @@ export async function handleLogout(req: Request) {
 
   // Also clear CSRF cookie
   const csrfClear = clearCsrfCookie();
-  res.headers.set('set-cookie', `${parts.join('; ')}, ${csrfClear}`);
+  res.headers.append('set-cookie', parts.join('; '));
+  res.headers.append('set-cookie', csrfClear);
   return res;
 }
 

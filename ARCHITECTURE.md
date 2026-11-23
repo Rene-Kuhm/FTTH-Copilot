@@ -36,8 +36,8 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/agent-core`](packages/agent-core) | L3 | Motor cognitivo: Organic Diagnostic Router, motor de investigación, registro de herramientas (10 tools NMS), prompts, cliente LLM con cadena de fallback, trazas OTLP. | `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared` |
 | [`packages/soc`](packages/soc) | L3 | Orquestación perimetral, correlación de accesos anómimos, auditoría de firmware con trazabilidad por tenant. | `alerts`, `connectors-core`, `db`, `security` |
 | [`packages/monitoring`](packages/monitoring) | L3 | Receptor binario SNMP, adaptadores OLT multi-fabricante, decodificación multi-vendor, catálogo OID, laboratorio de conformidad. | `alerts`, `analytics`, `connectors-core`, `shared` |
-| [`packages/analytics`](packages/analytics) | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). | `connectors-core`, `db` |
-| [`packages/alerts`](packages/alerts) | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. | `db`, `detection` |
+| [`packages/analytics`](packages/analytics) | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). | `connectors-core`, `db`, `shared` |
+| [`packages/alerts`](packages/alerts) | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. | `db`, `detection`, `shared` |
 | [`packages/db`](packages/db) | L1 | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) derivado de `KMS_MASTER_KEY`. | `shared` |
 | [`packages/evidence`](packages/evidence) | L1 | Normalización de evidencia cruda, sobres de investigación, procedencia y frescura. | `shared` |
 | [`packages/learning`](packages/learning) | L1 | Núcleo puro del learning loop: resolución de etiquetas, agrupación en eventos, split temporal y suficiencia de muestra. | `shared` |
@@ -46,7 +46,7 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/connectors/mikrotik`](packages/connectors/mikrotik) | L1 | Adaptador MikroTik RouterOS v7 (REST con fallback a API binaria 8728), credenciales cifradas en PostgreSQL. | `connectors-core`, `security` |
 | [`packages/shared`](packages/shared) | L0 | Contratos canónicos Zod, esquemas compartidos, tipos de telemetría, cliente Laya y Expert System. | — |
 | [`packages/connectors/core`](packages/connectors/core) | L0 | Tipos canónicos de NMS y políticas estrictas de seguridad SSRF (allowlists, rangos privados, metadatos de nube). | — |
-| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | — |
+| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | `shared` |
 | [`packages/security`](packages/security) | L0 | Analizador RFC 3164/5424 de paquetes syslog y clasificadores de ataques. | — |
 
 > El servicio `services/laya` (FastAPI) es un despliegue opcional del Expert System para escenarios Docker y batch. La implementación de referencia es TypeScript, en `packages/shared/src/laya-expert-system.ts`.
@@ -68,7 +68,7 @@ Siete workspaces no se ordenan en una capa propia porque cruzan el proceso web y
 | Límite | Regla |
 |---|---|
 | **Dependencia** | Un paquete importa de su propia capa o de una capa inferior. Nunca hacia arriba y nunca en círculo. `apps/web` es el único que conoce a todos. |
-| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared`. Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
+| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared` (con la excepción conocida del tipo `Role`, aún definido también en `packages/db/src/auth.ts`, `packages/security/src/auth-roles.ts`, `apps/web/lib/auth/permissions.ts` y `apps/web/lib/auth/client.ts`). Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
 | **Detección** | `detection` y `security` exponen funciones **puras**: sin I/O, sin acceso a base, sin hora del sistema. Eso es lo que las hace testeables y auditables. |
 | **Conectores** | Ningún adaptador habla directo con la base. Pasa por `connectors-core`, que es donde vive la política SSRF. |
 | **Acceso a datos** | `db` es el único que conoce Prisma y el KMS. El resto consume el cliente tipado. |
@@ -214,7 +214,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Estos son
 | **Inferencia LLM** | `LLM_PROVIDER`, `LLM_FALLBACK`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y cadena de respaldo. |
 | **Laya** | `LAYA_ENABLED`, `LAYA_MODE`, `LAYA_URL`, `LAYA_FAIL_OPEN`, `LAYA_CONFIDENCE_THRESHOLD_HIGH`, `LAYA_CONFIDENCE_THRESHOLD_LOW` | Modo del Expert System y umbrales de confianza. |
 | **Seguridad de sesiones** | `JWT_SECRET`, `KMS_MASTER_KEY`, `SESSION_COOKIE_SECURE`, `SEED_ADMIN_PASSWORD` | Material de claves y cookies. |
-| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP`, `OIDC_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_TENANT_SLUG` | OIDC/SSO (Authorization Code + PKCE) implementado sobre el mismo sistema de sesiones; cliente LDAP/AD y diagnóstico de conectividad (**no conectado al flujo de login**). |
+| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP`, `OIDC_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_TENANT_SLUG` | OIDC/SSO (Authorization Code + PKCE) implementado sobre el mismo sistema de sesiones; cliente LDAP/AD conectado a `/api/auth/ldap/login` y como fallback en `/api/auth/login` (`LDAP_ENABLED=true`), más diagnóstico de conectividad. |
 | **Backup DB** | `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE` | Automatización de backups PostgreSQL con retención y upload remoto. |
 
 ---

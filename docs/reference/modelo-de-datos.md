@@ -19,11 +19,14 @@ con `onDelete: Cascade`.
 `tokenHash` (`@unique`, SHA-256 del JWT), `expiresAt`, `userAgent?`, `ipAddress?`,
 `lastUsedAt`. **No tiene `tenantId`**: se alcanza por `userId`.
 
-### `RateLimitBucket` (`:441`) y `AuthRateLimit` (`:459`)
+### `RateLimitBucket` (`:480`) y `AuthRateLimit` (`:498`)
 - `RateLimitBucket`: contador por `(userId, scope, windowStart)`, único compuesto.
 - `AuthRateLimit`: contador **sin FK a usuario ni tenant**, a propósito — el atacante todavía
-  no está identificado (comentario `:454-458`). `key` es del tipo `login:email:<email>` o
-  `login:ip:<ip>`.
+  no está identificado (comentario `:494-497`). Columnas: `key` + `windowStart` (único compuesto),
+  `expiresAt` y `count`. `key` usa namespaces separados por flujo: `login:`, `mfa:`, `oidc:` y
+  `signup:` (`<scope>:email:<email>` / `<scope>:ip:<ip>`, más claves por token temporal como
+  `mfa_temp_used:<hash>` y `mfa_temp_attempt:<hash>`), con reserva atómica y devolución en
+  PostgreSQL (`reserveAuthQuota`/`releaseAuthQuota` en `packages/db/src/auth-rate-limit.ts`).
 
 ### `TenantPolicy` (`:608`)
 1:1 con `Tenant` (`tenantId` es la PK). Sobrescribe por tenant los knobs del módulo:

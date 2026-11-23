@@ -53,6 +53,11 @@ vi.mock('@ftth-copilot/connectors-mikrotik', () => {
   };
 });
 
+import {
+  __resetConnectionHealth,
+  recordConnectionError,
+  recordConnectionSuccess,
+} from '@/lib/monitoring/connection-health';
 import { GET as listConnectorsRoute } from '@/app/api/connectors/route';
 import { POST as createConnectorRoute } from '@/app/api/connectors/create/route';
 import { DELETE as deleteConnectorRoute } from '@/app/api/connectors/[id]/route';
@@ -110,6 +115,38 @@ describe('Connectors API integration', () => {
       });
       // Ensure encryptedKey is not exposed in public projection
       expect(data.connectors[0].encryptedKey).toBeUndefined();
+    });
+
+    it('expone el detalle de salud sólo del tenant autenticado', async () => {
+      const now = Date.now();
+      __resetConnectionHealth();
+      recordConnectionSuccess('tenant-1', 'conn-1', now - 1000);
+      recordConnectionError('tenant-2', 'conn-2', 'secreto del tenant 2', now - 1000);
+      mocks.prismaNmsFindMany.mockResolvedValueOnce([]);
+
+      const res = await listConnectorsRoute();
+      const data = await res.json();
+
+      expect(data.health).toHaveLength(1);
+      expect(data.health[0]).toMatchObject({
+        tenantId: 'tenant-1',
+        connectionId: 'conn-1',
+        state: 'healthy',
+      });
+      expect(JSON.stringify(data)).not.toContain('secreto del tenant 2');
+      expect(JSON.stringify(data)).not.toContain('conn-2');
+    });
+
+    it('no expone detalle de salud sin sesión', async () => {
+      __resetConnectionHealth();
+      recordConnectionError('tenant-1', 'conn-1', 'secreto', Date.now());
+      mocks.getCurrentUser.mockResolvedValueOnce(null);
+
+      const res = await listConnectorsRoute();
+      const data = await res.json();
+
+      expect(data.health).toEqual([]);
+      expect(JSON.stringify(data)).not.toContain('secreto');
     });
   });
 

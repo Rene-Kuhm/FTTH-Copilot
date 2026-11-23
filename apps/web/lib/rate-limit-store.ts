@@ -1,19 +1,21 @@
 /**
- * SEC-008 — almacén de cuota con Redis, con respaldo en memoria.
+ * SEC-008 — almacén de cuota con Redis para Node, con respaldo en memoria.
  *
- * El middleware de Edge ya pone un límite por instancia, pero una ventana
- * con varias réplicas multiplica el límite real por el número de réplicas.
- * Este store hace que el límite sea **global**: todas las instancias de la
- * web cuentan en la misma Redis, la misma que usa la cola del worker.
+ * El middleware de Edge (`apps/web/middleware.ts`) no tiene TCP y mantiene su
+ * límite grueso en memoria, **por instancia**. Este store compartido queda para
+ * las superficies que corren en **Node** (los route handlers que mutan estado,
+ * vía `enforceApiRateLimit`): todas las réplicas de la web cuentan en la misma
+ * Redis (`REDIS_URL`), la misma que usa la cola del worker.
  *
  * Dos reglas:
  *
  * 1. **Sin `REDIS_URL` no se cae nada.** El modo embebido y el desarrollo
- *    local pueden no tener Redis: ahí se usa el almacén en memoria y el
- *    límite es por instancia, como siempre.
+ *    local pueden no tener Redis: ahí se usa el almacén en memoria, el límite
+ *    queda por instancia y se avisa en los logs.
  * 2. **Si Redis falla, la petición pasa.** Un limiter que tumba la API
- *    cuando parpadea la Redis es peor que no tener limiter. El middleware de
- *    Edge sigue aplicando su límite en memoria como red de seguridad.
+ *    cuando parpadea la Redis es peor que no tener limiter: la cuenta se
+ *    reanuda cuando Redis vuelve, el aviso queda en los logs y el middleware de
+ *    Edge conserva su límite en memoria como red de seguridad.
  */
 import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
@@ -132,8 +134,8 @@ export function createRedisRateLimitStore(
           resetAt: now + (Number.isFinite(remainingMs) ? remainingMs : config.windowMs),
         };
       } catch (error) {
-        // Redis no está: se deja pasar. El middleware de Edge sigue poniendo
-        // su límite en memoria, así que la API no queda sin protección.
+        // Redis no está: se deja pasar para no tumbar la API por un
+        // parpadeo del limiter. El aviso queda en los logs.
         log.warn('Rate limit store unavailable; request allowed', {
           error: error instanceof Error ? error : new Error(String(error)),
         });
@@ -269,6 +271,9 @@ export function rateLimitRedisUrl(
 export function createRateLimitStore(env: NodeJS.ProcessEnv = process.env): RateLimitStore {
   const url = rateLimitRedisUrl(env);
   if (!url) {
+    log.warn('REDIS_URL is not set; rate limit is per instance', {
+      kind: 'memory',
+    });
     return { ...createInMemoryRateLimitStore(), kind: 'memory' };
   }
   return createRedisRateLimitStore(url);
@@ -289,11 +294,12 @@ export function getRateLimitStore(env: NodeJS.ProcessEnv = process.env): RateLim
 }
 
 /**
- * Aplica el límite a una petición de la API.
+ * Aplica el límite a una petición de la API en el runtime de Node.
  *
  * Devuelve la respuesta 429 cuando la cuota está agotada, y `null` cuando
- * la petición puede seguir. El runtime de Node es el que puede usar Redis;
- * el middleware de Edge sigue con su límite en memoria.
+ * la petición puede seguir. Coordina las rutas que mutan estado entre réplicas
+ * vía Redis (`REDIS_URL`), mientras el middleware de Edge aplica su límite
+ * grueso en memoria por instancia.
  */
 export async function enforceApiRateLimit(
   request: Request,

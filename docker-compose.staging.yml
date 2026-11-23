@@ -78,6 +78,15 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Reverse proxy only: it terminates TLS and forwards to `app:3001`.
+    deploy:
+      resources:
+        limits:
+          cpus: "${CADDY_CPU_LIMIT:-0.5}"
+          memory: ${CADDY_MEM_LIMIT:-256m}
+        reservations:
+          cpus: "${CADDY_CPU_RESERVATION:-0.05}"
+          memory: ${CADDY_MEM_RESERVATION:-64m}
     ports:
       - "${STAGING_HTTP_PORT:-8080}:8080"
     volumes:
@@ -105,6 +114,15 @@ services:
   mock-nms:
     image: node:22-alpine
     restart: unless-stopped
+    # Servidor de datos sintéticos del repo: límites chicos, sin estado.
+    deploy:
+      resources:
+        limits:
+          cpus: "${MOCK_NMS_CPU_LIMIT:-0.5}"
+          memory: ${MOCK_NMS_MEM_LIMIT:-256m}
+        reservations:
+          cpus: "${MOCK_NMS_CPU_RESERVATION:-0.05}"
+          memory: ${MOCK_NMS_MEM_RESERVATION:-64m}
     # En la red del host, como el worker: la conexión apunta a
     # `http://127.0.0.1:${MOCK_NMS_PORT}`.
     network_mode: host

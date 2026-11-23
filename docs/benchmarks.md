@@ -84,21 +84,26 @@ alertFalsePositiveRate: 0.02  // 2% < 5% ✓
 ## 3. Latencia del receptor SNMP
 
 > **Gateway 7 — Benchmark publicado en [`docs/conformance-benchmark.md`](conformance-benchmark.md)**
+>
+> Fuente de estas cifras: el laboratorio de conformidad regenera ese documento con cada
+> corrida. Esta tabla es sólo un resumen; no se mide acá ni depende de ejecutar el script de
+> benchmark, que muta superficies protegidas.
 
 | Métrica | Valor | Umbral SLA | Estado |
 |---|---|---|---|
-| **Latencia p95 (UDP loopback)** | **1.328 ms** | < 50 ms | ✅ PASS |
-| Latencia promedio | 0.506 ms | < 25 ms | ✅ PASS |
-| Latencia p50 | 0.377 ms | < 25 ms | ✅ PASS |
-| Latencia p99 | 3.447 ms | < 100 ms | ✅ PASS |
-| Throughput sostenido | 845 events/sec | > 100 events/sec | ✅ PASS |
+| **Latencia p95 (UDP loopback)** | **0.078 ms** | < 50 ms | ✅ PASS |
+| Latencia promedio | 0.045 ms | < 25 ms | ✅ PASS |
+| Latencia p50 | 0.033 ms | < 25 ms | ✅ PASS |
+| Latencia p99 | 0.265 ms | < 100 ms | ✅ PASS |
+| Throughput sostenido | 1395.35 events/sec | > 100 events/sec | ✅ PASS |
 | Drops bajo carga sostenida | **0** | 0 requerido | ✅ PASS |
-| Delta de heap (300 traps) | 1.26 MB | < 50 MB | ✅ PASS |
+| Delta de heap (300 traps) | -1.57 MB | < 50 MB | ✅ PASS |
 
-Normalización in-memory por vendor (promedio < 0.1 ms por trap):
+Normalización in-memory por vendor (promedio < 0.05 ms por trap):
 Huawei, ZTE, Nokia, FiberHome, Calix, Adtran, VSOL, BDCOM — todos ✅
 
-Para ejecutar: `pnpm benchmark:snmp`
+El detalle de la corrida (300 traps, 500 repeticiones por vendor y distribución completa de
+latencia) está en [`docs/conformance-benchmark.md`](conformance-benchmark.md).
 
 ---
 
@@ -177,8 +182,8 @@ decision = accepted si:
 |---|---|---|---|
 | Latencia diagnóstico | DIRECT tool call | **3 ms** | Alta (captura real) |
 | Latencia diagnóstico | INVESTIGATION 4 tool calls | **4 LLM calls** | Alta (captura real) |
-| Latencia SNMP | p95 UDP loopback | **1.33 ms** | Alta (benchmark reproducible) |
-| Throughput SNMP | events/sec | **845 /sec** | Alta (benchmark reproducible) |
+| Latencia SNMP | p95 UDP loopback | **0.078 ms** | Alta ([`conformance-benchmark.md`](conformance-benchmark.md)) |
+| Throughput SNMP | events/sec | **1395.35 /sec** | Alta ([`conformance-benchmark.md`](conformance-benchmark.md)) |
 | Intention accuracy | accuracy ≥ 0.95 | **≥ 0.95** | Alta (253 tests) |
 | Alert FP rate | pilot gate | **< 5%** | Media (threshold test only) |
 | Supported claims | pilot gate | **≥ 90%** | Media (threshold test only) |

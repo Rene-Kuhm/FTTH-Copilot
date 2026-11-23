@@ -98,7 +98,12 @@ FTTH-Copilot implements **OAuth 2.0 Authorization Code + PKCE (S256)** via `open
 - **Callback:** `GET /api/auth/oidc/callback`
 - **Scope v1:** single IdP per installation bound to one tenant (`OIDC_TENANT_SLUG`).
 - **Identity resolution:** matches `(issuer, subject)` in `UserIdentity`; on first login, links to an existing tenant user only when `email_verified === true` and the domain is in `OIDC_ALLOWED_EMAIL_DOMAINS`, or auto-provisions if `OIDC_AUTO_PROVISION=true`.
-- **MFA:** if the user has TOTP enabled locally, TOTP verification is still required after the OIDC callback.
+- **MFA:** enforces both local TOTP and tenant-level mandatory MFA (`TenantPolicy.requireMfa`); when MFA is required, no session is issued without a second factor (users with TOTP are redirected to `/login?mfa=required&tempToken=...`, and un-enrolled users in MFA-required tenants are redirected to `/login?mfa=setup_required&tempToken=...`). In OIDC (`apps/web/lib/auth/oidc.ts:893`), a user with `mfaEnabled=true` but no `totpSecret` is also redirected to `/login?mfa=setup_required&tempToken=...` even when the tenant does not require MFA (local login does not apply that rule, `apps/web/lib/auth/mfa-policy.ts:34-48`).
+- **Rate limiting:** `GET /api/auth/oidc/callback` reserves brute-force quota in the dedicated `oidc:` namespace (isolated from `login:` and `mfa:` buckets):
+  - **Pre-exchange IP / transaction bucket:** reserved before the authorization code exchange via `authQuotaKeys(...)`. When `X-Forwarded-For` is present, it charges `oidc:ip:<ip>` under `AUTH_RATE_LIMIT_MAX` (default `10`). When `X-Forwarded-For` is absent, there is **no IP bucket** (open decision D7): instead, it charges a per-transaction bucket `oidc:tx:<sha256(txToken).slice(0,32)>` under `AUTH_RATE_LIMIT_MAX` so unauthenticated callbacks cannot bypass rate limiting and distinct clients never share a bucket or cause cross-user denial.
+  - **Post-identity email bucket:** `oidc:email:<email>` is reserved in a separate reservation once the email is resolved from claims or the user record, always using `AUTH_RATE_LIMIT_MAX`. If this reservation is denied (`429`), the prior `oidc:ip:` or `oidc:tx:` reservation is refunded immediately so a blocked email never drains a shared NAT IP or transaction budget.
+  - **Refund policy (owner decision):** each bucket is refunded using its own reservation `windowStart` on successful login (session issued), on MFA delegation (`mfa_required` / `mfa_setup_required`), on `oidc:email:` denial (`429`), and on unexpected internal errors (`500`). Expected rejections do **not** refund: failed code exchanges or invalid ID token claims (`oidc_callback_failed`, `oidc_missing_id_token`, `oidc_<claim_reason>`) keep `oidc:ip:` or `oidc:tx:` consumed, and post-identity rejections (`oidc_domain_not_allowed`, `oidc_user_not_found`, `oidc_email_not_verified`, `oidc_tenant_mismatch`, `oidc_provision_conflict`) keep both `oidc:ip:`/`oidc:tx:` and `oidc:email:` consumed. Refunding on MFA delegation and keeping rejections consumed is an intentional owner design decision (S16).
+  - **Deployment recommendation:** configure the reverse proxy in front of the app to inject `X-Forwarded-For` so clients get isolated `oidc:ip:<ip>` buckets (D7 remains open without `X-Forwarded-For`).
 
 ### Environment variables
 
@@ -199,7 +204,17 @@ Content-Type: application/json
 When `requireMfa` is `true` for a tenant:
 - Users who have not enrolled TOTP receive `403` with `code: "MFA_SETUP_REQUIRED"` and a short-lived `tempToken` (usable with `POST /api/auth/mfa/setup` via `Authorization: Bearer <tempToken>` and `POST /api/auth/mfa/verify`).
 - Each `tempToken` is single-use once MFA verification succeeds and is locked after **5 invalid TOTP attempts** on `POST /api/auth/mfa/verify` (tracked per token in `auth_rate_limits` until token expiry; subsequent attempts with that `tempToken` return `401`, even with a valid code).
+- Per-email and per-IP brute-force protection on MFA endpoints (`/api/auth/mfa/verify`, `/api/auth/mfa/setup`, `/api/auth/mfa/disable`) uses a dedicated `mfa:` quota namespace (`mfa:email:...` / `mfa:ip:...`) isolated from `login:` (`login:email:...` / `login:ip:...`), with atomic reservation and refund on success so MFA failures do not lock out primary login and vice versa.
 - `POST /api/auth/mfa/disable` rejects requests with `403` so users cannot disable MFA while the tenant policy requires it.
+
+### Web login challenge
+
+The web login UI handles MFA challenges returned by `POST /api/auth/login`:
+
+- `200 { mfaRequired: true, tempToken }`: shows a TOTP step and verifies with `POST /api/auth/mfa/verify` using `{ tempToken, code }`.
+- `403 { code: "MFA_SETUP_REQUIRED", mfaSetupRequired: true, tempToken }`: shows a minimal enrollment-required step. The user can generate a TOTP secret through `POST /api/auth/mfa/setup` with `Authorization: Bearer <tempToken>`, then verify with `POST /api/auth/mfa/verify`.
+- The `tempToken` is kept only in memory (React state), never in `localStorage`. It is cleared on successful verification, cancel, or navigation away.
+- MFA verification errors are shown inline (`aria-live="assertive"`). `429` responses include the `Retry-After` delay in the message when present.
 
 ---
 

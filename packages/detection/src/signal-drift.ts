@@ -1,3 +1,4 @@
+import { DEFAULT_DEGRADED_RX_THRESHOLD_DBM } from '@ftth-copilot/shared';
 import { predictThresholdCrossing } from './trend';
 import type { Finding, NumericSample, DeviceKind } from './types';
 
@@ -23,7 +24,7 @@ export function detectSignalDrift(
   samples: NumericSample[],
   opts: SignalDriftOptions = {},
 ): Finding | null {
-  const threshold = opts.thresholdDbm ?? -27;
+  const threshold = opts.thresholdDbm ?? DEFAULT_DEGRADED_RX_THRESHOLD_DBM;
   const prediction = predictThresholdCrossing(samples, {
     threshold,
     direction: 'below',

@@ -334,7 +334,9 @@ describe('agent tools', () => {
     const thresholdDescription = schema.properties?.['thresholdDbm']?.description ?? '';
 
     // El motor de detección dispara a -27 dBm (`packages/detection/src/signal-drift.ts`).
-    expect(thresholdDescription).toContain('-27');
+    expect(thresholdDescription).toBe(
+      'Umbral de RX power. Sugeridos: -25 (atención), -27 (problema). Son los mismos umbrales que usa el motor de detección.',
+    );
     expect(thresholdDescription).not.toContain('-28');
   });
 

@@ -1,4 +1,7 @@
-import type { InvestigationEvidenceRef } from '@ftth-copilot/shared';
+import {
+  DEFAULT_DEGRADED_RX_THRESHOLD_DBM,
+  type InvestigationEvidenceRef,
+} from '@ftth-copilot/shared';
 
 export interface OpticalFacts {
   sampleCount: number;
@@ -86,7 +89,7 @@ export function computeInvestigationFacts(
     const sum = rxValues.reduce((a, b) => a + b, 0);
     avgRxPower = parseFloat((sum / rxValues.length).toFixed(2));
     deltaRxPower = parseFloat((maxRxPower - minRxPower).toFixed(2));
-    hasCriticalAttenuation = minRxPower < -27.0;
+    hasCriticalAttenuation = minRxPower < DEFAULT_DEGRADED_RX_THRESHOLD_DBM;
     hasWarningAttenuation = minRxPower < -25.0;
   }
 

@@ -248,12 +248,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "429":
-          description: Cuota de intentos excedida.
+        "403":
+          description: 'Política del tenant exige configurar MFA (`code: "MFA_SETUP_REQUIRED"`, `mfaSetupRequired: true`, `tempToken`).'
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RateLimitedError"
+                type: object
+                properties:
+                  error:
+                    type: string
+                  code:
+                    type: string
+                    const: MFA_SETUP_REQUIRED
+                  mfaSetupRequired:
+                    type: boolean
+                    const: true
+                  tempToken:
+                    type: string
+                required: [error, code, mfaSetupRequired, tempToken]
+        "429":
+          description: Cuota de intentos excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body).
+          headers:
+            retry-after:
+              description: Segundos hasta que se libere la ventana de cuota.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/auth/signup:
     post:
@@ -287,11 +310,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "429":
-          description: Cuota por IP excedida.
+          description: Cuota por IP excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body).
+          headers:
+            retry-after:
+              description: Segundos hasta que se libere la ventana de cuota.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RateLimitedError"
+                $ref: "#/components/schemas/Error"
 
   /api/auth/me:
     get:
@@ -369,9 +397,20 @@ paths:
             type: string
       responses:
         "302":
-          description: Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, o a `/login?error=...` ante rechazo.
+          description: Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, a `/login?mfa=setup_required` si requiere configurar MFA, o a `/login?error=...` ante rechazo.
         "404":
           description: OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Cuota de intentos OIDC excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body).
+          headers:
+            retry-after:
+              description: Segundos hasta que se libere la ventana de cuota.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -538,15 +577,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "403":
+          description: Política del tenant exige MFA y no puede deshabilitarse.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Cuota de intentos MFA excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body).
+          headers:
+            retry-after:
+              description: Segundos hasta que se libere la ventana de cuota.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/auth/mfa/verify:
     post:
       tags: [Autenticación]
       summary: Verifica el segundo factor y abre sesión.
       description: |
-        Acepta `{email,password,code}`, `{code}` o `{tempToken,code}`. Es la única
-        operación de auth que **no** exige CSRF y la única que emite sólo la cookie de
-        sesión (no la de CSRF).
+        Acepta `{email,password,code}`, `{code}` o `{tempToken,code}`. Exento de CSRF
+        como el resto de `/api/auth/*`; al abrir sesión emite tanto `ftth_session` como
+        la cookie CSRF `ftth_csrf`.
       operationId: verifyMfa
       security: []
       requestBody:
@@ -571,6 +627,23 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description: Credencial, código o token inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Usuario no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Cuota de intentos MFA excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body).
+          headers:
+            retry-after:
+              description: Segundos hasta que se libere la ventana de cuota.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -3864,12 +3937,62 @@ components:
             type: object
             additionalProperties: true
         connections:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/ConnectionHealthAggregate"
         ingest:
           type: object
           additionalProperties: true
       required: [status, timestamp, uptime, memory, version, owner, scope]
+
+    ConnectionHealthAggregate:
+      type: object
+      description: >-
+        Agregado no identificativo del health público. Nunca expone ids de
+        conexión, ids de tenant ni mensajes de error; el detalle vive en
+        `/api/connectors`, autenticado y filtrado por tenant.
+      properties:
+        total:
+          type: integer
+        byState:
+          $ref: "#/components/schemas/ConnectionHealthCounts"
+      required: [total, byState]
+
+    ConnectionHealthCounts:
+      type: object
+      description: Conteo de conexiones por estado; todos los estados están presentes.
+      properties:
+        fresh:
+          type: integer
+        healthy:
+          type: integer
+        stale:
+          type: integer
+        error:
+          type: integer
+        recovered:
+          type: integer
+      required: [fresh, healthy, stale, error, recovered]
+
+    ConnectionHealthDetail:
+      type: object
+      description: >-
+        Detalle de salud de una conexión. Sólo se sirve en `/api/connectors`
+        al tenant autenticado dueño de la conexión.
+      properties:
+        tenantId:
+          type: string
+        connectionId:
+          type: string
+        state:
+          type: string
+          enum: [fresh, healthy, stale, error, recovered]
+        lastRunAt:
+          type: [integer, "null"]
+        lastError:
+          type: [string, "null"]
+        lastErrorAt:
+          type: [integer, "null"]
+      required:
+        [tenantId, connectionId, state, lastRunAt, lastError, lastErrorAt]
 
     ChatRequest:
       type: object
@@ -4002,7 +4125,14 @@ components:
             $ref: "#/components/schemas/Connector"
         demoMode:
           type: boolean
-      required: [connectors, demoMode]
+        health:
+          type: array
+          description: >-
+            Detalle de salud de las conexiones del tenant autenticado. Vacío
+            cuando no hay sesión.
+          items:
+            $ref: "#/components/schemas/ConnectionHealthDetail"
+      required: [connectors, demoMode, health]
 
     CreateConnectorRequest:
       type: object
@@ -5286,6 +5416,6 @@ x-implementation-notes:
   notes:
     - "`GET /api/maintenance-windows` no chequea permiso, mientras que `POST` sí exige `manage_maintenance` (`api/maintenance-windows/route.ts:42` vs `:161`)."
     - "`/api/vm/query` y `/api/vm/instant` no tienen autenticación y aceptan PromQL arbitrario del query string."
-    - "El middleware exime de CSRF a todo `/api/auth/*`, y `POST /api/auth/mfa/verify` sets **sólo** la cookie de sesión, no la de CSRF (a diferencia de `/api/auth/login` y `/api/auth/signup`)."
+    - "El middleware exime de CSRF a todo `/api/auth/*`; al emitir sesión, `POST /api/auth/mfa/verify` setea tanto `ftth_session` como `ftth_csrf` (igual que `/api/auth/login` y `/api/auth/signup`)."
     - "La forma del error 401 no es uniforme: casi todos devuelven `{error:'Not authenticated'}`; `/api/conversations/[id]` devuelve `{error:'No autenticado.'}` y `/api/ops/stream` devuelve texto plano `Unauthorized`."
     - "Sólo `/api/incidents` y `/api/predictions` usan paginación por cursor (`apps/web/lib/api/pagination.ts`: `DEFAULT_LIMIT=50`, `MAX_LIMIT=200`)."

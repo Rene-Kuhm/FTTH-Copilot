@@ -196,12 +196,38 @@ export type HealthReport = {
   hungLoops?: {
   [key: string]: unknown;
 }[];
-  connections?: {
-  [key: string]: unknown;
-};
+  connections?: ConnectionHealthAggregate;
   ingest?: {
   [key: string]: unknown;
 };
+  [key: string]: unknown;
+};
+
+/** Agregado no identificativo del health público. Nunca expone ids de conexión, ids de tenant ni mensajes de error; el detalle vive en `/api/connectors`, autenticado y filtrado por tenant. */
+export type ConnectionHealthAggregate = {
+  total: number;
+  byState: ConnectionHealthCounts;
+  [key: string]: unknown;
+};
+
+/** Conteo de conexiones por estado; todos los estados están presentes. */
+export type ConnectionHealthCounts = {
+  fresh: number;
+  healthy: number;
+  stale: number;
+  error: number;
+  recovered: number;
+  [key: string]: unknown;
+};
+
+/** Detalle de salud de una conexión. Sólo se sirve en `/api/connectors` al tenant autenticado dueño de la conexión. */
+export type ConnectionHealthDetail = {
+  tenantId: string;
+  connectionId: string;
+  state: "fresh" | "healthy" | "stale" | "error" | "recovered";
+  lastRunAt: number;
+  lastError: string;
+  lastErrorAt: number;
   [key: string]: unknown;
 };
 
@@ -283,6 +309,7 @@ export type ConnectorList = {
   user?: User;
   connectors: Connector[];
   demoMode: boolean;
+  health: ConnectionHealthDetail[];
   [key: string]: unknown;
 };
 

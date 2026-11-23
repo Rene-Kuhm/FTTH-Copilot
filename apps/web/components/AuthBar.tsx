@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useAuth } from '@/lib/auth/client';
+import { useEffect, useRef, useState } from 'react';
+import { setupMfaRequest, useAuth, verifyMfaRequest } from '@/lib/auth/client';
 import { ThemeToggle } from './ThemeToggle';
 import {
   ArrowLeftOnRectangleIcon,
@@ -54,12 +54,23 @@ export function AuthBar({
   const [tenantName, setTenantName] = useState('');
   const [mfaTempToken, setMfaTempToken] = useState<string | null>(initialMfaTempToken);
   const [mfaCode, setMfaCode] = useState('');
+  const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
+  const [mfaSetupSecret, setMfaSetupSecret] = useState<string | null>(null);
+  const [mfaSetupUri, setMfaSetupUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
     initialOidcError
       ? (OIDC_ERROR_MESSAGES[initialOidcError] ?? 'No se pudo iniciar sesión con SSO.')
       : null,
   );
   const [submitting, setSubmitting] = useState(false);
+  const mfaCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const showMfaStep = !auth.loading && !auth.user && Boolean(mfaTempToken);
+
+  useEffect(() => {
+    if (showMfaStep) {
+      mfaCodeInputRef.current?.focus();
+    }
+  }, [showMfaStep, mfaTempToken]);
 
   if (auth.loading) {
     return (
@@ -141,7 +152,7 @@ export function AuthBar({
     );
   }
 
-  if (mode === null) {
+  if (mode === null && !mfaTempToken) {
     return (
       <div
         className="card flex flex-col items-start justify-between gap-5 px-5 py-5 sm:flex-row sm:items-center sm:px-6"
@@ -171,23 +182,65 @@ export function AuthBar({
     );
   }
 
+  function clearMfaState() {
+    setMfaTempToken(null);
+    setMfaCode('');
+    setMfaSetupRequired(false);
+    setMfaSetupSecret(null);
+    setMfaSetupUri(null);
+  }
+
+  function clearFormState() {
+    setMode(null);
+    setEmail('');
+    setPassword('');
+    setName('');
+    setTenantName('');
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setMfaSetupRequired(false);
     setSubmitting(true);
     try {
       if (mode === 'login') {
-        await auth.login(email, password);
+        const result = await auth.login(email, password);
+        if (result.status === 'mfa_required') {
+          setMfaTempToken(result.tempToken);
+          setMfaCode('');
+          return;
+        }
+        if (result.status === 'mfa_setup_required') {
+          setMfaTempToken(result.tempToken);
+          setMfaCode('');
+          setMfaSetupRequired(true);
+          setMfaSetupSecret(null);
+          setMfaSetupUri(null);
+          setError(result.error);
+          return;
+        }
       } else {
         await auth.signup(email, password, name, tenantName);
       }
-      setMode(null);
-      setEmail('');
-      setPassword('');
-      setName('');
-      setTenantName('');
+      clearFormState();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function beginMfaSetup() {
+    if (!mfaTempToken) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const setup = await setupMfaRequest(mfaTempToken);
+      setMfaSetupSecret(setup.secret);
+      setMfaSetupUri(setup.otpauthUri);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
     } finally {
       setSubmitting(false);
     }
@@ -199,18 +252,9 @@ export function AuthBar({
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/mfa/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ tempToken: mfaTempToken, code: mfaCode }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(typeof body.error === 'string' ? body.error : 'Código MFA inválido.');
-      }
-      setMfaTempToken(null);
-      setMfaCode('');
+      await verifyMfaRequest(mfaTempToken, mfaCode);
+      clearMfaState();
+      clearFormState();
       await auth.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -234,11 +278,47 @@ export function AuthBar({
             Verificación en dos pasos
           </h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
-            Ingresá el código de 6 dígitos de tu app autenticadora.
+            {mfaSetupRequired
+              ? 'Tu organización exige MFA. Generá un secreto TOTP, configurá tu app autenticadora y verificá el código para completar el ingreso.'
+              : 'Ingresá el código de 6 dígitos de tu app autenticadora.'}
           </p>
         </div>
+        {mfaSetupRequired && !mfaSetupSecret && (
+          <button
+            type="button"
+            onClick={() => void beginMfaSetup()}
+            disabled={submitting}
+            className="btn-outline min-h-11 w-full"
+          >
+            Generar configuración MFA
+          </button>
+        )}
+        {mfaSetupRequired && mfaSetupSecret && (
+          <div
+            className="rounded-lg px-3 py-3 text-sm space-y-2"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+              background: 'color-mix(in srgb, var(--color-accent) 8%, transparent)',
+              color: 'var(--color-text)',
+            }}
+          >
+            <p style={{ color: 'var(--color-muted)' }}>
+              Agregá esta clave en tu app autenticadora y luego ingresá el código.
+            </p>
+            <p className="font-mono text-xs break-all">
+              <span style={{ color: 'var(--color-muted)' }}>Secreto: </span>
+              {mfaSetupSecret}
+            </p>
+            {mfaSetupUri && (
+              <p className="text-xs break-all" style={{ color: 'var(--color-muted)' }}>
+                URI: <span className="font-mono">{mfaSetupUri}</span>
+              </p>
+            )}
+          </div>
+        )}
         <Field icon={<KeyIcon className="h-4 w-4" />} label="Código TOTP">
           <input
+            ref={mfaCodeInputRef}
             type="text"
             name="code"
             inputMode="numeric"
@@ -248,10 +328,12 @@ export function AuthBar({
             onChange={(e) => setMfaCode(e.target.value)}
             required
             className="input"
+            aria-describedby={error ? 'mfa-error' : undefined}
           />
         </Field>
         {error && (
           <div
+            id="mfa-error"
             role="alert"
             aria-live="assertive"
             className="rounded-lg px-3 py-2 text-sm"
@@ -267,6 +349,17 @@ export function AuthBar({
         <button type="submit" disabled={submitting} className="btn-primary min-h-11 w-full">
           <KeyIcon className="h-4 w-4" />
           {submitting ? 'Verificando…' : 'Verificar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            clearMfaState();
+            setMode((prev) => prev ?? 'login');
+            setError(null);
+          }}
+          className="btn-ghost w-full"
+        >
+          Volver al inicio de sesión
         </button>
       </form>
     );

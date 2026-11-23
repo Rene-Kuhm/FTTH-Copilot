@@ -16,6 +16,10 @@ import { SYSTEM_PROMPT } from '../src/prompts/system';
 describe('system prompt del agente', () => {
   it('usa el umbral de RX power del motor de detección (-27 dBm)', () => {
     expect(SYSTEM_PROMPT).toContain('**RX power con problema**: < -27 dBm');
+    expect(SYSTEM_PROMPT).toContain(
+      '- **RX power en atención**: -25 a -27 dBm\n' +
+        '- **RX power con problema**: < -27 dBm (posible corte de fibra, conector sucio, ONU defectuosa)',
+    );
     expect(SYSTEM_PROMPT).not.toContain('-28 dBm');
   });
 
