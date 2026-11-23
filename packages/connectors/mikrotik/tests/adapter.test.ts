@@ -13,6 +13,20 @@ describe('parseMikrotikUptimeSeconds', () => {
     expect(parseMikrotikUptimeSeconds('2d05:10:00')).toBe(2 * 86400 + 5 * 3600 + 10 * 60);
   });
 
+  it('extracts the first value per unit from a long uptime string', () => {
+    const padding = ' '.repeat(50_000);
+    const letterUptime = `1W${padding}2d3H999ms4M5s6s`;
+    const colonUptime = `1w${padding}2d05:10:00`;
+    const start = performance.now();
+    const letterSeconds = parseMikrotikUptimeSeconds(letterUptime);
+    const colonSeconds = parseMikrotikUptimeSeconds(colonUptime);
+    const elapsed = performance.now() - start;
+
+    expect(letterSeconds).toBe(9 * 86400 + 3 * 3600 + 4 * 60 + 5);
+    expect(colonSeconds).toBe(9 * 86400 + 5 * 3600 + 10 * 60);
+    expect(elapsed).toBeLessThan(15);
+  });
+
   it('handles empty or undefined strings gracefully', () => {
     expect(parseMikrotikUptimeSeconds('')).toBe(0);
     expect(parseMikrotikUptimeSeconds(undefined)).toBe(0);
