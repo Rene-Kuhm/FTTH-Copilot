@@ -78,4 +78,45 @@ describe('LayaMetrics', () => {
 
     expect(output).toContain('suggested_route="DIRECT"');
   });
+
+  it('exports ordered latency quantiles and observed confidence extrema', () => {
+    for (const latency of [40, 10, 30, 20]) {
+      metrics.recordLatency(latency, 'shadow');
+    }
+    metrics.recordConfidence(0.75, 'NORMAL');
+    metrics.recordConfidence(0.25, 'NORMAL');
+
+    expect(metrics.getSummary().latencies.shadow).toEqual({ p50: 30, p95: 40, p99: 40, count: 4 });
+    expect(metrics.getSummary().confidences.NORMAL).toEqual({ min: 0.25, max: 0.75, avg: 0.5 });
+    expect(metrics.toPrometheusFormat().split('\n')).toEqual(expect.arrayContaining([
+      'ftth_laya_latency_ms{mode="shadow",quantile="p50"} 30',
+      'ftth_laya_latency_ms{mode="shadow",quantile="p95"} 40',
+      'ftth_laya_latency_ms{mode="shadow",quantile="p99"} 40',
+      'ftth_laya_confidence{event_class="NORMAL",stat="avg"} 0.500',
+      'ftth_laya_confidence{event_class="NORMAL",stat="min"} 0.250',
+      'ftth_laya_confidence{event_class="NORMAL",stat="max"} 0.750',
+    ]));
+  });
+
+  it('keeps exactly the latest 1,000 observations per histogram', () => {
+    metrics.recordLatency(10_000, 'shadow');
+    metrics.recordConfidence(0.125, 'NORMAL');
+    for (let i = 1; i < 1000; i++) {
+      metrics.recordLatency(10, 'shadow');
+      metrics.recordConfidence(0.5, 'NORMAL');
+    }
+
+    expect(metrics.getSummary().latencies.shadow?.count).toBe(1000);
+    expect(metrics.getSummary().confidences.NORMAL?.min).toBe(0.125);
+
+    metrics.recordLatency(20, 'shadow');
+    metrics.recordConfidence(0.75, 'NORMAL');
+
+    const { latencies, confidences } = metrics.getSummary();
+    expect(latencies.shadow?.count).toBe(1000);
+    expect(confidences.NORMAL).toEqual({ min: 0.5, max: 0.75, avg: 0.50025 });
+
+    metrics.reset();
+    expect(metrics.getSummary()).toEqual({ counters: {}, latencies: {}, confidences: {} });
+  });
 });

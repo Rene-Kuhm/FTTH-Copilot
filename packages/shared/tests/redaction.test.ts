@@ -31,6 +31,32 @@ describe('default redactor', () => {
       `Authorization: Bearer ${REDACTED_MARKER}`,
     );
   });
+
+  it('redacts case-insensitive Basic and Bearer credentials throughout a line', () => {
+    expect(redactString('bAsIc  ZmFrZQ==; bearer\tfixture_1+/=; Bearer fixture-2')).toBe(
+      `Basic ${REDACTED_MARKER}; Bearer ${REDACTED_MARKER}; Bearer ${REDACTED_MARKER}`,
+    );
+  });
+
+  it('preserves the scheme, user, host and path when redacting an HTTP password', () => {
+    expect(redactString('http://fixture-user:fixture-password@192.0.2.12/status')).toBe(
+      `http://fixture-user:${REDACTED_MARKER}@192.0.2.12/status`,
+    );
+  });
+
+  it('redacts synthetic hex secrets but preserves standalone digests', () => {
+    const hex = 'a1'.repeat(16);
+    expect(redactString(`digest=${hex}; TOKEN = "${hex}"; password:'${hex}'`)).toBe(
+      `digest=${hex}; TOKEN = "${REDACTED_MARKER}"; password:'${REDACTED_MARKER}'`,
+    );
+  });
+
+  it('redacts the shortest supported synthetic key and preserves a shorter identifier', () => {
+    const fixtureKey = 'fixture000000000';
+    expect(redactString(`key sk-${fixtureKey}; label sk-fixture`)).toBe(
+      `key ${REDACTED_MARKER}; label sk-fixture`,
+    );
+  });
 });
 
 describe('createRedactor', () => {

@@ -52,21 +52,32 @@ describe('Circuit Breaker', () => {
     expect(cb.canExecute()).toBe(false);
   });
 
-  it('transitions to half-open after reset timeout', async () => {
+  it('opens the half-open probe at the reset deadline after the latest failure', () => {
+    const now = 1_752_000_000_000;
     const cb = createCircuitBreaker({
       consecutiveFailuresThreshold: 2,
-      resetTimeoutMs: 50, // 50ms
+      resetTimeoutMs: 50,
     });
 
-    cb.recordFailure();
-    cb.recordFailure();
-    expect(cb.getState().status).toBe('open');
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      expect(cb.recordFailure()).toBe(false);
+      clock.mockReturnValue(now + 10);
+      expect(cb.recordFailure()).toBe(true);
 
-    // Wait for reset timeout
-    await new Promise((r) => setTimeout(r, 60));
+      clock.mockReturnValue(now + 59);
+      expect(cb.canExecute()).toBe(false);
+      expect(cb.getState().status).toBe('open');
 
-    expect(cb.canExecute()).toBe(true);
-    expect(cb.getState().status).toBe('half-open');
+      clock.mockReturnValue(now + 60);
+      expect(cb.canExecute()).toBe(true);
+      expect(cb.getState().status).toBe('half-open');
+
+      cb.recordSuccess();
+      expect(cb.getState()).toMatchObject({ status: 'closed', consecutiveFailures: 0 });
+    } finally {
+      clock.mockRestore();
+    }
   });
 });
 
@@ -94,6 +105,7 @@ describe('Laya Metrics', () => {
     expect(metrics.failuresTotal).toBe(0);
     expect(metrics.latencySum).toBe(100);
     expect(metrics.routeSuggestionTotal['DIRECT']).toBe(1);
+    expect(metrics.confidenceSum).toBe(0.9);
     expect(metrics.confidenceCount).toBe(1);
   });
 
@@ -124,17 +136,13 @@ describe('Laya Metrics', () => {
 
   it('records fallback decisions', () => {
     const metrics = createInitialMetrics();
-    // Fallback is when Laya fails but we continue with fail-open
-    // Note: fallbackTotal is for tracking, not for success/failure counting
-    // This test documents the current behavior
+    // Failed calls reach the failure counter even when fail-open allows a fallback.
     recordLayaCallOutcome(metrics, {
       latencyMs: 0,
       success: false,
       isFallback: true,
     });
 
-    // Fallback decisions are counted separately from success/failure
-    // In this test, we're just verifying the metric exists
     expect(metrics.failuresTotal).toBe(1);
   });
 
