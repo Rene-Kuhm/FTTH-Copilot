@@ -26,6 +26,7 @@ import {
   refreshLoopDeadlines,
   registerRecurringSchedules,
 } from './schedules';
+import { startWorkerSmartoltEventStreams } from './events';
 import { startWorkerSnmpReceiver } from './snmp';
 import { startWorkerSyslogReceiver } from './syslog';
 import { DEFAULT_CONCURRENCY, bootWorkers } from './workers';
@@ -173,6 +174,12 @@ async function main(): Promise<void> {
   const snmp = startWorkerSnmpReceiver({ env });
   log.info('SNMP receiver started');
 
+  // El worker también es el único que abre el stream de eventos de SmartOLT:
+  // un solo proceso escucha, y ese proceso es este. Está apagado por default
+  // (`SMARTOLT_EVENTS_ENABLED=true` lo enciende), así que una instalación que
+  // no lo pidió no cambia de comportamiento ni abre un socket de más.
+  const events = startWorkerSmartoltEventStreams({ env });
+
   // The worker owns the schedule of the recurring loops: it registers one
   // recurring schedule per enabled loop and enqueues the first tick
   // immediately. Registering twice is a no-op (the schedule is an upsert keyed
@@ -225,6 +232,7 @@ async function main(): Promise<void> {
       await server.close();
       await syslog.stop();
       await snmp.stop();
+      await events.stop();
       await fleet.close();
       await closeSchedules();
     } catch (error) {

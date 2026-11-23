@@ -71,8 +71,8 @@ Cada item tiene: **objetivo**, **cómo**, **por qué importa**, **dependencia** 
 |---|---|---|
 | `FEC_COLLECTION_ENABLED` | `false` | Kill switch + opt-in. `false` ⇒ el worker no registra el tick. |
 | `FEC_COLLECTION_INTERVAL_MS` | `3_600_000` (1 h) | Cadencia del tick. |
-| `FEC_FAN_OUT_PER_CYCLE` | `8` | Tamaño de la slice de `pickFecFanOutSlice` por tick. |
-| `FEC_RATE_LIMIT_PER_HOUR` | `15` | Techo de requests/hora al NMS. Si `sliceSize × (3 600 000 / intervalMs)` lo excede, el tick se skipea con un `console.warn` y `reason: 'rate_limit'`. |
+| `FEC_FAN_OUT_PER_CYCLE` | la parte del presupuesto del tick (600 con ticks de 1 h) | Tamaño de la slice por tick; `rankFecCandidates` pone primero las ONUs degradadas por eventos. |
+| `FEC_RATE_LIMIT_PER_HOUR` | `600` | Techo de requests/hora al NMS. Si `sliceSize × (3 600 000 / intervalMs)` lo excede, el tick se skipea con un `console.warn` y `reason: 'rate_limit'`. |
 
 **Kill switch:** setear `FEC_COLLECTION_ENABLED=false` y reiniciar el worker evita nuevos ticks. Los ticks en vuelo corren hasta terminar (REQ-5). El tick lo agenda el worker, desde la cola durable.
 
