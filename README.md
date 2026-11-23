@@ -474,6 +474,7 @@ pnpm dev            # 3. servidor de desarrollo en http://localhost:3001
 `pnpm run setup` imprime la contraseña de administrador en consola. En CI o aprovisionamiento sin terminal: `pnpm run setup -- --non-interactive`.
 
 Antes de abrir un PR: `pnpm typecheck && pnpm lint && pnpm test`.
+Para verificar los invariantes de los paquetes núcleo con property-based testing: `pnpm test:property` ([guía e invariantes →](docs/property-based-testing.md)).
 
 **[Guía →](docs/tutorials/tutorial-3-entorno-local.md)**
 
@@ -519,6 +520,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (Authorization Code + PKCE), LDAP/AD conectado al login con mapeo de grupos a roles, y MFA TOTP obligatoria por tenant (`TenantPolicy.requireMfa`, `/api/security/mfa-policy`). |
 | [Despliegue en producción](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [Pruebas sin hardware](docs/testing-without-hardware.md) | Cómo inyectar traps SNMP y simular incidentes ópticos sin OLT físico. |
+| [Pruebas de rendimiento](docs/performance-testing.md) | Cómo medir latencia, carga y picos de la API y la ingesta con fixtures sintéticos. |
 | [Benchmarks](docs/benchmarks.md) | Latencia de diagnóstico, rendimiento SNMP y métricas de piloto. |
 | [Auditoría de seguridad](docs/security-audit.md) | Registro técnico de la auditoría de seguridad. |
 | [Roadmap público](ROADMAP.md) | Qué está *Current*, qué necesita *Validation*, qué viene *Next* y qué queda *Later*. |
