@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 beforeAll(() => {
   process.env['JWT_SECRET'] = 'test-jwt-secret-with-more-than-thirty-two-bytes';
@@ -30,6 +30,26 @@ describe('auth utilities', () => {
     expect(issued.expiresAt.getTime()).toBeGreaterThan(Date.now());
     expect(verifyToken(issued.token)).toMatchObject({ sub: 'user-1', tenantId: 'tenant-1' });
     expect(verifyToken(`${issued.token}tampered`)).toBeNull();
+  });
+});
+
+describe('token uniqueness', () => {
+  it('issues distinct tokens and hashes for the same user within the same second', () => {
+    // Session.tokenHash is unique: two logins (or a temp token and a session
+    // token) in the same second must not produce the same JWT.
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const first = issueToken('user-1', 'tenant-1', 'OWNER');
+      const second = issueToken('user-1', 'tenant-1', 'OWNER');
+      expect(second.token).not.toBe(first.token);
+      expect(second.tokenHash).not.toBe(first.tokenHash);
+      expect(verifyToken(first.token)).toMatchObject({ sub: 'user-1', tenantId: 'tenant-1' });
+      expect(verifyToken(second.token)).toMatchObject({ sub: 'user-1', tenantId: 'tenant-1' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
