@@ -118,9 +118,9 @@ async function waitForRest(config: LabConfig, timeoutSeconds: number): Promise<{
       if (withPassword.status === 401) {
         const withBlank = await rest(`${restUrl}/rest/system/resource`, blank, 'GET');
         if (withBlank.status === 200) return { credentials: blank, fresh: true };
-        lastError = `REST answered ${withPassword.status}/${withBlank.status}: wrong credentials`;
+        lastError = 'REST rejected both the lab password and a blank one';
       } else {
-        lastError = `REST answered ${withPassword.status}: ${restError(withPassword)}`;
+        lastError = 'REST answered with an unexpected status';
       }
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
