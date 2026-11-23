@@ -1,17 +1,15 @@
 /**
- * Límite de peticiones en el middleware de Edge.
+ * Límite grueso de peticiones en el middleware/proxy de Edge.
  *
- * El middleware corre en el runtime de Edge, donde no hay TCP: no puede
- * hablar con Redis, y tampoco puede usar Prisma. Así que el límite que aplica
- * es **por instancia**: con varias réplicas de la web, el límite real es `max`
- * por réplica.
+ * En Next.js 16.3.8 `middleware.ts` compila al runtime de Edge, donde no hay
+ * TCP: no puede hablar con Redis ni usar Prisma. Por eso este límite corre
+ * únicamente en memoria y es **por instancia** (con varias réplicas de la web,
+ * el límite real es `max` por réplica).
  *
- * Por eso el runtime de Node tiene su propio almacén (`lib/rate-limit-store.ts`)
- * con Redis, donde el límite es global. Los dos usan el mismo núcleo
- * (`lib/rate-limit-core.ts`), así que las cuentas no pueden divergir.
- *
- * El middleware conserva el límite grueso: es el camino rápido que corre
- * antes que cualquier ruta, y es la red de seguridad cuando la Redis no está.
+ * Para coordinar cuotas entre réplicas, las superficies que corren en **Node**
+ * (los route handlers, vía `enforceApiRateLimit`) usan el store compartido de
+ * `lib/rate-limit-store.ts` con `REDIS_URL`. Ambos caminos comparten el núcleo
+ * puro (`lib/rate-limit-core.ts`) para no divergir en las cuentas.
  */
 import {
   RATE_LIMITS,
@@ -28,7 +26,7 @@ export type { RateLimitConfig, RateLimitResult };
 const store = createInMemoryRateLimitStore();
 
 /**
- * Comprueba el límite de una clave.
+ * Comprueba el límite de una clave en el almacén en memoria de la instancia.
  *
  * Devuelve { allowed: boolean; remaining: number; resetAt: number }.
  */

@@ -326,3 +326,32 @@ test("el compose monta los ficheros del mock NMS", () => {  // Sin los bind moun
     );
   }
 });
+
+test("todos los servicios del compose declaran límites y reservas parametrizadas", () => {
+  // Sin límite, un contenedor puede quedarse con toda la RAM del host y tumbar
+  // a los demás; sin reserva, no hay mínimo garantizado bajo presión. El
+  // parámetro con default permite ajustar el tamaño del host sin editar YAML.
+  const staging = loadStagingCompose(REPO_ROOT);
+  const missing: string[] = [];
+
+  for (const [name, service] of Object.entries(staging.services)) {
+    const resources = (
+      service.deploy as { resources?: Record<string, Record<string, unknown>> } | undefined
+    )?.resources;
+
+    for (const kind of ['limits', 'reservations']) {
+      for (const key of ['cpus', 'memory']) {
+        const value = resources?.[kind]?.[key];
+        if (typeof value !== 'string' || !/^\$\{[A-Z_][A-Z0-9_]*:-[^}]+\}$/.test(value)) {
+          missing.push(`${name}.deploy.resources.${kind}.${key}`);
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(
+    missing,
+    [],
+    `servicios sin límite/reserva parametrizada: ${missing.join(', ')}`,
+  );
+});

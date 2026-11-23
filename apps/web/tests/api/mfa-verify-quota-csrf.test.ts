@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => {
     verifyTOTP: vi.fn(),
     auditLogin: vi.fn(),
     getCurrentUser: vi.fn(),
+    reserveError: null as Error | null,
+    releaseError: null as Error | null,
   };
 });
 
@@ -58,9 +60,9 @@ vi.mock('@ftth-copilot/db', () => ({
     const first = xForwardedFor.split(',')[0]?.trim();
     return first && first.length > 0 ? first : null;
   },
-  authRateLimitKeys: (email: string, ip: string | null): string[] => {
-    const keys = [`login:email:${email.trim().toLowerCase()}`];
-    if (ip) keys.push(`login:ip:${ip}`);
+  authRateLimitKeys: (email: string, ip: string | null, scope: 'login' | 'mfa' = 'login'): string[] => {
+    const keys = [`${scope}:email:${email.trim().toLowerCase()}`];
+    if (ip) keys.push(`${scope}:ip:${ip}`);
     return keys;
   },
   checkAuthQuota: async (
@@ -99,6 +101,54 @@ vi.mock('@ftth-copilot/db', () => ({
       retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
     };
   },
+  reserveAuthQuota: async (
+    keys: string[],
+    opts: { max: number; windowMs: number },
+  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date }> => {
+    if (mocks.reserveError) throw mocks.reserveError;
+    const nowMs = FROZEN_NOW_MS;
+    const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
+    const expiresAt = windowStartMs + opts.windowMs;
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.some((k) => {
+      const b = mocks.buckets.get(`${k}:${windowStartMs}`);
+      return (b && b.expiresAt > nowMs ? b.count : 0) >= opts.max;
+    })) {
+      return {
+        allowed: false,
+        retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
+        windowStart: new Date(windowStartMs),
+      };
+    }
+    uniqueKeys.forEach((key) => {
+      const bucketKey = `${key}:${windowStartMs}`;
+      const existing = mocks.buckets.get(bucketKey);
+      const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
+      mocks.buckets.set(bucketKey, { count, expiresAt });
+    });
+    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
+  },
+  releaseAuthQuota: async (
+    keys: string[],
+    opts: { max: number; windowMs: number },
+    _store?: unknown,
+    windowStartDate?: Date,
+  ): Promise<void> => {
+    if (mocks.releaseError) throw mocks.releaseError;
+    const windowStartMs = windowStartDate
+      ? windowStartDate.getTime()
+      : computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs);
+    for (const key of new Set(keys)) {
+      const bucketKey = `${key}:${windowStartMs}`;
+      const existing = mocks.buckets.get(bucketKey);
+      if (existing) {
+        mocks.buckets.set(bucketKey, {
+          count: Math.max(existing.count - 1, 0),
+          expiresAt: existing.expiresAt,
+        });
+      }
+    }
+  },
 }));
 
 vi.mock('@/lib/auth/totp', () => ({
@@ -109,11 +159,15 @@ vi.mock('@ftth-copilot/soc', () => ({
   auditAuth: { login: mocks.auditLogin },
 }));
 
-vi.mock('@/lib/auth/server', () => ({
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+
+vi.mock('@/lib/auth/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/server')>()),
   getCurrentUser: mocks.getCurrentUser,
 }));
 
 const { POST } = await import('@/app/api/auth/mfa/verify/route');
+const { POST: loginPost } = await import('@/app/api/auth/login/route');
 
 function mfaRequest(body: unknown, ip?: string): NextRequest {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
@@ -215,6 +269,8 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
     });
     mocks.auditLogin.mockResolvedValue(undefined);
     mocks.getCurrentUser.mockResolvedValue(null);
+    mocks.reserveError = null;
+    mocks.releaseError = null;
   });
 
   afterEach(() => {
@@ -549,7 +605,188 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
         message: 'MFA has been enabled successfully',
       });
       expect(mocks.prisma.user.update).toHaveBeenCalledTimes(1);
+      for (const bucket of mocks.buckets.values()) {
+        expect(bucket.count).toBe(0);
+      }
+    });
+  });
+
+  describe('namespace isolation & atomic reservation (no cross-lockout with login)', () => {
+    it('uses mfa: keys on MFA continue failures without incrementing login: buckets', async () => {
+      mocks.verifyTOTP.mockReturnValue(false);
+
+      const res = await POST(
+        mfaRequest(
+          { tempToken: 'valid-temp-token', code: '000000' },
+          '198.51.100.42',
+        ),
+      );
+      expect(res.status).toBe(401);
+
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`mfa:ip:198.51.100.42:${startMs}`)?.count).toBe(1);
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)).toBeUndefined();
+      expect(mocks.buckets.get(`login:ip:198.51.100.42:${startMs}`)).toBeUndefined();
+    });
+
+    it('allows tempToken continue even when login: buckets are exhausted, while throttling handleMfaLogin without incrementing exhausted buckets', async () => {
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      const expiresAt = startMs + 60_000;
+      mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 3, expiresAt });
+      mocks.buckets.set(`login:ip:203.0.113.80:${startMs}`, { count: 3, expiresAt });
+
+      const continueFlowRes = await POST(
+        mfaRequest({ tempToken: 'valid-temp-token', code: '654321' }, '203.0.113.80'),
+      );
+      expect(continueFlowRes.status).toBe(200);
+
+      const loginFlowRes = await POST(
+        mfaRequest(
+          { email: 'operator@example.com', password: 'correct-password', code: '654321' },
+          '203.0.113.80',
+        ),
+      );
+      expect(loginFlowRes.status).toBe(429);
+
+      // Denied reservation must leave already-exhausted buckets untouched.
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
+      expect(mocks.buckets.get(`login:ip:203.0.113.80:${startMs}`)?.count).toBe(3);
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(0);
+      expect(mocks.buckets.get(`mfa:ip:203.0.113.80:${startMs}`)?.count).toBe(0);
+    });
+
+    it('does not consume any bucket when denied by an exhausted IP, preventing victim lockout', async () => {
+      mocks.verifyPassword.mockResolvedValue(false);
+      const attackerIp = '203.0.113.99';
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      for (let i = 1; i <= 3; i++) {
+        expect((await POST(mfaRequest({ email: 'attacker@example.com', password: 'wrong', code: '123456' }, attackerIp))).status).toBe(401);
+      }
+
+      const denied = await POST(mfaRequest({ email: 'victim@example.com', password: 'wrong', code: '123456' }, attackerIp));
+      expect(denied.status).toBe(429);
+      expect(mocks.buckets.get(`login:email:victim@example.com:${startMs}`)).toBeUndefined();
+      expect(mocks.buckets.get(`login:ip:${attackerIp}:${startMs}`)?.count).toBe(3);
+
+      mocks.verifyPassword.mockResolvedValue(true);
+      mocks.prisma.user.findUnique.mockResolvedValue(makeUser({ email: 'victim@example.com' }));
+      const victimRes = await POST(mfaRequest({ email: 'victim@example.com', password: 'correct', code: '654321' }, '203.0.113.100'));
+      expect(victimRes.status).toBe(200);
+    });
+
+    it('uses mfa: keys in handleSetupVerification and ignores exhausted login: buckets', async () => {
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      const expiresAt = startMs + 60_000;
+      mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 3, expiresAt });
+      mocks.buckets.set(`login:ip:203.0.113.81:${startMs}`, { count: 3, expiresAt });
+      mocks.getCurrentUser.mockResolvedValue({
+        id: 'usr-1',
+        email: 'operator@example.com',
+        name: 'Operator',
+        role: 'OWNER',
+        tenantId: 'ten-1',
+        mfaEnabled: false,
+        tenant: { id: 'ten-1', name: 'Demo', slug: 'demo' },
+      });
+      mocks.prisma.user.findUnique.mockResolvedValue(makeUser({ mfaEnabled: false }));
+
+      const res = await POST(mfaRequest({ code: '654321' }, '203.0.113.81'));
+      expect(res.status).toBe(200);
+      expect(mocks.buckets.get(`mfa:email:operator@example.com:${startMs}`)?.count).toBe(0);
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
+    });
+
+    it('enforces max=3 under 10 concurrent handleMfaLogin attempts via atomic reservation', async () => {
+      mocks.prisma.user.findUnique.mockResolvedValue(makeUser());
+      mocks.verifyPassword.mockResolvedValue(false);
+
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          POST(
+            mfaRequest(
+              { email: 'burst-mfa@example.com', password: 'wrong', code: '000000' },
+              '198.51.100.77',
+            ),
+          ),
+        ),
+      );
+
+      expect(responses.filter((r) => r.status === 401)).toHaveLength(3);
+      expect(responses.filter((r) => r.status === 429)).toHaveLength(7);
+      expect(mocks.prisma.user.findUnique).toHaveBeenCalledTimes(3);
+    });
+
+    it('shares login budget with POST /api/auth/login without locking out MFA setup verification', async () => {
+      mocks.verifyPassword.mockResolvedValue(false);
+      for (let i = 1; i <= 3; i++) {
+        const res = await POST(
+          mfaRequest({ email: 'operator@example.com', password: 'wrong', code: '123456' }, `198.51.100.${i}`),
+        );
+        expect(res.status).toBe(401);
+      }
+
+      mocks.getCurrentUser.mockResolvedValue({
+        id: 'usr-1', email: 'operator@example.com', name: 'Operator', role: 'OWNER',
+        tenantId: 'ten-1', mfaEnabled: false, tenant: { id: 'ten-1', name: 'Demo', slug: 'demo' },
+      });
+      mocks.prisma.user.findUnique.mockResolvedValue(makeUser({ mfaEnabled: false }));
+
+      const setupRes = await POST(mfaRequest({ code: '654321' }, '203.0.113.90'));
+      expect(setupRes.status).toBe(200);
+
+      mocks.verifyPassword.mockResolvedValue(true);
+      const loginRes = await loginPost(new NextRequest('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.91' },
+        body: JSON.stringify({ email: 'operator@example.com', password: 'correct-password' }),
+      }));
+      expect(loginRes.status).toBe(429);
+      await expect(loginRes.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+    });
+  });
+
+  describe('quota-store outage handling (fail-closed on reserve)', () => {
+    it('returns 429 without running password check when quota store fails on wrong password', async () => {
+      mocks.reserveError = new Error('DB down');
+      mocks.verifyPassword.mockResolvedValue(false);
+      const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'wrong', code: '123456' }, '203.0.113.50'));
+      expect(res.status).toBe(429);
+      expect(res.headers.get('retry-after')).toMatch(/^[1-9]\d*$/);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.verifyPassword).not.toHaveBeenCalled();
       expect(mocks.buckets.size).toBe(0);
+    });
+
+    it('returns 429 without running TOTP check when quota store fails on wrong TOTP code', async () => {
+      mocks.reserveError = new Error('DB down');
+      mocks.verifyTOTP.mockReturnValue(false);
+      const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'correct', code: '000000' }, '203.0.113.51'));
+      expect(res.status).toBe(429);
+      expect(res.headers.get('retry-after')).toMatch(/^[1-9]\d*$/);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.verifyTOTP).not.toHaveBeenCalled();
+      expect(mocks.buckets.size).toBe(0);
+    });
+
+    it('returns 429 on reserve outage without altering buckets, and 200 when only release fails', async () => {
+      const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
+      mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 2, expiresAt: startMs + 60_000 });
+      mocks.buckets.set(`login:ip:203.0.113.52:${startMs}`, { count: 2, expiresAt: startMs + 60_000 });
+      mocks.reserveError = new Error('DB down');
+
+      const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'correct', code: '654321' }, '203.0.113.52'));
+      expect(res.status).toBe(429);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.prisma.session.create).not.toHaveBeenCalled();
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(2);
+      expect(mocks.buckets.get(`login:ip:203.0.113.52:${startMs}`)?.count).toBe(2);
+
+      mocks.reserveError = null;
+      mocks.releaseError = new Error('DB down');
+      const resReleaseFail = await POST(mfaRequest({ email: 'operator@example.com', password: 'correct', code: '654321' }, '203.0.113.52'));
+      expect(resReleaseFail.status).toBe(200);
+      expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(3);
     });
   });
 });

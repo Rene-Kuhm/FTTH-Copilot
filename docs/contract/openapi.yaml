@@ -3864,12 +3864,62 @@ components:
             type: object
             additionalProperties: true
         connections:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/ConnectionHealthAggregate"
         ingest:
           type: object
           additionalProperties: true
       required: [status, timestamp, uptime, memory, version, owner, scope]
+
+    ConnectionHealthAggregate:
+      type: object
+      description: >-
+        Agregado no identificativo del health público. Nunca expone ids de
+        conexión, ids de tenant ni mensajes de error; el detalle vive en
+        `/api/connectors`, autenticado y filtrado por tenant.
+      properties:
+        total:
+          type: integer
+        byState:
+          $ref: "#/components/schemas/ConnectionHealthCounts"
+      required: [total, byState]
+
+    ConnectionHealthCounts:
+      type: object
+      description: Conteo de conexiones por estado; todos los estados están presentes.
+      properties:
+        fresh:
+          type: integer
+        healthy:
+          type: integer
+        stale:
+          type: integer
+        error:
+          type: integer
+        recovered:
+          type: integer
+      required: [fresh, healthy, stale, error, recovered]
+
+    ConnectionHealthDetail:
+      type: object
+      description: >-
+        Detalle de salud de una conexión. Sólo se sirve en `/api/connectors`
+        al tenant autenticado dueño de la conexión.
+      properties:
+        tenantId:
+          type: string
+        connectionId:
+          type: string
+        state:
+          type: string
+          enum: [fresh, healthy, stale, error, recovered]
+        lastRunAt:
+          type: [integer, "null"]
+        lastError:
+          type: [string, "null"]
+        lastErrorAt:
+          type: [integer, "null"]
+      required:
+        [tenantId, connectionId, state, lastRunAt, lastError, lastErrorAt]
 
     ChatRequest:
       type: object
@@ -4002,7 +4052,14 @@ components:
             $ref: "#/components/schemas/Connector"
         demoMode:
           type: boolean
-      required: [connectors, demoMode]
+        health:
+          type: array
+          description: >-
+            Detalle de salud de las conexiones del tenant autenticado. Vacío
+            cuando no hay sesión.
+          items:
+            $ref: "#/components/schemas/ConnectionHealthDetail"
+      required: [connectors, demoMode, health]
 
     CreateConnectorRequest:
       type: object

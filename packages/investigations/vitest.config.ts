@@ -8,5 +8,11 @@ export default defineConfig({
     // Las specs que necesitan Postgres viven en su propio config, igual que en
     // `packages/db`: así el run unitario no carga el cliente de Prisma.
     exclude: ['tests/**/*.integration.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.d.ts', 'src/index.ts'],
+    },
   },
 });
