@@ -22,5 +22,6 @@ allowBuilds:
   # fallback is used instead, matching the repo's policy for optional
   # accelerators (esbuild, sharp, unrs-resolver).
   msgpackr-extract: false
+  lefthook: true
 minimumReleaseAgeExclude:
   - bullmq@6.5.3
