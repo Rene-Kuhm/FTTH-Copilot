@@ -99,60 +99,40 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build",
-        "@ftth-copilot/db#db:generate"
-      ],
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**",
-        "dist/**"
-      ]
+      "dependsOn": ["^build", "@ftth-copilot/db#db:generate"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     },
     "typecheck": {
-      "dependsOn": [
-        "^build",
-        "@ftth-copilot/db#db:generate"
-      ]
+      "dependsOn": ["^build", "@ftth-copilot/db#db:generate"]
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "test:unit": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "outputs": []
     },
+    "test:property": {
+      "cache": false
+    },
     "test:coverage": {
-      "dependsOn": [
-        "^build",
-        "@ftth-copilot/db#db:generate"
-      ],
-      "outputs": [
-        "coverage/**"
-      ]
+      "dependsOn": ["^build", "@ftth-copilot/db#db:generate"],
+      "outputs": ["coverage/**"]
     },
     "clean": {
       "cache": false
     },
     "db:generate": {
       "cache": true,
-      "outputs": [
-        "src/generated/**"
-      ]
+      "outputs": ["src/generated/**"]
     },
     "test:e2e": {
       "cache": false

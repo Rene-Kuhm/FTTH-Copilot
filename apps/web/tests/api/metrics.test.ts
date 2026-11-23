@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import {
@@ -15,6 +16,8 @@ import {
   recordSuccess,
 } from '@/lib/monitoring/scheduler-health';
 import { GET } from '@/app/api/metrics/route';
+
+vi.mock('node:crypto', { spy: true });
 
 const mockGroupByAlerts = vi.fn();
 const mockCountIncidents = vi.fn();
@@ -191,6 +194,24 @@ describe('GET /api/metrics', () => {
     });
     const resGoodAuth = await GET(reqGoodAuth);
     expect(resGoodAuth.status).toBe(200);
+  });
+
+  it('compares fixed-size digests even when the presented bearer token is shorter', async () => {
+    vi.stubEnv('METRICS_BEARER_TOKEN', 'synthetic-metrics-token');
+    vi.mocked(timingSafeEqual).mockClear();
+    try {
+      const request = new NextRequest('http://localhost:3001/api/metrics', {
+        headers: { authorization: 'Bearer synthetic' },
+      });
+      expect((await GET(request)).status).toBe(401);
+
+      expect(timingSafeEqual).toHaveBeenCalledOnce();
+      const [presented, expected] = vi.mocked(timingSafeEqual).mock.calls[0]!;
+      expect(presented.byteLength).toBe(32);
+      expect(expected.byteLength).toBe(32);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('surfaces scrape error indicator if database query fails', async () => {
