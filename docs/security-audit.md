@@ -13,6 +13,7 @@ The following repository-side items were subsequently addressed:
 - Connector URLs enforce HTTPS/public-network policy, optional hostname and port allowlists, DNS validation, and request timeouts.
 - API 500 responses no longer return raw provider or database error messages.
 - The simulated `reboot_ont` action was removed until a real connector operation and server-side authorization protocol exist.
+- Auth brute-force & CSRF items below (§Documented #1/#2 and H1) are now resolved: auth endpoints use atomic PostgreSQL `reserveAuthQuota`/`releaseAuthQuota` quotas (`AuthRateLimit`) and `ftth_csrf` double-submit CSRF protection is enforced across mutating routes.
 
 The Cloudflare credential rotation remains an external operational action. Repository code cannot verify that it was completed in the Cloudflare dashboard.
 

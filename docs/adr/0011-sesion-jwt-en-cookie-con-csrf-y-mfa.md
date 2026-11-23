@@ -65,13 +65,16 @@ disparar acciones con la sesión del operador.
 
 - Cuota de **ventana fija** con namespaces separados por flujo para evitar lockouts
   cruzados entre autenticación primaria y segundo factor: `login:email:<normalizado>` /
-  `login:ip:<ip>` para login y `mfa:email:<normalizado>` / `mfa:ip:<ip>` para las rutas
-  de MFA (`verify`, `setup` y `disable`), generadas únicamente por `authRateLimitKeys`
-  (`packages/db/src/auth-rate-limit.ts`).
-- La cuota se **reserva atómicamente antes** de cualquier verificación costosa mediante un
-  único `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` sobre todos los buckets de la
-  operación (`reserveAuthQuota`) y se **reembolsa** con `releaseAuthQuota` cuando la
-  verificación resulta válida (`apps/web/lib/auth/server.ts`, `ldap-login.ts` y rutas MFA).
+  `login:ip:<ip>`, `mfa:email:<normalizado>` / `mfa:ip:<ip>` (para `POST /api/auth/mfa/verify`,
+  `DELETE /api/auth/mfa/setup` y `POST /api/auth/mfa/disable`) y `oidc:email:<normalizado>` /
+  `oidc:ip:<ip>`, generados por `authRateLimitKeys` (`packages/db/src/auth-rate-limit.ts`),
+  más `signup:ip:<ip>` (`apps/web/lib/auth/server.ts:170`).
+- La cuota se **reserva atómicamente antes** de cualquier verificación costosa mediante una
+  transacción con `SELECT ... FOR UPDATE` + `INSERT ... ON CONFLICT DO NOTHING` +
+  `UPDATE ... RETURNING` sobre todos los buckets de la operación (`reserveAuthQuota`,
+  `packages/db/src/auth-rate-limit.ts:59-91`) y se **reembolsa** con `releaseAuthQuota`
+  cuando la verificación resulta válida o redirige al desafío MFA (`apps/web/lib/auth/server.ts`,
+  `ldap-login.ts`, `oidc.ts` y rutas MFA); una reserva denegada no consume cuota.
 - El contador vive en `AuthRateLimit`, que **no tiene FK a usuario ni a tenant**, a
   propósito: el atacante todavía no está identificado (`schema.prisma:454-458`).
 - El store es **inyectable** (`auth-rate-limit.ts`), lo que permite testear la cuota sin
@@ -80,9 +83,9 @@ disparar acciones con la sesión del operador.
 ### MFA
 
 - **TOTP** con secreto Base32 cifrado en reposo (`User.totpSecret`,
-  `schema.prisma:217`) y `mfaEnabled` (`schema.prisma:218`).
-- El login devuelve `{mfaRequired: true, tempToken}` en vez de sesión
-  (`apps/web/lib/auth/server.ts:271-286`); el token temporal dura 5 minutos
+  `schema.prisma:231`) y `mfaEnabled` (`schema.prisma:232`).
+- El login devuelve `200 {mfaRequired: true, tempToken}` o `403 {..., code: 'MFA_SETUP_REQUIRED', mfaSetupRequired: true, tempToken}` en vez de sesión
+  (`apps/web/lib/auth/server.ts:302-319`); el token temporal dura 5 minutos
   (`packages/db/src/auth.ts:71-72`).
 - El setup genera el secreto **sin activarlo**: la activación ocurre al verificar
   (`apps/web/app/api/auth/mfa/setup/route.ts`).
@@ -132,9 +135,9 @@ disparar acciones con la sesión del operador.
   es parte del artefacto y cambiarlo exige reconstruir.
 - `sameSite: 'lax'` **no** bloquea el CSRF por sí solo: por eso hace falta el double-submit
   explícito.
-- La **exención de CSRF para `/api/auth/*`** es amplia: incluye `POST /api/auth/mfa/verify`,
-  que setea la cookie de sesión y **no** setea la cookie de CSRF. Un usuario que entra por
-  MFA queda sin token de CSRF hasta el próximo login completo.
+- La **exención de CSRF para `/api/auth/*`** es amplia; `POST /api/auth/mfa/verify`
+  ahora emite también la cookie de CSRF `ftth_csrf` junto con la cookie de sesión
+  (`apps/web/app/api/auth/mfa/verify/route.ts:150-153`, `:353-356`).
 - `AuthRateLimit` **no tiene FK**, lo que exige limpiar por `expiresAt` y no por relación.
 - TOTP sin copia de seguridad de códigos: perder el teléfono es perder el segundo factor.
 - El **mismo `Role` sirve para el RBAC de la API y para la jerarquía de páginas**, pero con

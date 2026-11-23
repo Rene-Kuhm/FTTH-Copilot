@@ -195,7 +195,7 @@ El monorepo es un workspace de pnpm con Turborepo: `apps/*`, `packages/*`, `pack
 | Límite | Regla |
 |---|---|
 | **Dependencia** | Un paquete importa de su propia capa o de una inferior. Nunca hacia arriba, nunca en círculo. `apps/web` es el único que conoce a todos. |
-| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared`. Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
+| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared` (con la excepción conocida del tipo `Role`, aún definido también en `packages/db/src/auth.ts`, `packages/security/src/auth-roles.ts`, `apps/web/lib/auth/permissions.ts` y `apps/web/lib/auth/client.ts`). Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
 | **Detección** | `detection` y `security` exponen funciones **puras**: sin I/O, sin base, sin hora del sistema. Eso es lo que las hace testeables y auditables. |
 | **Conectores** | Ningún adaptador habla directo con la base. Pasa por `connectors-core`, que es donde vive la política SSRF. |
 | **Acceso a datos** | `db` es el único que conoce Prisma y el KMS. El resto consume el cliente tipado. |
