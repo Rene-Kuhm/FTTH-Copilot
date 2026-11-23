@@ -40,6 +40,8 @@ Thumbs.db
 # Coverage
 coverage/
 .nyc_output/
+**/reports/mutation/
+**/.stryker-tmp/
 
 # Next.js
 next-env.d.ts

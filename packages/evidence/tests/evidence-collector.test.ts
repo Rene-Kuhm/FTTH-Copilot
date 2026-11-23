@@ -164,6 +164,26 @@ describe('collectInvestigationEvidence — multi-tenant isolation', () => {
       MissingTenantError,
     );
   });
+
+  it('isolates topology, incident history and feedback even when identifiers overlap', () => {
+    const args = baseArgs({ metrics: [], events: [] });
+    const hop = args.topologyHops![0]!;
+    const incident = args.confirmedIncidents![0]!;
+    const feedback = args.feedbacks![0]!;
+
+    const refs = collectInvestigationEvidence({
+      ...args,
+      topologyHops: [{ ...hop, tenantId: OTHER_TENANT }, hop],
+      confirmedIncidents: [{ ...incident, tenantId: OTHER_TENANT }, incident],
+      feedbacks: [{ ...feedback, tenantId: OTHER_TENANT }, feedback],
+    });
+
+    expect(refs.map((ref) => ref.evidenceRefId)).toEqual([
+      'ev_topo_olt-sj-1_onu-olt1-pon2-14',
+      'ev_fb_fb-1',
+      'ev_hist_inc-old-99',
+    ]);
+  });
 });
 
 describe('collectInvestigationEvidence — window invariants & filtering', () => {
@@ -223,6 +243,49 @@ describe('collectInvestigationEvidence — window invariants & filtering', () =>
       windowEnd: '2026-08-10T00:00:00.000Z', // 40 days
     });
     expect(() => collectInvestigationEvidence(tooWide)).toThrow(/MAX_INVESTIGATION_WINDOW_DAYS/);
+  });
+
+  it.each(['windowStart', 'windowEnd'] as const)('rejects an invalid %s timestamp', (field) => {
+    expect(() => collectInvestigationEvidence(baseArgs({ [field]: 'invalid-date' }))).toThrow(
+      /invalid window timestamp format/,
+    );
+  });
+
+  it('includes both bounds of a maximum-length window', () => {
+    const start = '2026-08-01T00:00:00.000Z';
+    const end = '2026-08-31T00:00:00.000Z';
+    const args = baseArgs({
+      windowStart: start,
+      windowEnd: end,
+      metrics: [],
+      topologyHops: [],
+      confirmedIncidents: [],
+      feedbacks: [],
+    });
+    const event = args.events![0]!;
+    const refs = collectInvestigationEvidence({
+      ...args,
+      events: [
+        { ...event, eventId: 'at-start', observedAt: start },
+        { ...event, eventId: 'at-end', observedAt: end },
+        { ...event, eventId: 'past-end', observedAt: '2026-08-31T00:00:00.001Z' },
+      ],
+    });
+
+    expect(refs.map((ref) => ref.evidenceRefId)).toEqual(['ev_event_at-end', 'ev_event_at-start']);
+  });
+
+  it('retains evidence exactly at the instant of a zero-length window', () => {
+    const refs = collectInvestigationEvidence(baseArgs({
+      windowStart: MID,
+      windowEnd: MID,
+      topologyHops: [],
+      confirmedIncidents: [],
+      feedbacks: [],
+    }));
+
+    expect(refs.map((ref) => ref.kind)).toEqual(['event', 'metric']);
+    expect(refs.map((ref) => ref.observedAt)).toEqual([MID, MID]);
   });
 });
 

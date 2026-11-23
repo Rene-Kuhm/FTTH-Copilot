@@ -38,6 +38,8 @@ export default [
       'coverage/**',
       'src/generated/**', // Prisma client output
       '**/*.test.ts',     // tests use vi.fn() return values in helpers
+      '.stryker-tmp/**',
+      'reports/mutation/**',
     ],
   },
   {

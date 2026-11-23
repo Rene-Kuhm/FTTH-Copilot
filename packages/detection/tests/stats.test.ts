@@ -63,5 +63,23 @@ describe('fitTrend', () => {
     ];
     const fit = fitTrend(s);
     expect(fit!.slopePerDay).toBeCloseTo(-1, 6);
+    expect(fit!.intercept).toBeCloseTo(0, 6);
+  });
+
+  it('fits a constant series from two distinct timestamps', () => {
+    expect(fitTrend([{ t: 0, v: 7 }, { t: DAY_MS, v: 7 }])).toEqual({
+      slopePerDay: 0,
+      intercept: 7,
+      r2: 1,
+    });
+  });
+
+  it('computes the share of variance explained by an imperfect fit', () => {
+    const samples = [
+      { t: 0, v: 0 },
+      { t: DAY_MS, v: 0 },
+      { t: 2 * DAY_MS, v: 3 },
+    ];
+    expect(fitTrend(samples)?.r2).toBeCloseTo(0.75);
   });
 });

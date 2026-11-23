@@ -14,12 +14,15 @@
     "clean": "rm -rf dist",
     "test:unit": "vitest run --passWithNoTests",
     "test:property": "vitest run tests/property",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:mutation": "stryker run"
   },
   "dependencies": {
     "@ftth-copilot/shared": "workspace:*"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.11",

@@ -136,6 +136,9 @@
     },
     "test:e2e": {
       "cache": false
+    },
+    "test:mutation": {
+      "cache": false
     }
   }
 }
