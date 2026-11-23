@@ -15,6 +15,22 @@ describe('parseSyslogMessage', () => {
     expect(ev!.message).toBe('Failed password for admin from 1.2.3.4 port 22 ssh2');
   });
 
+  it('extracts timestamp and hostname across long whitespace runs', () => {
+    const padding = ' '.repeat(50_000);
+    const line = `<134>Aug 30 10:00:00${padding}olt-01${padding}sshd: session opened`;
+    const start = performance.now();
+    const event = parseSyslogMessage(line);
+    const elapsed = performance.now() - start;
+
+    expect(event).toMatchObject({
+      timestamp: 'Aug 30 10:00:00',
+      hostname: 'olt-01',
+      tag: 'sshd',
+      message: 'session opened',
+    });
+    expect(elapsed).toBeLessThan(15);
+  });
+
   it('parses a minimal line with only PRI and a single-token message', () => {
     const ev = parseSyslogMessage('<13>somemessage');
     expect(ev).not.toBeNull();

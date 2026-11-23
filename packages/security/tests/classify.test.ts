@@ -20,6 +20,21 @@ describe('classifyEvent', () => {
     expect(classify('<86>login[1]: session opened for user root')).toBe('access');
   });
 
+  it('looks for a user entry on the same line', () => {
+    const event = parseSyslogMessage('<86>host cli: idle')!;
+    expect(classifyEvent({ ...event, message: 'User Ada\nentered' })).toBe('other');
+    expect(classifyEvent({ ...event, message: 'User Ada\u2028 entered' })).toBe('other');
+    expect(classifyEvent({ ...event, message: 'User entered' })).toBe('other');
+
+    const message = `USER ${'a'.repeat(50_000)} ENTERED`;
+    const start = performance.now();
+    const category = classifyEvent({ ...event, message });
+    const elapsed = performance.now() - start;
+
+    expect(category).toBe('access');
+    expect(elapsed).toBeLessThan(15);
+  });
+
   it('classifies config changes as config_change', () => {
     expect(classify('<86>cli[1]: configure terminal')).toBe('config_change');
     expect(classify('<86>cli[1]: commit confirmed')).toBe('config_change');

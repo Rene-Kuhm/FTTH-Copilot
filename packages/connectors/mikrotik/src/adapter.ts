@@ -16,24 +16,25 @@ export function parseMikrotikUptimeSeconds(uptimeStr: string | undefined): numbe
   const str = uptimeStr.trim();
   let total = 0;
 
+  // Match digit runs only at their start so each run is scanned at most once per unit.
   // Pattern with colons: e.g. '04:12:30' or '2d05:10:00' or '1w2d04:12:30'
   if (str.includes(':')) {
     const colonIdx = str.indexOf(':');
     const prefix = str.slice(0, colonIdx);
     const suffix = str.slice(colonIdx + 1);
 
-    const wMatch = prefix.match(/(\d+)w/i);
-    const dMatch = prefix.match(/(\d+)d/i);
+    const wMatch = prefix.match(/(?<!\d)(\d+)w/i);
+    const dMatch = prefix.match(/(?<!\d)(\d+)d/i);
     if (wMatch) total += parseInt(wMatch[1], 10) * 7 * 86400;
     if (dMatch) total += parseInt(dMatch[1], 10) * 86400;
 
-    const hourMatch = prefix.match(/(\d+)h/i);
+    const hourMatch = prefix.match(/(?<!\d)(\d+)h/i);
     let hours = 0;
     if (hourMatch) {
       hours = parseInt(hourMatch[1], 10);
     } else {
       // Numbers directly preceding colon: e.g. '2d05' -> 5, or '04' -> 4
-      const numMatch = prefix.match(/(\d+)$/);
+      const numMatch = prefix.match(/(?<!\d)(\d+)$/);
       if (numMatch) hours = parseInt(numMatch[1], 10);
     }
 
@@ -45,11 +46,11 @@ export function parseMikrotikUptimeSeconds(uptimeStr: string | undefined): numbe
   }
 
   // Pure letter format: e.g. '1w2d3h4m5s'
-  const weekMatch = str.match(/(\d+)w/i);
-  const dayMatch = str.match(/(\d+)d/i);
-  const hourMatch = str.match(/(\d+)h/i);
-  const minMatch = str.match(/(\d+)m(?!s)/i);
-  const secMatch = str.match(/(\d+)s/i);
+  const weekMatch = str.match(/(?<!\d)(\d+)w/i);
+  const dayMatch = str.match(/(?<!\d)(\d+)d/i);
+  const hourMatch = str.match(/(?<!\d)(\d+)h/i);
+  const minMatch = str.match(/(?<!\d)(\d+)m(?!s)/i);
+  const secMatch = str.match(/(?<!\d)(\d+)s/i);
 
   if (weekMatch) total += parseInt(weekMatch[1], 10) * 7 * 86400;
   if (dayMatch) total += parseInt(dayMatch[1], 10) * 86400;
