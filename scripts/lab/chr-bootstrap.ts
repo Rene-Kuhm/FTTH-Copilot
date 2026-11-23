@@ -87,11 +87,6 @@ async function rest(
   return { status: response.status, body: parsed };
 }
 
-/**
- * What goes into an error message about a REST failure: the HTTP status only.
- * The body is never echoed: RouterOS can reflect request data in it, and these
- * errors end up in the console.
- */
 /** True when RouterOS closed the session on purpose (it does so after a password change). */
 function sessionClosed(result: RestResult): boolean {
   if (result.body && typeof result.body === 'object') {
@@ -101,6 +96,11 @@ function sessionClosed(result: RestResult): boolean {
   return false;
 }
 
+/**
+ * What goes into an error message about a REST failure: the HTTP status only.
+ * The body is never echoed: RouterOS can reflect request data in it, and these
+ * errors end up in the console.
+ */
 function restError(result: RestResult): string {
   return `HTTP ${String(Number(result.status))}`;
 }
