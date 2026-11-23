@@ -846,6 +846,9 @@ importers:
       '@ftth-copilot/connectors-factory':
         specifier: workspace:*
         version: link:../connectors/factory
+      '@ftth-copilot/connectors-smartolt':
+        specifier: workspace:*
+        version: link:../connectors/smartolt
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../db

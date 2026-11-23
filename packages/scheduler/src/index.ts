@@ -52,6 +52,39 @@ export {
 } from './health';
 
 export {
+  DEFAULT_DEGRADED_ONU_TTL_MS,
+  recordDegradedOnu,
+  snapshotDegradedOnus,
+  __resetDegradedOnusForTests,
+  type DegradedOnuReason,
+  type DegradedOnuScope,
+  type DegradedOnuSignal,
+} from './degraded-onus';
+
+export { rankFecCandidates, type FecPriorityInput } from './fec-priority';
+
+export {
+  DEFAULT_DEGRADED_RX_THRESHOLD_DBM,
+  onuEventPoints,
+  type OnuEventPointsOptions,
+  type OnuEventPointsResult,
+} from './event-points';
+
+export {
+  DEFAULT_EVENT_LIVENESS_MS,
+  DEFAULT_EVENT_MAX_STREAMS_PER_ACCOUNT,
+  SMARTOLT_EVENTS_FLAG,
+  SMARTOLT_EVENTS_HEALTH_NAME,
+  startSmartoltEventStreams,
+  type SmartoltEventConnectionRecord,
+  type SmartoltEventCredentials,
+  type SmartoltEventLoopHandle,
+  type SmartoltEventLoopOptions,
+  type SmartoltEventStreamFactory,
+  type SmartoltEventStreamLike,
+} from './event-stream';
+
+export {
   WORKER_HEALTH_KEY,
   WORKER_HEALTH_TTL_SECONDS,
   buildWorkerHealthSnapshot,

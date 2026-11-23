@@ -12,13 +12,14 @@ import {
   fitsRateBudget,
   mapAllSettled,
   persistSamples,
-  pickFecFanOutSlice,
 } from '@ftth-copilot/analytics';
 import { buildConnectorFromConnection } from '@ftth-copilot/connectors-factory';
 import {
   recordError as recordSchedulerError,
   recordSuccess as recordSchedulerSuccess,
 } from './health';
+import { DEFAULT_DEGRADED_ONU_TTL_MS, snapshotDegradedOnus } from './degraded-onus';
+import { rankFecCandidates } from './fec-priority';
 
 const log = createLogger({ name: 'scheduler' });
 const fecLog = createLogger({ name: 'fec-collection' });
@@ -312,13 +313,28 @@ export async function runScheduledFirmwareAudit() {
  * One scheduled FEC / optical telemetry tick.
  *
  * Bootstraps from env (`FEC_COLLECTION_ENABLED`, `FEC_COLLECTION_INTERVAL_MS`,
- * `FEC_FAN_OUT_PER_CYCLE`, `FEC_RATE_LIMIT_PER_HOUR`), picks a deterministic
- * per-ONU slice via `pickFecFanOutSlice`, gates the fan-out through
- * `fitsRateBudget` (REQ-3 pre-flight), fans out to `getOnuDetail` in
- * parallel under `mapAllSettled` (REQ-5 per-ONU isolation), assembles
- * `MetricPoint[]` per detail (REQ-4 / AD-4 graceful no-op for Mikrowisp),
- * and persists the assembled batch via `persistSamples` (REQ-4 — reuses the
- * existing analytics surface, no new MetricKind, no migration).
+ * `FEC_FAN_OUT_PER_CYCLE`, `FEC_RATE_LIMIT_PER_HOUR`), picks the slice of this
+ * tick with `rankFecCandidates`, gates the fan-out through `fitsRateBudget`
+ * (REQ-3 pre-flight), fans out to `getOnuDetail` in parallel under
+ * `mapAllSettled` (REQ-5 per-ONU isolation), assembles `MetricPoint[]` per
+ * detail (REQ-4 / AD-4 graceful no-op for Mikrowisp), and persists the
+ * assembled batch via `persistSamples` (REQ-4 — reuses the existing analytics
+ * surface, no new MetricKind, no migration).
+ *
+ * Budget and order (S5 — "el primer barrido pasa de semanas a horas"):
+ *
+ *   - The default budget is 600 calls per hour (`FEC_RATE_LIMIT_PER_HOUR`), not
+ *     the 15 the endpoint used to be limited to. The account budget is 1.000/h
+ *     (October 2026 spec); 600 leaves 400 for the poll, the event stream URL
+ *     requests (60/h) and the firmware audit. Nothing else in this tick changes
+ *     its cadence.
+ *   - Without `FEC_FAN_OUT_PER_CYCLE`, the slice of a tick is the budget share
+ *     of its interval (600 ONUs per 1 h tick), so the budget is actually spent.
+ *   - The ONUs the event stream flagged as degraded go first, worst signal
+ *     first; the rest of the inventory follows the same round-robin as before,
+ *     so no ONU is left unvisited. `rankFecCandidates` is pure and the degraded
+ *     registry is in-memory: a worker without the event stream simply ranks
+ *     with an empty list, which is the previous behaviour.
  *
  * Detection is intentionally NOT triggered here (REQ-4: "MUST NOT call any
  * detector"). Detection happens downstream on the freshly persisted rows via
@@ -333,8 +349,14 @@ export async function runScheduledFecCollection(): Promise<void> {
   if (process.env['FEC_COLLECTION_ENABLED'] !== 'true') return;
 
   const intervalMs = positiveInt(process.env['FEC_COLLECTION_INTERVAL_MS'], 3_600_000);
-  const sliceSize = positiveInt(process.env['FEC_FAN_OUT_PER_CYCLE'], 8);
-  const limitPerHour = positiveInt(process.env['FEC_RATE_LIMIT_PER_HOUR'], 15);
+  const limitPerHour = positiveInt(process.env['FEC_RATE_LIMIT_PER_HOUR'], 600);
+  // Without an explicit fan-out, each tick spends its share of the hourly
+  // budget: 600 ONUs per 1 h tick instead of the 8 that left a few-thousand-ONU
+  // plant weeks behind.
+  const sliceSize = positiveInt(
+    process.env['FEC_FAN_OUT_PER_CYCLE'],
+    Math.max(1, Math.floor((limitPerHour * intervalMs) / 3_600_000)),
+  );
   const tickIndex = Math.floor(Date.now() / intervalMs);
 
   const connections = await prisma.nmsConnection.findMany({
@@ -360,7 +382,15 @@ export async function runScheduledFecCollection(): Promise<void> {
       continue;
     }
 
-    const slice = pickFecFanOutSlice(onus, tickIndex, sliceSize);
+    // Las ONUs que los eventos marcaron degradadas van primero; el resto sigue
+    // el round-robin por tick. Sin eventos, el registro está vacío y el orden
+    // es exactamente el de antes.
+    const degraded = snapshotDegradedOnus(
+      { tenantId: connection.tenantId, connectionId: connection.id },
+      Date.now(),
+      DEFAULT_DEGRADED_ONU_TTL_MS,
+    );
+    const slice = rankFecCandidates({ onus, degraded, tickIndex, sliceSize });
 
     if (!fitsRateBudget(slice.length, intervalMs, limitPerHour)) {
       fecLog.warn('skipped', {
@@ -402,6 +432,7 @@ export async function runScheduledFecCollection(): Promise<void> {
       tenantId: meta.tenantId,
       connectionId: meta.connectionId,
       requested: slice.length,
+      prioritized: Math.min(degraded.length, slice.length),
       persisted: inserted,
       skipped: slice.length - contributedOnus,
       durationMs: Date.now() - t0,

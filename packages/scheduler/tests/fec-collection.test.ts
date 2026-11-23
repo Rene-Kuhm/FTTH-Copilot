@@ -60,6 +60,10 @@ vi.mock('@ftth-copilot/connectors-factory', () => ({
 }));
 
 import {
+  __resetDegradedOnusForTests,
+  recordDegradedOnu,
+} from '../src/degraded-onus';
+import {
   CONNECTION_FIXTURE,
   makeFixtureConnector,
   makeMikrowispDetail,
@@ -103,6 +107,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   clearFecEnv();
+  __resetDegradedOnusForTests();
   mocks.prismaNmsConnectionFindMany.mockReset();
   mocks.prismaMetricSampleCreateMany.mockReset();
   mocks.buildConnectorFromConnection.mockReset();
@@ -149,7 +154,7 @@ describe('runScheduledFecCollection — opt-in env gate', () => {
 
 describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
   beforeEach(() => {
-    setEnv({ FEC_COLLECTION_ENABLED: 'true' });
+    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_FAN_OUT_PER_CYCLE: '8' });
   });
 
   it('emits a tick log {tenantId, connectionId, requested:8, persisted:40, skipped:0, durationMs:>=0} for a SmartOLT-shaped 16-ONU slice (8 ONUs × 5 optical kinds)', async () => {
@@ -237,10 +242,16 @@ describe('runScheduledFecCollection — happy path (REQ-2 + REQ-4)', () => {
 
 describe('runScheduledFecCollection — rate-budget pre-flight (REQ-3)', () => {
   beforeEach(() => {
-    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_FAN_OUT_PER_CYCLE: '32' });
+    // El presupuesto del endpoint se fija explícito: el default ahora es 600
+    // por hora (S5), y este caso prueba el guardia previo, no el default.
+    setEnv({
+      FEC_COLLECTION_ENABLED: 'true',
+      FEC_FAN_OUT_PER_CYCLE: '32',
+      FEC_RATE_LIMIT_PER_HOUR: '15',
+    });
   });
 
-  it('skips the fan-out when sliceSize×1 > limitPerHour (32 × 1 > 15): zero getOnuDetail + one warn log', async () => {
+  it('skips the fan-out when sliceSize×1 > limitPerHour (32 × 1 > 15 con el presupuesto en 15): zero getOnuDetail + one warn log', async () => {
     const onus = Array.from({ length: 64 }, (_, i) => makeOnu(`ONU-${i + 1}`));
     const connector = makeFixtureConnector({
       listOnus: vi.fn(async () => onus),
@@ -274,7 +285,7 @@ describe('runScheduledFecCollection — rate-budget pre-flight (REQ-3)', () => {
   });
 
   it('proceeds when the rate-budget passes (sliceSize=8, default interval, default limit)', async () => {
-    setEnv({ FEC_COLLECTION_ENABLED: 'true' }); // sliceSize=8 default, interval=3.6M default, limit=15 default
+    setEnv({ FEC_COLLECTION_ENABLED: 'true' }); // sliceSize=8 default, interval=3.6M default, limit=600 default
     const onus = Array.from({ length: 8 }, (_, i) => makeOnu(`ONU-${i + 1}`));
     const connector = makeFixtureConnector({
       listOnus: vi.fn(async () => onus),
@@ -352,5 +363,121 @@ describe('runScheduledFecCollection — per-ONU failure isolation (REQ-5)', () =
     for (const row of persistArgs.data) {
       expect(row.connectionId).toBe('conn-1');
     }
+  });
+});
+
+
+// ── S5 — presupuesto de 600/h y prioridad de las ONUs degradadas ───────────
+
+describe('runScheduledFecCollection — presupuesto de 600 por hora (S5)', () => {
+  beforeEach(() => {
+    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_FAN_OUT_PER_CYCLE: '400' });
+  });
+
+  it('sin FEC_FAN_OUT_PER_CYCLE, el corte por tick gasta el presupuesto entero (600 por tick de 1 h)', async () => {
+    setEnv({ FEC_FAN_OUT_PER_CYCLE: undefined });
+    const onus = Array.from({ length: 1000 }, (_, i) => makeOnu(`ONU-${String(i + 1).padStart(4, '0')}`));
+    const connector = makeFixtureConnector({
+      listOnus: vi.fn(async () => onus),
+      getOnuDetail: vi.fn(async (id: string) => makeSmartOltDetail(id)),
+    });
+    mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
+    mocks.buildConnectorFromConnection.mockReturnValue({ connector });
+
+    const { runScheduledFecCollection } = await import('../src/index');
+    await runScheduledFecCollection();
+
+    expect(connector.getOnuDetail).toHaveBeenCalledTimes(600);
+  });
+
+  it('sin FEC_FAN_OUT_PER_CYCLE, un tick de 30 min gasta la mitad del presupuesto por hora', async () => {
+    setEnv({ FEC_FAN_OUT_PER_CYCLE: undefined, FEC_COLLECTION_INTERVAL_MS: '1800000' });
+    const onus = Array.from({ length: 1000 }, (_, i) => makeOnu(`ONU-${String(i + 1).padStart(4, '0')}`));
+    const connector = makeFixtureConnector({
+      listOnus: vi.fn(async () => onus),
+      getOnuDetail: vi.fn(async (id: string) => makeSmartOltDetail(id)),
+    });
+    mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
+    mocks.buildConnectorFromConnection.mockReturnValue({ connector });
+
+    const { runScheduledFecCollection } = await import('../src/index');
+    await runScheduledFecCollection();
+
+    expect(connector.getOnuDetail).toHaveBeenCalledTimes(300);
+  });
+
+  it('un corte de 400 ONUs entra en el presupuesto por default (600/h)', async () => {
+    const onus = Array.from({ length: 400 }, (_, i) => makeOnu(`ONU-${String(i + 1).padStart(3, '0')}`));
+    const connector = makeFixtureConnector({
+      listOnus: vi.fn(async () => onus),
+      getOnuDetail: vi.fn(async (id: string) => makeSmartOltDetail(id)),
+    });
+    mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
+    mocks.buildConnectorFromConnection.mockReturnValue({ connector });
+
+    const { runScheduledFecCollection } = await import('../src/index');
+    await runScheduledFecCollection();
+
+    expect(connector.getOnuDetail).toHaveBeenCalledTimes(400);
+    expect(mocks.prismaMetricSampleCreateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('un corte de 700 ONUs supera el presupuesto por default y se saltea', async () => {
+    setEnv({ FEC_FAN_OUT_PER_CYCLE: '700' });
+    const onus = Array.from({ length: 700 }, (_, i) => makeOnu(`ONU-${i + 1}`));
+    const connector = makeFixtureConnector({
+      listOnus: vi.fn(async () => onus),
+      getOnuDetail: vi.fn(),
+    });
+    mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
+    mocks.buildConnectorFromConnection.mockReturnValue({ connector });
+    const warnSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); warnSpy(`[${entry.name}] ${entry.msg}`, entry); });
+
+    const { runScheduledFecCollection } = await import('../src/index');
+    await runScheduledFecCollection();
+
+    expect(connector.getOnuDetail).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[fec-collection] skipped',
+      expect.objectContaining({ reason: 'rate_limit', requested: 700 }),
+    );
+  });
+});
+
+describe('runScheduledFecCollection — prioridad de las ONUs degradadas (S5)', () => {
+  beforeEach(() => {
+    setEnv({ FEC_COLLECTION_ENABLED: 'true', FEC_FAN_OUT_PER_CYCLE: '8' });
+  });
+
+  it('la ONU que marcó un evento va primera en el tick, aunque el round-robin no la eligiera', async () => {
+    const onus = Array.from({ length: 16 }, (_, i) => makeOnu(`ONU-${String(i + 1).padStart(2, '0')}`));
+    // `ONU-13` no entraría en el primer corte de 8 con el round-robin.
+    recordDegradedOnu(
+      { tenantId: 'tenant-1', connectionId: 'conn-1' },
+      { onuId: 'ONU-13', atMs: Date.now(), reason: 'rx1490_reading', rxPowerDbm: -31.5 },
+    );
+    const connector = makeFixtureConnector({
+      listOnus: vi.fn(async () => onus),
+      getOnuDetail: vi.fn(async (id: string) => makeSmartOltDetail(id)),
+    });
+    mocks.prismaNmsConnectionFindMany.mockResolvedValue([CONNECTION_FIXTURE]);
+    mocks.buildConnectorFromConnection.mockReturnValue({ connector });
+    const logSpy = vi.fn();
+    __setLogSinkForTests((line) => { const entry = JSON.parse(line); logSpy(`[${entry.name}] ${entry.msg}`, entry); });
+
+    const { runScheduledFecCollection } = await import('../src/index');
+    await runScheduledFecCollection();
+
+    const calledIds = (
+      connector.getOnuDetail as unknown as { mock: { calls: Array<[string]> } }
+    ).mock.calls.map((call) => call[0]);
+    expect(calledIds).toHaveLength(8);
+    expect(calledIds[0]).toBe('ONU-13');
+    expect(calledIds.filter((id) => id === 'ONU-13')).toHaveLength(1);
+    expect(logSpy).toHaveBeenCalledWith(
+      '[fec-collection] tick',
+      expect.objectContaining({ prioritized: 1, requested: 8 }),
+    );
   });
 });

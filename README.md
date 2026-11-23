@@ -520,6 +520,7 @@ Empezá por el destino que necesitás y bajá a la referencia operativa solo cua
 | [Autenticación enterprise](docs/enterprise-auth.md) | Autenticación local, OIDC/SSO (Authorization Code + PKCE), LDAP/AD conectado al login con mapeo de grupos a roles, y MFA TOTP obligatoria por tenant (`TenantPolicy.requireMfa`, `/api/security/mfa-policy`). |
 | [Despliegue en producción](docs/production-deployment.md) | Despliegue, backup, restore, observabilidad y runbook de emergencia. |
 | [Pruebas sin hardware](docs/testing-without-hardware.md) | Cómo inyectar traps SNMP y simular incidentes ópticos sin OLT físico. |
+| [Pruebas de rendimiento](docs/performance-testing.md) | Cómo medir latencia, carga y picos de la API y la ingesta con fixtures sintéticos. |
 | [Benchmarks](docs/benchmarks.md) | Latencia de diagnóstico, rendimiento SNMP y métricas de piloto. |
 | [Auditoría de seguridad](docs/security-audit.md) | Registro técnico de la auditoría de seguridad. |
 | [Roadmap público](ROADMAP.md) | Qué está *Current*, qué necesita *Validation*, qué viene *Next* y qué queda *Later*. |
