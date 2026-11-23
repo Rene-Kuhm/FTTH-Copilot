@@ -12,6 +12,99 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.9.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.8.0...v0.9.0) (2026-11-23)
+
+
+### Added
+
+* **web:** agrega desafío MFA en el flujo de inicio de sesión ([b8f668b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b8f668ba6e9071758a862eec1f700609f9aa8498))
+* **web:** completa el desafio MFA del login con cliente propio y cobertura ([e5a6e02](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e5a6e023e591c7adb8b0752f083c875fdcaed854))
+* **web:** desafio MFA en el flujo de inicio de sesion ([48f4a1b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/48f4a1bc8c74c62de9a1223eb4413e1de90961ad))
+
+
+### Fixed
+
+* **auth:** acota la cuota OIDC cuando no llega la IP del cliente ([d54ec19](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d54ec19653215eecc7d4c89a0eaa0bcca6affbca))
+* **auth:** acota la cuota OIDC por transaccion y reembolsa la reserva previa ([e54d7ae](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e54d7ae01e3df5afbc8670c6ad09dabd398fc137))
+* **auth:** aísla la cuota MFA y degrada la caída del store de cuotas ([5f2cc2e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/5f2cc2e6ab2b7be8c88509f02e286cfa0e9f80e8))
+* **auth:** aplica cuota y política de MFA al flujo OIDC ([88b4c0d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/88b4c0d47f60aa1b1fbe6935e9f4a3b99e72e2db))
+* **auth:** aplica la cuota de fuerza bruta a los caminos MFA ([968e2a6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/968e2a65976f60b1f7bd4d0c4b5da5caa2820b36))
+* **auth:** cuota y politica de MFA en el flujo OIDC ([2c68191](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/2c68191b1515a67fc14265bc7878ccdfe11f5733))
+* **auth:** emite ftth_session y ftth_csrf como cabeceras Set-Cookie separadas ([57f2025](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/57f20252ec52e0f60c140050996bf23acc309ae6))
+* **auth:** hace atómica la cuota de intentos de autenticación ([21243e5](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/21243e56eeb0fec108a3d585b105acaf90cfcf46))
+* **auth:** no reembolsa la cuota de alta de cuenta ([99d2717](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/99d27179080e480fe90f4fac9a07716493290c77))
+* **auth:** no reembolsa la cuota de alta de cuenta ([b904a00](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b904a00ca988accbfe0195eaf31e69d4aaafec5a))
+* **auth:** reembolsa la cuota OIDC ante un error interno del callback ([993d127](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/993d12775b45e2f7cec11cf2f87439063ffc4324))
+* **auth:** registra los fallos de TOTP en el login LDAP y separa sus cookies ([a70110d](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a70110dbc804af1d9bae246758d1d7a23cf09d07))
+* **auth:** separa la cuota de MFA de la cuota de inicio de sesión ([4bd3bd9](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4bd3bd9e7b758f573da081253bc266f72925d5ff))
+* **auth:** separa los buckets de cuota entre login y MFA ([77ecdc7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/77ecdc793e5835bcfa809d6dc9ee0cfb42e529d9))
+* **auth:** termina el enrolamiento MFA en OIDC cuando falta el secreto ([63540d6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/63540d6544baeda002121df29f5beb80643519a8))
+* **db:** la cuenta de cuota son intentos pendientes y la denegada no consume ([0c3d096](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/0c3d09603939fd34b0ae320721c9281aa00ef4c5))
+* **db:** la reserva de cuota se decide con bloqueo de fila ([6e163d2](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6e163d2a64fe5fb4aa969c44bbe233826d6119c1))
+* **db:** no consume cuotas cuando la reserva ya está denegada ([40e3a00](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/40e3a00389ebcab179153f34f49b67f82ab52b22))
+* **db:** reserva de cuota atómica y devolución acoplada a su reserva ([333146f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/333146fa27cf2b8ecbd845292822340b4627dd3c))
+* **db:** revierte los incrementos cuando la reserva termina denegada ([4760d46](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4760d466e9cd669a84e74f779d41e336d5147f76))
+* **web:** agrega cobertura e2e del 429 de login y corrige los selectores del spec de auth ([c13f352](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c13f352cd5e13f1f0df0b97f251d8245447ea2e8))
+* **web:** aísla por tenant el detalle de salud de conexiones ([ab36005](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/ab360053a7ef9f4370b77f6e2c675a65d9a5c4fc))
+* **web:** aísla por tenant el detalle de salud de conexiones ([d5b4ea7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d5b4ea7192343280f04b5ffd16c0a605789a7e1e))
+* **web:** comparte el rate limit de las rutas de la API entre réplicas con Redis ([b14d718](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b14d71872a0668513361aa9edc656b098adb7fc1))
+* **web:** completa el tenantId en los fixtures de salud de conexión ([d55de76](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d55de76fe53dae6982df6d6b45895752a413821c))
+* **web:** coordinar el rate limit del proxy entre réplicas con Redis ([7ab2226](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/7ab22263c5cd307d12bd14e871f04d62ef6249a9))
+* **web:** muestra el tiempo de reintento en el 429 de login y enfoca el campo MFA ([e8c246e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/e8c246eb2bb45253a05eb30a49222551b4cbb30f))
+* **web:** sacar el store Redis del middleware de Edge y fijar el contrato del runtime ([d61dc6b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d61dc6bbf5a30c650020cd83d225bcd1bc17fd44))
+
+
+### Documentation
+
+* **auth:** alinea el contrato y la documentacion con la cuota y el MFA reales ([d00df59](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d00df590a15ade84ba06623ecc3bec974f85cd97))
+* **auth:** alinea el contrato y la documentacion con la cuota y el MFA reales ([c664e79](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c664e79d81fba865b496fd6825ea96b4cb67d673))
+* **benchmarks:** alinea las cifras SNMP con el laboratorio de conformidad ([74effcf](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/74effcf2b2fea89b2a9235279e4b1652be25b21f))
+* **benchmarks:** alinear cifras SNMP con el laboratorio de conformidad ([997df86](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/997df86b353277ab0296e52b64981198b41a25fc))
+* **odd:** evidencia de cobertura y contratos canonicos ([a577e4a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a577e4ae071720e0321355e17fcdbb7ab17275ef))
+* **odd:** gate de cobertura y notas de medicion ([3dda214](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/3dda214481dc1791dd14859558b83a2275d1c840))
+* **odd:** gates finales de cobertura y contratos canonicos ([12c818e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/12c818efe23eb3704f548e6188146c3f9daf4499))
+* **odd:** plan de cobertura de modulos y contratos canonicos ([503f956](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/503f9568ca1655626feb80770a8ae2b4395adcf6))
+
+
+### Refactoring
+
+* **shared:** el umbral de rx power degradado vive en shared ([578e898](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/578e898284986606c041eb942ca08bf7b7fbe1df))
+* **shared:** el veredicto vive en shared y evidence lo reexporta ([20d8b1c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/20d8b1cd9434061d8a3aa1dcacaba850e51e1e6f))
+* **shared:** los tipos de dominio quedan en shared ([b150c11](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b150c11dfa9b7ba16f96338609d0a7d32e1e0af9))
+* **shared:** tipos de dominio y umbral de señal con una sola fuente ([22d868a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/22d868a3aab3b692a45ebd80fa0d0677be5cc460))
+* **shared:** unifica los tipos de dominio duplicados en detection y analytics ([c388805](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/c38880566a7e0152033b8733efd918db72815f5a))
+
+
+### Tests
+
+* **auth:** alinea las pruebas de cuota OIDC con la reserva atomica ([8bac738](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8bac7385447d1ce8d0a2e07385749de6eddce21d))
+* **auth:** la reserva denegada no consume ningún bucket ([71174a6](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/71174a6154b01ad833e4d22923a057d1c1f21878))
+* **auth:** que el doble de cuota respete la ventana del reembolso ([717b15b](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/717b15b84b2749c1e10d564b22489d54360a394a))
+* **auth:** que el doble de cuota respete la ventana del reembolso ([16eda5e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/16eda5e39c63ccbf792f4fc3921e5c70f8cbe0cc))
+* cobertura de comportamiento de investigations y del monitoreo de salud ([5b43c5c](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/5b43c5cf715c314e9d0a9da5e949ab0ad9b06f9b))
+* **investigations:** cobertura de comportamiento de la cuota ([b18b64a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/b18b64aac508acca8ffd3cdbac163dc7a175e8a8))
+* **investigations:** cobertura de comportamiento del pipeline ([7658451](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/7658451f01e07dffd3ceb8d58ca472ec6a1358aa))
+* **web:** cobertura de comportamiento del monitoreo de salud ([d61b3df](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d61b3df4df935ea358d889aeb008bb66b172beb6))
+* **web:** limpia las cuotas de auth entre corridas E2E ([06898c0](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/06898c086d01671fc1de754e8fa8ef87473231c1))
+* **web:** limpiar cuotas de auth entre corridas E2E ([730b273](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/730b273d3546cee25792afa19cb5b596e9fb590c))
+
+
+### Build
+
+* **deps:** bump jdx/mise-action ([a2a48a7](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/a2a48a734a1b60479f769fd00a2986b16e841a78))
+* **deps:** bump jdx/mise-action from 5.2.7 to 5.2.8 in the github-actions group ([814db9f](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/814db9f5deb57a8d3d9505fa6699e29405f274f8))
+* **deps:** bump the npm-lockfile group across 1 directory with 16 updates ([67098ae](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/67098ae0fc49a7a270d26572f36e730c223b5bfd))
+* **deps:** bump the npm-lockfile group across 1 directory with 16 updates ([8db88b3](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/8db88b354b368ad589aa3d3b27ad3ab8d263c9fd))
+
+
+### Maintenance
+
+* **compose:** declarar límites y reservas de recursos por servicio ([180a68e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/180a68ec294676e35c8bf4ac1686f2fd3374db24))
+* **compose:** límites y reservas de recursos por servicio ([d267c7e](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/d267c7eeae8ffaf36045b04984c234955da0af9f))
+* **merge:** incorpora la cuota de intentos atómica y los buckets por flujo ([66c8ce8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/66c8ce8de47f6a302a6f7f23134d336b1e371b06))
+* **merge:** integra main en la rama ([762a6db](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/762a6dbb882fbf34518dd0f569a758c6cbd97d6b))
+* **merge:** integra main y conserva la politica de MFA en OIDC ([6504792](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/6504792baf81c74b36b11525bdc1883bd19c3cbc))
+
 ## [0.8.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.7.1...v0.8.0) (2026-11-13)
 
 
