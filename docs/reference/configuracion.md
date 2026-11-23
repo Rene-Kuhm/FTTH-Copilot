@@ -45,6 +45,7 @@ y el fallo aparece en la primera query.
 | `INVESTIGATION_DAILY_QUOTA` | `100` | `apps/web/lib/investigations/quota.ts:30` | Investigaciones por día |
 | `AUTH_RATE_LIMIT_MAX` | `10` | `apps/web/lib/auth/server.ts:58` | Intentos de login/signup por ventana |
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | `apps/web/lib/auth/server.ts:59` | Ventana anti brute-force (15 min) |
+| `AUTH_RATE_LIMIT_UNKNOWN_IP_MAX` | `100` (`10 × AUTH_RATE_LIMIT_MAX`) | `apps/web/lib/auth/quota.ts:51` | Tope compartido del bucket `oidc:ip:unknown` en el callback OIDC cuando falta `X-Forwarded-For` |
 | `REDIS_URL` | `redis://127.0.0.1:6379` | `apps/web/lib/rate-limit-store.ts:256` | Store compartido en Redis para las rutas de API que mutan estado en Node (§1); sin ella cae a memoria por instancia y avisa en los logs (el middleware de Edge usa memoria por instancia) |
 
 ## 5. Conectores NMS
