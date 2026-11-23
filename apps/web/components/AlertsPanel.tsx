@@ -266,7 +266,7 @@ export function AlertsPanel() {
         </h2>
         <p
           className="mt-1.5 max-w-sm text-xs leading-5"
-          style={{ color: 'var(--color-muted)' }}
+          style={{ color: 'var(--color-muted-text)' }}
         >
           {connectorState.connectedConnectors.length === 0 && !dataSource
             ? 'Validá un NMS para empezar a consultar eventos operativos.'
@@ -332,7 +332,7 @@ export function AlertsPanel() {
               >
                 Alertas de red
               </h2>
-              <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-text)' }}>
                 {alerts.length} alerta{alerts.length === 1 ? '' : 's'} activa
                 {alerts.length === 1 ? '' : 's'} · agrupadas por categoría
               </p>
@@ -354,7 +354,7 @@ export function AlertsPanel() {
             <ChevronDownIcon
               className="h-4 w-4 transition-transform"
               style={{
-                color: 'var(--color-muted)',
+                color: 'var(--color-muted-text)',
                 transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
               }}
             />
@@ -387,7 +387,7 @@ export function AlertsPanel() {
                   }}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span style={{ color: 'var(--color-muted)' }}>
+                    <span style={{ color: 'var(--color-muted-text)' }}>
                       {collapsed ? (
                         <ChevronRightIcon className="h-4 w-4" />
                       ) : (
@@ -400,7 +400,7 @@ export function AlertsPanel() {
                     <span className="font-medium" style={{ color: 'var(--color-text)' }}>
                       {formatCategory(category)}
                     </span>
-                    <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                    <span className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
                       ({items.length})
                     </span>
                   </div>
@@ -425,18 +425,18 @@ export function AlertsPanel() {
                                 >
                                   {alert.title}
                                 </span>
-                                <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                                <span className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
                                   {alert.affectedEntity}
                                 </span>
                               </div>
                               <p
                                 className="mt-0.5 text-xs leading-relaxed"
-                                style={{ color: 'var(--color-muted)' }}
+                                style={{ color: 'var(--color-muted-text)' }}
                               >
                                 {alert.description}
                               </p>
                             </div>
-                            <span className="flex-shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
+                            <span className="flex-shrink-0 text-xs" style={{ color: 'var(--color-muted-text)' }}>
                               {timeAgo(alert.detectedAt)}
                             </span>
                           </div>

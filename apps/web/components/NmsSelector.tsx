@@ -47,7 +47,7 @@ export function NmsSelector() {
               }}
             />
           </div>
-          <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+          <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-text)' }}>
             Contexto compartido por Copilot, tablero y alertas.
           </p>
         </div>

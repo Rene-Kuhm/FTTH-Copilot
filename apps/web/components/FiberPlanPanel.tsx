@@ -91,7 +91,7 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
   // ── Loading state ────────────────────────────────────────────────────────────
   if (isInitialLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-muted)', fontFamily: 'var(--font-body)', fontSize: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-muted-text)', fontFamily: 'var(--font-body)', fontSize: 14 }}>
         Cargando planos…
       </div>
     );
@@ -136,11 +136,11 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
         </svg>
         <div style={{ textAlign: 'center' }}>
           <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>Sin planos cargados</p>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-muted)' }}>Subí un plano de fibra óptica para comenzar</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-muted-text)' }}>Subí un plano de fibra óptica para comenzar</p>
         </div>
         <button
           onClick={() => setShowUpload(true)}
-          style={{ padding: '8px 20px', borderRadius: 10, border: 'none', background: 'var(--color-accent)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          style={{ padding: '8px 20px', borderRadius: 10, border: 'none', background: 'var(--color-accent-fill)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
         >
           + Subir primer plano
         </button>
@@ -192,7 +192,7 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
               <div style={{ fontSize: 12, fontWeight: 600, color: selectedPlanId === plan.id ? 'var(--color-text)' : 'var(--color-muted)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {plan.name}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--color-muted)' }}>
+              <div style={{ fontSize: 10, color: 'var(--color-muted-text)' }}>
                 {plan.zones.length} zona{plan.zones.length !== 1 ? 's' : ''} · {plan.mimeType.split('/')[1]?.toUpperCase() ?? 'FILE'}
               </div>
             </button>
@@ -232,7 +232,7 @@ export default function FiberPlanPanel({ onMarkerContext }: FiberPlanPanelProps)
             </button>
             <button
               onClick={() => setShowUpload(true)}
-              style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--color-accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--color-accent-fill)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
               + Nuevo plano
             </button>

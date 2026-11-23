@@ -123,7 +123,7 @@ export function AuthBar({
             </div>
             <div
               className="mt-1 flex items-center gap-1.5 text-[11px]"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               <BuildingOfficeIcon className="h-3.5 w-3.5" />
               <span className="truncate">{auth.user.tenant.name}</span>
@@ -165,7 +165,7 @@ export function AuthBar({
           >
             Inicia sesión
           </h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-text)' }}>
             Accedé para chatear con tu red FTTH y gestionar tu tenant.
           </p>
         </div>
@@ -277,7 +277,7 @@ export function AuthBar({
           >
             Verificación en dos pasos
           </h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-text)' }}>
             {mfaSetupRequired
               ? 'Tu organización exige MFA. Generá un secreto TOTP, configurá tu app autenticadora y verificá el código para completar el ingreso.'
               : 'Ingresá el código de 6 dígitos de tu app autenticadora.'}
@@ -302,15 +302,15 @@ export function AuthBar({
               color: 'var(--color-text)',
             }}
           >
-            <p style={{ color: 'var(--color-muted)' }}>
+            <p style={{ color: 'var(--color-muted-text)' }}>
               Agregá esta clave en tu app autenticadora y luego ingresá el código.
             </p>
             <p className="font-mono text-xs break-all">
-              <span style={{ color: 'var(--color-muted)' }}>Secreto: </span>
+              <span style={{ color: 'var(--color-muted-text)' }}>Secreto: </span>
               {mfaSetupSecret}
             </p>
             {mfaSetupUri && (
-              <p className="text-xs break-all" style={{ color: 'var(--color-muted)' }}>
+              <p className="text-xs break-all" style={{ color: 'var(--color-muted-text)' }}>
                 URI: <span className="font-mono">{mfaSetupUri}</span>
               </p>
             )}
@@ -381,7 +381,7 @@ export function AuthBar({
           >
             {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
           </h2>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-text)' }}>
             {isLogin
               ? 'Accedé a tu tenant para continuar.'
               : 'Creá tu cuenta y tenant en un solo paso.'}
@@ -513,13 +513,13 @@ function Field({
     <label className="block space-y-1.5">
       <span
         className="flex items-center justify-between text-xs font-medium"
-        style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+        style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span style={{ color: 'var(--color-muted)', opacity: 0.7 }}>{icon}</span>
+          <span style={{ color: 'var(--color-muted-text)', opacity: 0.7 }}>{icon}</span>
           {label}
         </span>
-        {hint && <span style={{ opacity: 0.6 }}>{hint}</span>}
+        {hint && <span>{hint}</span>}
       </span>
       {children}
     </label>

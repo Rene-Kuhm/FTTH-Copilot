@@ -56,7 +56,7 @@ export function AccessLog() {
           </span>
           <div>
             <h2 className="text-sm font-semibold text-white">Bitácora de acceso</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">Accesos y fallos de autenticación en equipos</p>
+            <p className="mt-0.5 text-xs text-neutral-400">Accesos y fallos de autenticación en equipos</p>
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
@@ -65,7 +65,7 @@ export function AccessLog() {
       </div>
 
       {loading ? (
-        <p className="px-6 py-4 text-xs text-neutral-500">Cargando bitácora…</p>
+        <p className="px-6 py-4 text-xs text-neutral-400">Cargando bitácora…</p>
       ) : (
         <ul className="divide-y divide-white/[0.05]">
           {events.map((event) => {
@@ -85,7 +85,7 @@ export function AccessLog() {
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-sm text-white">{event.message}</span>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-x-3 text-[11px] text-neutral-500">
+                  <div className="mt-0.5 flex items-center gap-x-3 text-[11px] text-neutral-400">
                     <span className="font-mono">{event.sourceIp ?? 's/n'}</span>
                     <span>{formatTime(event.occurredAt)}</span>
                   </div>

@@ -222,7 +222,7 @@ export function ConnectorManager() {
             >
               Conectores NMS
             </h2>
-            <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-text)' }}>
               {connectorState.connectors.length === 0
                 ? 'Todavía no configuraste una red'
                 : `${connectorState.connectors.length} conector${connectorState.connectors.length === 1 ? '' : 'es'} configurado${connectorState.connectors.length === 1 ? '' : 's'}`}
@@ -267,7 +267,7 @@ export function ConnectorManager() {
         )}
 
         {connectorState.loading ? (
-          <p role="status" className="text-sm" style={{ color: 'var(--color-muted)' }}>
+          <p role="status" className="text-sm" style={{ color: 'var(--color-muted-text)' }}>
             Cargando conectores…
           </p>
         ) : connectorState.connectors.length === 0 ? (
@@ -278,7 +278,7 @@ export function ConnectorManager() {
               background: 'color-mix(in srgb, var(--color-bg) 70%, transparent)',
             }}
           >
-            <ServerStackIcon className="h-8 w-8" style={{ color: 'var(--color-muted)' }} />
+            <ServerStackIcon className="h-8 w-8" style={{ color: 'var(--color-muted-text)' }} />
             <p
               className="text-sm font-semibold"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
@@ -287,7 +287,7 @@ export function ConnectorManager() {
             </p>
             <p
               className="max-w-md text-xs leading-5"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               Agregá SmartOLT, Mikrowisp o MikroTik y validá la conexión para consultar tu red
               real.
@@ -317,7 +317,7 @@ export function ConnectorManager() {
                         style={{
                           background: 'color-mix(in srgb, var(--color-muted) 8%, transparent)',
                           border: '1px solid var(--border-divider)',
-                          color: 'var(--color-muted)',
+                          color: 'var(--color-muted-text)',
                         }}
                       >
                         <ServerStackIcon className="h-4 w-4" />
@@ -334,7 +334,7 @@ export function ConnectorManager() {
                             className="badge"
                             style={{
                               background: 'color-mix(in srgb, var(--color-muted) 10%, transparent)',
-                              color: 'var(--color-muted)',
+                              color: 'var(--color-muted-text)',
                               border: '1px solid var(--border-divider)',
                               fontFamily: 'var(--font-display)',
                             }}
@@ -347,7 +347,7 @@ export function ConnectorManager() {
                           </span>
                         </div>
                         {connector.baseUrl && (
-                          <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-muted)' }}>
+                          <p className="mt-1 truncate text-xs" style={{ color: 'var(--color-muted-text)' }}>
                             {connector.baseUrl}
                           </p>
                         )}
@@ -357,7 +357,7 @@ export function ConnectorManager() {
                           </p>
                         )}
                         {connector.lastCheckedAt && (
-                          <p className="mt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                          <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-text)' }}>
                             Última prueba:{' '}
                             {new Intl.DateTimeFormat('es-AR', {
                               dateStyle: 'short',
@@ -414,7 +414,7 @@ export function ConnectorManager() {
             <label className="block space-y-1.5">
               <span
                 className="text-xs font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 Proveedor
               </span>
@@ -436,7 +436,7 @@ export function ConnectorManager() {
             <label className="block space-y-1.5">
               <span
                 className="text-xs font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 Etiqueta
               </span>
@@ -454,7 +454,7 @@ export function ConnectorManager() {
             <label className="block space-y-1.5 sm:col-span-2">
               <span
                 className="text-xs font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 {provider === 'MIKROTIK'
                   ? 'Credenciales (usuario:contraseña)'
@@ -478,7 +478,7 @@ export function ConnectorManager() {
             <label className="block space-y-1.5 sm:col-span-2">
               <span
                 className="text-xs font-medium"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 URL base
               </span>
@@ -517,7 +517,7 @@ export function ConnectorManager() {
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+            <p className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
               Solo se permiten destinos HTTPS públicos. La clave se almacena cifrada.
             </p>
             <button type="submit" disabled={submitting} className="btn-primary sm:w-auto">

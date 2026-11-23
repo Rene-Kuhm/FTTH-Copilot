@@ -103,7 +103,7 @@ export function PredictiveAlerts() {
           </span>
           <div>
             <h2 className="text-sm font-semibold text-white">Fallas pronosticadas</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">Detección temprana · antes del impacto</p>
+            <p className="mt-0.5 text-xs text-neutral-400">Detección temprana · antes del impacto</p>
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
@@ -114,7 +114,7 @@ export function PredictiveAlerts() {
       </div>
 
       {loading ? (
-        <p className="px-6 py-4 text-xs text-neutral-500">Cargando predicciones…</p>
+        <p className="px-6 py-4 text-xs text-neutral-400">Cargando predicciones…</p>
       ) : (
         <ul className="divide-y divide-white/[0.05]">
           {predictions.map((prediction) => {
@@ -140,7 +140,7 @@ export function PredictiveAlerts() {
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-neutral-400">{prediction.description}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-500">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-400">
                     <span className="font-mono">{prediction.deviceKind} · {prediction.deviceId}</span>
                     {eta && <span className="text-amber-300">ETA {eta}</span>}
                   </div>

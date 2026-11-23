@@ -120,7 +120,7 @@ export default function FiberPlanUpload({ onClose, onUploaded }: FiberPlanUpload
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'var(--color-muted)',
+              color: 'var(--color-muted-text)',
               fontSize: 22,
               lineHeight: 1,
               padding: 4,
@@ -166,13 +166,13 @@ export default function FiberPlanUpload({ onClose, onUploaded }: FiberPlanUpload
               <p style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--color-text)' }}>
                 Arrastrá el archivo o hacé click para seleccionar
               </p>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted)' }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted-text)' }}>
                 PNG, JPEG, SVG, GIF, WebP, PDF — hasta 50 MB
               </p>
             </>
           )}
           {file && (
-            <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-muted)' }}>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-muted-text)' }}>
               {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
             </p>
           )}
@@ -189,7 +189,7 @@ export default function FiberPlanUpload({ onClose, onUploaded }: FiberPlanUpload
         {/* Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-muted)', marginBottom: 4 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-muted-text)', marginBottom: 4 }}>
               Nombre *
             </label>
             <input
@@ -212,7 +212,7 @@ export default function FiberPlanUpload({ onClose, onUploaded }: FiberPlanUpload
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-muted)', marginBottom: 4 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-muted-text)', marginBottom: 4 }}>
               Descripción
             </label>
             <textarea

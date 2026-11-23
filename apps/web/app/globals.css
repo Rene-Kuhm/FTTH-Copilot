@@ -12,8 +12,12 @@
   --color-surface:       #20161e;
   --color-surface-elev: #2a2028;
   --color-muted:         #7b4d68;
+  /* Text-safe variant of muted: >= 4.5:1 on bg and surface (WCAG AA). */
+  --color-muted-text:    #a9809a;
   --color-text:          #f6eff3;
   --color-accent:        #f23077;
+  /* Accent as a fill behind white text: 4.86:1 (accent itself is 3.84:1). */
+  --color-accent-fill:   #d9205f;
 
   /* Semantic aliases */
   --color-action:        var(--color-accent);
@@ -49,6 +53,7 @@
   --color-surface:       #ffffff;
   --color-surface-elev: #f1eff2;
   --color-muted:         #9d8aa0;
+  --color-muted-text:    #9d8aa0;
   --color-text:          #1a1218;
   --color-accent:        #e8256b;
 
@@ -70,7 +75,9 @@
   --color-bg:           #1a1218;  /* App shell / deepest background */
   --color-surface:       #20161e;  /* Main surfaces, cards, navigation */
   --color-surface-elev: #2a2028;  /* Elevated surfaces (dropdowns, modals) */
-  --color-muted:         #7b4d68;  /* Secondary text, dividers, inactive */
+  --color-muted:         #7b4d68;  /* Dividers, borders, inactive fills (not for text) */
+  --color-muted-text:    #a9809a;  /* Secondary text */
+  --color-accent-fill:   #d9205f;  /* Accent fill behind white text */
   --color-text:          #f6eff3;  /* Primary text */
   --color-accent:        #f23077;  /* Primary actions, focus, active states */
 
@@ -253,7 +260,7 @@
 
   .btn-primary {
     border: 1px solid var(--border-accent);
-    background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 75%, black));
+    background: linear-gradient(135deg, var(--color-accent-fill), color-mix(in srgb, var(--color-accent-fill) 75%, black));
     color: #fff;
     box-shadow: 0 1px 0 rgb(255 255 255 / 0.15) inset, var(--shadow-glow);
   }
@@ -276,7 +283,7 @@
   .btn-ghost {
     border: 1px solid transparent;
     background: transparent;
-    color: var(--color-muted);
+    color: var(--color-muted-text);
   }
   .btn-ghost:not(:disabled):hover {
     background: color-mix(in srgb, var(--color-muted) 12%, transparent);
@@ -322,7 +329,7 @@
       box-shadow var(--transition-std),
       background-color var(--transition-std);
   }
-  .input::placeholder { color: var(--color-muted); }
+  .input::placeholder { color: var(--color-muted-text); }
   .input:hover:not(:disabled) { border-color: var(--border-accent); }
   .input:focus {
     border-color: var(--color-accent);
@@ -366,7 +373,7 @@
   }
   .badge-muted {
     background: color-mix(in srgb, var(--color-muted) 12%, transparent);
-    color: var(--color-muted);
+    color: var(--color-muted-text);
     border: 1px solid var(--border-divider);
   }
 
@@ -398,7 +405,7 @@
     border: 1px solid transparent;
     border-radius: calc(var(--radius-control) - 2px);
     padding: 0.625rem 0.75rem;
-    color: var(--color-muted);
+    color: var(--color-muted-text);
     font-family: var(--font-display);
     font-size: 0.8125rem;
     font-weight: 600;

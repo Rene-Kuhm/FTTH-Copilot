@@ -45,7 +45,7 @@ export function LoginPageClient({
         initialOidcError={initialOidcError}
         initialMfaTempToken={initialMfaTempToken}
       />
-      <p className="mt-5 text-center text-xs" style={{ color: 'var(--color-muted)' }}>
+      <p className="mt-5 text-center text-xs" style={{ color: 'var(--color-muted-text)' }}>
         ¿No tenés cuenta?{' '}
         <Link
           href={'/signup' as Route}
