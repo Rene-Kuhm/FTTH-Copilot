@@ -55,7 +55,7 @@ export function authQuotaKeys(
 
 /**
  * Check all rate-limit keys and return the first denial, or allowed when all pass.
- * Fails open on quota-store outages so transient DB errors do not cause 500s.
+ * Fails closed on quota-store outages so DB errors never bypass rate limits.
  */
 export async function checkAuthQuotaForKeys(
   keys: string[],
@@ -71,7 +71,7 @@ export async function checkAuthQuotaForKeys(
     return { allowed: true, retryAfter: 0 };
   } catch (err) {
     warnDegraded('check', err);
-    return { allowed: true, retryAfter: 0 };
+    return { allowed: false, retryAfter: Math.max(1, Math.ceil(opts.windowMs / 1000)) };
   }
 }
 
@@ -92,33 +92,33 @@ export async function recordAuthFailures(keys: string[]): Promise<void> {
 
 /**
  * Atomically reserve one attempt across every rate-limit key before
- * performing expensive credential verification. Fails open with an epoch
- * sentinel windowStart so a failed reservation is never refunded later.
+ * performing expensive credential verification. Fails closed on store outages.
  */
 export async function reserveAuthQuotaForKeys(keys: string[]): Promise<AuthQuotaReservation> {
+  const opts = authRateLimitOptions();
   try {
-    return await reserveAuthQuota(keys, authRateLimitOptions());
+    return await reserveAuthQuota(keys, opts);
   } catch (err) {
     warnDegraded('reservation', err);
-    return { allowed: true, retryAfter: 0, windowStart: new Date(0), counts: {} };
+    return {
+      allowed: false,
+      retryAfter: Math.max(1, Math.ceil(opts.windowMs / 1000)),
+      windowStart: new Date(),
+    };
   }
 }
 
 /**
  * Refund a previously reserved attempt across `keys` when authentication
- * succeeds or delegates to the second-factor step. Skips epoch-sentinel
- * reservations and swallows quota-store errors.
+ * succeeds or delegates to the second-factor step.
  */
 export async function releaseAuthQuotaForKeys(
   keys: string[],
   windowStart?: Date,
-  counts?: Record<string, number>,
 ): Promise<void> {
-  // Never refund a failed reservation that fell back to the epoch sentinel.
-  if (windowStart?.getTime() === 0) return;
   const opts = authRateLimitOptions();
   try {
-    await releaseAuthQuota(keys, opts, undefined, windowStart, counts);
+    await releaseAuthQuota(keys, opts, undefined, windowStart);
   } catch (err) {
     warnDegraded('release', err);
   }

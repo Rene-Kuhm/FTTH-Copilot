@@ -70,7 +70,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     where: { id: user.id },
     data: { mfaEnabled: false, totpSecret: null },
   });
-  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({ ok: true, message: 'MFA deshabilitado correctamente' });
 }

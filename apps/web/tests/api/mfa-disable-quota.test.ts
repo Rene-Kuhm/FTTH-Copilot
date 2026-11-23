@@ -91,7 +91,7 @@ vi.mock('@ftth-copilot/db', () => ({
   reserveAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
-  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date; counts: Record<string, number> }> => {
+  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date }> => {
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
     const expiresAt = windowStartMs + opts.windowMs;
@@ -104,33 +104,29 @@ vi.mock('@ftth-copilot/db', () => ({
         allowed: false,
         retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
         windowStart: new Date(windowStartMs),
-        counts: {},
       };
     }
-    const counts: Record<string, number> = {};
     uniqueKeys.forEach((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
       mocks.buckets.set(bucketKey, { count, expiresAt });
-      counts[key] = count;
     });
-    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs), counts };
+    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
   },
   releaseAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
     _store?: unknown,
     windowStartDate?: Date,
-    expectedCounts: Record<string, number> = {},
   ): Promise<void> => {
     const windowStartMs = windowStartDate
       ? windowStartDate.getTime()
       : computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs);
-    for (const key of keys) {
+    for (const key of new Set(keys)) {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
-      if (existing && existing.count === expectedCounts[key]) {
+      if (existing) {
         mocks.buckets.set(bucketKey, {
           count: Math.max(existing.count - 1, 0),
           expiresAt: existing.expiresAt,

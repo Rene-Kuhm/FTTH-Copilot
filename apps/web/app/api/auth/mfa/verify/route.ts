@@ -123,7 +123,7 @@ async function handleMfaLogin(
     }
   } else if (user.mfaEnabled) {
     // MFA enabled but no secret - shouldn't happen
-    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured properly' }, { status: 500 });
   }
 
@@ -145,7 +145,7 @@ async function handleMfaLogin(
     user.id,
     true,
   );
-  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   const { cookie: csrfCookie } = generateCsrfToken();
   const headers = new Headers({ 'content-type': 'application/json' });
@@ -201,7 +201,7 @@ async function handleSetupVerification(
     where: { id: user.id },
     data: { mfaEnabled: true },
   });
-  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({
     mfaEnabled: true,
@@ -271,7 +271,7 @@ async function handleMfaContinue(
 
   // Verify MFA code
   if (!user.totpSecret) {
-    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
@@ -348,7 +348,7 @@ async function handleMfaContinue(
     user.id,
     true,
   );
-  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart, quota.counts);
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   const { cookie: csrfCookie } = generateCsrfToken();
   const headers = new Headers({ 'content-type': 'application/json' });

@@ -72,8 +72,8 @@ suite('auth-rate-limit concurrency (PostgreSQL integration)', () => {
 
     const first = await reserveAuthQuota(keys, opts, undefined, now);
     expect(first.allowed).toBe(true);
-    await releaseAuthQuota(keys, opts, undefined, first.windowStart, first.counts);
-    await releaseAuthQuota(keys, opts, undefined, first.windowStart, first.counts);
+    await releaseAuthQuota(keys, opts, undefined, first.windowStart);
+    await releaseAuthQuota(keys, opts, undefined, first.windowStart);
 
     const rows = await prisma.authRateLimit.findMany({
       where: { key: { in: keys }, windowStart: first.windowStart },

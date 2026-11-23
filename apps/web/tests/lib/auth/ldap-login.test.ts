@@ -57,7 +57,6 @@ beforeEach(() => {
     allowed: true,
     retryAfter: 0,
     windowStart: new Date(1_700_000_000_000),
-    counts: {},
   });
   mocks.releaseAuthQuota.mockResolvedValue(undefined);
   mocks.authRateLimitKeys.mockReturnValue(['ip:203.0.113.10']);
@@ -123,6 +122,14 @@ describe('authenticateAndIssueLdapSession', () => {
     await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
     expect(mocks.authenticateLdapUser).not.toHaveBeenCalled();
     expect(mocks.releaseAuthQuota).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 without calling LDAP when quota store throws', async () => {
+    mocks.reserveAuthQuota.mockRejectedValueOnce(new Error('DB down'));
+    const res = await authenticateAndIssueLdapSession({ req: makeReq(), username: 'jdoe', password: 'secret' });
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ error: AUTH_QUOTA_ERROR_MESSAGE });
+    expect(mocks.authenticateLdapUser).not.toHaveBeenCalled();
   });
 
   it('returns 401 and keeps reservation consumed when LDAP rejects credentials', async () => {
@@ -249,12 +256,11 @@ describe('authenticateAndIssueLdapSession', () => {
       totpSecret: null,
     });
 
-    const reservedCounts = { 'login:email:jdoe@example.invalid': 1, 'login:ip:203.0.113.10': 1 };
     const res = await authenticateAndIssueLdapSession({
       req: makeReq(),
       username: 'jdoe@example.invalid',
       password: 'secret',
-      reservedQuota: { keys: reservedKeys, windowStart, counts: reservedCounts },
+      reservedQuota: { keys: reservedKeys, windowStart },
     });
 
     expect(res.status).toBe(200);
@@ -264,7 +270,6 @@ describe('authenticateAndIssueLdapSession', () => {
       expect.any(Object),
       undefined,
       windowStart,
-      reservedCounts,
     );
   });
 
@@ -283,21 +288,15 @@ describe('authenticateAndIssueLdapSession', () => {
       async (keys: string[], opts: { max: number; windowMs: number }) => {
         const uniqueKeys = [...new Set(keys)];
         if (uniqueKeys.some((k) => (buckets.get(k) ?? 0) >= opts.max)) {
-          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart, counts: {} };
+          return { allowed: false, retryAfter: 45, windowStart: frozenWindowStart };
         }
-        const counts: Record<string, number> = {};
-        uniqueKeys.forEach((key) => {
-          const next = (buckets.get(key) ?? 0) + 1;
-          buckets.set(key, next);
-          counts[key] = next;
-        });
-        return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart, counts };
+        uniqueKeys.forEach((key) => buckets.set(key, (buckets.get(key) ?? 0) + 1));
+        return { allowed: true, retryAfter: 0, windowStart: frozenWindowStart };
       },
     );
-    mocks.releaseAuthQuota.mockImplementation(async (keys: string[], _o?: unknown, _s?: unknown, _w?: Date, expected: Record<string, number> = {}) => {
-      for (const key of keys) {
-        const current = buckets.get(key) ?? 0;
-        if (current === expected[key]) buckets.set(key, Math.max(current - 1, 0));
+    mocks.releaseAuthQuota.mockImplementation(async (keys: string[]) => {
+      for (const key of new Set(keys)) {
+        buckets.set(key, Math.max((buckets.get(key) ?? 0) - 1, 0));
       }
     });
 

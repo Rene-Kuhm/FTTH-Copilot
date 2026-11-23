@@ -104,7 +104,7 @@ vi.mock('@ftth-copilot/db', () => ({
   reserveAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
-  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date; counts: Record<string, number> }> => {
+  ): Promise<{ allowed: boolean; retryAfter: number; windowStart: Date }> => {
     if (mocks.reserveError) throw mocks.reserveError;
     const nowMs = FROZEN_NOW_MS;
     const windowStartMs = computeWindowStartMs(nowMs, opts.windowMs);
@@ -118,34 +118,30 @@ vi.mock('@ftth-copilot/db', () => ({
         allowed: false,
         retryAfter: retryAfterSeconds(nowMs, windowStartMs, opts.windowMs),
         windowStart: new Date(windowStartMs),
-        counts: {},
       };
     }
-    const counts: Record<string, number> = {};
     uniqueKeys.forEach((key) => {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
       const count = existing && existing.expiresAt > nowMs ? existing.count + 1 : 1;
       mocks.buckets.set(bucketKey, { count, expiresAt });
-      counts[key] = count;
     });
-    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs), counts };
+    return { allowed: true, retryAfter: 0, windowStart: new Date(windowStartMs) };
   },
   releaseAuthQuota: async (
     keys: string[],
     opts: { max: number; windowMs: number },
     _store?: unknown,
     windowStartDate?: Date,
-    expectedCounts: Record<string, number> = {},
   ): Promise<void> => {
     if (mocks.releaseError) throw mocks.releaseError;
     const windowStartMs = windowStartDate
       ? windowStartDate.getTime()
       : computeWindowStartMs(FROZEN_NOW_MS, opts.windowMs);
-    for (const key of keys) {
+    for (const key of new Set(keys)) {
       const bucketKey = `${key}:${windowStartMs}`;
       const existing = mocks.buckets.get(bucketKey);
-      if (existing && existing.count === expectedCounts[key]) {
+      if (existing) {
         mocks.buckets.set(bucketKey, {
           count: Math.max(existing.count - 1, 0),
           expiresAt: existing.expiresAt,
@@ -750,34 +746,39 @@ describe('POST /api/auth/mfa/verify — brute-force quota and CSRF cookie', () =
     });
   });
 
-  describe('quota-store outage degradation (fail-open & no false refund)', () => {
-    it('returns 401 Invalid credentials instead of 500 on wrong password when quota store fails', async () => {
+  describe('quota-store outage handling (fail-closed on reserve)', () => {
+    it('returns 429 without running password check when quota store fails on wrong password', async () => {
       mocks.reserveError = new Error('DB down');
       mocks.verifyPassword.mockResolvedValue(false);
       const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'wrong', code: '123456' }, '203.0.113.50'));
-      expect(res.status).toBe(401);
-      await expect(res.json()).resolves.toEqual({ error: 'Invalid credentials' });
+      expect(res.status).toBe(429);
+      expect(res.headers.get('retry-after')).toMatch(/^[1-9]\d*$/);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.verifyPassword).not.toHaveBeenCalled();
       expect(mocks.buckets.size).toBe(0);
     });
 
-    it('returns 401 Invalid MFA code instead of 500 on wrong TOTP code when quota store fails', async () => {
+    it('returns 429 without running TOTP check when quota store fails on wrong TOTP code', async () => {
       mocks.reserveError = new Error('DB down');
       mocks.verifyTOTP.mockReturnValue(false);
       const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'correct', code: '000000' }, '203.0.113.51'));
-      expect(res.status).toBe(401);
-      await expect(res.json()).resolves.toEqual({ error: 'Invalid MFA code' });
+      expect(res.status).toBe(429);
+      expect(res.headers.get('retry-after')).toMatch(/^[1-9]\d*$/);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.verifyTOTP).not.toHaveBeenCalled();
       expect(mocks.buckets.size).toBe(0);
     });
 
-    it('returns 200 on valid credentials when quota store fails without altering stored buckets', async () => {
+    it('returns 429 on reserve outage without altering buckets, and 200 when only release fails', async () => {
       const startMs = computeWindowStartMs(FROZEN_NOW_MS, 60_000);
       mocks.buckets.set(`login:email:operator@example.com:${startMs}`, { count: 2, expiresAt: startMs + 60_000 });
       mocks.buckets.set(`login:ip:203.0.113.52:${startMs}`, { count: 2, expiresAt: startMs + 60_000 });
       mocks.reserveError = new Error('DB down');
 
       const res = await POST(mfaRequest({ email: 'operator@example.com', password: 'correct', code: '654321' }, '203.0.113.52'));
-      expect(res.status).toBe(200);
-      expect(mocks.prisma.session.create).toHaveBeenCalledTimes(1);
+      expect(res.status).toBe(429);
+      await expect(res.json()).resolves.toEqual({ error: EXPECTED_QUOTA_ERROR });
+      expect(mocks.prisma.session.create).not.toHaveBeenCalled();
       expect(mocks.buckets.get(`login:email:operator@example.com:${startMs}`)?.count).toBe(2);
       expect(mocks.buckets.get(`login:ip:203.0.113.52:${startMs}`)?.count).toBe(2);
 

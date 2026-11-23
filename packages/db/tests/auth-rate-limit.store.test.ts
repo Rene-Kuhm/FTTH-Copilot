@@ -73,7 +73,6 @@ describe('default store (Prisma-backed)', () => {
     );
     expect(decision.allowed).toBe(true);
     expect(decision.retryAfter).toBe(0);
-    expect(decision.counts).toEqual({ 'login:email:a@b.c': 1, 'login:ip:1.2.3.4': 2 });
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -87,13 +86,21 @@ describe('default store (Prisma-backed)', () => {
     );
     expect(decision.allowed).toBe(false);
     expect(decision.retryAfter).toBeGreaterThan(0);
-    expect(decision.counts).toEqual({});
     expect(mocks.executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('reserveAuthQuota refunds partial keys when queryRaw reserves fewer keys than requested', async () => {
+    mocks.queryRaw.mockResolvedValue([{ key: 'login:email:a@b.c', count: 1 }]);
+    mocks.executeRaw.mockResolvedValue(1);
+    const decision = await reserveAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW);
+    expect(decision).toMatchObject({ allowed: false });
+    expect(decision.retryAfter).toBeGreaterThan(0);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('releaseAuthQuota executes a single executeRaw decrement for the reserved window', async () => {
     mocks.executeRaw.mockResolvedValue(2);
-    await releaseAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW, { 'login:email:a@b.c': 1, 'login:ip:1.2.3.4': 2 });
+    await releaseAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW);
     expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
   });
 });
