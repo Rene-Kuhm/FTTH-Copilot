@@ -115,7 +115,7 @@ export function HistorySidebar({
           <header className="flex items-center justify-between gap-2 px-4 py-4">
             <div className="flex items-center gap-2">
               <ChatBubbleLeftRightIcon className="h-4 w-4 text-cyan-300" />
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-500">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-400">
                 Historial
               </h3>
             </div>
@@ -132,7 +132,7 @@ export function HistorySidebar({
 
           <div className="border-t border-white/[0.05] px-4 py-3">
             <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -153,11 +153,11 @@ export function HistorySidebar({
           <div className="flex-1 overflow-y-auto px-2 pb-3">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-                <ChatBubbleLeftRightIcon className="h-8 w-8 text-neutral-500" />
+                <ChatBubbleLeftRightIcon className="h-8 w-8 text-neutral-400" />
                 <p className="text-sm font-medium text-neutral-50">
                   {searchQuery ? 'Sin resultados' : 'Sin conversaciones'}
                 </p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-neutral-400">
                   {searchQuery
                     ? 'Probá con otro término.'
                     : 'Hacé tu primera pregunta para empezar.'}
@@ -180,14 +180,14 @@ export function HistorySidebar({
                       >
                         <ChatBubbleLeftRightIcon
                           className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                            isActive ? 'text-cyan-300' : 'text-neutral-500'
+                            isActive ? 'text-cyan-300' : 'text-neutral-400'
                           }`}
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">
                             {c.title || 'Sin título'}
                           </span>
-                          <span className="mt-0.5 block text-xs text-neutral-500">
+                          <span className="mt-0.5 block text-xs text-neutral-400">
                             {c.messageCount} mensaje{c.messageCount === 1 ? '' : 's'} ·{' '}
                             {new Date(c.updatedAt).toLocaleDateString('es-AR')}
                           </span>

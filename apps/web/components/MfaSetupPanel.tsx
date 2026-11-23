@@ -179,7 +179,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
   if (phase === 'show-secret' && setupData) {
     return (
       <div className="space-y-4">
-        <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-muted-text)' }}>
           Escaneá el QR con tu app (Google Authenticator, Authy, 1Password) o ingresá la clave manualmente.
         </p>
 
@@ -188,7 +188,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
           className="rounded-xl p-4"
           style={{ background: 'color-mix(in srgb, var(--color-surface-elev) 60%, transparent)', border: '1px solid var(--border-divider)' }}
         >
-          <div className="text-xs font-medium mb-1" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
+          <div className="text-xs font-medium mb-1" style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}>
             Clave secreta (ingresá manualmente si no podés escanear):
           </div>
           <div className="flex items-center gap-2">
@@ -210,7 +210,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
         </div>
 
         {/* otpauth URL for manual addition */}
-        <details className="text-xs" style={{ color: 'var(--color-muted)' }}>
+        <details className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
           <summary className="cursor-pointer hover:text-[var(--color-text)]" style={{ fontFamily: 'var(--font-display)' }}>
             Prefiero agregar desde URL manualmente
           </summary>
@@ -222,7 +222,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
         {/* Code input */}
         <div className="space-y-2">
           <label className="block">
-            <span className="text-xs font-medium" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
+            <span className="text-xs font-medium" style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}>
               Código de verificación (6 dígitos)
             </span>
             <input
@@ -248,7 +248,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
           </button>
         </div>
 
-        <button type="button" onClick={reset} className="text-xs" style={{ color: 'var(--color-muted)' }}>
+        <button type="button" onClick={reset} className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
           Cancelar
         </button>
       </div>
@@ -285,7 +285,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
               MFA habilitado
             </span>
           </div>
-          <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+          <p className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
             Necesitás tu app autenticadora para iniciar sesión.
           </p>
           <details className="space-y-2">
@@ -296,7 +296,7 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
               Deshabilitar MFA
             </summary>
             <div className="space-y-2 pl-1">
-              <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+              <p className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
                 Confirmá con un código de tu app autenticadora.
               </p>
               <input
@@ -325,11 +325,11 @@ export function MfaSetupPanel({ mfaEnabled, userId: _userId }: MfaSetupPanelProp
         <>
           <div className="flex items-center gap-2">
             <span className="status-dot status-offline" />
-            <span className="text-sm font-semibold" style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
+            <span className="text-sm font-semibold" style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}>
               MFA deshabilitado
             </span>
           </div>
-          <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+          <p className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
             Agregá una capa extra de seguridad usando tu app autenticadora.
           </p>
           <button type="button" onClick={startSetup} disabled={load === 'loading'} className="btn-primary">

@@ -73,7 +73,7 @@ export function AuthPageShell({ title, description, children }: AuthPageShellPro
             </h2>
             <p
               className="mt-5 max-w-md text-sm leading-7"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               Unificá conversaciones, métricas y alertas sin reemplazar las
               herramientas que tu equipo ya usa.
@@ -101,7 +101,7 @@ export function AuthPageShell({ title, description, children }: AuthPageShellPro
           {/* Footer */}
           <div
             className="hidden items-center gap-2 text-xs lg:flex"
-            style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+            style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}
           >
             <ShieldCheckIcon className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
             Acceso protegido por sesión segura
@@ -124,7 +124,7 @@ export function AuthPageShell({ title, description, children }: AuthPageShellPro
             >
               {title}
             </h1>
-            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--color-muted-text)' }}>
               {description}
             </p>
             <div className="mt-7">{children}</div>

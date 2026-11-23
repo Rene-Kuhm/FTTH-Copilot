@@ -178,7 +178,7 @@ export function IncidentsPanel() {
           </span>
           <div>
             <h2 className="text-sm font-semibold text-white">Incidentes correlacionados</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">Alertas agrupadas por equipo</p>
+            <p className="mt-0.5 text-xs text-neutral-400">Alertas agrupadas por equipo</p>
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
@@ -189,7 +189,7 @@ export function IncidentsPanel() {
       </div>
 
       {loading ? (
-        <p className="px-6 py-4 text-xs text-neutral-500">Cargando incidentes…</p>
+        <p className="px-6 py-4 text-xs text-neutral-400">Cargando incidentes…</p>
       ) : (
         <ul className="divide-y divide-white/[0.05]">
           {incidents.map((incident) => {
@@ -223,7 +223,7 @@ export function IncidentsPanel() {
                     ) : null}
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-neutral-400">{incident.description}</p>
-                  <div className="mt-1 text-[11px] text-neutral-500">
+                  <div className="mt-1 text-[11px] text-neutral-400">
                     <span className="font-mono">{incident.deviceKind} · {incident.deviceId}</span>
                   </div>
                   {auth.user ? (
@@ -441,7 +441,7 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
 
   if (loading) {
     return (
-      <p className="mt-2 text-xs text-neutral-500" data-testid="topology-impact-loading">
+      <p className="mt-2 text-xs text-neutral-400" data-testid="topology-impact-loading">
         …
       </p>
     );
@@ -456,7 +456,7 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
       <div className="mt-2 text-xs text-neutral-400" data-testid="topology-impact-compact">
         <span className="font-medium text-neutral-300">{heading}:</span>{' '}
         {ids.length === 0 ? (
-          <span className="text-neutral-500">{TOPOLOGY_EMPTY_MESSAGE}</span>
+          <span className="text-neutral-400">{TOPOLOGY_EMPTY_MESSAGE}</span>
         ) : (
           <span>
             {deviceKind} · {ids.length} ONU{ids.length === 1 ? '' : 's'} afectadas
@@ -480,7 +480,7 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
         <span>
           {heading}
           {ids.length === 0 ? null : (
-            <span className="ml-1.5 text-neutral-500">
+            <span className="ml-1.5 text-neutral-400">
               · {ids.length} ONU{ids.length === 1 ? '' : 's'}
             </span>
           )}
@@ -489,7 +489,7 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
       {open ? (
         <div className="mt-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-xs text-neutral-300">
           {ids.length === 0 ? (
-            <p className="text-neutral-500" data-testid="topology-impact-empty">
+            <p className="text-neutral-400" data-testid="topology-impact-empty">
               {TOPOLOGY_EMPTY_MESSAGE}
             </p>
           ) : (
@@ -497,7 +497,7 @@ export function TopologyImpact({ deviceKind, deviceId, expandable }: TopologyImp
               {ids.map((onuId) => (
                 <li key={onuId} className="flex items-center justify-between gap-2">
                   <span className="font-mono text-neutral-200">{onuId}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-neutral-500">
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-400">
                     afectado
                   </span>
                 </li>
@@ -631,7 +631,7 @@ function PlanModal({
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
           <div>
             <h3 className="text-sm font-semibold text-white">{planName}</h3>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-neutral-400">
               Dispositivo: <span className="font-mono">{deviceKind} · {deviceId}</span>
             </p>
           </div>
@@ -645,7 +645,7 @@ function PlanModal({
         </div>
         <div className="flex-1 overflow-hidden" style={{ minHeight: 400 }}>
           {loading ? (
-            <div className="flex h-full items-center justify-center text-neutral-500 text-sm">Cargando plano…</div>
+            <div className="flex h-full items-center justify-center text-neutral-400 text-sm">Cargando plano…</div>
           ) : error ? (
             <div className="flex h-full items-center justify-center text-rose-400 text-sm">{error}</div>
           ) : plan ? (

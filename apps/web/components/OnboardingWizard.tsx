@@ -83,7 +83,7 @@ export function OnboardingWizard() {
       />
       <div className="relative" style={{ color: 'var(--color-text)' }}>
         <header className="mb-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2" aria-label="Progreso de configuración">
+          <div className="flex items-center gap-2" role="group" aria-label="Progreso de configuración">
             <StepDot active={step === 'welcome'} done={step !== 'welcome'} />
             <StepDot active={step === 'connector'} done={step === 'test' || step === 'done'} />
             <StepDot active={step === 'test'} done={step === 'done'} />
@@ -114,7 +114,7 @@ export function OnboardingWizard() {
             </h2>
             <p
               className="mt-2 max-w-2xl text-sm leading-6"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               Configurá SmartOLT o Mikrowisp y validaremos la conexión antes de habilitar
               las consultas. Tarda menos de dos minutos.
@@ -170,7 +170,7 @@ export function OnboardingWizard() {
             </h2>
             <p
               className="mt-2 text-sm leading-6"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               Chat, tablero y alertas consultarán el NMS validado. Podés agregar o
               cambiar de red cuando quieras desde Conectores NMS.
@@ -252,14 +252,14 @@ function ConnectorForm({
       >
         Datos de tu NMS
       </h2>
-      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--color-muted)' }}>
+      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--color-muted-text)' }}>
         La clave de API se almacena cifrada con AES-256-GCM y nunca se muestra de nuevo.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1.5">
           <span
             className="text-xs font-medium"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             Proveedor
           </span>
@@ -281,7 +281,7 @@ function ConnectorForm({
         <label className="block space-y-1.5">
           <span
             className="text-xs font-medium"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             Etiqueta
           </span>
@@ -298,7 +298,7 @@ function ConnectorForm({
         <label className="block space-y-1.5 sm:col-span-2">
           <span
             className="text-xs font-medium"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             Clave de API
           </span>
@@ -316,7 +316,7 @@ function ConnectorForm({
         <label className="block space-y-1.5 sm:col-span-2">
           <span
             className="text-xs font-medium"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             URL base
           </span>
@@ -422,7 +422,7 @@ function TestStep({
       >
         Validemos la conexión
       </h2>
-      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--color-muted)' }}>
+      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--color-muted-text)' }}>
         Estamos consultando {connector.label} con las credenciales que acabás de guardar.
       </p>
       <div
@@ -434,7 +434,7 @@ function TestStep({
         aria-live="polite"
       >
         {running && (
-          <span role="status" style={{ color: 'var(--color-muted)' }}>
+          <span role="status" style={{ color: 'var(--color-muted-text)' }}>
             Probando conexión…
           </span>
         )}
@@ -448,7 +448,7 @@ function TestStep({
             <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--color-danger)' }}>
               La conexión falló.
             </p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-muted-text)' }}>
               {result.error ?? 'Revisá la URL y la clave de API.'}
             </p>
           </div>

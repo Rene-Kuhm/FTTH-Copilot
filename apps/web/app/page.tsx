@@ -106,7 +106,7 @@ export default function LandingPage() {
                 key={label}
                 href={href as Route}
                 className="text-xs font-semibold transition-colors"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 {label}
               </Link>
@@ -115,7 +115,7 @@ export default function LandingPage() {
                 key={label}
                 href={href}
                 className="text-xs font-semibold transition-colors"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
               >
                 {label}
               </a>
@@ -183,7 +183,7 @@ export default function LandingPage() {
 
           <p
             className="mt-7 max-w-xl text-base leading-7 sm:text-lg sm:leading-8"
-            style={{ color: 'var(--color-muted)' }}
+            style={{ color: 'var(--color-muted-text)' }}
           >
             Un centro de control que conecta tus NMS, prioriza alertas y convierte
             datos técnicos en respuestas accionables para todo tu equipo.
@@ -203,7 +203,7 @@ export default function LandingPage() {
           {/* Feature checks */}
           <div
             className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs"
-            style={{ color: 'var(--color-muted)' }}
+            style={{ color: 'var(--color-muted-text)' }}
           >
             {[
               'SmartOLT y Mikrowisp',
@@ -253,7 +253,7 @@ export default function LandingPage() {
           </h2>
           <p
             className="mt-4 text-sm leading-7 sm:text-base"
-            style={{ color: 'var(--color-muted)' }}
+            style={{ color: 'var(--color-muted-text)' }}
           >
             La información crítica queda ordenada en el mismo lugar donde tu equipo
             analiza, pregunta y toma decisiones.
@@ -291,7 +291,7 @@ export default function LandingPage() {
                 >
                   {title}
                 </h3>
-                <p className="mt-2.5 text-sm leading-6" style={{ color: 'var(--color-muted)' }}>
+                <p className="mt-2.5 text-sm leading-6" style={{ color: 'var(--color-muted-text)' }}>
                   {body}
                 </p>
               </article>
@@ -318,7 +318,7 @@ export default function LandingPage() {
             >
               Operativa en tres pasos simples.
             </h2>
-            <p className="mt-4 max-w-md text-sm leading-7" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-4 max-w-md text-sm leading-7" style={{ color: 'var(--color-muted-text)' }}>
               FTTH-Copilot se integra con tu stack actual. No reemplaza tu NMS:
               hace que sus datos sean más accesibles y útiles.
             </p>
@@ -373,7 +373,7 @@ export default function LandingPage() {
             </h2>
             <p
               className="mx-auto mt-4 max-w-xl text-sm leading-7"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               Creá tu espacio, conectá el primer NMS y empezá a diagnosticar con
               contexto real.
@@ -389,7 +389,7 @@ export default function LandingPage() {
       {/* ── Footer ────────────────────────────── */}
       <footer style={{ borderTop: '1px solid var(--border-divider)' }}>
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
-          style={{ color: 'var(--color-muted)' }}>
+          style={{ color: 'var(--color-muted-text)' }}>
           <div className="flex items-center gap-2">
             <SignalIcon className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
             <span style={{ fontFamily: 'var(--font-display)' }}>
@@ -439,7 +439,7 @@ function ProductPreview() {
           </div>
           <span
             className="text-[10px] font-semibold uppercase tracking-[0.15em]"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             Centro de operaciones
           </span>
@@ -479,7 +479,7 @@ function ProductPreview() {
                         color: 'var(--color-accent)',
                       }
                     : {
-                        color: 'var(--color-muted)',
+                        color: 'var(--color-muted-text)',
                       }
                 }
               >
@@ -535,7 +535,7 @@ function ProductPreview() {
               <div className="card-soft p-3.5" style={{ color: 'var(--color-text)' }}>
                 <div
                   className="flex items-center justify-between text-[10px]"
-                  style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+                  style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}
                 >
                   <span>Distribución de ONUs</span>
                   <span>4.218 total</span>
@@ -574,7 +574,7 @@ function ProductPreview() {
                   className="mt-2 rounded-lg px-3 py-2 text-[9px]"
                   style={{
                     border: '1px solid var(--border-divider)',
-                    color: 'var(--color-muted)',
+                    color: 'var(--color-muted-text)',
                   }}
                 >
                   ¿Qué zona requiere atención?
@@ -599,7 +599,7 @@ function MiniMetric({
 }) {
   return (
     <div className="card-soft px-3 py-2.5" style={{ color: 'var(--color-text)' }}>
-      <p className="text-[9px]" style={{ color: 'var(--color-muted)' }}>{label}</p>
+      <p className="text-[9px]" style={{ color: 'var(--color-muted-text)' }}>{label}</p>
       <p
         className="mt-1 text-sm font-semibold"
         style={{
@@ -619,7 +619,7 @@ function PreviewRow({ name, value }: { name: string; value: string }) {
       <span className="truncate" style={{ color: 'color-mix(in srgb, var(--color-text) 70%, var(--color-muted))' }}>
         {name}
       </span>
-      <span className="shrink-0" style={{ color: 'var(--color-muted)' }}>{value}</span>
+      <span className="shrink-0" style={{ color: 'var(--color-muted-text)' }}>{value}</span>
     </div>
   );
 }
@@ -635,7 +635,7 @@ function Proof({ value, label }: { value: string; label: string }) {
       </p>
       <p
         className="mt-1 text-[10px] leading-4 sm:text-xs"
-        style={{ color: 'var(--color-muted)' }}
+        style={{ color: 'var(--color-muted-text)' }}
       >
         {label}
       </p>
@@ -667,7 +667,7 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
         >
           {title}
         </h3>
-        <p className="mt-1.5 text-xs leading-5 sm:text-sm sm:leading-6" style={{ color: 'var(--color-muted)' }}>
+        <p className="mt-1.5 text-xs leading-5 sm:text-sm sm:leading-6" style={{ color: 'var(--color-muted-text)' }}>
           {body}
         </p>
       </div>

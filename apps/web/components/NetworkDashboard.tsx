@@ -74,7 +74,7 @@ function StatusBadge({ status }: { status: string }) {
     label: status,
     style: {
       background: 'color-mix(in srgb, var(--color-muted) 12%, transparent)',
-      color: 'var(--color-muted)',
+      color: 'var(--color-muted-text)',
       border: '1px solid var(--border-divider)',
     },
   };
@@ -145,7 +145,7 @@ export default function NetworkDashboard() {
       <div
         role="status"
         className="card px-5 py-8 text-center text-sm"
-        style={{ color: 'var(--color-muted)' }}
+        style={{ color: 'var(--color-muted-text)' }}
       >
         Conectá y validá un NMS para ver el tablero de tu red.
       </div>
@@ -205,7 +205,7 @@ export default function NetworkDashboard() {
               {dataSource.mode === 'demo' ? 'Datos simulados' : 'Datos reales'} ·{' '}
               {dataSource.label}
             </p>
-            <p className="mt-0.5 text-[11px]" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-0.5 text-[11px]" style={{ color: 'var(--color-muted-text)' }}>
               Última lectura del NMS seleccionado
             </p>
           </div>
@@ -267,7 +267,7 @@ export default function NetworkDashboard() {
             >
               Distribución de ONUs
             </h2>
-            <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+            <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-text)' }}>
               Estado actual sobre {overview.totalOnus.toLocaleString('es-AR')} unidades
             </p>
           </div>
@@ -311,7 +311,7 @@ export default function NetworkDashboard() {
         {/* Legend */}
         <div
           className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs"
-          style={{ color: 'var(--color-muted)' }}
+          style={{ color: 'var(--color-muted-text)' }}
         >
           <Legend color="var(--color-success)" label={`En línea (${statusDistribution.online})`} />
           <Legend color="var(--color-warning)" label={`Degradadas (${statusDistribution.degraded})`} />
@@ -343,7 +343,7 @@ export default function NetworkDashboard() {
               >
                 OLTs
               </h2>
-              <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--color-muted-text)' }}>
                 Detalle de infraestructura y capacidad
               </p>
             </div>
@@ -352,7 +352,7 @@ export default function NetworkDashboard() {
             className="badge"
             style={{
               background: 'color-mix(in srgb, var(--color-muted) 10%, transparent)',
-              color: 'var(--color-muted)',
+              color: 'var(--color-muted-text)',
               border: '1px solid var(--border-divider)',
               fontFamily: 'var(--font-display)',
             }}
@@ -366,7 +366,7 @@ export default function NetworkDashboard() {
             <thead>
               <tr
                 className="border-b text-left text-[10px] uppercase tracking-[0.12em]"
-                style={{ borderColor: 'var(--border-divider)', color: 'var(--color-muted)' }}
+                style={{ borderColor: 'var(--border-divider)', color: 'var(--color-muted-text)' }}
               >
                 <th scope="col" className="px-5 py-3 font-semibold sm:px-6" style={{ fontFamily: 'var(--font-display)' }}>OLT</th>
                 <th scope="col" className="px-4 py-3 font-semibold" style={{ fontFamily: 'var(--font-display)' }}>Fabricante</th>
@@ -393,7 +393,7 @@ export default function NetworkDashboard() {
                     </div>
                     <div
                       className="mt-0.5 text-[10px]"
-                      style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}
+                      style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted-text)' }}
                     >
                       {olt.id}
                     </div>
@@ -426,7 +426,7 @@ export default function NetworkDashboard() {
               ))}
               {olts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-sm" style={{ color: 'var(--color-muted)' }}>
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm" style={{ color: 'var(--color-muted-text)' }}>
                     No hay OLTs para mostrar.
                   </td>
                 </tr>
@@ -489,7 +489,7 @@ function StatCard({
         <div>
           <p
             className="text-[11px] font-medium"
-            style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+            style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}
           >
             {label}
           </p>
@@ -514,7 +514,7 @@ function StatCard({
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-[11px]" style={{ color: 'var(--color-muted)' }}>
+      <p className="mt-3 text-[11px]" style={{ color: 'var(--color-muted-text)' }}>
         {sub}
       </p>
     </div>

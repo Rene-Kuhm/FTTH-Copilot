@@ -21,7 +21,7 @@ export default function SignupPage() {
   return (
     <AuthPageShell title="Crear tu espacio" description="Configurá tu organización y conectá el primer NMS con el asistente guiado.">
       <AuthBar initialMode="signup" />
-      <p className="mt-5 text-center text-xs" style={{ color: 'var(--color-muted)' }}>
+      <p className="mt-5 text-center text-xs" style={{ color: 'var(--color-muted-text)' }}>
         ¿Ya tenés cuenta?{' '}
         <Link
           href={'/login' as Route}

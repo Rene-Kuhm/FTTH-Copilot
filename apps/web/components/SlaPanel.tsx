@@ -57,7 +57,7 @@ export function SlaPanel() {
           </span>
           <div>
             <h2 className="text-sm font-semibold text-white">Uptime / SLA</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">Disponibilidad por equipo (30 días)</p>
+            <p className="mt-0.5 text-xs text-neutral-400">Disponibilidad por equipo (30 días)</p>
           </div>
         </div>
         <span className="badge border border-white/[0.08] bg-white/[0.035] text-neutral-400">
@@ -66,16 +66,16 @@ export function SlaPanel() {
       </div>
 
       {loading ? (
-        <p className="px-6 py-4 text-xs text-neutral-500">Cargando uptime…</p>
+        <p className="px-6 py-4 text-xs text-neutral-400">Cargando uptime…</p>
       ) : (
         <ul className="divide-y divide-white/[0.05]">
           {sla.map((entry) => (
             <li key={`${entry.deviceKind}-${entry.deviceId}`} className="flex items-center justify-between gap-4 px-5 py-3 sm:px-6">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-white">{entry.deviceId}</div>
-                <div className="text-[11px] text-neutral-500 font-mono">{entry.deviceKind}</div>
+                <div className="text-[11px] text-neutral-400 font-mono">{entry.deviceKind}</div>
               </div>
-              <span className={`text-sm font-semibold ${entry.uptimePercent === null ? 'text-neutral-500' : tone(entry.uptimePercent)}`}>
+              <span className={`text-sm font-semibold ${entry.uptimePercent === null ? 'text-neutral-400' : tone(entry.uptimePercent)}`}>
                 {formatUptime(entry.uptimePercent)}
               </span>
             </li>
