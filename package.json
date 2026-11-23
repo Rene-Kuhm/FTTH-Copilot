@@ -26,6 +26,7 @@
     "test:unit": "turbo run test:unit",
     "test:coverage": "turbo run test:coverage",
     "test:coverage-check": "turbo run test:coverage",
+    "test:fuzz": "timeout --kill-after=5s 60s pnpm -r --filter @ftth-copilot/web --filter @ftth-copilot/security --filter @ftth-copilot/monitoring --filter @ftth-copilot/connectors-smartolt --filter @ftth-copilot/connectors-mikrowisp exec vitest run /fuzz.test.ts",
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",
