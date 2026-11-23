@@ -87,6 +87,16 @@ describe('auth client login', () => {
     );
   });
 
+  it('lanza error cuando mfaRequired es true pero falta tempToken', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ mfaRequired: true }),
+    }) as unknown as typeof fetch;
+
+    const { loginRequest } = await import('@/lib/auth/client');
+    await expect(loginRequest('user@example.com', 'password123')).rejects.toThrow(/token/i);
+  });
+
   it('conserva solo el mensaje del servidor cuando 429 no trae retry-after', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -98,6 +108,78 @@ describe('auth client login', () => {
     const { loginRequest } = await import('@/lib/auth/client');
     await expect(loginRequest('user@example.com', 'bad')).rejects.toThrow(
       /^Demasiados intentos\. Probá de nuevo más tarde\.$/,
+    );
+  });
+});
+
+describe('auth client MFA verification & setup', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('envía tempToken y código TOTP a /api/auth/mfa/verify', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ user: { id: 'u1' } }),
+    }) as unknown as typeof fetch;
+
+    const { verifyMfaRequest } = await import('@/lib/auth/client');
+    await expect(verifyMfaRequest('temp-123', '123456')).resolves.toBeUndefined();
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/auth/mfa/verify',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ tempToken: 'temp-123', code: '123456' }),
+      }),
+    );
+  });
+
+  it('propaga error del servidor y retry-after en verifyMfaRequest', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'retry-after': '30' }),
+      json: async () => ({ error: 'Demasiados intentos. Probá de nuevo más tarde.' }),
+    }) as unknown as typeof fetch;
+
+    const { verifyMfaRequest } = await import('@/lib/auth/client');
+    await expect(verifyMfaRequest('temp-123', '000000')).rejects.toThrow(
+      'Demasiados intentos. Probá de nuevo más tarde. Intentá de nuevo en 30 segundos.',
+    );
+  });
+
+  it('inicia enrolamiento MFA en /api/auth/mfa/setup con Bearer tempToken', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        secret: 'JBSWY3DPEHPK3PXP',
+        otpauthUri: 'otpauth://totp/FTTH-Copilot:user@example.com?secret=JBSWY3DPEHPK3PXP',
+      }),
+    }) as unknown as typeof fetch;
+
+    const { setupMfaRequest } = await import('@/lib/auth/client');
+    const result = await setupMfaRequest('temp-setup');
+
+    expect(result).toEqual({
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUri: 'otpauth://totp/FTTH-Copilot:user@example.com?secret=JBSWY3DPEHPK3PXP',
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/auth/mfa/setup',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: 'Bearer temp-setup' },
+      }),
     );
   });
 });

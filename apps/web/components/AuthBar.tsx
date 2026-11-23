@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/lib/auth/client';
+import { setupMfaRequest, useAuth, verifyMfaRequest } from '@/lib/auth/client';
 import { ThemeToggle } from './ThemeToggle';
 import {
   ArrowLeftOnRectangleIcon,
@@ -152,7 +152,7 @@ export function AuthBar({
     );
   }
 
-  if (mode === null) {
+  if (mode === null && !mfaTempToken) {
     return (
       <div
         className="card flex flex-col items-start justify-between gap-5 px-5 py-5 sm:flex-row sm:items-center sm:px-6"
@@ -182,6 +182,22 @@ export function AuthBar({
     );
   }
 
+  function clearMfaState() {
+    setMfaTempToken(null);
+    setMfaCode('');
+    setMfaSetupRequired(false);
+    setMfaSetupSecret(null);
+    setMfaSetupUri(null);
+  }
+
+  function clearFormState() {
+    setMode(null);
+    setEmail('');
+    setPassword('');
+    setName('');
+    setTenantName('');
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -207,11 +223,7 @@ export function AuthBar({
       } else {
         await auth.signup(email, password, name, tenantName);
       }
-      setMode(null);
-      setEmail('');
-      setPassword('');
-      setName('');
-      setTenantName('');
+      clearFormState();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -224,19 +236,9 @@ export function AuthBar({
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/mfa/setup', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${mfaTempToken}` },
-        credentials: 'include',
-      });
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok) {
-        throw new Error(
-          typeof body.error === 'string' ? body.error : 'No se pudo iniciar la configuración MFA.',
-        );
-      }
-      setMfaSetupSecret(typeof body.secret === 'string' ? body.secret : null);
-      setMfaSetupUri(typeof body.otpauthUri === 'string' ? body.otpauthUri : null);
+      const setup = await setupMfaRequest(mfaTempToken);
+      setMfaSetupSecret(setup.secret);
+      setMfaSetupUri(setup.otpauthUri);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -250,30 +252,9 @@ export function AuthBar({
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/mfa/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ tempToken: mfaTempToken, code: mfaCode }),
-      });
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok) {
-        const message =
-          typeof body.error === 'string' ? body.error : 'No se pudo verificar el código MFA.';
-        if (res.status === 429) {
-          const retryAfter = res.headers.get('retry-after');
-          const seconds = retryAfter ? Number.parseInt(retryAfter, 10) : NaN;
-          if (Number.isFinite(seconds) && seconds > 0) {
-            throw new Error(`${message} Intentá de nuevo en ${seconds} segundos.`);
-          }
-        }
-        throw new Error(message);
-      }
-      setMfaTempToken(null);
-      setMfaCode('');
-      setMfaSetupRequired(false);
-      setMfaSetupSecret(null);
-      setMfaSetupUri(null);
+      await verifyMfaRequest(mfaTempToken, mfaCode);
+      clearMfaState();
+      clearFormState();
       await auth.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -372,11 +353,8 @@ export function AuthBar({
         <button
           type="button"
           onClick={() => {
-            setMfaTempToken(null);
-            setMfaCode('');
-            setMfaSetupRequired(false);
-            setMfaSetupSecret(null);
-            setMfaSetupUri(null);
+            clearMfaState();
+            setMode((prev) => prev ?? 'login');
             setError(null);
           }}
           className="btn-ghost w-full"

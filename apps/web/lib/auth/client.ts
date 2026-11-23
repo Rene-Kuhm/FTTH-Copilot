@@ -64,6 +64,21 @@ function readRetryAfterSeconds(response: Response): number | null {
   }
 }
 
+function errorWithRetryAfter(
+  response: Response,
+  body: Record<string, unknown>,
+  fallback: string,
+): Error {
+  const message = readString(body.error) ?? fallback;
+  if (response.status === 429) {
+    const seconds = readRetryAfterSeconds(response);
+    if (seconds !== null) {
+      return new Error(`${message} Intentá de nuevo en ${seconds} segundos.`);
+    }
+  }
+  return new Error(message);
+}
+
 export async function loginRequest(email: string, password: string): Promise<LoginResult> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
@@ -76,9 +91,10 @@ export async function loginRequest(email: string, password: string): Promise<Log
 
   if (response.ok && body.mfaRequired === true) {
     const tempToken = readString(body.tempToken);
-    if (tempToken) {
-      return { status: 'mfa_required', tempToken };
+    if (!tempToken) {
+      throw new Error('El servidor solicitó verificación MFA sin token temporal.');
     }
+    return { status: 'mfa_required', tempToken };
   }
 
   if (response.status === 403 && body.mfaSetupRequired === true) {
@@ -91,17 +107,41 @@ export async function loginRequest(email: string, password: string): Promise<Log
   }
 
   if (!response.ok) {
-    const message = readString(body.error) ?? 'No se pudo iniciar sesión.';
-    if (response.status === 429) {
-      const seconds = readRetryAfterSeconds(response);
-      if (seconds !== null) {
-        throw new Error(`${message} Intentá de nuevo en ${seconds} segundos.`);
-      }
-    }
-    throw new Error(message);
+    throw errorWithRetryAfter(response, body, 'No se pudo iniciar sesión.');
   }
 
   return { status: 'ok' };
+}
+
+export async function verifyMfaRequest(tempToken: string, code: string): Promise<void> {
+  const response = await fetch('/api/auth/mfa/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ tempToken, code }),
+  });
+  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw errorWithRetryAfter(response, body, 'No se pudo verificar el código MFA.');
+  }
+}
+
+export async function setupMfaRequest(
+  tempToken: string,
+): Promise<{ secret: string | null; otpauthUri: string | null }> {
+  const response = await fetch('/api/auth/mfa/setup', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tempToken}` },
+    credentials: 'include',
+  });
+  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw errorWithRetryAfter(response, body, 'No se pudo iniciar la configuración MFA.');
+  }
+  return {
+    secret: readString(body.secret),
+    otpauthUri: readString(body.otpauthUri),
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

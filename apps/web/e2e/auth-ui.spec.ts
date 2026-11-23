@@ -182,6 +182,12 @@ test.describe("Auth flows", () => {
     await page.click('button[type="submit"]:has-text("Verificar")');
 
     await expect(page.getByText("Activa", { exact: true })).toBeVisible({ timeout: 5_000 });
+
+    await page.click("text=Salir");
+    await expect(page.locator("text=Iniciar sesión").first()).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("link", { name: "Crear cuenta" }).or(page.getByRole("button", { name: "Crear cuenta" })).first(),
+    ).toBeVisible();
   });
 
   test("mfa challenge: invalid code and 429 show clear errors", async ({ page }) => {
