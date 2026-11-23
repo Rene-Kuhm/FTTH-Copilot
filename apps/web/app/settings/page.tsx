@@ -60,15 +60,15 @@ export default async function SettingsPage() {
           </h2>
           <div className="card p-5 space-y-3">
             <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--color-muted)' }}>Email</span>
+              <span style={{ color: 'var(--color-muted-text)' }}>Email</span>
               <span style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>{user.email}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--color-muted)' }}>Rol</span>
+              <span style={{ color: 'var(--color-muted-text)' }}>Rol</span>
               <span className="badge badge-accent">{user.role}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--color-muted)' }}>Tenant</span>
+              <span style={{ color: 'var(--color-muted-text)' }}>Tenant</span>
               <span style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>{user.tenant.name}</span>
             </div>
           </div>

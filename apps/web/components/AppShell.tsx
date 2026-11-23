@@ -50,7 +50,7 @@ export function AppShell({
         <Brand />
 
         <div className="mt-9 px-2 text-[10px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
+          style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}>
           Operaciones
         </div>
         <nav aria-label="Navegación principal" className="mt-3 space-y-1">
@@ -81,7 +81,7 @@ export function AppShell({
         </nav>
 
         <div className="mt-8 px-2 text-[10px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
+          style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}>
           Espacio de trabajo
         </div>
         <Link
@@ -125,7 +125,7 @@ export function AppShell({
           </div>
           <p
             className="mt-2 text-[11px] leading-4"
-            style={{ color: 'var(--color-muted)' }}
+            style={{ color: 'var(--color-muted-text)' }}
           >
             Diagnóstico asistido para redes FTTH.
           </p>
@@ -144,7 +144,7 @@ export function AppShell({
             {/* Breadcrumb — desktop */}
             <div
               className="hidden items-center gap-2 text-xs lg:flex"
-              style={{ color: 'var(--color-muted)' }}
+              style={{ color: 'var(--color-muted-text)' }}
             >
               <SignalIcon className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
               <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>
@@ -165,7 +165,7 @@ export function AppShell({
                 </p>
                 <p
                   className="mt-0.5 text-[10px] uppercase tracking-wider"
-                  style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}
+                  style={{ color: 'var(--color-muted-text)', fontFamily: 'var(--font-display)' }}
                 >
                   {auth.user?.role ?? 'Sesión pública'}
                 </p>
@@ -226,7 +226,7 @@ export function AppShell({
               </h1>
               <p
                 className="mt-2 max-w-2xl text-sm leading-6"
-                style={{ color: 'var(--color-muted)' }}
+                style={{ color: 'var(--color-muted-text)' }}
               >
                 {description}
               </p>
@@ -248,7 +248,6 @@ function Brand({ compact = false }: { compact?: boolean }) {
     <Link
       href={'/' as Route}
       className="group flex items-center gap-3"
-      aria-label="FTTH-Copilot, inicio"
     >
       <span
         className={`${compact ? 'h-9 w-9' : 'h-10 w-10'} shrink-0 flex items-center justify-center rounded-[14px]`}
@@ -273,11 +272,12 @@ function Brand({ compact = false }: { compact?: boolean }) {
         {!compact ? (
           <span
             className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em]"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted-text)' }}
           >
             Network intelligence
           </span>
         ) : null}
+        <span className="sr-only">, inicio</span>
       </span>
     </Link>
   );

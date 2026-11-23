@@ -257,7 +257,7 @@ export default function ChatUI() {
         </span>
         <div>
           <h2 className="text-sm font-semibold text-white">Chat del Copilot</h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
+          <p className="mt-0.5 text-xs text-neutral-400">
             Diagnóstico contextual sobre la red activa
           </p>
         </div>
@@ -318,7 +318,7 @@ export default function ChatUI() {
               messages.map((m) => <MessageBubble key={m.id} message={m} />)
             )}
             {isLoading && (
-              <div className="flex items-center gap-2 px-1 text-sm" style={{ color: 'var(--color-muted)' }}>
+              <div className="flex items-center gap-2 px-1 text-sm" style={{ color: 'var(--color-muted-text)' }}>
                 <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: 'var(--color-accent)' }} />
                 <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:150ms]" style={{ background: 'var(--color-accent)' }} />
                 <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full [animation-delay:300ms]" style={{ background: 'var(--color-accent)' }} />
@@ -385,7 +385,7 @@ export default function ChatUI() {
                 )}
               </div>
               {error.hint && (
-                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                <p className="text-xs" style={{ color: 'var(--color-muted-text)' }}>
                   <span className="font-semibold" style={{ color: 'var(--color-text)' }}>Sugerencia:</span> {error.hint}
                 </p>
               )}
@@ -468,7 +468,7 @@ function EmptyState({
         </h3>
         <p
           className="mx-auto max-w-md text-sm leading-6"
-          style={{ color: 'var(--color-muted)' }}>
+          style={{ color: 'var(--color-muted-text)' }}>
           {unauthenticated
             ? 'Tus conversaciones y datos de red están protegidos por tu cuenta.'
             : needsConnector
@@ -544,7 +544,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}
     >
       {visibleTools && visibleTools.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-400">
           <CommandLineIcon className="h-3.5 w-3.5" />
           <span className="font-medium">Herramientas:</span>
           {visibleTools.map((t, i) => (

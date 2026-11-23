@@ -47,7 +47,7 @@ const ROLE_META: Record<
   MEMBER: {
     label: 'Miembro (anterior)',
     className:
-      'bg-white/[0.05] text-neutral-500 ring-1 ring-inset ring-white/[0.08]',
+      'bg-white/[0.05] text-neutral-400 ring-1 ring-inset ring-white/[0.08]',
   },
 };
 
@@ -165,7 +165,7 @@ export function UserManager() {
           </span>
           <div>
             <h2 className="text-sm font-semibold text-white">Gestión de usuarios</h2>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <p className="mt-0.5 text-xs text-neutral-400">
               {users.length} usuario{users.length === 1 ? '' : 's'} en tu organización
             </p>
           </div>
@@ -192,9 +192,9 @@ export function UserManager() {
       <div className="border-t border-white/[0.06]">
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-            <UserGroupIcon className="h-8 w-8 text-neutral-500" />
+            <UserGroupIcon className="h-8 w-8 text-neutral-400" />
             <p className="text-sm font-medium text-neutral-50">Todavía no hay usuarios</p>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-neutral-400">
               Agregá a tu equipo para darle acceso a la organización.
             </p>
           </div>
@@ -202,7 +202,7 @@ export function UserManager() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-black/10 text-left text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                <tr className="border-b border-white/[0.06] bg-black/10 text-left text-[10px] uppercase tracking-[0.12em] text-neutral-400">
                   <th className="px-5 py-2.5 font-medium">Usuario</th>
                   <th className="px-3 py-2.5 font-medium">Rol</th>
                   <th className="px-3 py-2.5 font-medium">Alta</th>
@@ -231,12 +231,12 @@ export function UserManager() {
                                 {u.name ?? '—'}
                               </span>
                               {isSelf && (
-                                <span className="badge bg-neutral-800 text-neutral-500 ring-1 ring-inset ring-neutral-800">
+                                <span className="badge bg-neutral-800 text-neutral-400 ring-1 ring-inset ring-neutral-800">
                                   vos
                                 </span>
                               )}
                             </div>
-                            <div className="truncate text-xs text-neutral-500">
+                            <div className="truncate text-xs text-neutral-400">
                               {u.email}
                             </div>
                           </div>
@@ -249,6 +249,7 @@ export function UserManager() {
                             onChange={(e) =>
                               void changeRole(u.id, e.target.value)
                             }
+                            aria-label="Rol del usuario"
                             className="input w-auto py-1 text-xs"
                           >
                             <option value="ADMIN">Administrador</option>
@@ -277,7 +278,7 @@ export function UserManager() {
                             <span className="hidden sm:inline">Eliminar</span>
                           </button>
                         ) : (
-                          <span className="text-xs text-neutral-500">—</span>
+                          <span className="text-xs text-neutral-400">—</span>
                         )}
                       </td>
                     </tr>
@@ -301,7 +302,7 @@ export function UserManager() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5 sm:col-span-2">
               <span className="text-xs font-medium text-neutral-400">
-                Nombre <span className="text-neutral-500">(opcional)</span>
+                Nombre <span className="text-neutral-400">(opcional)</span>
               </span>
               <input
                 type="text"
@@ -328,7 +329,7 @@ export function UserManager() {
             </label>
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-neutral-400">
-                Contraseña <span className="text-neutral-500">(mínimo 8)</span>
+                Contraseña <span className="text-neutral-400">(mínimo 8)</span>
               </span>
               <input
                 type="password"

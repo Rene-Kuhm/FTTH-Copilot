@@ -254,7 +254,7 @@ function Sparkline({ pts, color = '#3b82f6', h = 28 }: { pts: TSPoint[]; color?:
 function HealthRing({ score }: { score: number }) {
   const r = 36, circ = 2 * Math.PI * r;
   const dash = (score / 100) * circ;
-  const col = score >= 85 ? '#10b981' : score >= 60 ? '#f59e0b' : score > 0 ? '#ef4444' : '#6b7280';
+  const col = score >= 85 ? '#10b981' : score >= 60 ? '#f59e0b' : score > 0 ? '#f87171' : '#6b7280';
   const label = score >= 85 ? 'Operational' : score >= 60 ? 'Degraded' : score > 0 ? 'Critical' : 'Unknown';
   return (
     <svg width="90" height="90" viewBox="0 0 90 90">
@@ -310,7 +310,7 @@ function GoldenLatency({ series }: {
   return (
     <div className="space-y-2.5">
       {series.map((s) => {
-        const col = s.p99 >= 2 ? '#ef4444' : s.p99 >= 1 ? '#f59e0b' : '#10b981';
+        const col = s.p99 >= 2 ? '#f87171' : s.p99 >= 1 ? '#f59e0b' : '#10b981';
         const p99pct = Math.min((s.p99 / 3) * 100, 100);
         const p95pct = Math.min((s.p95 / 3) * 100, 100);
         const p50pct = Math.min((s.p50 / 3) * 100, 100);
@@ -345,7 +345,7 @@ function SatBar({ label, current, limit, color = '#3b82f6' }: {
   label: string; current: number; limit: number; color?: string;
 }) {
   const pct = limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
-  const col = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : color;
+  const col = pct >= 90 ? '#f87171' : pct >= 70 ? '#f59e0b' : color;
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
@@ -416,7 +416,7 @@ function SlaTable({ rows }: { rows: SlaRow[] }) {
     <div className="space-y-1.5 max-h-40 overflow-y-auto">
       {rows.slice(0, 8).map((r, i) => {
         const up = r.uptimePercent ?? 0;
-        const col = up >= 99.5 ? '#10b981' : up >= 98 ? '#f59e0b' : '#ef4444';
+        const col = up >= 99.5 ? '#10b981' : up >= 98 ? '#f59e0b' : '#f87171';
         const cov = r.coveragePercent ?? 0;
         return (
           <div key={i} className="flex items-center gap-2 rounded-md bg-base-200/30 px-2 py-1.5">
@@ -467,7 +467,7 @@ function PredictionsPanel({ predictions, total }: { predictions: Prediction[]; t
       ) : null}
       <div className="space-y-1 max-h-36 overflow-y-auto">
         {predictions.slice(0, 6).map((p) => {
-          const sev = p.severity === 'critical' ? '#ef4444' : p.severity === 'warning' ? '#f59e0b' : '#6b7280';
+          const sev = p.severity === 'critical' ? '#f87171' : p.severity === 'warning' ? '#f59e0b' : '#6b7280';
           const eta = p.etaMs ? fmtDur(p.etaMs / 1000) : '?';
           const conf = p.confidence ? `${(p.confidence * 100).toFixed(0)}%` : '?';
           return (
@@ -519,7 +519,7 @@ function IncidentsPanel({ incidents, now }: { incidents: Incident[]; now: number
         </div>
       </div>
       {open.slice(0, 4).map((inc) => {
-        const sev = inc.severity === 'critical' ? '#ef4444' : '#f59e0b';
+        const sev = inc.severity === 'critical' ? '#f87171' : '#f59e0b';
         const ageMs = now - new Date(inc.firstSeenAt).getTime();
         return (
           <div key={inc.id} className="flex items-center gap-2 rounded-md px-2 py-1.5"
@@ -866,7 +866,7 @@ export default function MetricsDashboard() {
                 <button key={t} className={`join-item btn btn-xs ${tr === t ? 'btn-active' : ''}`} onClick={() => setTr(t)}>{t}</button>
               ))}
             </div>
-            <button className="btn btn-ghost btn-sm gap-1" onClick={() => void refresh()} disabled={loading}>
+            <button className="btn btn-ghost btn-sm gap-1" onClick={() => void refresh()} disabled={loading} aria-label="Actualizar métricas">
               <svg className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -1301,7 +1301,7 @@ export default function MetricsDashboard() {
                   const validRows = slaRows.filter(r => r.uptimePercent !== null);
                   const avgUp = validRows.reduce((s, r) => s + (r.uptimePercent ?? 0), 0) /
                     Math.max(validRows.length, 1);
-                  const col = avgUp >= 99.5 ? '#10b981' : avgUp >= 98 ? '#f59e0b' : '#ef4444';
+                  const col = avgUp >= 99.5 ? '#10b981' : avgUp >= 98 ? '#f59e0b' : '#f87171';
                   const status = avgUp >= 99.5 ? 'SLA OK' : avgUp >= 98 ? 'Warning' : 'Violation';
                   return (
                     <div className="text-right">
@@ -1369,7 +1369,7 @@ export default function MetricsDashboard() {
                 </div>
                 {memRss > 0 && (() => {
                   const pct = (memRss / (512 * 1_048_576)) * 100;
-                  const col = pct >= 85 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#3b82f6';
+                  const col = pct >= 85 ? '#f87171' : pct >= 70 ? '#f59e0b' : '#3b82f6';
                   return (
                     <div className="text-right">
                       <span className="font-mono text-sm font-bold" style={{ color: col }}>{pct.toFixed(1)}%</span>
@@ -1380,7 +1380,7 @@ export default function MetricsDashboard() {
               </div>
               <div className="space-y-3">
                 <SatBar label="RSS" current={memRss} limit={512 * 1_048_576} />
-                <SatBar label="Heap usado" current={memHeap} limit={256 * 1_048_576} color="#8b5cf6" />
+                <SatBar label="Heap usado" current={memHeap} limit={256 * 1_048_576} color="#a78bfa" />
               </div>
               {memRssPts.length >= 2 && (
                 <div className="rounded-lg bg-base-200/40 p-2">
@@ -1438,7 +1438,7 @@ export default function MetricsDashboard() {
               {tokBreakdown.length > 0 ? (
                 <div className="space-y-2">
                   {tokBreakdown.map((s, i) => {
-                    const col = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][i % 4];
+                    const col = ['#3b82f6', '#10b981', '#f59e0b', '#a78bfa'][i % 4];
                     const pct = Math.min((s.current / Math.max(llmTokens, 1)) * 100, 100);
                     return (
                       <div key={i} className="flex flex-col gap-1 rounded-lg bg-base-200/30 p-2">

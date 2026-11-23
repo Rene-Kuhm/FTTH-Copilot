@@ -42,7 +42,7 @@ export default function AppPage() {
               <Cog6ToothIcon className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">Administración</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-400">Administración</p>
               <h2 className="mt-1 text-lg font-semibold tracking-[-0.02em] text-white">Configuración del espacio</h2>
               <p className="mt-1 text-sm text-neutral-400">Gestioná las fuentes de datos y el acceso de tu equipo.</p>
             </div>

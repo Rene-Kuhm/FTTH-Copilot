@@ -132,7 +132,7 @@ function ZoomControls({
       <span
         style={{
           fontSize: 10,
-          color: 'var(--color-muted)',
+          color: 'var(--color-muted-text)',
           textAlign: 'center',
           fontFamily: 'var(--font-mono)',
         }}
@@ -200,7 +200,7 @@ function MarkerPopover({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: 'var(--color-muted)',
+            color: 'var(--color-muted-text)',
             padding: 0,
             fontSize: 16,
             lineHeight: 1,
@@ -211,13 +211,13 @@ function MarkerPopover({
       </div>
 
       {marker.deviceId && (
-        <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-muted-text)', marginBottom: 8 }}>
           <span style={{ color: 'var(--color-text)', opacity: 0.7 }}>Device ID: </span>
           <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{marker.deviceId}</code>
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--color-muted-text)', marginBottom: 8 }}>
         <span style={{ color: 'var(--color-text)', opacity: 0.7 }}>Posición: </span>
         {marker.xPercent.toFixed(1)}%, {marker.yPercent.toFixed(1)}%
       </div>
@@ -403,7 +403,7 @@ export default function FiberPlanViewer({
         </span>
 
         {plan.description && (
-          <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+          <span style={{ fontSize: 12, color: 'var(--color-muted-text)' }}>
             — {plan.description}
           </span>
         )}
@@ -585,7 +585,7 @@ export default function FiberPlanViewer({
               pointerEvents: 'none',
             }}
           >
-            <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+            <span style={{ fontSize: 13, color: 'var(--color-muted-text)' }}>
               Sin marcadores en esta zona
             </span>
           </div>

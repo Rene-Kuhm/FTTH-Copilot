@@ -162,7 +162,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
         <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
           Gestionar zonas
         </span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', fontSize: 18, lineHeight: 1 }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted-text)', fontSize: 18, lineHeight: 1 }}>
           ×
         </button>
       </div>
@@ -221,10 +221,10 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: zone.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>{zone.name}</span>
-                  <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>{zone.markerCount}</span>
+                  <span style={{ fontSize: 11, color: 'var(--color-muted-text)' }}>{zone.markerCount}</span>
                 </div>
                 {zone.description && (
-                  <p style={{ margin: '4px 0 0 18px', fontSize: 11, color: 'var(--color-muted)' }}>{zone.description}</p>
+                  <p style={{ margin: '4px 0 0 18px', fontSize: 11, color: 'var(--color-muted-text)' }}>{zone.description}</p>
                 )}
                 {selectedZoneId === zone.id && (
                   <button
@@ -248,7 +248,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
             ))}
 
             {plan.zones.length === 0 && (
-              <p style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: 13, marginTop: 24 }}>
+              <p style={{ textAlign: 'center', color: 'var(--color-muted-text)', fontSize: 13, marginTop: 24 }}>
                 Sin zonas definidas
               </p>
             )}
@@ -274,7 +274,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                   style={{ ...inputStyle(), marginTop: 8 }}
                 />
                 <div style={{ marginTop: 8 }}>
-                  <p style={{ fontSize: 11, color: 'var(--color-muted)', marginBottom: 4 }}>Color</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-muted-text)', marginBottom: 4 }}>Color</p>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {PRESET_COLORS.map((c) => (
                       <button
@@ -296,7 +296,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
             ) : (
               <button
                 onClick={() => setShowZoneForm(true)}
-                style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 10, border: '1px dashed var(--color-border)', background: 'none', color: 'var(--color-muted)', fontSize: 13, cursor: 'pointer' }}
+                style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 10, border: '1px dashed var(--color-border)', background: 'none', color: 'var(--color-muted-text)', fontSize: 13, cursor: 'pointer' }}
               >
                 + Nueva zona
               </button>
@@ -308,12 +308,12 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
         {activeTab === 'markers' && (
           <>
             {!selectedZoneId ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: 13, marginTop: 24 }}>
+              <p style={{ textAlign: 'center', color: 'var(--color-muted-text)', fontSize: 13, marginTop: 24 }}>
                 Seleccioná una zona para ver sus marcadores
               </p>
             ) : (
               <>
-                <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--color-muted)' }}>
+                <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--color-muted-text)' }}>
                   Zona: <strong style={{ color: selectedZone?.color }}>{selectedZone?.name}</strong>
                 </div>
 
@@ -322,11 +322,11 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{m.label}</span>
                       {m.deviceKind && (
-                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>{m.deviceKind}</span>
+                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-muted-text)' }}>{m.deviceKind}</span>
                       )}
                     </div>
-                    {m.deviceId && <code style={{ fontSize: 11, color: 'var(--color-muted)' }}>{m.deviceId}</code>}
-                    <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
+                    {m.deviceId && <code style={{ fontSize: 11, color: 'var(--color-muted-text)' }}>{m.deviceId}</code>}
+                    <div style={{ fontSize: 11, color: 'var(--color-muted-text)', marginTop: 2 }}>
                       {m.xPercent.toFixed(1)}%, {m.yPercent.toFixed(1)}%
                     </div>
                     <button
@@ -339,7 +339,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                 ))}
 
                 {selectedZone?.markers.length === 0 && (
-                  <p style={{ textAlign: 'center', color: 'var(--color-muted)', fontSize: 13 }}>Sin marcadores</p>
+                  <p style={{ textAlign: 'center', color: 'var(--color-muted-text)', fontSize: 13 }}>Sin marcadores</p>
                 )}
 
                 {/* Create marker form */}
@@ -353,11 +353,11 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                     <input type="text" value={markerForm.deviceId} onChange={(e) => setMarkerForm({ ...markerForm, deviceId: e.target.value })} placeholder="Device ID (ej: ONT-12345)" style={{ ...inputStyle(), marginTop: 8 }} />
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 11, color: 'var(--color-muted)' }}>X %</label>
+                        <label style={{ fontSize: 11, color: 'var(--color-muted-text)' }}>X %</label>
                         <input type="number" min={0} max={100} step={0.1} value={markerForm.xPercent} onChange={(e) => setMarkerForm({ ...markerForm, xPercent: e.target.value })} placeholder="0–100" style={inputStyle()} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 11, color: 'var(--color-muted)' }}>Y %</label>
+                        <label style={{ fontSize: 11, color: 'var(--color-muted-text)' }}>Y %</label>
                         <input type="number" min={0} max={100} step={0.1} value={markerForm.yPercent} onChange={(e) => setMarkerForm({ ...markerForm, yPercent: e.target.value })} placeholder="0–100" style={inputStyle()} />
                       </div>
                     </div>
@@ -369,7 +369,7 @@ export default function ZoneManager({ plan, onPlanChange, onClose }: ZoneManager
                 ) : (
                   <button
                     onClick={() => setShowMarkerForm(true)}
-                    style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 10, border: '1px dashed var(--color-border)', background: 'none', color: 'var(--color-muted)', fontSize: 13, cursor: 'pointer' }}
+                    style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 10, border: '1px dashed var(--color-border)', background: 'none', color: 'var(--color-muted-text)', fontSize: 13, cursor: 'pointer' }}
                   >
                     + Agregar marcador
                   </button>

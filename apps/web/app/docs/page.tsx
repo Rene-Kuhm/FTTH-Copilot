@@ -45,7 +45,7 @@ export default function DocsPage() {
               className={`block flex-shrink-0 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${
                 active === s.id
                   ? 'border-cyan-300/15 bg-cyan-400/[0.08] text-cyan-100'
-                  : 'border-transparent text-neutral-500 hover:bg-white/[0.025] hover:text-white'
+                  : 'border-transparent text-neutral-400 hover:bg-white/[0.025] hover:text-white'
               }`}
             >
               {s.label}
@@ -184,7 +184,7 @@ export default function DocsPage() {
           />
         </Section>
 
-        <footer className="mt-16 border-t border-white/[0.07] pt-6 text-xs text-neutral-500">
+        <footer className="mt-16 border-t border-white/[0.07] pt-6 text-xs text-neutral-400">
           ¿Falta algo? Escribinos — esta doc se actualiza con cada release.
         </footer>
       </article>

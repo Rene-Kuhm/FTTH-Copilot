@@ -514,7 +514,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
             >
               {result.sufficiencyReason}
             </p>
-            <div className="mt-2 text-[11px] text-neutral-500 flex flex-wrap gap-x-3 gap-y-1">
+            <div className="mt-2 text-[11px] text-neutral-400 flex flex-wrap gap-x-3 gap-y-1">
               <span>Corte: {new Date(result.cutoffAt).toLocaleString()}</span>
               <span>Reglas: {result.rulesetVersion}</span>
               <span>Modelo: {result.modelVersion}</span>
@@ -638,7 +638,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
                       <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-neutral-300">
                         {EVIDENCE_KIND_LABELS[ev.kind] ?? ev.kind}
                       </span>
-                      <span className="text-[11px] text-neutral-500">{ev.source}</span>
+                      <span className="text-[11px] text-neutral-400">{ev.source}</span>
                     </div>
                     <span
                       className={`rounded border px-1.5 py-0.5 text-[10px] ${getEvidenceQualityBadgeClass(
@@ -740,7 +740,7 @@ export function InvestigationCard({ incidentId }: InvestigationCardProps) {
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <h4 className="text-xs font-semibold text-white">Validación de Diagnóstico (NOC)</h4>
               {versionId ? (
-                <span className="text-[10px] font-mono text-neutral-500">
+                <span className="text-[10px] font-mono text-neutral-400">
                   Version: {versionId}
                 </span>
               ) : null}
