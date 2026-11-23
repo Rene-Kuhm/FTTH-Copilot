@@ -211,7 +211,7 @@ async function enableSnmp(config: LabConfig, credentials: Credentials): Promise<
       throw new Error(`cannot rename the SNMP community: ${renamed.status} ${restError(renamed)}`);
     }
   }
-  log(`SNMP enabled, community "${snmpCommunity}"`);
+  log('SNMP enabled with the lab community');
 }
 
 async function verifySnmp(config: LabConfig): Promise<void> {
@@ -236,8 +236,7 @@ async function verifySnmp(config: LabConfig): Promise<void> {
     }
   }
   throw new Error(
-    `the CHR does not answer SNMP on ${config.host}:${config.ports.chrSnmp} ` +
-      `(community "${config.chr.snmpCommunity}"): ${lastError}`,
+    `the CHR does not answer SNMP on ${config.host}:${config.ports.chrSnmp}: ${lastError}`,
   );
 }
 
