@@ -6,6 +6,6 @@ test('preserves ordinary request paths and escapes raw lines and terminal contro
   assert.equal(escapeLogField('/smartolt/api/system/get_olts'), '/smartolt/api/system/get_olts');
   assert.equal(
     escapeLogField('/mock\r\n\u001b\u0085\u2028\u202e'),
-    '/mock\\u000d\\u000a\\u001b\\u0085\\u2028\\u202e',
+    '/mock\\r\\n\\u001b\\u0085\\u2028\\u202e',
   );
 });
