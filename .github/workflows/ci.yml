@@ -708,6 +708,74 @@ jobs:
   #    protección de rama de main, así no hay que ir actualizando
   #    la regla cada vez que se agrega un job.
   # ────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────
+  # Calidad de UI — accesibilidad (axe), regresión visual y matriz de
+  # compatibilidad (Chromium, Firefox y WebKit) de apps/web.
+  # Corre dentro de la imagen oficial de Playwright: trae las bibliotecas
+  # de WebKit y fija las fuentes de las que dependen las capturas (se
+  # generan en esa misma imagen: scripts/ui-quality-docker.sh update).
+  # Las APIs están simuladas: no necesita PostgreSQL ni servicios.
+  # ────────────────────────────────────────────────────────────
+  ui-quality:
+    name: UI quality (a11y, visual, compat)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    needs: lint-and-typecheck
+    container:
+      # La versión de la imagen tiene que coincidir con @playwright/test del
+      # lockfile: así los navegadores ya vienen instalados.
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --ipc=host
+    env:
+      # Firefox no arranca si $HOME no es del usuario actual, y en un job con
+      # `container:` GitHub lo apunta a /github/home.
+      HOME: /root
+      # Valores de prueba: ninguna llamada llega a una base de datos real.
+      DATABASE_URL: postgresql://ftth:ftth@127.0.0.1:5432/ftth_copilot_e2e
+      JWT_SECRET: e2e-jwt-secret-for-playwright-only
+      KMS_MASTER_KEY: e2e-kms-master-key-for-playwright-only
+      ENABLE_TEST_AUTH_BYPASS: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup mise (Node + pnpm con versiones exactas)
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: --locked
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: pnpm --filter @ftth-copilot/web build:e2e
+
+      # Si la imagen y el lockfile se desfasan, esto descarga los navegadores
+      # correctos; si coinciden, no hace nada.
+      - name: Ensure browsers match the installed Playwright
+        run: pnpm --filter @ftth-copilot/web exec playwright install chromium firefox webkit
+
+      - name: Accessibility (axe)
+        run: pnpm --filter @ftth-copilot/web test:a11y
+
+      - name: Visual regression
+        run: pnpm --filter @ftth-copilot/web test:visual
+
+      - name: Cross-browser and cross-device matrix
+        run: pnpm --filter @ftth-copilot/web test:e2e:compat
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-quality-results
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
@@ -726,6 +794,7 @@ jobs:
       - test-integration
       - pr-title
       - supply-chain
+      - ui-quality
     if: always()
     steps:
       - name: Check all jobs passed
@@ -741,6 +810,7 @@ jobs:
           TEST_INTEGRATION_RESULT: ${{ needs.test-integration.result }}
           PR_TITLE_RESULT: ${{ needs.pr-title.result }}
           SUPPLY_CHAIN_RESULT: ${{ needs.supply-chain.result }}
+          UI_QUALITY_RESULT: ${{ needs.ui-quality.result }}
         run: |
           # The pull request title only exists for pull request events. On a
           # push to main the title job is skipped and the title is not part
@@ -758,7 +828,8 @@ jobs:
              [ "$TEST_E2E_RESULT" != "success" ] || \
              [ "$TEST_INTEGRATION_RESULT" != "success" ] || \
              [ "$PR_TITLE_RESULT" != "success" ] || \
-             [ "$SUPPLY_CHAIN_RESULT" != "success" ]; then
+             [ "$SUPPLY_CHAIN_RESULT" != "success" ] || \
+             [ "$UI_QUALITY_RESULT" != "success" ]; then
             echo "At least one required job did not succeed."
             exit 1
           fi

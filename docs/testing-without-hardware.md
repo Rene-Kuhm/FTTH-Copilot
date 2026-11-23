@@ -71,7 +71,7 @@ pnpm test:e2e:compat
 
 `--list` enumera los proyectos sin arrancar los navegadores. Si falta un binario o una biblioteca del sistema, Playwright informa el error al ejecutar su proyecto. En Linux, WebKit requiere las bibliotecas de una distribución compatible con la versión de Playwright instalada. Para correr una parte de la matriz con los motores disponibles, elegí los proyectos con `--project`. Registrá los proyectos omitidos y el motivo junto con los resultados.
 
-**Última verificación (imagen `mcr.microsoft.com/playwright:v1.65.1-noble`: Chromium 159, Firefox 157, WebKit):** 351 casos pasados y 18 omitidos sobre los 9 proyectos. Los 18 omitidos son los 2 casos de `oidc-sso.spec.ts`, que necesitan Keycloak, en cada proyecto. En un Linux sin las bibliotecas de WebKit (por ejemplo Arch) `playwright install webkit` falla: usá `scripts/ui-quality-docker.sh check`, que corre la matriz en la imagen oficial, o el workflow `ui-quality.yml`.
+**Última verificación (imagen `mcr.microsoft.com/playwright:v1.65.1-noble`: Chromium 159, Firefox 157, WebKit):** 351 casos pasados y 18 omitidos sobre los 9 proyectos. Los 18 omitidos son los 2 casos de `oidc-sso.spec.ts`, que necesitan Keycloak, en cada proyecto. En un Linux sin las bibliotecas de WebKit (por ejemplo Arch) `playwright install webkit` falla: usá `scripts/ui-quality-docker.sh check`, que corre la matriz en la imagen oficial, o el job `ui-quality` de `ci.yml`.
 
 La matriz no ejecuta los specs de `e2e/a11y/` ni de `e2e/visual/` (tienen su propia configuración). Los specs de autenticación y conectores simulan la sesión con una variable además de la cabecera `Set-Cookie`, porque WebKit no aplica esa cabecera de una respuesta simulada ni expone la cabecera `Cookie` a los manejadores de ruta.
 

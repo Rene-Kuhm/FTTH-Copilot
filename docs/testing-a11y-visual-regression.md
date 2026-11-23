@@ -36,4 +36,4 @@ Revisá los diez PNG en `apps/web/e2e/visual/screens.spec.ts-snapshots/` antes d
 
 ## En el CI
 
-`.github/workflows/ui-quality.yml` corre las tres suites (accesibilidad, regresión visual y la matriz de `docs/testing-without-hardware.md`) dentro de esa imagen, en los pull requests que tocan `apps/web/**`. Es un check aparte de `ci.yml` y todavía no forma parte del gate `CI Success`.
+El job `ui-quality` de `.github/workflows/ci.yml` corre las tres suites (accesibilidad, regresión visual y la matriz de `docs/testing-without-hardware.md`) dentro de esa imagen, en cada pull request. Forma parte del gate `CI Success`: si falla, el merge queda bloqueado.

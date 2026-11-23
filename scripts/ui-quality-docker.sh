@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the UI quality suites (axe, visual regression and the browser matrix)
-# inside the official Playwright image, the same one .github/workflows/ui-quality.yml
+# inside the official Playwright image, the same one the `ui-quality` job in .github/workflows/ci.yml
 # uses. The visual references depend on the system fonts, so they are generated
 # there and never on a developer machine.
 #
