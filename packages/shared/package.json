@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
+    "test:property": "vitest run tests/property",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "clean": "rm -rf dist"
   },

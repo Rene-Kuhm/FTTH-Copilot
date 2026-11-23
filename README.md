@@ -474,6 +474,7 @@ pnpm dev            # 3. servidor de desarrollo en http://localhost:3001
 `pnpm run setup` imprime la contraseña de administrador en consola. En CI o aprovisionamiento sin terminal: `pnpm run setup -- --non-interactive`.
 
 Antes de abrir un PR: `pnpm typecheck && pnpm lint && pnpm test`.
+Para verificar los invariantes de los paquetes núcleo con property-based testing: `pnpm test:property` ([guía e invariantes →](docs/property-based-testing.md)).
 
 **[Guía →](docs/tutorials/tutorial-3-entorno-local.md)**
 
