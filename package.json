@@ -24,10 +24,13 @@
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
     "test:unit": "turbo run test:unit",
+    "test:property": "turbo run test:property",
     "test:coverage": "turbo run test:coverage",
     "test:coverage-check": "turbo run test:coverage",
     "test:fuzz": "timeout --kill-after=5s 60s pnpm -r --filter @ftth-copilot/web --filter @ftth-copilot/security --filter @ftth-copilot/monitoring --filter @ftth-copilot/connectors-smartolt --filter @ftth-copilot/connectors-mikrowisp exec vitest run /fuzz.test.ts",
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
+    "test:perf": "node --import tsx scripts/perf/index.ts",
+    "test:chaos": "pnpm --filter @ftth-copilot/connectors-factory --filter @ftth-copilot/shared --filter @ftth-copilot/worker --fail-if-no-match exec vitest run tests/chaos-",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",
     "test:mock-nms": "tsx scripts/mock-nms.ts",
@@ -54,7 +57,13 @@
     "generate:matrix:write": "tsx scripts/generate-compatibility-matrix.ts --write",
     "sanitize:snmp": "tsx scripts/sanitize-snmp-capture.ts",
     "verify:syslog-source-ip": "tsx scripts/verify-syslog-source-ip.ts",
-    "replay:dead-letter": "tsx scripts/replay-dead-letter.ts"
+    "replay:dead-letter": "tsx scripts/replay-dead-letter.ts",
+    "security:sast": "node scripts/security/sast.mjs",
+    "security:sast:eslint": "eslint --config eslint.config.security.mjs apps/web packages services",
+    "security:sast:semgrep": "semgrep scan --config scripts/security/semgrep.yml --metrics=off --disable-version-check --strict --error apps/web packages services docker-compose.yml docker-compose.*.yml",
+    "security:audit": "pnpm audit",
+    "security:dast": "pnpm --filter @ftth-copilot/web test:security",
+    "security:check": "pnpm security:sast && pnpm security:dast"
   },
   "overrides": {
     "brace-expansion": ">=1.1.20"
@@ -72,6 +81,7 @@
     "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.70.1",
     "eslint": "^9.18.0",
+    "eslint-plugin-security": "^4.2.1",
     "tsx": "^4.19.2",
     "turbo": "^2.5.0",
     "typescript": "^5.7.2",
