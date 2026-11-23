@@ -104,7 +104,11 @@ export async function openScreen(page: Page, baseURL: string | undefined, screen
 
   // /docs is a public UI page routed through auth middleware, but uses no signed-in fixtures.
   if (screen.signedIn || screen.id === 'docs') {
-    await page.context().addCookies([{ name: '__test_bypass', value: 'true', url: baseURL }]);
+    await page.context().addCookies([
+      { name: '__test_bypass', value: 'true', url: baseURL },
+      // Client mutations go through csrfFetch, which refuses to send without this cookie.
+      { name: 'ftth_csrf', value: 'synthetic-csrf-token', url: baseURL },
+    ]);
   }
 
   await page.goto(screen.path);
@@ -113,7 +117,7 @@ export async function openScreen(page: Page, baseURL: string | undefined, screen
   await expect(main).toBeVisible();
   await expect(main.getByRole('heading', { level: 1, name: screen.heading, exact: true })).toBeVisible();
   if (screen.signedIn) {
-    await expect(page.getByText('NOC Demo Operator', { exact: true })).toBeVisible();
+    await expect(page.getByText('NOC Demo Operator', { exact: true }).first()).toBeVisible();
   }
   await screen.ready?.(page);
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
