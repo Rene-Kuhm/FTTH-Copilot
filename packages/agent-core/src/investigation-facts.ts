@@ -2,6 +2,7 @@ import {
   DEFAULT_DEGRADED_RX_THRESHOLD_DBM,
   type InvestigationEvidenceRef,
 } from '@ftth-copilot/shared';
+import { parseRxPower } from './investigation-rx-power';
 
 export interface OpticalFacts {
   sampleCount: number;
@@ -39,23 +40,6 @@ export interface InvestigationFacts {
   topology: TopologyFacts;
   history: HistoryFacts;
   deterministicMissing: Array<{ what: string; whyItMatters?: string }>;
-}
-
-const RX_POWER_REGEX = /rx[-_ ]?power[:= ]+([+-]?\d+(?:\.\d+)?)/i;
-const RX_DBM_REGEX = /([+-]?\d+(?:\.\d+)?)\s*dBm/i;
-
-function parseRxPower(summary: string): number | null {
-  const match = RX_POWER_REGEX.exec(summary);
-  if (match) {
-    const val = parseFloat(match[1]);
-    if (!Number.isNaN(val)) return val;
-  }
-  const dbmMatch = RX_DBM_REGEX.exec(summary);
-  if (dbmMatch) {
-    const val = parseFloat(dbmMatch[1]);
-    if (!Number.isNaN(val)) return val;
-  }
-  return null;
 }
 
 /**

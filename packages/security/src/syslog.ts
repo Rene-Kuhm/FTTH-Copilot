@@ -20,7 +20,8 @@ export interface ParsedSyslog {
   message: string;
 }
 
-const TIMESTAMP_RE = /^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(.*)$/;
+// The remainder starts after the full whitespace run, even if the line is malformed.
+const TIMESTAMP_RE = /^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(?!\s)(.*)$/;
 const TAG_RE = /^([^:]{1,32}):\s?(.*)$/;
 
 /**
@@ -48,7 +49,7 @@ export function parseSyslogMessage(line: string): ParsedSyslog | null {
   }
 
   let hostname: string | null = null;
-  const hostMatch = remainder.match(/^(\S+)\s+(.*)$/);
+  const hostMatch = remainder.match(/^(\S+)\s+(?!\s)(.*)$/);
   if (hostMatch) {
     hostname = hostMatch[1]!;
     remainder = hostMatch[2]!.trim();

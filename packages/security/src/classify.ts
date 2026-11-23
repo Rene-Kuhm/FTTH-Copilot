@@ -7,7 +7,7 @@ const AUTH_FAILURE_RE =
 const CONFIG_CHANGE_RE =
   /(configure|config|commit|write memory|running-config|startup-config|save config)/i;
 const ACCESS_RE =
-  /(accepted|session opened|logged in|login successful|connected|user .* entered)/i;
+  /(accepted|session opened|logged in|login successful|connected)/i;
 
 /**
  * Classifies a parsed syslog event into a coarse security category using
@@ -19,5 +19,11 @@ export function classifyEvent(ev: ParsedSyslog): EventCategory {
   if (AUTH_FAILURE_RE.test(text)) return 'auth_failure';
   if (CONFIG_CHANGE_RE.test(text)) return 'config_change';
   if (ACCESS_RE.test(text)) return 'access';
+  for (const line of text.toLowerCase().split(/[\r\n\u2028\u2029]/)) {
+    const userStart = line.indexOf('user ');
+    if (userStart !== -1 && line.includes(' entered', userStart + 'user '.length)) {
+      return 'access';
+    }
+  }
   return 'other';
 }

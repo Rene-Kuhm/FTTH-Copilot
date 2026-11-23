@@ -37,6 +37,29 @@ describe('computeInvestigationFacts', () => {
     expect(facts.optical.hasWarningAttenuation).toBe(true); // < -25 dBm
   });
 
+  it('extracts the first dBm value from a long metric summary', () => {
+    const ref: InvestigationEvidenceRef = {
+      evidenceRefId: 'ref-metric-long',
+      kind: 'metric',
+      source: 'telemetry:rx_power',
+      observedAt: baseDate.toISOString(),
+      summary: `${'sample 42; '.repeat(5_000).slice(0, 50_000)} value 1-28.25 DBM; previous -19 dBm`,
+      quality: 'fresh',
+      qualityReason: 'within_ttl',
+    };
+
+    const start = performance.now();
+    const { optical } = computeInvestigationFacts([ref]);
+    const elapsed = performance.now() - start;
+
+    expect(optical.sampleCount).toBe(1);
+    expect(optical.minRxPower).toBe(-28.25);
+    expect(elapsed).toBeLessThan(15);
+
+    const namedReading = { ...ref, summary: '-20 dBm; rx_power: -27.5' };
+    expect(computeInvestigationFacts([namedReading]).optical.minRxPower).toBe(-27.5);
+  });
+
   it('aggregates events and identifies power outage vs fiber alarm', () => {
     const refs: InvestigationEvidenceRef[] = [
       {
