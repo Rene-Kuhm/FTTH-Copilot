@@ -92,4 +92,25 @@ suite('auth-rate-limit concurrency (PostgreSQL integration)', () => {
     expect(over.allowed).toBe(false);
     expect(over.retryAfter).toBeGreaterThan(0);
   });
+
+  it('leaves fresh email buckets untouched when reserving concurrently with an exhausted IP', async () => {
+    const opts = { max: 2, windowMs: 15 * 60 * 1000 }, now = new Date(), ip = '198.51.100.100';
+    const attacker = authRateLimitKeys(`${TEST_PREFIX}exhaust@example.invalid`, ip);
+    await reserveAuthQuota(attacker, opts, undefined, now);
+    await reserveAuthQuota(attacker, opts, undefined, now);
+    const victims = await Promise.all([1, 2, 3].map((i) =>
+      reserveAuthQuota(authRateLimitKeys(`${TEST_PREFIX}victim-${i}@example.invalid`, ip), opts, undefined, now)));
+    expect(victims.every((d) => !d.allowed)).toBe(true);
+    expect(await prisma.authRateLimit.findMany({ where: { key: { startsWith: `login:email:${TEST_PREFIX}victim-` } } })).toHaveLength(0);
+  });
+
+  it('serializes release with concurrent reservations so only failed attempts remain counted', async () => {
+    const opts = { max: 3, windowMs: 15 * 60 * 1000 }, now = new Date();
+    const keys = authRateLimitKeys(`${TEST_PREFIX}mix@example.invalid`, '198.51.100.101');
+    const ok = await reserveAuthQuota(keys, opts, undefined, now);
+    const [failed] = await Promise.all([reserveAuthQuota(keys, opts, undefined, now), releaseAuthQuota(keys, opts, undefined, ok.windowStart)]);
+    expect(ok.allowed && failed.allowed).toBe(true);
+    const rows = await prisma.authRateLimit.findMany({ where: { key: { in: keys }, windowStart: ok.windowStart } });
+    expect(rows.map((r) => r.count)).toEqual([1, 1]);
+  });
 });
