@@ -1,0 +1,6 @@
+name: FTTH-Copilot CodeQL
+
+# La documentación estática queda fuera del análisis porque su HTML no se ejecuta
+# en producción y genera alertas ajenas al código desplegado.
+paths-ignore:
+  - "docs/**"
