@@ -78,3 +78,53 @@ pnpm --filter @ftth-copilot/worker test
 
 The suite is hermetic: it needs no Redis. The queue consumption itself is
 covered by the integration suite of `@ftth-copilot/jobs`.
+
+### Stress and soak
+
+Run the load tests on a host with Node 22+, a generated Prisma client
+(from `pnpm install`), `redis-server` on `PATH`, and permission to bind TCP
+and UDP on loopback. The targets start a disposable Redis on a temporary
+loopback port. The workspace dev dependency on `@ftth-copilot/monitoring`
+reuses its binary SNMP test sender. Device events and SNMP evidence go to
+synthetic sinks in the test process.
+
+```sh
+pnpm --filter @ftth-copilot/worker run test:stress
+pnpm --filter @ftth-copilot/worker run test:soak
+SOAK_SECONDS=14400 pnpm --filter @ftth-copilot/worker run test:soak
+```
+
+- **Stress** first fills a disk spool with 10,000 attempts against a 512 KiB
+  threshold. It checks refusal counts, transient backoff, recovery and
+  event quarantine. Then it runs the real worker consumers with a simulated
+  store outage until a probe job exhausts three attempts. It pauses the
+  consumer, sends twice the configured UDP rate limit, checks queue depth
+  and spool backlog, then resumes and checks both tenants' counts and the
+  spool dead-letter. The report distinguishes the syslog rate-limit counter,
+  SNMP datagrams that did not reach the sink, and failed BullMQ jobs.
+- **Soak** sends 25 events per protocol per cycle, targeting one cycle per
+  second. It checks delivery per tenant and an empty backlog before each
+  resource sample. The test trims completed jobs after each cycle so queue
+  history does not accumulate in Redis. It samples Node's post-GC heap,
+  RSS and active resources after three warm-up cycles and at steady-state
+  checkpoints. The final sample is compared with the warm-up baseline.
+  Redis RSS and PostgreSQL behavior are outside this measurement.
+
+`SOAK_SECONDS` defaults to 120 and accepts 10–86,400.
+`SOAK_EVENTS_PER_SECOND` sets the per-protocol batch size (1–1,000).
+For the final-minus-baseline checks, `SOAK_HEAP_GROWTH_MIB`,
+`SOAK_RSS_GROWTH_MIB` and `SOAK_HANDLE_GROWTH` default to 24, 96 and 2.
+Each run prints JSON samples and counters.
+
+The disk-only targets run without sockets or a generated Prisma client.
+The disk-only soak defaults to 100 events per cycle and honors the same
+soak variables.
+
+```sh
+pnpm --filter @ftth-copilot/worker run test:stress:spool
+pnpm --filter @ftth-copilot/worker run test:soak:spool
+```
+
+The lab sets `SYSLOG_BIND_ADDRESS=127.0.0.1` and
+`SNMP_BIND_ADDRESS=127.0.0.1`. Syslog defaults to `0.0.0.0` when
+`SYSLOG_BIND_ADDRESS` is unset.

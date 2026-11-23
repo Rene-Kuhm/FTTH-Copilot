@@ -16,7 +16,11 @@
     "test": "vitest run --passWithNoTests",
     "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "test:stress": "pnpm run test:stress:spool && vitest run --config vitest.load.config.ts -t stress",
+    "test:soak": "vitest run --config vitest.load.config.ts -t soak",
+    "test:stress:spool": "node --import tsx tests/load/spool.ts stress",
+    "test:soak:spool": "node --expose-gc --import tsx tests/load/spool.ts soak"
   },
   "dependencies": {
     "@ftth-copilot/connectors-core": "workspace:*",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@ftth-copilot/db": "workspace:*",
+    "@ftth-copilot/monitoring": "workspace:*",
     "@ftth-copilot/soc": "workspace:*",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
