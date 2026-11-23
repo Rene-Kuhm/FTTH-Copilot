@@ -116,7 +116,7 @@ headers de seguridad. Responde **503** cuando el proceso está degradado.
 | `database` | `object` | no | — |
 | `services` | `object` | no | — |
 | `hungLoops` | `object[]` | no | — |
-| `connections` | `object` | no | — |
+| `connections` | `ConnectionHealthAggregate` | no | — |
 | `ingest` | `object` | no | — |
 
 </details>
@@ -867,6 +867,7 @@ Alta, prueba y baja de conexiones a SmartOLT, Mikrowisp y MikroTik.
 | `user` | `User` | no | — |
 | `connectors` | `Connector[]` | sí | — |
 | `demoMode` | `boolean` | sí | — |
+| `health` | `ConnectionHealthDetail[]` | sí | Detalle de salud de las conexiones del tenant autenticado. Vacío cuando no hay sesión. |
 
 </details>
 

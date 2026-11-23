@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   upsert: vi.fn(),
+  queryRaw: vi.fn(),
+  executeRaw: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock('../src/client', () => ({
@@ -11,10 +14,18 @@ vi.mock('../src/client', () => ({
       findUnique: mocks.findUnique,
       upsert: mocks.upsert,
     },
+    $queryRaw: mocks.queryRaw,
+    $executeRaw: mocks.executeRaw,
+    $transaction: mocks.transaction,
   },
 }));
 
-import { checkAuthQuota, recordAuthAttempt } from '../src/auth-rate-limit';
+import {
+  checkAuthQuota,
+  recordAuthAttempt,
+  releaseAuthQuota,
+  reserveAuthQuota,
+} from '../src/auth-rate-limit';
 
 const NOW = new Date('2026-08-30T12:00:00.000Z');
 const OPTS = { max: 3, windowMs: 15 * 60 * 1000 };
@@ -22,6 +33,12 @@ const OPTS = { max: 3, windowMs: 15 * 60 * 1000 };
 beforeEach(() => {
   mocks.findUnique.mockReset();
   mocks.upsert.mockReset();
+  mocks.queryRaw.mockReset();
+  mocks.executeRaw.mockReset();
+  mocks.transaction.mockReset();
+  mocks.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn({ $queryRaw: mocks.queryRaw, $executeRaw: mocks.executeRaw }),
+  );
 });
 
 describe('default store (Prisma-backed)', () => {
@@ -50,5 +67,56 @@ describe('default store (Prisma-backed)', () => {
         select: { count: true },
       }),
     );
+  });
+
+  it('reserveAuthQuota locks existing rows FOR UPDATE inside a transaction and increments all keys', async () => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ key: 'login:email:a@b.c', count: 0 }, { key: 'login:ip:1.2.3.4', count: 1 }])
+      .mockResolvedValueOnce([{ key: 'login:email:a@b.c', count: 1 }, { key: 'login:ip:1.2.3.4', count: 2 }]);
+    const decision = await reserveAuthQuota(
+      ['login:ip:1.2.3.4', 'login:email:a@b.c'],
+      OPTS,
+      undefined,
+      NOW,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.retryAfter).toBe(0);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
+    expect(String(mocks.queryRaw.mock.calls[0]?.[0]?.sql ?? '')).toContain('FOR UPDATE');
+  });
+
+  it('reserveAuthQuota denies without inserting or updating when any locked row is at max', async () => {
+    mocks.queryRaw.mockResolvedValueOnce([{ key: 'login:ip:1.2.3.4', count: 3 }]);
+    const decision = await reserveAuthQuota(
+      ['login:email:a@b.c', 'login:ip:1.2.3.4'],
+      OPTS,
+      undefined,
+      NOW,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.retryAfter).toBeGreaterThan(0);
+    expect(mocks.executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('reserveAuthQuota initializes missing rows with count=0 and re-locks FOR UPDATE before deciding', async () => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ key: 'login:email:a@b.c', count: 0 }, { key: 'login:ip:1.2.3.4', count: 3 }]);
+    mocks.executeRaw.mockResolvedValue(2);
+    const decision = await reserveAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW);
+    expect(decision).toMatchObject({ allowed: false });
+    expect(decision.retryAfter).toBeGreaterThan(0);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('releaseAuthQuota locks rows FOR UPDATE inside a transaction before decrementing', async () => {
+    mocks.queryRaw.mockResolvedValueOnce([{ key: 'login:email:a@b.c' }, { key: 'login:ip:1.2.3.4' }]);
+    mocks.executeRaw.mockResolvedValue(2);
+    await releaseAuthQuota(['login:email:a@b.c', 'login:ip:1.2.3.4'], OPTS, undefined, NOW);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(String(mocks.queryRaw.mock.calls[0]?.[0]?.sql ?? '')).toContain('FOR UPDATE');
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
   });
 });

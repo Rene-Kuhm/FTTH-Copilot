@@ -9,7 +9,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
-import { prisma, verifyToken, hashToken, encryptApiKey } from '@ftth-copilot/db';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
+} from '@/lib/auth/quota';
+import { prisma, verifyToken, hashToken, encryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { generateSecret, generateOtpAuthUri } from '@/lib/auth/totp';
 
 export const runtime = 'nodejs';
@@ -137,6 +143,16 @@ export async function DELETE(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: AUTH_QUOTA_ERROR_MESSAGE },
+      { status: 429, headers: { 'retry-after': String(quota.retryAfter) } },
+    );
+  }
+
   // Decrypt and verify
   const { decryptApiKey } = await import('@ftth-copilot/db');
   const secret = decryptApiKey(dbUser.totpSecret);
@@ -151,6 +167,7 @@ export async function DELETE(req: Request): Promise<NextResponse> {
     where: { id: user.id },
     data: { mfaEnabled: false, totpSecret: null },
   });
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({ mfaEnabled: false });
 }
