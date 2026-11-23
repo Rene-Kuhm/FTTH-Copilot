@@ -71,6 +71,8 @@ pnpm test:e2e:compat
 
 `--list` enumera los proyectos sin arrancar los navegadores. Si falta un binario o una biblioteca del sistema, Playwright informa el error al ejecutar su proyecto. En Linux, WebKit requiere las bibliotecas de una distribución compatible con la versión de Playwright instalada. Para correr una parte de la matriz con los motores disponibles, elegí los proyectos con `--project`. Registrá los proyectos omitidos y el motivo junto con los resultados.
 
+**Última verificación (Chromium 159 y Firefox 157, Linux):** 234 casos pasados y 12 omitidos sobre 6 proyectos (`chromium-*` y `firefox-*`, tres viewports). Los 12 omitidos son los 2 casos de `oidc-sso.spec.ts`, que necesitan Keycloak. WebKit no se ejecutó: `playwright install webkit` falla en Arch por bibliotecas del sistema que faltan, así que esos 3 proyectos están sin verificar.
+
 ```bash
 pnpm test:e2e:compat --project=firefox-mobile --project=firefox-tablet --project=firefox-desktop
 ```
