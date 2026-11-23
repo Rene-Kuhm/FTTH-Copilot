@@ -571,170 +571,155 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     return rateLimitedResponse(ipQuota.retryAfter);
   }
 
-  let claims: Record<string, unknown>;
-  let accessToken: string | undefined;
-  let oidcConfig: client.Configuration;
+  let emailKeys: string[] = [];
+  let emailQuota: Awaited<ReturnType<typeof reserveAuthQuotaForKeys>> | null = null;
 
-  try {
-    oidcConfig = await discoverOidcConfiguration(cfg);
-    const currentUrl = new URL(req.url);
-    const tokens = await client.authorizationCodeGrant(oidcConfig, currentUrl, {
-      pkceCodeVerifier: tx.codeVerifier,
-      expectedState: tx.state,
-      expectedNonce: tx.nonce,
-      idTokenExpected: true,
-    });
-
-    const idClaims = tokens.claims();
-    if (!idClaims) {
-      return redirectToLoginError(req, 'oidc_missing_id_token');
+  const releaseOidcQuotas = async (): Promise<void> => {
+    if (ipKeys.length > 0) {
+      await releaseAuthQuotaForKeys(ipKeys, ipQuota.windowStart);
     }
-
-    claims = idClaims as unknown as Record<string, unknown>;
-    accessToken = tokens.access_token;
-  } catch (err) {
-    requestLog.warn('OIDC callback token exchange failed', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return redirectToLoginError(req, 'oidc_callback_failed');
-  }
-
-  const claimCheck = validateOidcIdTokenClaims(claims, {
-    issuer: cfg.issuer,
-    clientId: cfg.clientId,
-    nonce: tx.nonce,
-  });
-  if (!claimCheck.ok) {
-    requestLog.warn('OIDC ID token claim validation failed', { reason: claimCheck.reason });
-    return redirectToLoginError(req, `oidc_${claimCheck.reason}`);
-  }
-
-  const subject = String(claims['sub']);
-
-  // Fetch UserInfo if email or groups are missing from ID token
-  let mergedClaims = claims;
-  if (accessToken && (claims['email'] === undefined || claims[cfg.roleClaim] === undefined)) {
-    try {
-      const userInfo = await client.fetchUserInfo(oidcConfig, accessToken, subject);
-      mergedClaims = { ...userInfo, ...claims };
-    } catch {
-      // Non-fatal: proceed with ID token claims
+    if (emailQuota?.allowed && emailKeys.length > 0) {
+      await releaseAuthQuotaForKeys(emailKeys, emailQuota.windowStart);
     }
-  }
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: cfg.tenantSlug },
-    select: { id: true, slug: true },
-  });
-
-  if (!tenant) {
-    requestLog.error('Configured OIDC_TENANT_SLUG not found', { tenantSlug: cfg.tenantSlug });
-    return redirectToLoginError(req, 'oidc_tenant_not_found');
-  }
-
-  const existingIdentity = await prisma.userIdentity.findUnique({
-    where: {
-      issuer_subject: {
-        issuer: cfg.issuer,
-        subject,
-      },
-    },
-    select: { id: true, userId: true, tenantId: true },
-  });
-
-  const rawEmail = typeof mergedClaims['email'] === 'string'
-    ? mergedClaims['email'].trim().toLowerCase()
-    : undefined;
-  const emailVerified = mergedClaims['email_verified'] === true;
-  const groups = extractGroupsFromClaims(mergedClaims, cfg.roleClaim);
-
-  let emailKeys = rawEmail ? authQuotaKeys(rawEmail, null, 'oidc') : [];
-  let emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
-  if (emailQuota && !emailQuota.allowed) {
-    return rateLimitedResponse(emailQuota.retryAfter);
-  }
-
-  const existingUserInTenant = rawEmail
-    ? await prisma.user.findUnique({
-        where: { tenantId_email: { tenantId: tenant.id, email: rawEmail } },
-        select: { id: true },
-      })
-    : null;
-
-  const decision = resolveOidcIdentityDecision({
-    existingIdentity: existingIdentity
-      ? { userId: existingIdentity.userId, tenantId: existingIdentity.tenantId }
-      : null,
-    targetTenantId: tenant.id,
-    existingUserInTenant,
-    email: rawEmail,
-    emailVerified,
-    allowedEmailDomains: cfg.allowedEmailDomains,
-    autoProvision: cfg.autoProvision,
-    groups,
-    roleMap: cfg.roleMap,
-  });
-
-  if (decision.action === 'reject') {
-    await audit(
-      {
-        tenantId: tenant.id,
-        actorId: existingIdentity?.userId ?? 'unknown',
-        actorEmail: rawEmail,
-        ipAddress: ip,
-      },
-      {
-        category: 'AUTH',
-        action: 'oidc login rejected',
-        resourceType: 'UserIdentity',
-        resourceId: subject,
-        outcome: 'FAILURE',
-        metadata: { reason: decision.reason, issuer: cfg.issuer },
-      },
-    );
-    return redirectToLoginError(req, `oidc_${decision.reason}`);
-  }
-
-  let userRecord: {
-    id: string;
-    email: string;
-    name: string | null;
-    role: 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
-    tenantId: string;
-    mfaEnabled: boolean;
-    totpSecret?: string | null;
   };
 
-  if (decision.action === 'login') {
-    const found = await prisma.user.findUnique({
-      where: { id: decision.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        tenantId: true,
-        mfaEnabled: true,
-        totpSecret: true,
-      },
-    });
-    if (!found || found.tenantId !== tenant.id) {
-      return redirectToLoginError(req, 'oidc_tenant_mismatch');
+  try {
+    let claims: Record<string, unknown>;
+    let accessToken: string | undefined;
+    let oidcConfig: client.Configuration;
+
+    try {
+      oidcConfig = await discoverOidcConfiguration(cfg);
+      const currentUrl = new URL(req.url);
+      const tokens = await client.authorizationCodeGrant(oidcConfig, currentUrl, {
+        pkceCodeVerifier: tx.codeVerifier,
+        expectedState: tx.state,
+        expectedNonce: tx.nonce,
+        idTokenExpected: true,
+      });
+
+      const idClaims = tokens.claims();
+      if (!idClaims) {
+        return redirectToLoginError(req, 'oidc_missing_id_token');
+      }
+
+      claims = idClaims as unknown as Record<string, unknown>;
+      accessToken = tokens.access_token;
+    } catch (err) {
+      requestLog.warn('OIDC callback token exchange failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return redirectToLoginError(req, 'oidc_callback_failed');
     }
-    userRecord = found;
-  } else if (decision.action === 'link') {
-    const found = await prisma.$transaction(async (txDb) => {
-      const created = await txDb.userIdentity.create({
-        data: {
-          tenantId: tenant.id,
-          userId: decision.userId,
-          provider: 'oidc',
+
+    const claimCheck = validateOidcIdTokenClaims(claims, {
+      issuer: cfg.issuer,
+      clientId: cfg.clientId,
+      nonce: tx.nonce,
+    });
+    if (!claimCheck.ok) {
+      requestLog.warn('OIDC ID token claim validation failed', { reason: claimCheck.reason });
+      return redirectToLoginError(req, `oidc_${claimCheck.reason}`);
+    }
+
+    const subject = String(claims['sub']);
+
+    // Fetch UserInfo if email or groups are missing from ID token
+    let mergedClaims = claims;
+    if (accessToken && (claims['email'] === undefined || claims[cfg.roleClaim] === undefined)) {
+      try {
+        const userInfo = await client.fetchUserInfo(oidcConfig, accessToken, subject);
+        mergedClaims = { ...userInfo, ...claims };
+      } catch {
+        // Non-fatal: proceed with ID token claims
+      }
+    }
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { slug: cfg.tenantSlug },
+      select: { id: true, slug: true },
+    });
+
+    if (!tenant) {
+      requestLog.error('Configured OIDC_TENANT_SLUG not found', { tenantSlug: cfg.tenantSlug });
+      return redirectToLoginError(req, 'oidc_tenant_not_found');
+    }
+
+    const existingIdentity = await prisma.userIdentity.findUnique({
+      where: {
+        issuer_subject: {
           issuer: cfg.issuer,
           subject,
         },
-        select: { id: true },
-      });
-      const user = await txDb.user.findUniqueOrThrow({
+      },
+      select: { id: true, userId: true, tenantId: true },
+    });
+
+    const rawEmail = typeof mergedClaims['email'] === 'string'
+      ? mergedClaims['email'].trim().toLowerCase()
+      : undefined;
+    const emailVerified = mergedClaims['email_verified'] === true;
+    const groups = extractGroupsFromClaims(mergedClaims, cfg.roleClaim);
+
+    emailKeys = rawEmail ? authQuotaKeys(rawEmail, null, 'oidc') : [];
+    emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
+    if (emailQuota && !emailQuota.allowed) {
+      return rateLimitedResponse(emailQuota.retryAfter);
+    }
+
+    const existingUserInTenant = rawEmail
+      ? await prisma.user.findUnique({
+          where: { tenantId_email: { tenantId: tenant.id, email: rawEmail } },
+          select: { id: true },
+        })
+      : null;
+
+    const decision = resolveOidcIdentityDecision({
+      existingIdentity: existingIdentity
+        ? { userId: existingIdentity.userId, tenantId: existingIdentity.tenantId }
+        : null,
+      targetTenantId: tenant.id,
+      existingUserInTenant,
+      email: rawEmail,
+      emailVerified,
+      allowedEmailDomains: cfg.allowedEmailDomains,
+      autoProvision: cfg.autoProvision,
+      groups,
+      roleMap: cfg.roleMap,
+    });
+
+    if (decision.action === 'reject') {
+      await audit(
+        {
+          tenantId: tenant.id,
+          actorId: existingIdentity?.userId ?? 'unknown',
+          actorEmail: rawEmail,
+          ipAddress: ip,
+        },
+        {
+          category: 'AUTH',
+          action: 'oidc login rejected',
+          resourceType: 'UserIdentity',
+          resourceId: subject,
+          outcome: 'FAILURE',
+          metadata: { reason: decision.reason, issuer: cfg.issuer },
+        },
+      );
+      return redirectToLoginError(req, `oidc_${decision.reason}`);
+    }
+
+    let userRecord: {
+      id: string;
+      email: string;
+      name: string | null;
+      role: 'OWNER' | 'ADMIN' | 'OPERATOR' | 'MEMBER';
+      tenantId: string;
+      mfaEnabled: boolean;
+      totpSecret?: string | null;
+    };
+
+    if (decision.action === 'login') {
+      const found = await prisma.user.findUnique({
         where: { id: decision.userId },
         select: {
           id: true,
@@ -746,45 +731,24 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
           totpSecret: true,
         },
       });
-      return { user, identityId: created.id };
-    });
-
-    await audit(
-      {
-        tenantId: tenant.id,
-        actorId: found.user.id,
-        actorEmail: found.user.email,
-        actorRole: found.user.role,
-        ipAddress: ip,
-      },
-      {
-        category: 'AUTH',
-        action: 'oidc identity linked',
-        resourceType: 'UserIdentity',
-        resourceId: found.identityId,
-        outcome: 'SUCCESS',
-        metadata: { issuer: cfg.issuer, subject },
-      },
-    );
-    userRecord = found.user;
-  } else {
-    // Auto-provision new user + UserIdentity
-    const unusablePasswordHash = await hashPassword(randomBytes(32).toString('hex'));
-    const displayName =
-      typeof mergedClaims['name'] === 'string' && mergedClaims['name'].trim().length > 0
-        ? mergedClaims['name'].trim().slice(0, 120)
-        : null;
-
-    try {
-      const created = await prisma.$transaction(async (txDb) => {
-        const user = await txDb.user.create({
+      if (!found || found.tenantId !== tenant.id) {
+        return redirectToLoginError(req, 'oidc_tenant_mismatch');
+      }
+      userRecord = found;
+    } else if (decision.action === 'link') {
+      const found = await prisma.$transaction(async (txDb) => {
+        const created = await txDb.userIdentity.create({
           data: {
-            email: decision.email,
-            name: displayName,
-            passwordHash: unusablePasswordHash,
-            role: decision.role,
             tenantId: tenant.id,
+            userId: decision.userId,
+            provider: 'oidc',
+            issuer: cfg.issuer,
+            subject,
           },
+          select: { id: true },
+        });
+        const user = await txDb.user.findUniqueOrThrow({
+          where: { id: decision.userId },
           select: {
             id: true,
             email: true,
@@ -795,121 +759,171 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
             totpSecret: true,
           },
         });
-        await txDb.userIdentity.create({
-          data: {
-            tenantId: tenant.id,
-            userId: user.id,
-            provider: 'oidc',
-            issuer: cfg.issuer,
-            subject,
-          },
-        });
-        return user;
+        return { user, identityId: created.id };
       });
 
       await audit(
         {
           tenantId: tenant.id,
-          actorId: created.id,
-          actorEmail: created.email,
-          actorRole: created.role,
+          actorId: found.user.id,
+          actorEmail: found.user.email,
+          actorRole: found.user.role,
           ipAddress: ip,
         },
         {
           category: 'AUTH',
-          action: 'oidc user provisioned',
-          resourceType: 'User',
-          resourceId: created.id,
-          outcome: 'SUCCESS',
-          metadata: { issuer: cfg.issuer, subject, role: created.role },
-        },
-      );
-      userRecord = created;
-    } catch (err) {
-      // User.email is globally unique: if email belongs to another tenant, reject cleanly
-      requestLog.warn('OIDC user auto-provisioning failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await audit(
-        { tenantId: tenant.id, actorId: 'unknown', actorEmail: decision.email, ipAddress: ip },
-        {
-          category: 'AUTH',
-          action: 'oidc login rejected',
+          action: 'oidc identity linked',
           resourceType: 'UserIdentity',
-          resourceId: subject,
-          outcome: 'FAILURE',
-          metadata: { reason: 'provision_conflict', issuer: cfg.issuer },
+          resourceId: found.identityId,
+          outcome: 'SUCCESS',
+          metadata: { issuer: cfg.issuer, subject },
         },
       );
-      return redirectToLoginError(req, 'oidc_provision_conflict');
-    }
-  }
+      userRecord = found.user;
+    } else {
+      // Auto-provision new user + UserIdentity
+      const unusablePasswordHash = await hashPassword(randomBytes(32).toString('hex'));
+      const displayName =
+        typeof mergedClaims['name'] === 'string' && mergedClaims['name'].trim().length > 0
+          ? mergedClaims['name'].trim().slice(0, 120)
+          : null;
 
-  if (emailKeys.length === 0) {
-    emailKeys = authQuotaKeys(userRecord.email, null, 'oidc');
-    emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
-    if (emailQuota && !emailQuota.allowed) {
-      return rateLimitedResponse(emailQuota.retryAfter);
-    }
-  }
+      try {
+        const created = await prisma.$transaction(async (txDb) => {
+          const user = await txDb.user.create({
+            data: {
+              email: decision.email,
+              name: displayName,
+              passwordHash: unusablePasswordHash,
+              role: decision.role,
+              tenantId: tenant.id,
+            },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+              tenantId: true,
+              mfaEnabled: true,
+              totpSecret: true,
+            },
+          });
+          await txDb.userIdentity.create({
+            data: {
+              tenantId: tenant.id,
+              userId: user.id,
+              provider: 'oidc',
+              issuer: cfg.issuer,
+              subject,
+            },
+          });
+          return user;
+        });
 
-  const releaseOidcQuotas = async (): Promise<void> => {
-    if (ipKeys.length > 0) {
-      await releaseAuthQuotaForKeys(ipKeys, ipQuota.windowStart);
+        await audit(
+          {
+            tenantId: tenant.id,
+            actorId: created.id,
+            actorEmail: created.email,
+            actorRole: created.role,
+            ipAddress: ip,
+          },
+          {
+            category: 'AUTH',
+            action: 'oidc user provisioned',
+            resourceType: 'User',
+            resourceId: created.id,
+            outcome: 'SUCCESS',
+            metadata: { issuer: cfg.issuer, subject, role: created.role },
+          },
+        );
+        userRecord = created;
+      } catch (err) {
+        // User.email is globally unique: if email belongs to another tenant, reject cleanly
+        requestLog.warn('OIDC user auto-provisioning failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await audit(
+          { tenantId: tenant.id, actorId: 'unknown', actorEmail: decision.email, ipAddress: ip },
+          {
+            category: 'AUTH',
+            action: 'oidc login rejected',
+            resourceType: 'UserIdentity',
+            resourceId: subject,
+            outcome: 'FAILURE',
+            metadata: { reason: 'provision_conflict', issuer: cfg.issuer },
+          },
+        );
+        return redirectToLoginError(req, 'oidc_provision_conflict');
+      }
     }
-    if (emailQuota && emailKeys.length > 0) {
-      await releaseAuthQuotaForKeys(emailKeys, emailQuota.windowStart);
-    }
-  };
 
-  // Enforce user-level TOTP and tenant-level mandatory MFA policy
-  const tenantRequiresMfa = await isTenantMfaRequired(userRecord.tenantId);
-  const totpSecret = userRecord.totpSecret ?? null;
-  const requiresMfaEnrollment = tenantRequiresMfa || (userRecord.mfaEnabled && !totpSecret);
-  const mfaGate = evaluateMfaGate(
-    {
-      id: userRecord.id,
-      tenantId: userRecord.tenantId,
-      role: userRecord.role,
-      mfaEnabled: userRecord.mfaEnabled,
-      totpSecret,
-    },
-    requiresMfaEnrollment,
-  );
-  if (mfaGate.action === 'mfa_required') {
+    if (emailKeys.length === 0) {
+      emailKeys = authQuotaKeys(userRecord.email, null, 'oidc');
+      emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
+      if (emailQuota && !emailQuota.allowed) {
+        return rateLimitedResponse(emailQuota.retryAfter);
+      }
+    }
+
+    // Enforce user-level TOTP and tenant-level mandatory MFA policy
+    const tenantRequiresMfa = await isTenantMfaRequired(userRecord.tenantId);
+    const totpSecret = userRecord.totpSecret ?? null;
+    const requiresMfaEnrollment = tenantRequiresMfa || (userRecord.mfaEnabled && !totpSecret);
+    const mfaGate = evaluateMfaGate(
+      {
+        id: userRecord.id,
+        tenantId: userRecord.tenantId,
+        role: userRecord.role,
+        mfaEnabled: userRecord.mfaEnabled,
+        totpSecret,
+      },
+      requiresMfaEnrollment,
+    );
+    if (mfaGate.action === 'mfa_required') {
+      await releaseOidcQuotas();
+      return redirectToLoginMfa(req, 'required', mfaGate.tempToken);
+    }
+    if (mfaGate.action === 'mfa_setup_required') {
+      await releaseOidcQuotas();
+      return redirectToLoginMfa(req, 'setup_required', mfaGate.tempToken);
+    }
+
+    const { sessionCookie, csrfCookie } = await issueSessionForUser(userRecord, req);
+
+    await auditAuth.login(
+      {
+        tenantId: userRecord.tenantId,
+        actorId: userRecord.id,
+        actorEmail: userRecord.email,
+        actorRole: userRecord.role,
+        ipAddress: ip,
+      },
+      userRecord.id,
+      true,
+      { provider: 'oidc', issuer: cfg.issuer },
+    );
     await releaseOidcQuotas();
-    return redirectToLoginMfa(req, 'required', mfaGate.tempToken);
-  }
-  if (mfaGate.action === 'mfa_setup_required') {
+
+    const appUrl = new URL('/app', req.url);
+    const headers = new Headers();
+    headers.set('location', appUrl.toString());
+    headers.append('set-cookie', sessionCookie);
+    headers.append('set-cookie', csrfCookie);
+    headers.append('set-cookie', clearOidcTxCookieHeader());
+
+    return new Response(null, {
+      status: 302,
+      headers,
+    });
+  } catch (err) {
+    requestLog.error('OIDC callback failed with unexpected error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     await releaseOidcQuotas();
-    return redirectToLoginMfa(req, 'setup_required', mfaGate.tempToken);
+    return new Response(JSON.stringify({ error: 'OIDC callback failed' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    });
   }
-
-  const { sessionCookie, csrfCookie } = await issueSessionForUser(userRecord, req);
-
-  await auditAuth.login(
-    {
-      tenantId: userRecord.tenantId,
-      actorId: userRecord.id,
-      actorEmail: userRecord.email,
-      actorRole: userRecord.role,
-      ipAddress: ip,
-    },
-    userRecord.id,
-    true,
-    { provider: 'oidc', issuer: cfg.issuer },
-  );
-  await releaseOidcQuotas();
-
-  const appUrl = new URL('/app', req.url);
-  const headers = new Headers();
-  headers.set('location', appUrl.toString());
-  headers.append('set-cookie', sessionCookie);
-  headers.append('set-cookie', csrfCookie);
-  headers.append('set-cookie', clearOidcTxCookieHeader());
-
-  return new Response(null, {
-    status: 302,
-    headers,
-  });
 }

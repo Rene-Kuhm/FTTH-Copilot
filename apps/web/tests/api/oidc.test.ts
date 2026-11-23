@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   authRateLimitKeys: vi.fn(),
   reserveAuthQuota: vi.fn(),
   releaseAuthQuota: vi.fn(),
-  extractClientIp: vi.fn(() => '192.0.2.10'),
+  extractClientIp: vi.fn((_xForwardedFor?: string | null): string | null => '192.0.2.10'),
 }));
 
 const FROZEN_NOW_MS = 1_700_000_000_000;
@@ -796,5 +796,345 @@ describe('OIDC API routes', () => {
     expect(mocks.authRateLimitKeys).toHaveBeenCalledWith('isolated@example.com', null, 'oidc');
     expect(mocks.buckets.get(`login:ip:192.0.2.10:${windowStartMs}`)?.count).toBe(99);
     expect(mocks.buckets.get(`mfa:email:isolated@example.com:${windowStartMs}`)?.count).toBe(99);
+  });
+
+  it('refunds reserved IP and email quotas and returns 500 on unexpected error during user or MFA policy lookup', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '2', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    mocks.extractClientIp.mockReturnValue('198.51.100.77');
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+
+    // Case 1: unexpected DB error during user lookup after IP + email reservation
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-err-1',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'db-err@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce(null);
+    mocks.userFindUnique.mockRejectedValueOnce(new Error('transient DB error'));
+
+    const dbErrRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.77',
+        },
+      }),
+    );
+    expect(dbErrRes.status).toBe(500);
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.77:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`oidc:email:db-err@example.com:${windowStartMs}`)?.count).toBe(0);
+
+    // Case 2: unexpected error during tenant MFA policy evaluation after IP + email reservation
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-err-2',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'mfa-err@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-err-2',
+      userId: 'user-err-2',
+      tenantId: 'tenant-1',
+    });
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-err-2' })
+      .mockResolvedValueOnce({
+        id: 'user-err-2',
+        email: 'mfa-err@example.com',
+        name: 'MFA Err User',
+        role: 'OPERATOR',
+        tenantId: 'tenant-1',
+        mfaEnabled: false,
+        totpSecret: null,
+      });
+    mocks.tenantPolicyFindUnique.mockRejectedValueOnce(new Error('MFA policy lookup failed'));
+
+    const mfaErrRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.77',
+        },
+      }),
+    );
+    expect(mfaErrRes.status).toBe(500);
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.77:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`oidc:email:mfa-err@example.com:${windowStartMs}`)?.count).toBe(0);
+
+    // Case 3: unexpected error after IP reservation but before email resolution (only IP reserved)
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-err-3',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+      }),
+      access_token: 'at-1',
+    });
+    mocks.tenantFindUnique.mockRejectedValueOnce(new Error('tenant query failed'));
+
+    const ipOnlyErrRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.77',
+        },
+      }),
+    );
+    expect(ipOnlyErrRes.status).toBe(500);
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.77:${windowStartMs}`)?.count).toBe(0);
+  });
+
+  it('does not create an oidc:ip: bucket when X-Forwarded-For is absent, even on failed code exchange', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '2', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    mocks.extractClientIp.mockImplementationOnce((xff: string | null | undefined) => {
+      if (!xff) return null;
+      const first = xff.split(',')[0]?.trim();
+      return first && first.length > 0 ? first : null;
+    });
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+        },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toContain('/login?error=oidc_callback_failed');
+    expect(mocks.extractClientIp).toHaveBeenCalledWith(null);
+    expect([...mocks.buckets.keys()].some((k) => k.startsWith('oidc:ip:'))).toBe(false);
+    expect(mocks.buckets.size).toBe(0);
+  });
+
+  it('keeps oidc:ip: consumed (not refunded) on invalid code exchange when X-Forwarded-For is present', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '3', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    mocks.extractClientIp.mockReturnValueOnce('198.51.100.55');
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+    mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
+
+    const res = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.55',
+        },
+      }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toContain('/login?error=oidc_callback_failed');
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.55:${windowStartMs}`)?.count).toBe(1);
+    expect([...mocks.buckets.keys()].some((k) => k.startsWith('oidc:email:'))).toBe(false);
+  });
+
+  it('keeps oidc:email: and oidc:ip: consumed (not refunded) on post-email rejections (domain_not_allowed and user_not_found)', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '5', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+
+    // Domain not allowed
+    mocks.extractClientIp.mockReturnValueOnce('198.51.100.61');
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-bad-domain',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'outsider@forbidden.example',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce(null);
+    mocks.userFindUnique.mockResolvedValueOnce(null);
+
+    const domainRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.61',
+        },
+      }),
+    );
+    expect(domainRes.status).toBe(302);
+    expect(domainRes.headers.get('location')).toContain('/login?error=oidc_domain_not_allowed');
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.61:${windowStartMs}`)?.count).toBe(1);
+    expect(
+      mocks.buckets.get(`oidc:email:outsider@forbidden.example:${windowStartMs}`)?.count,
+    ).toBe(1);
+
+    // User not found (allowed domain, autoProvision=false, no existing user)
+    mocks.extractClientIp.mockReturnValueOnce('198.51.100.62');
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-missing-user',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'nobody@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce(null);
+    mocks.userFindUnique.mockResolvedValueOnce(null);
+
+    const userNotFoundRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.62',
+        },
+      }),
+    );
+    expect(userNotFoundRes.status).toBe(302);
+    expect(userNotFoundRes.headers.get('location')).toContain('/login?error=oidc_user_not_found');
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.62:${windowStartMs}`)?.count).toBe(1);
+    expect(mocks.buckets.get(`oidc:email:nobody@example.com:${windowStartMs}`)?.count).toBe(1);
+  });
+
+  it('refunds both oidc:ip: and oidc:email: quotas on MFA delegation paths (mfa_required and mfa_setup_required)', async () => {
+    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '2', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
+    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
+    const txToken = await signOidcTxCookie({
+      state: 'state-123',
+      nonce: 'nonce-123',
+      codeVerifier: 'pkce-verifier-123',
+    });
+
+    // mfa_required
+    mocks.extractClientIp.mockReturnValueOnce('198.51.100.66');
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: false });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-mfa-refund',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'mfa-refund@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-mfa-refund',
+      userId: 'user-mfa-refund',
+      tenantId: 'tenant-1',
+    });
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-mfa-refund' })
+      .mockResolvedValueOnce({
+        id: 'user-mfa-refund',
+        email: 'mfa-refund@example.com',
+        name: 'MFA Refund',
+        role: 'OPERATOR',
+        tenantId: 'tenant-1',
+        mfaEnabled: true,
+        totpSecret: 'enc-totp-secret',
+      });
+
+    const mfaReqRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.66',
+        },
+      }),
+    );
+    expect(mfaReqRes.status).toBe(302);
+    expect(mfaReqRes.headers.get('location')).toContain(
+      '/login?mfa=required&tempToken=temp-user-mfa-refund',
+    );
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.66:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`oidc:email:mfa-refund@example.com:${windowStartMs}`)?.count).toBe(0);
+
+    // mfa_setup_required
+    mocks.extractClientIp.mockReturnValueOnce('198.51.100.67');
+    mocks.tenantPolicyFindUnique.mockResolvedValueOnce({ requireMfa: true });
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({
+        sub: 'sub-setup-refund',
+        iss: 'https://idp.example.com/realms/ftth',
+        aud: 'ftth-web',
+        exp: Math.floor(Date.now() / 1000) + 600,
+        nonce: 'nonce-123',
+        email: 'setup-refund@example.com',
+        email_verified: true,
+      }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({
+      id: 'ident-setup-refund',
+      userId: 'user-setup-refund',
+      tenantId: 'tenant-1',
+    });
+    mocks.userFindUnique
+      .mockResolvedValueOnce({ id: 'user-setup-refund' })
+      .mockResolvedValueOnce({
+        id: 'user-setup-refund',
+        email: 'setup-refund@example.com',
+        name: 'Setup Refund',
+        role: 'OPERATOR',
+        tenantId: 'tenant-1',
+        mfaEnabled: false,
+        totpSecret: null,
+      });
+
+    const mfaSetupRes = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: {
+          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
+          'x-forwarded-for': '198.51.100.67',
+        },
+      }),
+    );
+    expect(mfaSetupRes.status).toBe(302);
+    expect(mfaSetupRes.headers.get('location')).toContain(
+      '/login?mfa=setup_required&tempToken=temp-user-setup-refund',
+    );
+    expect(mocks.sessionCreate).not.toHaveBeenCalled();
+    expect(mocks.buckets.get(`oidc:ip:198.51.100.67:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`oidc:email:setup-refund@example.com:${windowStartMs}`)?.count).toBe(0);
   });
 });
