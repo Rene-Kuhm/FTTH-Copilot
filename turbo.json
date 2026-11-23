@@ -135,7 +135,6 @@
       "cache": false
     },
     "test:mutation": {
-      "dependsOn": ["^build"],
       "cache": false
     }
   }
