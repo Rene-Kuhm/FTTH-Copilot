@@ -24,6 +24,7 @@
     "extract-api-routes.ts",
     "render-c4.ts",
     "lib/**/*.ts",
+    "lab/**/*.ts",
     "tests/**/*.ts"
   ]
 }

@@ -130,10 +130,12 @@ y el fallo aparece en la primera query.
 | `FIRMWARE_AUDIT_ENABLED` | `false` | `apps/web/lib/monitoring/scheduler.ts:322` | Arranca el loop de auditoría de firmware |
 | `FIRMWARE_AUDIT_INTERVAL_MS` | `86400000` | `scheduler.ts:328` | Cadencia (24 h) |
 | `FIRMWARE_AUDIT_VULNERABLE_LIST` | vacío | `scheduler.ts:193` | Allowlist de firmware vulnerable. Vacío o inválido ⇒ baseline embebido |
-| `FEC_COLLECTION_ENABLED` | `false` | `scheduler.ts:373` | Habilita la recolección óptica FEC |
-| `FEC_COLLECTION_INTERVAL_MS` | `3600000` | `scheduler.ts:375` | Cadencia (1 h) |
-| `FEC_FAN_OUT_PER_CYCLE` | `8` | `scheduler.ts:376` | ONUs muestreadas por ciclo |
-| `FEC_RATE_LIMIT_PER_HOUR` | `15` | `scheduler.ts:377` | Presupuesto de requests al NMS por hora |
+| `FEC_COLLECTION_ENABLED` | `false` | `packages/scheduler/src/scheduler.ts:349` | Habilita la recolección óptica FEC |
+| `FEC_COLLECTION_INTERVAL_MS` | `3600000` | `packages/scheduler/src/scheduler.ts:351` | Cadencia (1 h) |
+| `FEC_RATE_LIMIT_PER_HOUR` | `600` | `packages/scheduler/src/scheduler.ts:352` | Presupuesto de requests al NMS por hora para el barrido FEC (deja 400 de las 1.000 de la cuenta SmartOLT) |
+| `FEC_FAN_OUT_PER_CYCLE` | la parte del presupuesto del tick (600 con ticks de 1 h) | `packages/scheduler/src/scheduler.ts:357` | ONUs muestreadas por ciclo; las degradadas por eventos van primero |
+| `SMARTOLT_RATE_LIMIT_PER_HOUR` | `1000` | `packages/connectors/smartolt/src/rate-limit.ts:71` | Presupuesto de la cuenta SmartOLT, compartido entre clientes de la misma cuenta. El resto de las variables del conector está en `packages/connectors/smartolt/AGENTS.md` |
+| `SMARTOLT_EVENTS_ENABLED` | `false` | `packages/scheduler/src/event-stream.ts:54` | Arranca en el worker el stream de eventos en tiempo real de SmartOLT (SSE). Las variables del stream están en `services/worker/AGENTS.md` |
 
 ## 10. Observabilidad
 

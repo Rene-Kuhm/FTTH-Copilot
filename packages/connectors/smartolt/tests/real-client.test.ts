@@ -81,8 +81,9 @@ describe('SmartOltClient (real mode)', () => {
   const apiKey = 'sk-test-1234';
 
   it('ping returns ok when the API responds 200', async () => {
+    // El heartbeat va a `get_zones`: la API prohíbe `get_olts` para eso.
     const fetchImpl = makeMockFetch([
-      { match: /\/api\/system\/get_olts/, body: { status: true, response: [] } },
+      { match: /\/api\/system\/get_zones/, body: { status: true, response: [] } },
     ]);
     const client = new SmartOltClient({ useMock: false, apiKey, apiBaseUrl, fetchImpl });
     const r = await client.ping();
@@ -92,7 +93,7 @@ describe('SmartOltClient (real mode)', () => {
 
   it('ping returns error when the API fails', async () => {
     const fetchImpl = makeMockFetch([
-      { match: /get_olts/, status: 401, body: { status: false, response: {} } },
+      { match: /get_zones/, status: 401, body: { status: false, response: {} } },
     ]);
     const client = new SmartOltClient({ useMock: false, apiKey, apiBaseUrl, fetchImpl });
     const r = await client.ping();

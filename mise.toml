@@ -47,7 +47,7 @@ run = "pnpm test"
 
 [tasks.test-scripts]
 description = "Tests de scripts/ (node:test, sin dependencias extra)."
-run = "node --test scripts/tests/*.test.ts"
+run = "node --test scripts/tests/*.test.ts scripts/lab/tests/*.test.ts"
 
 [tasks."test:coverage-check"]
 description = "Verifica los umbrales mínimos de cobertura."

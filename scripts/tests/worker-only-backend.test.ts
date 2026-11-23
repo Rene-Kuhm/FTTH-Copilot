@@ -32,11 +32,33 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
  * miraba porque no estaba en ninguna parte.
  */
 function composes(): string[] {
+  return composesDescubiertos().filter((nombre) => !COMPOSES_DE_BANCO.includes(nombre));
+}
+
+function composesDescubiertos(): string[] {
   return fs
     .readdirSync(REPO_ROOT)
     .filter((nombre) => /^docker-compose.*\.yml$/.test(nombre))
     .sort();
 }
+
+/**
+ * Los compose que no son un stack de la plataforma sino un banco de
+ * simuladores (`pnpm lab:up`). Se listan a mano a propósito: la excepción es
+ * explícita, y el test de abajo impide que un banco empiece a levantar la web.
+ */
+const COMPOSES_DE_BANCO = ['docker-compose.lab.yml'];
+
+test('un compose de banco no levanta la web: si la levantara, llevaría worker', () => {
+  for (const compose of COMPOSES_DE_BANCO) {
+    assert.ok(composesDescubiertos().includes(compose), `${compose} ya no existe: sacalo de la lista`);
+    assert.equal(
+      leerCompose(compose).services['app'],
+      undefined,
+      `${compose} declara el servicio app: es un stack y tiene que llevar worker`,
+    );
+  }
+});
 
 /** Los compose que levantan la web (el servicio `app`). */
 function composesConWeb(): string[] {
