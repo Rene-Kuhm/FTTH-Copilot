@@ -146,7 +146,10 @@ describe('validateInvestigationResult', () => {
     expect(report.sanitizedResult.hypotheses[0].againstRefIds).toEqual([]);
   });
 
-  it('detects numerical contradictions between cited evidence and hypothesis claims', () => {
+  it.each([
+    ['named RX power', 'rx_power: -18.2 dBm', 'rx_power: -34.5 dBm'],
+    ['dBm suffix', '-18.2 dBm', '-34.5 dBm'],
+  ])('detects numerical contradictions for %s', (_format, reading, claim) => {
     const resultWithContradiction: InvestigationResult = {
       ...validResult,
       evidenceRefs: [
@@ -155,7 +158,7 @@ describe('validateInvestigationResult', () => {
           kind: 'metric',
           source: 'telemetry:rx_power',
           observedAt: '2026-09-08T12:00:00.000Z',
-          summary: 'rx_power: -18.2 dBm (excelente señal)',
+          summary: `${reading} (excelente señal)`,
           quality: 'fresh',
           qualityReason: 'within_ttl',
         },
@@ -163,7 +166,7 @@ describe('validateInvestigationResult', () => {
       hypotheses: [
         {
           hypothesisId: 'hyp-contradiction',
-          summary: 'Atenuación crítica severa rx_power: -34.5 dBm detectada',
+          summary: `Atenuación crítica severa ${claim} detectada`,
           supportLevel: 'supported',
           forRefIds: ['ref-metric-good'],
           againstRefIds: [],
