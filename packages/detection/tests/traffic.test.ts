@@ -31,17 +31,17 @@ describe('detectTrafficAnomaly', () => {
     const finding = detectTrafficAnomaly(
       'ONU',
       'onu-1',
-      series([250, 300, 350]),
+      series([190, 200, 210]),
       { now: NOW },
     );
     expect(finding?.severity).toBe('critical');
   });
 
-  it('returns null when average is below threshold', () => {
+  it('returns null when average equals the threshold', () => {
     const finding = detectTrafficAnomaly(
       'ONU',
       'onu-1',
-      series([10, 20, 30, 40]),
+      series([90, 100, 110]),
       { now: NOW },
     );
     expect(finding).toBeNull();
@@ -58,18 +58,20 @@ describe('detectTrafficAnomaly', () => {
   });
 
   it('filters out-of-window samples', () => {
-    // Only 2 samples within the 15-min window; the rest are older.
+    // Three samples are inside the window, including both boundaries.
     const samples = [
       { t: NOW - 20 * MINUTE, v: 500 }, // outside window
-      { t: NOW - 10 * MINUTE, v: 150 },
+      { t: NOW - 15 * MINUTE, v: 150 },
       { t: NOW - 5 * MINUTE, v: 160 },
       { t: NOW, v: 170 },
+      { t: NOW + 1, v: 500 },
     ];
     const finding = detectTrafficAnomaly('OLT', 'olt-1', samples, {
       now: NOW,
-      minSamples: 4,
+      minSamples: 3,
     });
-    expect(finding).toBeNull();
+    expect(finding?.severity).toBe('warning');
+    expect(finding?.description).toContain('160.0 Mbps');
   });
 
   it('evaluates devices independently', () => {

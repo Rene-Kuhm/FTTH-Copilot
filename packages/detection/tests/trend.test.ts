@@ -43,6 +43,30 @@ describe('predictThresholdCrossing', () => {
     expect(predictThresholdCrossing(series([-22, -23, -24, -25, -26]), { ...opts, minR2: 2 })).toBeNull();
   });
 
+  it('accepts a crossing at the exact horizon and fit thresholds with unordered samples', () => {
+    const samples = series([-22, -23, -24, -25, -26]).reverse();
+
+    expect(predictThresholdCrossing(samples, { ...opts, horizonDays: 1, minR2: 1 })).toEqual({
+      etaMs: DAY_MS,
+      slopePerDay: -1,
+      confidence: 1,
+      lastValue: -26,
+    });
+  });
+
+  it('returns null when all samples have the same timestamp', () => {
+    const samples = [-22, -23, -24, -25, -26].map((v) => ({ t: 0, v }));
+
+    expect(predictThresholdCrossing(samples, opts)).toBeNull();
+  });
+
+  it.each([
+    { direction: 'below' as const, values: [-23, -24, -25, -26, -27] },
+    { direction: 'above' as const, values: [-31, -30, -29, -28, -27] },
+  ])('returns null when the latest sample is already at the threshold ($direction)', ({ direction, values }) => {
+    expect(predictThresholdCrossing(series(values), { ...opts, direction })).toBeNull();
+  });
+
   it('honors direction "above" for temperature-style thresholds', () => {
     const p = predictThresholdCrossing(series([50, 52, 54, 56, 58]), {
       threshold: 60,

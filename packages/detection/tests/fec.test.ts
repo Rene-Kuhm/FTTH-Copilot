@@ -65,4 +65,32 @@ describe('detectFecDegradation', () => {
     );
     expect(finding).toBeNull();
   });
+
+  it('uses both window boundaries and ignores samples outside them', () => {
+    const uncorrected = [
+      { t: NOW, v: 12 },
+      { t: NOW + 1, v: 0 },
+      { t: NOW - HOUR - 1, v: 99 },
+      { t: NOW - HOUR, v: 10 },
+    ];
+    const finding = detectFecDegradation('ONU', 'onu-1', [], uncorrected, {
+      now: NOW,
+      windowMs: HOUR,
+    });
+
+    expect(finding).toMatchObject({
+      severity: 'critical',
+      detectedAt: new Date(NOW).toISOString(),
+    });
+    expect(finding?.description).toMatch(/^2 codewords/);
+  });
+
+  it.each([
+    { delta: 100, severity: null },
+    { delta: 101, severity: 'warning' },
+  ])('applies the default corrected threshold to exactly three samples ($delta)', ({ delta, severity }) => {
+    const finding = detectFecDegradation('ONU', 'onu-1', series([0, 50, delta]), [], { now: NOW });
+
+    expect(finding?.severity ?? null).toBe(severity);
+  });
 });
