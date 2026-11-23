@@ -12,6 +12,19 @@ request and commit links. The entries below that point were written by hand.
 
 ---
 
+## [0.10.1](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.10.0...v0.10.1) (2026-11-23)
+
+
+### Fixed
+
+* **security:** make the flagged regular expressions linear-time ([#423](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/423)) ([349d71a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/349d71a98ccc1531c140064eabb4bae4a789664c))
+* **tooling:** atomic .env writes, bounded HTTP artifacts and escaped log fields ([#424](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/424)) ([4b7d4d8](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/4b7d4d829802a8d1927c0b4603342432539458e1))
+
+
+### CI
+
+* exclude static docs from CodeQL analysis ([#426](https://github.com/Rene-Kuhm/FTTH-Copilot/issues/426)) ([65b005a](https://github.com/Rene-Kuhm/FTTH-Copilot/commit/65b005a35b9bcf0d95178fbdb89af7f02d7e7736))
+
 ## [0.10.0](https://github.com/Rene-Kuhm/FTTH-Copilot/compare/v0.9.0...v0.10.0) (2026-11-23)
 
 
