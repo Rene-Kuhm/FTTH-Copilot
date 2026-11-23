@@ -20,10 +20,10 @@ Una herramienta ausente o un registro inaccesible dejan el chequeo fallido. Revi
 
 ## Pruebas HTTP con datos sintéticos
 
-Usá un worktree de pruebas con las dependencias y el cliente Prisma preparados. Docker Compose necesita las imágenes declaradas en [el archivo de servicios](../docker-compose.security-audit.yml), descargadas de antemano, y los puertos locales `3011`, `55444` y `16344` libres.
+Usá un worktree de pruebas con las dependencias y el cliente Prisma preparados. Docker Compose necesita las imágenes declaradas en [el archivo de servicios](../apps/web/security-e2e/compose.yml), descargadas de antemano, y los puertos locales `3011`, `55444` y `16344` libres.
 
 ```bash
-docker compose -f docker-compose.security-audit.yml up --pull never --wait
+docker compose -f apps/web/security-e2e/compose.yml up --pull never --wait
 pnpm security:dast
 ```
 
@@ -43,5 +43,5 @@ Playwright aplica las migraciones existentes y construye la app antes de escucha
 Para descartar los datos sintéticos y liberar los puertos al terminar, bajá el proyecto de Compose dedicado a la auditoría.
 
 ```bash
-docker compose -f docker-compose.security-audit.yml down -v
+docker compose -f apps/web/security-e2e/compose.yml down -v
 ```
