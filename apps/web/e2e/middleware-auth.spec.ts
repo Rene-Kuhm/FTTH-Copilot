@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 /**
  * The middleware, exercised for real.
  *
- * global-setup seeds every E2E context with the __test_bypass cookie so the UI
+ * Playwright seeds each E2E context with the __test_bypass cookie so the UI
  * can be driven without a session. That made the whole suite blind to the
  * middleware itself: when Edge verification was broken and every protected
  * route answered 307, all E2E tests still passed green.

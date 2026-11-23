@@ -28,12 +28,9 @@ test.describe('Dashboard', () => {
     await expect(page.getByRole('heading', { name: 'OLTs' })).toBeVisible();
   });
 
-  test('shows link back to chat', async ({ page }) => {
-    // The dashboard renders a "Copilot" link that navigates back to /app.
-    // Note: the nav link is inside getByRole('navigation') to avoid the
-    // strict-mode violation from multiple "Copilot" links on the page.
-    await expect(
-      page.getByRole('navigation').getByRole('link', { name: 'Copilot' }),
-    ).toBeVisible();
+  test('returns to chat from the visible navigation', async ({ page }) => {
+    const chatLink = page.getByRole('navigation').getByRole('link', { name: 'Copilot' });
+    await chatLink.click();
+    await expect(page).toHaveURL('/app');
   });
 });

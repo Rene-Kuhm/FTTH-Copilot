@@ -27,6 +27,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:security": "playwright test --config playwright.security.config.ts",
+    "test:e2e:compat": "playwright test --config=playwright.compat.config.ts",
     "test:a11y": "playwright test -c playwright.a11y-visual.config.ts e2e/a11y",
     "test:visual": "playwright test -c playwright.a11y-visual.config.ts e2e/visual",
     "test:a11y-visual": "playwright test -c playwright.a11y-visual.config.ts e2e/a11y e2e/visual",

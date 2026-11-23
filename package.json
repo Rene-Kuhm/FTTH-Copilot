@@ -32,6 +32,7 @@
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
     "test:perf": "node --import tsx scripts/perf/index.ts",
     "test:chaos": "pnpm --filter @ftth-copilot/connectors-factory --filter @ftth-copilot/shared --filter @ftth-copilot/worker --fail-if-no-match exec vitest run tests/chaos-",
+    "test:e2e:compat": "pnpm --filter @ftth-copilot/web test:e2e:compat",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",
     "test:mock-nms": "tsx scripts/mock-nms.ts",
