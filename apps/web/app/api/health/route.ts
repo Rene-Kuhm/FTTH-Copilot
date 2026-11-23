@@ -99,7 +99,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
         heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       },
-      version: process.env['npm_package_version'] ?? '0.9.0',
+      version: process.env['npm_package_version'] ?? '0.10.0',
       database,
       owner: 'worker',
       scope: containerScope ? 'container' : 'system',
