@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePrometheusMetrics } from '@/lib/metrics/prometheus';
 
@@ -27,7 +28,10 @@ export async function GET(req: NextRequest): Promise<NextResponse | Response> {
     }
 
     const token = authHeader.slice(7).trim();
-    if (token !== bearerToken) {
+    // Compare fixed-size digests even when the input lengths differ.
+    const presented = createHash('sha256').update(token).digest();
+    const expected = createHash('sha256').update(bearerToken).digest();
+    if (!timingSafeEqual(presented, expected)) {
       return new NextResponse('Unauthorized: Invalid bearer token\n', {
         status: 401,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
