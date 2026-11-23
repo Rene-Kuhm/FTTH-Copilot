@@ -103,6 +103,7 @@ pnpm dev
 
 El comando `setup` es interactivo. Responde las preguntas o ejecutá
 `pnpm run setup -- --non-interactive` para un entorno automatizado.
+Cuando `setup` crea o actualiza `.env`, publica el archivo de forma atómica con permisos `0600`.
 
 ### 3. Abrí la interfaz
 

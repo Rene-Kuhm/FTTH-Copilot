@@ -15,6 +15,7 @@ import net from 'node:net';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { writeAtomicFile } from './lib/atomic-file.ts';
 import {
   c,
   runInteractiveWizard,
@@ -115,19 +116,23 @@ function parseEnvFile(content: string): Record<string, string> {
 async function main(): Promise<void> {
   const envPath = path.join(ROOT_DIR, '.env');
   const envExamplePath = path.join(ROOT_DIR, '.env.example');
-  const isFreshEnv = !fs.existsSync(envPath);
-
-  // 1. Check or initialize .env
-  if (isFreshEnv) {
-    if (!fs.existsSync(envExamplePath)) {
+  let isFreshEnv = false;
+  let envContent: string;
+  try {
+    envContent = fs.readFileSync(envPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    try {
+      envContent = fs.readFileSync(envExamplePath, 'utf8');
+    } catch (templateError) {
+      if ((templateError as NodeJS.ErrnoException).code !== 'ENOENT') throw templateError;
       console.error('❌ Neither .env nor .env.example found in repository root.');
       process.exit(1);
     }
+    isFreshEnv = true;
     console.log('📄 Creating .env from .env.example...');
-    fs.copyFileSync(envExamplePath, envPath);
   }
 
-  let envContent = fs.readFileSync(envPath, 'utf8');
   let envUpdated = false;
 
   // Contract anchor strings from .env.example template:
@@ -148,8 +153,8 @@ async function main(): Promise<void> {
     console.log('🔑 Generated secure KMS_MASTER_KEY in .env');
   }
 
-  if (envUpdated) {
-    fs.writeFileSync(envPath, envContent, 'utf8');
+  if (isFreshEnv || envUpdated) {
+    writeAtomicFile(envPath, envContent, { mode: 0o600, exclusive: isFreshEnv });
   }
 
   // Check if interactive wizard should be launched
@@ -203,7 +208,7 @@ async function main(): Promise<void> {
         envContent = setEnvVariable(envContent, 'DATABASE_URL', wizardResult.databaseUrl);
       }
 
-      fs.writeFileSync(envPath, envContent, 'utf8');
+      writeAtomicFile(envPath, envContent, { mode: 0o600 });
       console.log(`\n${c.green}✓ .env successfully updated with your configuration.${c.reset}`);
     }
   }
