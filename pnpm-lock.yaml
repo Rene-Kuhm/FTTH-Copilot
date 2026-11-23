@@ -1015,6 +1015,9 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
     devDependencies:
+      '@ftth-copilot/monitoring':
+        specifier: workspace:*
+        version: link:../../packages/monitoring
       '@ftth-copilot/soc':
         specifier: workspace:*
         version: link:../../packages/soc

@@ -154,7 +154,7 @@ export function startSyslogReceiver(options: SyslogReceiverOptions = {}): () => 
     recordSchedulerError('syslog', `socket error: ${err.message}`);
     recordSyslogBound(false);
   });
-  socket.bind(port, () => {
+  socket.bind(port, process.env['SYSLOG_BIND_ADDRESS'] ?? '0.0.0.0', () => {
     // Now that the socket has a file descriptor, the receive buffer can be
     // enlarged. Not fatal if it fails: the default buffer still works, just
     // with less headroom.
