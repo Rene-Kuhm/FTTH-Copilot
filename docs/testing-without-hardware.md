@@ -31,6 +31,23 @@ export DATABASE_URL=postgresql://ftth:ftth@localhost:5432/ftth_copilot
 pnpm --filter @ftth-copilot/alerts test:integration
 ```
 
+### Pruebas de caos en proceso
+
+Con las dependencias instaladas, ejecutá `pnpm test:chaos`. Los escenarios usan fixtures
+sintéticos, un spool en un directorio temporal y fallos inyectados en `fetch` y Prisma.
+
+| Escenario | Qué verifica |
+|-----------|--------------|
+| SmartOLT y Mikrowisp | Una respuesta lenta dentro del plazo incluye latencia. Una lectura colgada se aborta con el timeout configurado. Un corte de red o JSON truncado produce un error y la siguiente consulta sana vuelve a entregar inventario. |
+| Límite HTTP de SmartOLT | Ante un 429, respeta `Retry-After` y reintenta la consulta. |
+| Caída de PostgreSQL | El handler real de drenaje falla para que la cola pueda reintentar. El spool retiene eventos de ambos tenants sin cuarentena y los entrega cuando vuelve la escritura. |
+| Reinicio del drenaje | Se simula una escritura aplicada cuya confirmación se pierde. El handler se vuelve a cargar con el mismo spool y reenvía los mismos IDs. El doble de Prisma aplica `skipDuplicates`. |
+| Caída de Laya | El circuit breaker abre, suprime llamadas durante la espera y vuelve a cerrar tras una consulta exitosa. El cliente devuelve `null` para que el pipeline pueda continuar durante el corte. |
+
+La recuperación de SmartOLT y Mikrowisp se verifica en la siguiente consulta del llamador.
+La prueba del worker recrea sus módulos de drenaje en el mismo proceso. Redis, el motor real
+de PostgreSQL, el arranque del servicio y la supervisión de procesos quedan fuera de esta suite.
+
 ## 2. La app contra fixtures (modo demo)
 
 ```bash

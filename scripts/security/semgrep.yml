@@ -27,8 +27,8 @@ rules:
       - pattern-either:
           - pattern: child_process.exec($CMD, ...)
           - pattern: child_process.execSync($CMD, ...)
-          - pattern: 'spawn($CMD, $ARGS, { ..., shell: true, ... })'
-          - pattern: 'spawnSync($CMD, $ARGS, { ..., shell: true, ... })'
+          - pattern: "spawn($CMD, $ARGS, { ..., shell: true, ... })"
+          - pattern: "spawnSync($CMD, $ARGS, { ..., shell: true, ... })"
     message: Avoid shell-invoking child_process calls; use execFile/spawn without shell=true.
     languages: [typescript, javascript]
     severity: ERROR
@@ -89,8 +89,8 @@ rules:
   - id: ftth-ts-jwt-alg-none
     patterns:
       - pattern-either:
-          - pattern: "{ algorithms: [..., \"none\", ...] }"
-          - pattern: "{ algorithm: \"none\" }"
+          - pattern: '{ algorithms: [..., "none", ...] }'
+          - pattern: '{ algorithm: "none" }'
     message: JWT 'none' algorithm is forbidden.
     languages: [typescript, javascript]
     severity: ERROR
@@ -155,7 +155,7 @@ rules:
           - pattern: $BEARER === $TOKEN
       - metavariable-regex:
           metavariable: $BEARER
-          regex: '.*(bearerToken|apiSecret|webhookSecret|signingSecret|hmacSecret).*'
+          regex: ".*(bearerToken|apiSecret|webhookSecret|signingSecret|hmacSecret).*"
     message: Non-constant-time secret comparison enables timing side-channel attacks; use crypto.timingSafeEqual.
     languages: [typescript, javascript]
     severity: WARNING
