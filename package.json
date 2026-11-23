@@ -26,6 +26,7 @@
     "test:unit": "turbo run test:unit",
     "test:coverage": "turbo run test:coverage",
     "test:coverage-check": "turbo run test:coverage",
+    "test:mutation": "turbo run test:mutation",
     "test:e2e": "pnpm --filter @ftth-copilot/web test:e2e",
     "test:scenario": "tsx scripts/seed-scenario.ts",
     "test:syslog": "tsx scripts/send-syslog.ts",

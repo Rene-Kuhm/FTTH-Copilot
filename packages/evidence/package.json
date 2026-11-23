@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests",
     "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:mutation": "stryker run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -20,6 +21,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.11",
