@@ -41,26 +41,17 @@ export function authRateLimitOptions(): AuthQuotaOptions {
 }
 
 /**
- * Resolve rate-limit options for the shared fallback bucket used when client IP
- * is unavailable (`oidc:ip:unknown`). Uses `AUTH_RATE_LIMIT_UNKNOWN_IP_MAX`,
- * defaulting to 10 × `AUTH_RATE_LIMIT_MAX`.
- */
-export function authUnknownIpRateLimitOptions(): AuthQuotaOptions {
-  const base = authRateLimitOptions();
-  return {
-    max: positiveInt(process.env['AUTH_RATE_LIMIT_UNKNOWN_IP_MAX'], base.max * 10),
-    windowMs: base.windowMs,
-  };
-}
-
-/**
- * Derive rate-limit bucket keys for an auth attempt (optional email + optional client IP).
+ * Derive rate-limit bucket keys for an auth attempt (optional email, IP, and/or tx token).
  */
 export function authQuotaKeys(
   email: string | null,
   clientIp: string | null,
   scope?: AuthRateLimitScope,
+  transactionToken?: string | null,
 ): string[] {
+  if (transactionToken !== undefined) {
+    return authRateLimitKeys(email, clientIp, scope ?? 'login', transactionToken);
+  }
   return scope === undefined
     ? authRateLimitKeys(email, clientIp)
     : authRateLimitKeys(email, clientIp, scope);
@@ -107,10 +98,8 @@ export async function recordAuthFailures(keys: string[]): Promise<void> {
  * Atomically reserve one attempt across every rate-limit key before
  * performing expensive credential verification. Fails closed on store outages.
  */
-export async function reserveAuthQuotaForKeys(
-  keys: string[],
-  opts: AuthQuotaOptions = authRateLimitOptions(),
-): Promise<AuthQuotaReservation> {
+export async function reserveAuthQuotaForKeys(keys: string[]): Promise<AuthQuotaReservation> {
+  const opts = authRateLimitOptions();
   try {
     return await reserveAuthQuota(keys, opts);
   } catch (err) {
@@ -130,8 +119,8 @@ export async function reserveAuthQuotaForKeys(
 export async function releaseAuthQuotaForKeys(
   keys: string[],
   windowStart?: Date,
-  opts: AuthQuotaOptions = authRateLimitOptions(),
 ): Promise<void> {
+  const opts = authRateLimitOptions();
   try {
     await releaseAuthQuota(keys, opts, undefined, windowStart);
   } catch (err) {

@@ -94,6 +94,12 @@ import { GET as oidcLoginGet } from '@/app/api/auth/oidc/login/route';
 import { GET as oidcCallbackGet } from '@/app/api/auth/oidc/callback/route';
 import { OIDC_TX_COOKIE_NAME, signOidcTxCookie } from '@/lib/auth/oidc';
 
+const { authRateLimitKeys: realAuthRateLimitKeys } =
+  await vi.importActual<typeof import('@ftth-copilot/db')>('@ftth-copilot/db');
+
+/** Bucket por transacción OIDC: `oidc:tx:<hash>` (nunca el bucket compartido `oidc:ip:unknown`). */
+const txKeyOf = (token: string): string => realAuthRateLimitKeys(null, null, 'oidc', token)[0];
+
 const ENV_KEYS = [
   'OIDC_ENABLED',
   'OIDC_ISSUER',
@@ -107,7 +113,6 @@ const ENV_KEYS = [
   'OIDC_ROLE_MAP',
   'AUTH_RATE_LIMIT_MAX',
   'AUTH_RATE_LIMIT_WINDOW_MS',
-  'AUTH_RATE_LIMIT_UNKNOWN_IP_MAX',
 ] as const;
 
 function setValidOidcEnv(overrides: Record<string, string | undefined> = {}) {
@@ -136,16 +141,7 @@ describe('OIDC API routes', () => {
     mocks.tenantFindUnique.mockResolvedValue({ id: 'tenant-1', slug: 'demo-isp' });
     mocks.tenantPolicyFindUnique.mockResolvedValue(null);
     mocks.extractClientIp.mockReturnValue('192.0.2.10');
-    mocks.authRateLimitKeys.mockImplementation(
-      (email: string | null, ip: string | null, scope: 'login' | 'mfa' | 'oidc' = 'login') => {
-        const keys: string[] = [];
-        if (email !== null && email.trim().length > 0) {
-          keys.push(`${scope}:email:${email.trim().toLowerCase()}`);
-        }
-        if (ip) keys.push(`${scope}:ip:${ip}`);
-        return keys;
-      },
-    );
+    mocks.authRateLimitKeys.mockImplementation(realAuthRateLimitKeys);
     mocks.reserveAuthQuota.mockImplementation(
       async (keys: string[], opts: { max: number; windowMs: number }) => {
         const nowMs = FROZEN_NOW_MS;
@@ -584,7 +580,8 @@ describe('OIDC API routes', () => {
     expect(
       mocks.buckets.get(`oidc:email:attacker@untrusted.example:${windowStartMs}`)?.count,
     ).toBe(2);
-    expect(mocks.buckets.get(`oidc:ip:203.0.113.99:${windowStartMs}`)?.count).toBe(1);
+    // La reserva por IP se reembolsa cuando la reserva por email es denegada.
+    expect(mocks.buckets.get(`oidc:ip:203.0.113.99:${windowStartMs}`)?.count).toBe(0);
   });
 
   it('requires MFA enrollment and emits no session when tenant requires MFA and user has no TOTP', async () => {
@@ -908,10 +905,9 @@ describe('OIDC API routes', () => {
     expect(mocks.buckets.get(`oidc:ip:198.51.100.77:${windowStartMs}`)?.count).toBe(0);
   });
 
-  it('charges shared oidc:ip:unknown bucket when X-Forwarded-For is absent and enforces AUTH_RATE_LIMIT_UNKNOWN_IP_MAX', async () => {
+  it('charges oidc:tx:<hash> bucket per transaction when X-Forwarded-For is absent and enforces AUTH_RATE_LIMIT_MAX', async () => {
     setValidOidcEnv({
-      AUTH_RATE_LIMIT_MAX: '1',
-      AUTH_RATE_LIMIT_UNKNOWN_IP_MAX: '2',
+      AUTH_RATE_LIMIT_MAX: '2',
       AUTH_RATE_LIMIT_WINDOW_MS: '900000',
     });
     mocks.extractClientIp.mockImplementation((xff: string | null | undefined) => {
@@ -925,6 +921,7 @@ describe('OIDC API routes', () => {
       nonce: 'nonce-123',
       codeVerifier: 'pkce-verifier-123',
     });
+    const txKey = txKeyOf(txToken);
 
     for (let i = 0; i < 2; i++) {
       mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
@@ -940,7 +937,8 @@ describe('OIDC API routes', () => {
     }
 
     expect(mocks.extractClientIp).toHaveBeenCalledWith(null);
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(2);
+    expect(mocks.buckets.has(`oidc:ip:unknown:${windowStartMs}`)).toBe(false);
+    expect(mocks.buckets.get(`${txKey}:${windowStartMs}`)?.count).toBe(2);
 
     const blocked = await oidcCallbackGet(
       new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
@@ -952,51 +950,23 @@ describe('OIDC API routes', () => {
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     expect(mocks.authorizationCodeGrant).toHaveBeenCalledTimes(2);
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(2);
-  });
+    expect(mocks.buckets.get(`${txKey}:${windowStartMs}`)?.count).toBe(2);
 
-  it('defaults oidc:ip:unknown quota limit to 10x AUTH_RATE_LIMIT_MAX when AUTH_RATE_LIMIT_UNKNOWN_IP_MAX is unset', async () => {
-    setValidOidcEnv({ AUTH_RATE_LIMIT_MAX: '1', AUTH_RATE_LIMIT_WINDOW_MS: '900000' });
-    mocks.extractClientIp.mockImplementation((xff: string | null | undefined) => {
-      if (!xff) return null;
-      const first = xff.split(',')[0]?.trim();
-      return first && first.length > 0 ? first : null;
-    });
-    const windowStartMs = computeWindowStartMs(FROZEN_NOW_MS, 900_000);
-    const txToken = await signOidcTxCookie({
-      state: 'state-123',
-      nonce: 'nonce-123',
-      codeVerifier: 'pkce-verifier-123',
-    });
-
-    for (let i = 0; i < 10; i++) {
-      mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
-      const res = await oidcCallbackGet(
-        new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
-          headers: {
-            cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
-          },
-        }),
-      );
-      expect(res.status).toBe(302);
-    }
-
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(10);
-
-    const blocked = await oidcCallbackGet(
+    // El bucket es por transacción: otra transacción OIDC no comparte el presupuesto agotado.
+    const otherTxToken = await signOidcTxCookie({ state: 'state-456', nonce: 'nonce-123', codeVerifier: 'pkce-verifier-456' });
+    mocks.authorizationCodeGrant.mockRejectedValueOnce(new Error('invalid_grant'));
+    const isolated = await oidcCallbackGet(
       new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
-        headers: {
-          cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}`,
-        },
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${otherTxToken}` },
       }),
     );
-    expect(blocked.status).toBe(429);
+    expect(isolated.status).toBe(302);
+    expect(mocks.buckets.get(`${txKeyOf(otherTxToken)}:${windowStartMs}`)?.count).toBe(1);
   });
 
-  it('enforces strict AUTH_RATE_LIMIT_MAX on oidc:ip:<ip> when X-Forwarded-For is present without touching oidc:ip:unknown', async () => {
+  it('enforces strict AUTH_RATE_LIMIT_MAX on oidc:ip:<ip> when X-Forwarded-For is present without touching oidc:tx: or oidc:ip:unknown', async () => {
     setValidOidcEnv({
       AUTH_RATE_LIMIT_MAX: '1',
-      AUTH_RATE_LIMIT_UNKNOWN_IP_MAX: '5',
       AUTH_RATE_LIMIT_WINDOW_MS: '900000',
     });
     mocks.extractClientIp.mockImplementation((xff: string | null | undefined) => {
@@ -1023,6 +993,7 @@ describe('OIDC API routes', () => {
     expect(first.status).toBe(302);
     expect(mocks.buckets.get(`oidc:ip:198.51.100.88:${windowStartMs}`)?.count).toBe(1);
     expect(mocks.buckets.has(`oidc:ip:unknown:${windowStartMs}`)).toBe(false);
+    expect(mocks.buckets.has(`${txKeyOf(txToken)}:${windowStartMs}`)).toBe(false);
 
     const blocked = await oidcCallbackGet(
       new Request('http://localhost:3001/api/auth/oidc/callback?code=bad&state=state-123', {
@@ -1036,10 +1007,9 @@ describe('OIDC API routes', () => {
     expect(mocks.buckets.has(`oidc:ip:unknown:${windowStartMs}`)).toBe(false);
   });
 
-  it('keeps strict AUTH_RATE_LIMIT_MAX for oidc:email: even when fallback oidc:ip:unknown uses a higher limit', async () => {
+  it('refunds the prior tx or IP reservation when the oidc:email: reservation is denied', async () => {
     setValidOidcEnv({
       AUTH_RATE_LIMIT_MAX: '1',
-      AUTH_RATE_LIMIT_UNKNOWN_IP_MAX: '5',
       AUTH_RATE_LIMIT_WINDOW_MS: '900000',
     });
     mocks.extractClientIp.mockImplementation((xff: string | null | undefined) => {
@@ -1053,6 +1023,7 @@ describe('OIDC API routes', () => {
       nonce: 'nonce-123',
       codeVerifier: 'pkce-verifier-123',
     });
+    const txToken2 = await signOidcTxCookie({ state: 'state-456', nonce: 'nonce-123', codeVerifier: 'pkce-verifier-456' });
 
     for (let i = 0; i < 2; i++) {
       mocks.authorizationCodeGrant.mockResolvedValueOnce({
@@ -1083,20 +1054,35 @@ describe('OIDC API routes', () => {
 
     const second = await oidcCallbackGet(
       new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
-        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken}` },
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken2}` },
       }),
     );
     expect(second.status).toBe(429);
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(2);
+    // La reserva por tx previa se reembolsa cuando la reserva por email es denegada.
+    expect(mocks.buckets.get(`${txKeyOf(txToken2)}:${windowStartMs}`)?.count).toBe(0);
     expect(
       mocks.buckets.get(`oidc:email:attacker@untrusted.example:${windowStartMs}`)?.count,
     ).toBe(1);
+
+    // Sitio 2 de reserva de email: el email sale del userRecord cuando el claim no lo trae.
+    mocks.authorizationCodeGrant.mockResolvedValueOnce({
+      claims: () => ({ sub: 'sub-unk-email-2', iss: 'https://idp.example.com/realms/ftth', aud: 'ftth-web', exp: Math.floor(Date.now() / 1000) + 600, nonce: 'nonce-123' }),
+      access_token: 'at-1',
+    });
+    mocks.userIdentityFindUnique.mockResolvedValueOnce({ id: 'ident-2', userId: 'user-2', tenantId: 'tenant-1' });
+    mocks.userFindUnique.mockResolvedValueOnce({ id: 'user-2', email: 'attacker@untrusted.example', name: 'Sin Email', role: 'MEMBER', tenantId: 'tenant-1', mfaEnabled: false, totpSecret: null });
+    const third = await oidcCallbackGet(
+      new Request('http://localhost:3001/api/auth/oidc/callback?code=c1&state=state-123', {
+        headers: { cookie: `${OIDC_TX_COOKIE_NAME}=${txToken2}` },
+      }),
+    );
+    expect(third.status).toBe(429);
+    expect(mocks.buckets.get(`${txKeyOf(txToken2)}:${windowStartMs}`)?.count).toBe(0);
   });
 
-  it('refunds oidc:ip:unknown and oidc:email: with each bucket reservation windowStart on success and MFA delegation', async () => {
+  it('refunds oidc:tx:<hash> and oidc:email: with each bucket reservation windowStart on success and MFA delegation', async () => {
     setValidOidcEnv({
       AUTH_RATE_LIMIT_MAX: '2',
-      AUTH_RATE_LIMIT_UNKNOWN_IP_MAX: '4',
       AUTH_RATE_LIMIT_WINDOW_MS: '900000',
     });
     mocks.extractClientIp.mockImplementation((xff: string | null | undefined) => {
@@ -1111,6 +1097,7 @@ describe('OIDC API routes', () => {
       nonce: 'nonce-123',
       codeVerifier: 'pkce-verifier-123',
     });
+    const txKey = txKeyOf(txToken);
 
     // Case 1: successful login without X-Forwarded-For across a window rollover between IP and email reservations
     const defaultReserveImpl = mocks.reserveAuthQuota.getMockImplementation()!;
@@ -1171,7 +1158,7 @@ describe('OIDC API routes', () => {
     );
     expect(okRes.status).toBe(302);
     expect(okRes.headers.get('location')).toBe('http://localhost:3001/app');
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`${txKey}:${windowStartMs}`)?.count).toBe(0);
     expect(mocks.buckets.get(`oidc:email:ok-unknown@example.com:${nextWindowStartMs}`)?.count).toBe(0);
 
     // Case 2: MFA delegation without X-Forwarded-For
@@ -1215,7 +1202,7 @@ describe('OIDC API routes', () => {
     expect(mfaRes.headers.get('location')).toContain(
       '/login?mfa=required&tempToken=temp-user-mfa-unknown',
     );
-    expect(mocks.buckets.get(`oidc:ip:unknown:${windowStartMs}`)?.count).toBe(0);
+    expect(mocks.buckets.get(`${txKey}:${windowStartMs}`)?.count).toBe(0);
     expect(mocks.buckets.get(`oidc:email:mfa-unknown@example.com:${windowStartMs}`)?.count).toBe(0);
   });
 

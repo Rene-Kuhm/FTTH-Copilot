@@ -71,6 +71,18 @@ describe('authRateLimitKeys', () => {
     expect(authRateLimitKeys('a@b.c', null, 'oidc')).toEqual(['oidc:email:a@b.c']);
     expect(authRateLimitKeys(null, null, 'oidc')).toEqual([]);
   });
+
+  it('adds a hashed tx key only when transactionToken is provided without exposing the raw token', () => {
+    const keys1 = authRateLimitKeys(null, null, 'oidc', 'eyJhbGciOiJIUzI1NiJ9.tx-one.sig');
+    const keys2 = authRateLimitKeys(null, null, 'oidc', 'eyJhbGciOiJIUzI1NiJ9.tx-two.sig');
+
+    expect(keys1).toHaveLength(1);
+    expect(keys1[0]).toMatch(/^oidc:tx:[0-9a-f]{32}$/);
+    expect(keys1[0]).not.toContain('tx-one');
+    expect(keys2[0]).not.toBe(keys1[0]);
+    expect(authRateLimitKeys(null, null, 'oidc', null)).toEqual([]);
+    expect(authRateLimitKeys(null, null, 'oidc', '')).toEqual([]);
+  });
 });
 
 function fakeStore(initial: Record<string, number>): AuthRateLimitStore {

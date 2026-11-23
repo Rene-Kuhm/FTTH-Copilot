@@ -6,7 +6,7 @@
  * an attacker has not authenticated yet. The store is injectable so the logic
  * can be unit-tested without a database.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from './generated/client/index.js';
 import { prisma } from './client';
 
@@ -115,11 +115,12 @@ export function extractClientIp(xForwardedFor: string | null | undefined): strin
   return first && first.length > 0 ? first : null;
 }
 
-/** Rate-limit keys for an auth operation: normalized email (when present) and IP (when present). */
+/** Rate-limit keys for an auth operation: normalized email, IP, and/or hashed transaction token. */
 export function authRateLimitKeys(
   email: string | null,
   ip: string | null,
   scope: AuthRateLimitScope = 'login',
+  transactionToken?: string | null,
 ): string[] {
   const keys: string[] = [];
   if (email !== null) {
@@ -129,6 +130,10 @@ export function authRateLimitKeys(
     }
   }
   if (ip) keys.push(`${scope}:ip:${ip}`);
+  if (transactionToken) {
+    const txHash = createHash('sha256').update(transactionToken).digest('hex').slice(0, 32);
+    keys.push(`${scope}:tx:${txHash}`);
+  }
   return keys;
 }
 

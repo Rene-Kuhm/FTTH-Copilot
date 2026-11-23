@@ -30,8 +30,6 @@ import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
 import {
   AUTH_QUOTA_ERROR_MESSAGE,
   authQuotaKeys,
-  authRateLimitOptions,
-  authUnknownIpRateLimitOptions,
   releaseAuthQuotaForKeys,
   reserveAuthQuotaForKeys,
 } from './quota';
@@ -567,12 +565,12 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
   const ip = clientIp ?? undefined;
 
-  // Sin X-Forwarded-For, el callback cobra sobre el bucket compartido oidc:ip:unknown
-  // con su propio tope (AUTH_RATE_LIMIT_UNKNOWN_IP_MAX) para evitar bypass sin contaminar
-  // los buckets por IP ni por email.
-  const ipKeys = authQuotaKeys(null, clientIp ?? 'unknown', 'oidc');
-  const ipQuotaOptions = clientIp ? authRateLimitOptions() : authUnknownIpRateLimitOptions();
-  const ipQuota = await reserveAuthQuotaForKeys(ipKeys, ipQuotaOptions);
+  // Sin X-Forwarded-For no hay bucket por IP; se cobra sobre la transacción OIDC (oidc:tx:<hash>)
+  // con AUTH_RATE_LIMIT_MAX para evitar DoS cruzado entre usuarios sin compartir bucket.
+  const ipKeys = clientIp
+    ? authQuotaKeys(null, clientIp, 'oidc')
+    : authQuotaKeys(null, null, 'oidc', txToken);
+  const ipQuota = await reserveAuthQuotaForKeys(ipKeys);
   if (!ipQuota.allowed) {
     return rateLimitedResponse(ipQuota.retryAfter);
   }
@@ -582,7 +580,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
 
   const releaseOidcQuotas = async (): Promise<void> => {
     if (ipKeys.length > 0) {
-      await releaseAuthQuotaForKeys(ipKeys, ipQuota.windowStart, ipQuotaOptions);
+      await releaseAuthQuotaForKeys(ipKeys, ipQuota.windowStart);
     }
     if (emailQuota?.allowed && emailKeys.length > 0) {
       await releaseAuthQuotaForKeys(emailKeys, emailQuota.windowStart);
@@ -670,6 +668,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
     emailKeys = rawEmail ? authQuotaKeys(rawEmail, null, 'oidc') : [];
     emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
     if (emailQuota && !emailQuota.allowed) {
+      await releaseOidcQuotas();
       return rateLimitedResponse(emailQuota.retryAfter);
     }
 
@@ -868,6 +867,7 @@ export async function handleOidcCallback(req: Request): Promise<Response> {
       emailKeys = authQuotaKeys(userRecord.email, null, 'oidc');
       emailQuota = emailKeys.length > 0 ? await reserveAuthQuotaForKeys(emailKeys) : null;
       if (emailQuota && !emailQuota.allowed) {
+        await releaseOidcQuotas();
         return rateLimitedResponse(emailQuota.retryAfter);
       }
     }
