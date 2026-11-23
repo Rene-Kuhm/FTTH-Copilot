@@ -43,8 +43,8 @@ y el fallo aparece en la primera query.
 | `CHAT_DAILY_QUOTA` | `200` | `apps/web/lib/rate-limit.ts:26` | Consultas de chat por día |
 | `INVESTIGATION_RATE_LIMIT_PER_MINUTE` | `10` | `apps/web/lib/investigations/quota.ts:29` | Investigaciones por minuto |
 | `INVESTIGATION_DAILY_QUOTA` | `100` | `apps/web/lib/investigations/quota.ts:30` | Investigaciones por día |
-| `AUTH_RATE_LIMIT_MAX` | `10` | `apps/web/lib/auth/server.ts:58` | Intentos de login/signup por ventana |
-| `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | `apps/web/lib/auth/server.ts:59` | Ventana anti brute-force (15 min) |
+| `AUTH_RATE_LIMIT_MAX` | `10` | `apps/web/lib/auth/quota.ts:36-40` | Máximo de intentos por ventana en los namespaces `login`, `mfa`, `oidc` y `signup` |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | `apps/web/lib/auth/quota.ts:36-40` | Ventana anti brute-force (15 min) para los namespaces `login`, `mfa`, `oidc` y `signup` |
 | `REDIS_URL` | `redis://127.0.0.1:6379` | `apps/web/lib/rate-limit-store.ts:256` | Store compartido en Redis para las rutas de API que mutan estado en Node (§1); sin ella cae a memoria por instancia y avisa en los logs (el middleware de Edge usa memoria por instancia) |
 
 ## 5. Conectores NMS
