@@ -10,6 +10,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
+import { generateCsrfToken } from '@/lib/auth/csrf';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
+} from '@/lib/auth/quota';
 import { prisma, issueToken, hashToken, COOKIE_NAME, sessionCookieAttributes, TOKEN_TTL_SECONDS, decryptApiKey, extractClientIp } from '@ftth-copilot/db';
 import { verifyTOTP } from '@/lib/auth/totp';
 import { auditAuth } from '@ftth-copilot/soc';
@@ -28,6 +35,13 @@ function setSessionCookie(token: string): string {
   if (attrs.sameSite === 'lax') parts.push('SameSite=Lax');
   if (attrs.secure) parts.push('Secure');
   return parts.join('; ');
+}
+
+function quotaExceededResponse(retryAfter: number): NextResponse {
+  return NextResponse.json(
+    { error: AUTH_QUOTA_ERROR_MESSAGE },
+    { status: 429, headers: { 'retry-after': String(retryAfter) } },
+  );
 }
 
 /**
@@ -71,14 +85,20 @@ async function handleMfaLogin(
   password: string,
   code: string,
 ): Promise<NextResponse> {
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(email, clientIp, 'login');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   const { verifyPassword } = await import('@ftth-copilot/db');
 
   // Verify credentials
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    const ip = extractClientIp(req.headers.get('x-forwarded-for'));
     await auditAuth.login(
-      { tenantId: 'unknown', actorId: 'unknown', ipAddress: ip ?? undefined },
+      { tenantId: 'unknown', actorId: 'unknown', ipAddress: clientIp ?? undefined },
       email,
       false,
     );
@@ -87,9 +107,8 @@ async function handleMfaLogin(
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    const ip = extractClientIp(req.headers.get('x-forwarded-for'));
     await auditAuth.login(
-      { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: ip ?? undefined },
+      { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, ipAddress: clientIp ?? undefined },
       user.id,
       false,
     );
@@ -104,6 +123,7 @@ async function handleMfaLogin(
     }
   } else if (user.mfaEnabled) {
     // MFA enabled but no secret - shouldn't happen
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured properly' }, { status: 500 });
   }
 
@@ -125,15 +145,18 @@ async function handleMfaLogin(
     user.id,
     true,
   );
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
+
+  const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
 
   return new NextResponse(
     JSON.stringify({ user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
     {
       status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie': setSessionCookie(token),
-      },
+      headers,
     },
   );
 }
@@ -161,6 +184,13 @@ async function handleSetupVerification(
     return NextResponse.json({ error: 'MFA already enabled' }, { status: 409 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   const secret = decryptApiKey(dbUser.totpSecret);
   if (!verifyTOTP(secret, code)) {
     return NextResponse.json({ error: 'Invalid verification code' }, { status: 401 });
@@ -171,6 +201,7 @@ async function handleSetupVerification(
     where: { id: user.id },
     data: { mfaEnabled: true },
   });
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
 
   return NextResponse.json({
     mfaEnabled: true,
@@ -231,8 +262,16 @@ async function handleMfaContinue(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
+  const rateKeys = authQuotaKeys(user.email, clientIp, 'mfa');
+  const quota = await reserveAuthQuotaForKeys(rateKeys);
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota.retryAfter);
+  }
+
   // Verify MFA code
   if (!user.totpSecret) {
+    await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
     return NextResponse.json({ error: 'MFA not configured' }, { status: 400 });
   }
 
@@ -309,15 +348,18 @@ async function handleMfaContinue(
     user.id,
     true,
   );
+  await releaseAuthQuotaForKeys(rateKeys, quota.windowStart);
+
+  const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
 
   return new NextResponse(
     JSON.stringify({ user: { id: user.id, email: user.email, name: user.name, role: user.role } }),
     {
       status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-cookie': setSessionCookie(token),
-      },
+      headers,
     },
   );
 }

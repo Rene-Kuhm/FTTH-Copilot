@@ -3,19 +3,22 @@ import { NextResponse } from 'next/server';
 import {
   COOKIE_NAME,
   TOKEN_TTL_SECONDS,
-  authRateLimitKeys,
-  checkAuthQuota,
   extractClientIp,
   hashPassword,
   issueToken,
   prisma,
-  recordAuthAttempt,
   sessionCookieAttributes,
 } from '@ftth-copilot/db';
 import { auditAuth, authenticateLdapUser } from '@ftth-copilot/soc';
 import { createLogger, correlationIdFrom } from '@ftth-copilot/shared';
 import { generateCsrfToken } from './csrf';
 import { evaluateMfaGate, isTenantMfaRequired } from './mfa-policy';
+import {
+  AUTH_QUOTA_ERROR_MESSAGE,
+  authQuotaKeys,
+  releaseAuthQuotaForKeys,
+  reserveAuthQuotaForKeys,
+} from './quota';
 
 const log = createLogger({ name: 'auth-ldap' });
 
@@ -48,6 +51,8 @@ export interface LdapLoginAttemptInput {
   username: string;
   password: string;
   code?: string;
+  /** Pre-reserved quota passed by handleLogin so only one owner reserves/releases per request. */
+  reservedQuota?: { keys: string[]; windowStart: Date };
 }
 
 /**
@@ -60,21 +65,26 @@ export async function authenticateAndIssueLdapSession({
   username,
   password,
   code,
+  reservedQuota,
 }: LdapLoginAttemptInput): Promise<NextResponse> {
   const requestLog = log.child({ correlationId: correlationIdFrom(req.headers) });
   const clientIp = extractClientIp(req.headers.get('x-forwarded-for'));
-  const rateKeys = authRateLimitKeys(username, clientIp);
-  const max = Number.parseInt(process.env['AUTH_RATE_LIMIT_MAX'] ?? '', 10) || 10;
-  const windowMs = Number.parseInt(process.env['AUTH_RATE_LIMIT_WINDOW_MS'] ?? '', 10) || 15 * 60 * 1000;
-
-  for (const key of rateKeys) {
-    const decision = await checkAuthQuota(key, { max, windowMs });
-    if (!decision.allowed) {
+  // Single quota owner per request: reuse handleLogin's reservation when delegated, otherwise reserve here.
+  let quotaKeys: string[];
+  let quotaWindowStart: Date;
+  if (reservedQuota) {
+    quotaKeys = reservedQuota.keys;
+    quotaWindowStart = reservedQuota.windowStart;
+  } else {
+    quotaKeys = authQuotaKeys(username, clientIp);
+    const reservation = await reserveAuthQuotaForKeys(quotaKeys);
+    if (!reservation.allowed) {
       return jsonResponse(
-        { error: 'Demasiados intentos. Probá de nuevo más tarde.' },
-        { status: 429, headers: { 'retry-after': String(decision.retryAfter) } },
+        { error: AUTH_QUOTA_ERROR_MESSAGE },
+        { status: 429, headers: { 'retry-after': String(reservation.retryAfter) } },
       );
     }
+    quotaWindowStart = reservation.windowStart;
   }
 
   const tenantSlug = process.env['LDAP_TENANT_SLUG']?.trim();
@@ -100,9 +110,6 @@ export async function authenticateAndIssueLdapSession({
 
   const ldapResult = await authenticateLdapUser(username, password);
   if (!ldapResult.ok || !ldapResult.user) {
-    for (const key of rateKeys) {
-      await recordAuthAttempt(key, { max, windowMs });
-    }
     await auditAuth.login(
       { tenantId: tenant.id, actorId: username, ipAddress: clientIp ?? undefined },
       username,
@@ -148,9 +155,11 @@ export async function authenticateAndIssueLdapSession({
     return jsonResponse({ error: 'Invalid MFA code' }, { status: 401 });
   }
   if (mfaGate.action === 'mfa_required') {
+    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
     return jsonResponse({ mfaRequired: true, tempToken: mfaGate.tempToken }, { status: 200 });
   }
   if (mfaGate.action === 'mfa_setup_required') {
+    await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
     return jsonResponse(
       {
         error: 'MFA is required by your organization policy. Configure TOTP before signing in.',
@@ -184,19 +193,21 @@ export async function authenticateAndIssueLdapSession({
     user.id,
     true,
   );
+  await releaseAuthQuotaForKeys(quotaKeys, quotaWindowStart);
 
   const { cookie: csrfCookie } = generateCsrfToken();
+  const headers = new Headers({ 'content-type': 'application/json' });
+  headers.append('set-cookie', setSessionCookie(token));
+  headers.append('set-cookie', csrfCookie);
 
-  return jsonResponse(
-    {
+  return new NextResponse(
+    JSON.stringify({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       authMethod: 'ldap',
-    },
+    }),
     {
       status: 200,
-      headers: {
-        'set-cookie': `${setSessionCookie(token)}, ${csrfCookie}`,
-      },
+      headers,
     },
   );
 }

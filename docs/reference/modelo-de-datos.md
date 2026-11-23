@@ -22,8 +22,10 @@ con `onDelete: Cascade`.
 ### `RateLimitBucket` (`:441`) y `AuthRateLimit` (`:459`)
 - `RateLimitBucket`: contador por `(userId, scope, windowStart)`, único compuesto.
 - `AuthRateLimit`: contador **sin FK a usuario ni tenant**, a propósito — el atacante todavía
-  no está identificado (comentario `:454-458`). `key` es del tipo `login:email:<email>` o
-  `login:ip:<ip>`.
+  no está identificado (comentario `:454-458`). `key` usa namespaces separados por flujo:
+  `login:email:<email>` / `login:ip:<ip>` para login y `mfa:email:<email>` / `mfa:ip:<ip>`
+  para las rutas MFA (más claves por token temporal como `mfa_temp_used:<hash>` y
+  `mfa_temp_attempt:<hash>`).
 
 ### `TenantPolicy` (`:608`)
 1:1 con `Tenant` (`tenantId` es la PK). Sobrescribe por tenant los knobs del módulo:
