@@ -1,4 +1,5 @@
 import type { INmsConnector } from '@ftth-copilot/connectors-core';
+import { DEFAULT_DEGRADED_RX_THRESHOLD_DBM } from '@ftth-copilot/shared';
 
 export interface Alert {
   id: string;
@@ -73,15 +74,17 @@ export async function detectAlerts(connector: INmsConnector): Promise<Alert[]> {
     });
   }
 
-  // Low signal ONUs (below -27 dBm)
-  const lowSignalOnus = onus.filter(o => (o.rxPowerDbm ?? 0) < -27 && o.status !== 'offline');
+  // Low signal ONUs (below DEFAULT_DEGRADED_RX_THRESHOLD_DBM dBm)
+  const lowSignalOnus = onus.filter(
+    (o) => (o.rxPowerDbm ?? 0) < DEFAULT_DEGRADED_RX_THRESHOLD_DBM && o.status !== 'offline',
+  );
   for (const onu of lowSignalOnus) {
     alerts.push({
       id: `alert-onu-signal-${onu.id}`,
       severity: 'warning',
       category: 'low_signal',
       title: `Señal baja: ${onu.customerName ?? onu.id}`,
-      description: `ONU ${onu.id} (${onu.customerName ?? 's/n'}) tiene RX power de ${onu.rxPowerDbm} dBm (umbral: -27 dBm).`,
+      description: `ONU ${onu.id} (${onu.customerName ?? 's/n'}) tiene RX power de ${onu.rxPowerDbm} dBm (umbral: ${DEFAULT_DEGRADED_RX_THRESHOLD_DBM} dBm).`,
       affectedEntity: onu.id,
       detectedAt: now,
     });

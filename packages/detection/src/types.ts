@@ -4,7 +4,9 @@
  * dedup, notification) lives elsewhere.
  */
 
-export type DeviceKind = 'OLT' | 'ONU';
+import type { DeviceKind, StatusSample } from '@ftth-copilot/shared';
+
+export type { DeviceKind, StatusSample };
 export type Severity = 'warning' | 'critical';
 
 /** A numeric metric sample (rx/tx power, temperature, uptime, ...). */
@@ -13,13 +15,6 @@ export interface NumericSample {
   t: number;
   /** Metric value. */
   v: number;
-}
-
-/** A categorical status sample. */
-export interface StatusSample {
-  /** Unix epoch milliseconds. */
-  t: number;
-  status: 'online' | 'offline' | 'degraded';
 }
 
 /** A monotonic uptime counter sample (seconds since boot). */

@@ -36,8 +36,8 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/agent-core`](packages/agent-core) | L3 | Motor cognitivo: Organic Diagnostic Router, motor de investigación, registro de herramientas (10 tools NMS), prompts, cliente LLM con cadena de fallback, trazas OTLP. | `connectors-core`, `connectors-smartolt`, `db`, `evidence`, `shared` |
 | [`packages/soc`](packages/soc) | L3 | Orquestación perimetral, correlación de accesos anómimos, auditoría de firmware con trazabilidad por tenant. | `alerts`, `connectors-core`, `db`, `security` |
 | [`packages/monitoring`](packages/monitoring) | L3 | Receptor binario SNMP, adaptadores OLT multi-fabricante, decodificación multi-vendor, catálogo OID, laboratorio de conformidad. | `alerts`, `analytics`, `connectors-core`, `shared` |
-| [`packages/analytics`](packages/analytics) | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). | `connectors-core`, `db` |
-| [`packages/alerts`](packages/alerts) | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. | `db`, `detection` |
+| [`packages/analytics`](packages/analytics) | L2 | Ingesta, agregación y persistencia de series temporales de fibra (potencia, temperatura, FEC). | `connectors-core`, `db`, `shared` |
+| [`packages/alerts`](packages/alerts) | L2 | Deduplicación, agrupamiento, cooldown, escalado y despacho a Webhooks, Telegram, Slack, WhatsApp y Ntfy. | `db`, `detection`, `shared` |
 | [`packages/db`](packages/db) | L1 | Esquema Prisma, cliente tipado, migraciones y cifrado KMS (AES-256-GCM) derivado de `KMS_MASTER_KEY`. | `shared` |
 | [`packages/evidence`](packages/evidence) | L1 | Normalización de evidencia cruda, sobres de investigación, procedencia y frescura. | `shared` |
 | [`packages/learning`](packages/learning) | L1 | Núcleo puro del learning loop: resolución de etiquetas, agrupación en eventos, split temporal y suficiencia de muestra. | `shared` |
@@ -46,7 +46,7 @@ La vista sale del modelo [`docs/architecture/c4/model.d2`](docs/architecture/c4/
 | [`packages/connectors/mikrotik`](packages/connectors/mikrotik) | L1 | Adaptador MikroTik RouterOS v7 (REST con fallback a API binaria 8728), credenciales cifradas en PostgreSQL. | `connectors-core`, `security` |
 | [`packages/shared`](packages/shared) | L0 | Contratos canónicos Zod, esquemas compartidos, tipos de telemetría, cliente Laya y Expert System. | — |
 | [`packages/connectors/core`](packages/connectors/core) | L0 | Tipos canónicos de NMS y políticas estrictas de seguridad SSRF (allowlists, rangos privados, metadatos de nube). | — |
-| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | — |
+| [`packages/detection`](packages/detection) | L0 | Algoritmos estadísticos puros (mediana + MAD) para deriva óptica y térmica. | `shared` |
 | [`packages/security`](packages/security) | L0 | Analizador RFC 3164/5424 de paquetes syslog y clasificadores de ataques. | — |
 
 > El servicio `services/laya` (FastAPI) es un despliegue opcional del Expert System para escenarios Docker y batch. La implementación de referencia es TypeScript, en `packages/shared/src/laya-expert-system.ts`.

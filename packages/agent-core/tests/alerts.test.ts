@@ -32,4 +32,33 @@ describe('detectAlerts', () => {
     } as unknown as INmsConnector;
     await expect(detectAlerts(connector)).resolves.toEqual([]);
   });
+
+  it('characterizes the -27 dBm RX threshold boundary, offline exclusion, and exact alert text', async () => {
+    const connector = {
+      listOlts: vi.fn(async () => []),
+      listOnus: vi.fn(async () => [
+        { id: 'onu-above', serial: '1', oltId: 'olt-1', status: 'online', rxPowerDbm: -26.9, customerName: 'Encima' },
+        { id: 'onu-exact', serial: '2', oltId: 'olt-1', status: 'online', rxPowerDbm: -27, customerName: 'Exacto' },
+        { id: 'onu-below', serial: '3', oltId: 'olt-1', status: 'online', rxPowerDbm: -27.1, customerName: 'Debajo' },
+        { id: 'onu-offline', serial: '4', oltId: 'olt-1', status: 'offline', rxPowerDbm: -30, customerName: 'Caida' },
+      ]),
+      getNetworkOverview: vi.fn(async () => ({ totalOlts: 0 })),
+    } as unknown as INmsConnector;
+
+    const alerts = await detectAlerts(connector);
+    const lowSignal = alerts.filter((a) => a.category === 'low_signal');
+    expect(lowSignal).toHaveLength(1);
+    expect(lowSignal[0]).toMatchObject({
+      id: 'alert-onu-signal-onu-below',
+      severity: 'warning',
+      category: 'low_signal',
+      title: 'Señal baja: Debajo',
+      description: 'ONU onu-below (Debajo) tiene RX power de -27.1 dBm (umbral: -27 dBm).',
+      affectedEntity: 'onu-below',
+    });
+
+    const offline = alerts.filter((a) => a.category === 'offline');
+    expect(offline).toHaveLength(1);
+    expect(offline[0]?.affectedEntity).toBe('onu-offline');
+  });
 });

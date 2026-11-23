@@ -1,20 +1,8 @@
 import type { FindingKind } from '@ftth-copilot/detection';
+import type { DeviceKind, DeviceStatus, MetricKind } from '@ftth-copilot/shared';
 
 export type AlertStatus = 'open' | 'acknowledged' | 'resolved';
-export type DeviceKind = 'OLT' | 'ONU';
-export type MetricKind =
-  | 'RX_POWER_DBM'
-  | 'TX_POWER_DBM'
-  | 'TEMPERATURE_CELSIUS'
-  | 'UPTIME_SECONDS'
-  | 'STATUS'
-  | 'FEC_CORRECTED'
-  | 'FEC_UNCORRECTED'
-  | 'BIAS_CURRENT_MA'
-  | 'ONT_TEMPERATURE_CELSIUS'
-  | 'LOS_SECONDS_TOTAL'
-  | 'TRAFFIC_THROUGHPUT_MBPS';
-export type DeviceStatus = 'online' | 'offline' | 'degraded';
+export type { DeviceKind, DeviceStatus, MetricKind };
 
 /** A single metric sample row, mirroring the MetricSample table (neutral). */
 export interface MetricRow {

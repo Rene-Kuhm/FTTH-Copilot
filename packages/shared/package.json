@@ -25,13 +25,5 @@
     "eslint": "^9.18.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
-  },
-  "peerDependencies": {
-    "@ftth-copilot/evidence": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@ftth-copilot/evidence": {
-      "optional": true
-    }
   }
 }

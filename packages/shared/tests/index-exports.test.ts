@@ -56,7 +56,7 @@ describe('shared public API surface — Fase F verdict-log re-exports', () => {
     expect(Shared.VerdictSeveritySchema.safeParse('fatal').success).toBe(false);
   });
 
-  it('exposes the VerdictLog, VerdictCode, and VerdictSeverity types at the boundary', () => {
+  it('exposes the VerdictLog, Verdict, VerdictCode, and VerdictSeverity types at the boundary', () => {
     const row: Shared.VerdictLog = {
       schema: Shared.VERDICT_LOG_SCHEMA,
       id: 'vl-1',
@@ -70,6 +70,14 @@ describe('shared public API surface — Fase F verdict-log re-exports', () => {
       injectionSuspicion: false,
     };
     expect(row.schema).toBe('ftth.verdict-log.v1');
+
+    const verdict: Shared.Verdict = {
+      toolName: 'list_olts',
+      code: 'ok',
+      reason: 'fresh-complete',
+      severity: 'ok',
+    };
+    expect(verdict.code).toBe('ok');
 
     const codes: ReadonlyArray<Shared.VerdictCode> = ['ok', 'low_confidence', 'stale', 'incomplete'];
     expect(codes).toContain('incomplete');
@@ -197,5 +205,33 @@ describe('shared public API surface — Laya client and integration modules (Pha
       suggestedRoute: 'INVESTIGATION',
     };
     expect(decision.eventClass).toBe('OPTICAL_FAULT');
+  });
+});
+
+// ── Canonical domain & optical threshold exports (PR #396) ───────────────────
+
+describe('shared public API surface — canonical domain and threshold exports', () => {
+  it('exports DEFAULT_DEGRADED_RX_THRESHOLD_DBM constant', () => {
+    expect(Shared.DEFAULT_DEGRADED_RX_THRESHOLD_DBM).toBe(-27);
+  });
+
+  it('exports canonical domain enum arrays DEVICE_KINDS, METRIC_KINDS, and DEVICE_STATUSES', () => {
+    expect(Shared.DEVICE_KINDS).toEqual(['OLT', 'ONU']);
+    expect(Shared.METRIC_KINDS).toHaveLength(11);
+    expect(Shared.METRIC_KINDS).toContain('RX_POWER_DBM');
+    expect(Shared.DEVICE_STATUSES).toEqual(['online', 'offline', 'degraded']);
+  });
+
+  it('exposes DeviceKind, MetricKind, DeviceStatus, SampleMeta, and StatusSample types at the boundary', () => {
+    const kind: Shared.DeviceKind = 'OLT';
+    const metric: Shared.MetricKind = 'RX_POWER_DBM';
+    const status: Shared.DeviceStatus = 'degraded';
+    const meta: Shared.SampleMeta = { tenantId: 't1', connectionId: 'c1' };
+    const sample: Shared.StatusSample = { t: 1_752_000_000_000, status };
+
+    expect(kind).toBe('OLT');
+    expect(metric).toBe('RX_POWER_DBM');
+    expect(meta.tenantId).toBe('t1');
+    expect(sample).toEqual({ t: 1_752_000_000_000, status: 'degraded' });
   });
 });
