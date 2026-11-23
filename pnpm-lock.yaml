@@ -214,6 +214,9 @@ importers:
       eslint-config-next:
         specifier: 16.3.5
         version: 16.3.5(@typescript-eslint/parser@8.71.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.6
@@ -473,6 +476,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -498,6 +504,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -898,6 +907,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

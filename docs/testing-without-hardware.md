@@ -63,6 +63,28 @@ Con `DEMO_MODE_ENABLED=true`, el chat, el dashboard y las alertas usan los **fix
 
 Cuando `pnpm install` registra los devDeps del root (tsx + los workspace packages necesarios), quedan disponibles tres comandos que ejercitan el sistema contra datos sintéticos.
 
+### Fuzzing de los bordes de entrada
+
+`pnpm test:fuzz` ejecuta las propiedades de fast-check en Vitest con fixtures sintéticos.
+Cubre syslog y extracción de IP, OIDs y notificaciones SNMP ya decodificadas,
+payloads de SmartOLT y Mikrowisp y las rutas de alta de usuarios y conectores.
+Las rutas conservan sus validaciones y las pruebas simulan la sesión, la base
+de datos y las dependencias externas.
+
+El comando usa GNU `timeout` para detener la corrida a los 60 segundos, incluso
+si una operación síncrona bloquea Vitest. Syslog también verifica un presupuesto
+de 500 ms para parsear y extraer la IP de cada mensaje sintético largo. El
+presupuesto mide una regresión en el corpus acotado, no es un límite de producción.
+
+La seed por defecto es `250025`. Para repetir un fallo, copiá el `seed` y el
+`path` que imprime fast-check y seleccioná la propiedad por nombre:
+
+```bash
+FUZZ_SEED=250025 FUZZ_PATH=0 timeout --kill-after=5s 60s \
+  pnpm --filter @ftth-copilot/security exec vitest run /fuzz.test.ts \
+  -t 'preserves the priority and payload of RFC 3164 lines'
+```
+
 ### `pnpm test:scenario` — NOC end-to-end (seed + detección)
 
 Siembra un escenario de degradación (RX cayendo hacia −27 dBm, FEC corregido creciendo, FEC no corregido apareciendo, bias sagging) y corre la pipeline de detección, imprimiendo las alertas e incidentes resultantes.
