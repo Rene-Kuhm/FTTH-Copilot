@@ -21,12 +21,20 @@ const MOCK_ME_RESPONSE = {
 const MOCK_ME_ANONYMOUS = { user: null };
 
 async function mockAuthRoutes(page: import("@playwright/test").Page) {
-  await page.route("**/api/auth/me", (route) => {
-    const cookies = route.request().headers()["cookie"] ?? "";
-    if (cookies.includes("session=mock-token")) {
-      return route.fulfill({ json: MOCK_ME_RESPONSE });
-    }
-    return route.fulfill({ json: MOCK_ME_ANONYMOUS });
+  // The session lives in this variable as well as in the Set-Cookie header:
+  // WebKit does not apply Set-Cookie from a fulfilled response, so the cookie
+  // jar alone would leave WebKit signed out after a successful login.
+  let signedIn = false;
+
+  await page.route("**/api/auth/me", async (route) => {
+    // context.cookies() instead of the request headers: WebKit does not expose
+    // the Cookie header to route handlers either.
+    const hasCookie = (await page.context().cookies()).some(
+      (cookie) => cookie.name === "session" && cookie.value === "mock-token",
+    );
+    return route.fulfill({
+      json: signedIn || hasCookie ? MOCK_ME_RESPONSE : MOCK_ME_ANONYMOUS,
+    });
   });
 
   await page.route("**/api/auth/login", async (route) => {
@@ -45,6 +53,7 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
       });
     }
     if (body.email === MOCK_USER.email && body.password === MOCK_USER.password) {
+      signedIn = true;
       return route.fulfill({
         status: 200,
         json: { ok: true },
@@ -60,6 +69,7 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
   await page.route("**/api/auth/mfa/verify", async (route) => {
     const body = route.request().postDataJSON();
     if (body.tempToken === "temp-mfa-token" && body.code === "123456") {
+      signedIn = true;
       return route.fulfill({
         status: 200,
         json: { ok: true },
@@ -82,6 +92,7 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
   await page.route("**/api/auth/signup", async (route) => {
     const body = route.request().postDataJSON();
     if (body.email && body.password && body.name && body.tenantName) {
+      signedIn = true;
       return route.fulfill({
         status: 201,
         json: { ok: true },
@@ -95,6 +106,7 @@ async function mockAuthRoutes(page: import("@playwright/test").Page) {
   });
 
   await page.route("**/api/auth/logout", (route) => {
+    signedIn = false;
     return route.fulfill({
       status: 200,
       json: { ok: true },

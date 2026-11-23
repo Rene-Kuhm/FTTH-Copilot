@@ -25,4 +25,15 @@ Cada auditoría adjunta las violaciones y las comprobaciones inconclusas de axe 
 
 ## Generar y revisar capturas
 
-Generá las referencias en Linux con la misma versión de Chromium y las mismas fuentes locales que se usarán para comparar. Ejecutá `pnpm --filter @ftth-copilot/web test:visual:update` y revisá los diez PNG en `apps/web/e2e/visual/screens.spec.ts-snapshots/` antes de versionarlos. Después ejecutá `test:visual` para comprobar la comparación. Una ejecución normal falla si falta una referencia. Los fallos dejan artefactos en `apps/web/test-results/a11y-visual/`.
+Las referencias dependen de las fuentes del sistema, así que **se generan dentro de la imagen oficial de Playwright** (`mcr.microsoft.com/playwright`), la misma que usa el CI, y no en el equipo de quien desarrolla. `scripts/ui-quality-docker.sh` lo automatiza (necesita Docker; copia el árbol a un directorio temporal y corre el contenedor con tu usuario, así no deja archivos de `root`):
+
+```bash
+scripts/ui-quality-docker.sh update   # regenera los diez PNG
+scripts/ui-quality-docker.sh check    # a11y + visual + matriz de compatibilidad
+```
+
+Revisá los diez PNG en `apps/web/e2e/visual/screens.spec.ts-snapshots/` antes de versionarlos. Una ejecución normal falla si falta una referencia, y los fallos dejan artefactos en `apps/web/test-results/a11y-visual/`. Si solo querés mirar una pantalla en tu equipo, `test:visual` local sirve, pero sus capturas **no** son comparables con las versionadas.
+
+## En el CI
+
+`.github/workflows/ui-quality.yml` corre las tres suites (accesibilidad, regresión visual y la matriz de `docs/testing-without-hardware.md`) dentro de esa imagen, en los pull requests que tocan `apps/web/**`. Es un check aparte de `ci.yml` y todavía no forma parte del gate `CI Success`.

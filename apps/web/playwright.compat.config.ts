@@ -32,7 +32,14 @@ export default defineConfig({
   globalSetup: undefined,
   // The default suite exercises real HTTP sessions and identity headers once.
   // Login and signup UI, protected-route redirects and CSRF are covered here.
-  testIgnore: ["**/auth-real.spec.ts", "**/middleware-auth.spec.ts"],
+  // a11y/ and visual/ have their own config (viewport, server, snapshots): the
+  // matrix must not run them, and overriding testIgnore drops the base list.
+  testIgnore: [
+    "**/a11y/**",
+    "**/visual/**",
+    "**/auth-real.spec.ts",
+    "**/middleware-auth.spec.ts",
+  ],
   use: {
     ...baseConfig.use,
     baseURL: `http://localhost:${port}`,

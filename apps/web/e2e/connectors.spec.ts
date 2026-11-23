@@ -31,9 +31,13 @@ const connectors: Array<{
   },
 ];
 
-function hasSessionCookie(headers: Record<string, string>): boolean {
-  const cookie = headers["cookie"] ?? "";
-  return cookie.includes("session=mock-token");
+// WebKit neither applies Set-Cookie from a fulfilled response nor exposes the
+// Cookie header to route handlers, so the signed-in state is tracked here and
+// the cookie jar is read through the context.
+async function hasSessionCookie(page: import("@playwright/test").Page): Promise<boolean> {
+  return (await page.context().cookies()).some(
+    (cookie) => cookie.name === "session" && cookie.value === "mock-token",
+  );
 }
 
 async function loginViaUI(page: import("@playwright/test").Page) {
@@ -46,33 +50,38 @@ async function loginViaUI(page: import("@playwright/test").Page) {
 
 test.describe("Connectors", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("**/api/auth/me", (route) => {
-      const isAuthed = hasSessionCookie(route.request().headers());
+    let signedIn = false;
+
+    await page.route("**/api/auth/me", async (route) => {
+      const isAuthed = signedIn || (await hasSessionCookie(page));
       return route.fulfill({ json: { user: isAuthed ? MOCK_ME_USER : null } });
     });
 
-    await page.route("**/api/auth/login", (route) =>
-      route.fulfill({
+    await page.route("**/api/auth/login", (route) => {
+      signedIn = true;
+      return route.fulfill({
         status: 200,
         json: { ok: true },
         headers: { "set-cookie": "session=mock-token; Path=/; HttpOnly" },
-      })
-    );
+      });
+    });
 
-    await page.route("**/api/auth/signup", (route) =>
-      route.fulfill({
+    await page.route("**/api/auth/signup", (route) => {
+      signedIn = true;
+      return route.fulfill({
         status: 201,
         json: { ok: true },
         headers: { "set-cookie": "session=mock-token; Path=/; HttpOnly" },
-      })
-    );
+      });
+    });
 
-    await page.route("**/api/auth/logout", (route) =>
-      route.fulfill({
+    await page.route("**/api/auth/logout", (route) => {
+      signedIn = false;
+      return route.fulfill({
         status: 200,
         json: { ok: true },
-      })
-    );
+      });
+    });
 
     await page.route("**/api/connectors", (route) => {
       if (route.request().method() === "GET") {
