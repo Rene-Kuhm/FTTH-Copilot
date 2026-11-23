@@ -14,7 +14,8 @@
     "test": "vitest run",
     "clean": "rm -rf dist",
     "test:unit": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "contract:sync": "node --experimental-strip-types scripts/sync-contract.ts"
   },
   "dependencies": {
     "@ftth-copilot/connectors-core": "workspace:*"

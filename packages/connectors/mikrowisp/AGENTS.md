@@ -20,6 +20,20 @@ Capa L1. El adaptador Mikrowisp: cliente HTTP de producción y fixtures de labor
 pnpm --filter @ftth-copilot/connectors-mikrowisp test
 ```
 
+## Tests de contrato
+
+`contract/mikrowisp-openapi.subset.json` es un subconjunto de la especificación del proveedor (el
+espejo machine-readable que publica `skmtc.dev/mikrosystem/apis/mikrowisp`, que replica
+`docs.mikrosystem.net`) con sólo los endpoints que el conector llama. Se regenera con:
+
+```bash
+pnpm --filter @ftth-copilot/connectors-mikrowisp contract:sync
+```
+
+`tests/contract.test.ts` corre offline contra ese archivo: falla si el cliente llama a una ruta que
+el contrato no publica, si manda un parámetro de cuerpo que el endpoint no declara, si omite uno
+obligatorio o si los ejemplos oficiales dejan de parsear con `src/schemas.ts`.
+
 ## Qué no tocar
 
 - `src/fixtures.ts` sin actualizar el golden de conformance.

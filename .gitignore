@@ -80,3 +80,8 @@ odd/tasks/enterprise-completion.md
 
 # Durable ingest spool (runtime state, never committed)
 .spool/
+
+# Virtual test bench device captures. They are real LibreNMS walks under GPL-3.0:
+# `pnpm lab:up` downloads them from the pinned commit into this directory and
+# they are never committed. See docker/lab/README.md.
+docker/lab/captures/

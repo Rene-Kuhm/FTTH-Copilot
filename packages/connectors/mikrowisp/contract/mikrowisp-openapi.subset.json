@@ -1,0 +1,394 @@
+{
+  "$comment": "SUBCONJUNTO de la especificación de Mikrowisp: sólo los endpoints que llama @ftth-copilot/connectors-mikrowisp. No editar a mano: regenerar con `node --experimental-strip-types scripts/sync-contract.ts`.",
+  "provenance": {
+    "sourceUrl": "https://skmtc.dev/mikrosystem/apis/mikrowisp/revisions/636806eac943?raw",
+    "sourceKind": "third-party-mirror",
+    "canonicalDocsUrl": "https://docs.mikrosystem.net",
+    "retrievedAt": "2026-11-07",
+    "openapi": "3.0.0",
+    "documentTitle": "Mikrowisp",
+    "documentVersion": "1.0.0",
+    "subset": true,
+    "pathPatterns": [
+      "/^\\/GetRouters$/",
+      "/^\\/GetMonitoreo$/",
+      "/^\\/GetAllClients$/",
+      "/^\\/SmartOltGetODB$/"
+    ],
+    "note": "El espejo de skmtc.dev replica docs.mikrosystem.net; el documento no publica `info.description` ni `security`, así que la autenticación por `token` en el cuerpo sale de los `requestBody` de cada endpoint. Los tests de contrato corren offline contra este archivo."
+  },
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "Mikrowisp"
+  },
+  "servers": [
+    {
+      "url": "https://{dominio-sistema}/api/v1"
+    }
+  ],
+  "paths": {
+    "/GetRouters": {
+      "post": {
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OK": {
+                    "summary": "OK",
+                    "value": {
+                      "estado": "exito",
+                      "routers": [
+                        {
+                          "id": 2,
+                          "nombre": "RB Principal",
+                          "ip": "192.168.77.1",
+                          "coordenadas": "",
+                          "version": "6.47.8 (stable)",
+                          "estado": "DESCONECTADO",
+                          "modelo": "RB2011UAS-2HnD",
+                          "serial": "403456A5618"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Content-Type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "application/json"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Contraseña de Acceso API."
+                  },
+                  "id": {
+                    "type": "number",
+                    "description": "ID del router, para mostrar todos -1.",
+                    "default": "6"
+                  }
+                },
+                "required": [
+                  "token",
+                  "id"
+                ]
+              },
+              "examples": {
+                "New Example": {
+                  "summary": "New Example",
+                  "value": {
+                    "token": "Smx2SVdkbUZIdjlCUlkxdFo1cUNMQT09",
+                    "id": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Copy of ",
+        "operationId": "post_getrouters"
+      }
+    },
+    "/GetMonitoreo": {
+      "post": {
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OK": {
+                    "summary": "OK",
+                    "value": {
+                      "estado": "exito",
+                      "equipos": [
+                        {
+                          "id": 1,
+                          "nombre": "Google",
+                          "equipo": "rb 1100",
+                          "ip": "8.8.8.8",
+                          "estado": 1
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Content-Type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "application/json"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Contraseña de Acceso API."
+                  },
+                  "id": {
+                    "type": "number",
+                    "description": "ID del equipo, para mostrar todos -1.",
+                    "default": "6"
+                  }
+                },
+                "required": [
+                  "token",
+                  "id"
+                ]
+              },
+              "examples": {
+                "New Example": {
+                  "summary": "New Example",
+                  "value": {
+                    "token": "Smx2SVdkbUZIdjlCUlkxdFo1cUNMQT09",
+                    "id": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Copy of Copy of ",
+        "operationId": "post_getmonitoreo"
+      }
+    },
+    "/SmartOltGetODB": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OK": {
+                    "summary": "OK",
+                    "value": {
+                      "code": "200",
+                      "mensaje": "Consulta realizada correctamente.",
+                      "odbs": [
+                        {
+                          "id": 11,
+                          "nombre_odb": "Damajagua"
+                        },
+                        {
+                          "id": 12,
+                          "nombre_odb": "odb 1"
+                        },
+                        {
+                          "id": 13,
+                          "nombre_odb": "odb 22"
+                        },
+                        {
+                          "id": 15,
+                          "nombre_odb": "Entrada Cebu"
+                        },
+                        {
+                          "id": 29,
+                          "nombre_odb": "VILLA DON FRANCISCO"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "Obtener ODB",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "nombre_odb": {
+                    "type": "string",
+                    "description": "",
+                    "enum": [
+                      "UP",
+                      "DOWN"
+                    ]
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              },
+              "examples": {
+                "New Example": {
+                  "summary": "New Example",
+                  "value": {
+                    "token": "YjQ4cmZEZHQyNnBNQ2Z5d0R4R1NnUT09",
+                    "nombre_odb": "Damajagua"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Obtiene la lista de ODB de SmartOLT registradas en Mikrowisp.",
+        "operationId": "post_smartoltgetodb"
+      }
+    },
+    "/GetAllClients": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "OK": {
+                    "summary": "OK",
+                    "value": {
+                      "estado": "exito",
+                      "clientes": [
+                        {
+                          "id": 253,
+                          "nombre": "Javier Alemán",
+                          "estado": "SUSPENDIDO",
+                          "correo": "smaya@example.org",
+                          "telefono": "",
+                          "movil": "061626283",
+                          "cedula": "01285250",
+                          "pasarela": "",
+                          "codigo": "voluptatem",
+                          "direccion_principal": "Cl. Paula Calderón # 663  Gral. Diego Samaniego, Huaraz",
+                          "colonia": "",
+                          "N_orden": "",
+                          "Servicio_Adicional": "",
+                          "Alias": "",
+                          "servicios": 1
+                        },
+                        {
+                          "id": 255,
+                          "nombre": "Gael Carrasco",
+                          "estado": "SUSPENDIDO",
+                          "correo": "ocollazo@example.com",
+                          "telefono": "",
+                          "movil": "267395975",
+                          "cedula": "84216579",
+                          "pasarela": "",
+                          "codigo": "et",
+                          "direccion_principal": "Av. Rafael Regalado # 520 Piso 7 Don Matías Mercado, Callao",
+                          "colonia": "",
+                          "N_orden": "",
+                          "Servicio_Adicional": "",
+                          "Alias": "",
+                          "servicios": 1
+                        },
+                        {
+                          "id": 256,
+                          "nombre": "Cristóbal Morales",
+                          "estado": "SUSPENDIDO",
+                          "correo": "carla.correa@example.com",
+                          "telefono": "",
+                          "movil": "716316884",
+                          "cedula": "00616606",
+                          "pasarela": "",
+                          "codigo": "cum",
+                          "direccion_principal": "Cl. María José Almaraz # 5 Piso 91 Don Ariana, Puno",
+                          "colonia": "",
+                          "N_orden": "",
+                          "Servicio_Adicional": "",
+                          "Alias": "",
+                          "servicios": 1
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "Lista de clientes",
+        "description": "Permite obtener una lista de clientes mediante estado.",
+        "operationId": "post_getallclients",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Contraseña de Acceso API."
+                  },
+                  "estado": {
+                    "type": "number",
+                    "enum": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "description": "Permite obtener clientes mediante un estado.\n0 = ACTIVOS , 1 = SUSPENDIDOS, 2 = RETIRADOS"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Valor por defecto 25",
+                    "default": "25"
+                  },
+                  "pagina": {
+                    "type": "number",
+                    "description": "Determina la pagina de busqueda en relación con el limit."
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              },
+              "examples": {
+                "New Example": {
+                  "summary": "New Example",
+                  "value": {
+                    "token": "Smx2SVdkbUZIdjlCUlkxdFo1cUNMQT09",
+                    "limit": 40,
+                    "estado": 1,
+                    "pagina": 5
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

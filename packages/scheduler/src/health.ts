@@ -32,7 +32,16 @@
  *   - `intervalMs`   — period of the loop, when it is known.
  */
 
-export type SchedulerName = 'polling' | 'firmware' | 'fec' | 'syslog' | 'syslog-detection' | 'snmp';
+export type SchedulerName =
+  | 'polling'
+  | 'firmware'
+  | 'fec'
+  | 'syslog'
+  | 'syslog-detection'
+  | 'snmp'
+  // El stream de eventos de SmartOLT: no es una grilla de ticks, es un socket
+  // abierto que manda señales de vida (`: ping`) cada 25 segundos.
+  | 'smartolt-events';
 
 export interface ServiceHealth {
   expected: boolean;

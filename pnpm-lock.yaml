@@ -303,6 +303,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -572,6 +575,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -640,6 +646,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -840,6 +849,9 @@ importers:
       '@ftth-copilot/connectors-factory':
         specifier: workspace:*
         version: link:../connectors/factory
+      '@ftth-copilot/connectors-smartolt':
+        specifier: workspace:*
+        version: link:../connectors/smartolt
       '@ftth-copilot/db':
         specifier: workspace:*
         version: link:../db
@@ -911,6 +923,9 @@ importers:
       eslint:
         specifier: ^9.18.0
         version: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.10.3
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

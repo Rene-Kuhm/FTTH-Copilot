@@ -68,6 +68,7 @@ queue, not in the web's memory, so a worker that stops does not lose them.
 | `INVESTIGATION_SWEEP_INTERVAL_MS` | `60000` | How often the worker sweeps the investigation attempts that were abandoned. |
 | `LEARNING_SNAPSHOT_ENABLED` | `false` | Enables the `learning.snapshot` job, which freezes the learning dataset of every tenant. Off by default: it writes rows and nobody consumes them until a later phase of the learning loop. |
 | `LEARNING_SNAPSHOT_INTERVAL_MS` | `86400000` | How often the learning snapshot runs (once a day by default). |
+| `SMARTOLT_EVENTS_ENABLED` | `false` | Opens one SmartOLT real-time event stream (SSE) per connected SmartOLT connection, at most 15 per account, and persists the status and signal readings through the same path as the scheduled poll. Off by default; when on, the `smartolt-events` loop appears in the health (as `inactive` while no stream is live). A stream without frames for `SMARTOLT_EVENT_LIVENESS_MS` is cut and reopened, and a rotated API key needs a worker restart for the stream (the poll picks it up on its next tick). The other stream variables are in [`services/worker/AGENTS.md`](../services/worker/AGENTS.md). |
 
 ### Redis is published on the loopback, with a password
 
