@@ -1,12 +1,6 @@
-import type { DeviceStatus } from '@ftth-copilot/shared';
+import type { DeviceStatus, StatusSample } from '@ftth-copilot/shared';
 
-export type { DeviceStatus };
-
-export interface StatusSample {
-  /** Unix epoch milliseconds. */
-  t: number;
-  status: DeviceStatus;
-}
+export type { DeviceStatus, StatusSample };
 
 export interface UptimeWindow {
   from: number;

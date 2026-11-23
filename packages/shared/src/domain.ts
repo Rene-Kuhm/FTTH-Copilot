@@ -28,6 +28,13 @@ export type MetricKind = (typeof METRIC_KINDS)[number];
 export const DEVICE_STATUSES = ['online', 'offline', 'degraded'] as const;
 export type DeviceStatus = (typeof DEVICE_STATUSES)[number];
 
+/** A categorical device status sample at a Unix epoch timestamp. */
+export interface StatusSample {
+  /** Unix epoch milliseconds. */
+  t: number;
+  status: DeviceStatus;
+}
+
 export interface SampleMeta {
   tenantId: string;
   connectionId: string;

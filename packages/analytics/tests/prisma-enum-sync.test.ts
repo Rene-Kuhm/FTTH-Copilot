@@ -10,12 +10,14 @@ import {
   type DeviceStatus as SharedDeviceStatus,
   type MetricKind as SharedMetricKind,
   type SampleMeta as SharedSampleMeta,
+  type StatusSample as SharedStatusSample,
 } from '@ftth-copilot/shared';
 import type {
   DeviceKind as AnalyticsDeviceKind,
   DeviceStatus as AnalyticsDeviceStatus,
   MetricKind as AnalyticsMetricKind,
   SampleMeta as AnalyticsSampleMeta,
+  StatusSample as AnalyticsStatusSample,
 } from '../src/index';
 
 describe('canonical domain contracts — Prisma enum anti-drift guard', () => {
@@ -40,10 +42,11 @@ describe('canonical domain contracts — Prisma enum anti-drift guard', () => {
     expectTypeOf<SharedMetricKind>().toEqualTypeOf<`${PrismaMetricKind}`>();
   });
 
-  it('re-exports DeviceKind, MetricKind, DeviceStatus, and SampleMeta from analytics without changing types', () => {
+  it('re-exports DeviceKind, MetricKind, DeviceStatus, SampleMeta, and StatusSample from analytics without changing types', () => {
     expectTypeOf<AnalyticsDeviceKind>().toEqualTypeOf<SharedDeviceKind>();
     expectTypeOf<AnalyticsMetricKind>().toEqualTypeOf<SharedMetricKind>();
     expectTypeOf<AnalyticsDeviceStatus>().toEqualTypeOf<SharedDeviceStatus>();
     expectTypeOf<AnalyticsSampleMeta>().toEqualTypeOf<SharedSampleMeta>();
+    expectTypeOf<AnalyticsStatusSample>().toEqualTypeOf<SharedStatusSample>();
   });
 });

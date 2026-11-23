@@ -207,3 +207,31 @@ describe('shared public API surface — Laya client and integration modules (Pha
     expect(decision.eventClass).toBe('OPTICAL_FAULT');
   });
 });
+
+// ── Canonical domain & optical threshold exports (PR #396) ───────────────────
+
+describe('shared public API surface — canonical domain and threshold exports', () => {
+  it('exports DEFAULT_DEGRADED_RX_THRESHOLD_DBM constant', () => {
+    expect(Shared.DEFAULT_DEGRADED_RX_THRESHOLD_DBM).toBe(-27);
+  });
+
+  it('exports canonical domain enum arrays DEVICE_KINDS, METRIC_KINDS, and DEVICE_STATUSES', () => {
+    expect(Shared.DEVICE_KINDS).toEqual(['OLT', 'ONU']);
+    expect(Shared.METRIC_KINDS).toHaveLength(11);
+    expect(Shared.METRIC_KINDS).toContain('RX_POWER_DBM');
+    expect(Shared.DEVICE_STATUSES).toEqual(['online', 'offline', 'degraded']);
+  });
+
+  it('exposes DeviceKind, MetricKind, DeviceStatus, SampleMeta, and StatusSample types at the boundary', () => {
+    const kind: Shared.DeviceKind = 'OLT';
+    const metric: Shared.MetricKind = 'RX_POWER_DBM';
+    const status: Shared.DeviceStatus = 'degraded';
+    const meta: Shared.SampleMeta = { tenantId: 't1', connectionId: 'c1' };
+    const sample: Shared.StatusSample = { t: 1_752_000_000_000, status };
+
+    expect(kind).toBe('OLT');
+    expect(metric).toBe('RX_POWER_DBM');
+    expect(meta.tenantId).toBe('t1');
+    expect(sample).toEqual({ t: 1_752_000_000_000, status: 'degraded' });
+  });
+});
