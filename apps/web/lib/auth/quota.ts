@@ -41,13 +41,17 @@ export function authRateLimitOptions(): AuthQuotaOptions {
 }
 
 /**
- * Derive rate-limit bucket keys for an auth attempt (email + optional client IP).
+ * Derive rate-limit bucket keys for an auth attempt (optional email, IP, and/or tx token).
  */
 export function authQuotaKeys(
-  email: string,
+  email: string | null,
   clientIp: string | null,
   scope?: AuthRateLimitScope,
+  transactionToken?: string | null,
 ): string[] {
+  if (transactionToken !== undefined) {
+    return authRateLimitKeys(email, clientIp, scope ?? 'login', transactionToken);
+  }
   return scope === undefined
     ? authRateLimitKeys(email, clientIp)
     : authRateLimitKeys(email, clientIp, scope);

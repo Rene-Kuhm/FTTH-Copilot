@@ -68,7 +68,7 @@ Siete workspaces no se ordenan en una capa propia porque cruzan el proceso web y
 | Límite | Regla |
 |---|---|
 | **Dependencia** | Un paquete importa de su propia capa o de una capa inferior. Nunca hacia arriba y nunca en círculo. `apps/web` es el único que conoce a todos. |
-| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared`. Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
+| **Contratos** | Los esquemas Zod canónicos viven en `packages/shared` (con la excepción conocida del tipo `Role`, aún definido también en `packages/db/src/auth.ts`, `packages/security/src/auth-roles.ts`, `apps/web/lib/auth/permissions.ts` y `apps/web/lib/auth/client.ts`). Un tipo duplicado en dos paquetes es un bug, no una conveniencia. |
 | **Detección** | `detection` y `security` exponen funciones **puras**: sin I/O, sin acceso a base, sin hora del sistema. Eso es lo que las hace testeables y auditables. |
 | **Conectores** | Ningún adaptador habla directo con la base. Pasa por `connectors-core`, que es donde vive la política SSRF. |
 | **Acceso a datos** | `db` es el único que conoce Prisma y el KMS. El resto consume el cliente tipado. |
@@ -214,7 +214,7 @@ La lista completa y comentada está en [`.env.example`](.env.example). Estos son
 | **Inferencia LLM** | `LLM_PROVIDER`, `LLM_FALLBACK`, `MINIMAX_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY` | Proveedores de lenguaje natural y cadena de respaldo. |
 | **Laya** | `LAYA_ENABLED`, `LAYA_MODE`, `LAYA_URL`, `LAYA_FAIL_OPEN`, `LAYA_CONFIDENCE_THRESHOLD_HIGH`, `LAYA_CONFIDENCE_THRESHOLD_LOW` | Modo del Expert System y umbrales de confianza. |
 | **Seguridad de sesiones** | `JWT_SECRET`, `KMS_MASTER_KEY`, `SESSION_COOKIE_SECURE`, `SEED_ADMIN_PASSWORD` | Material de claves y cookies. |
-| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP`, `OIDC_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_TENANT_SLUG` | OIDC/SSO (Authorization Code + PKCE) implementado sobre el mismo sistema de sesiones; cliente LDAP/AD y diagnóstico de conectividad (**no conectado al flujo de login**). |
+| **Enterprise auth** | `LDAP_ENABLED`, `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE`, `LDAP_ROLE_MAP`, `OIDC_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_TENANT_SLUG` | OIDC/SSO (Authorization Code + PKCE) implementado sobre el mismo sistema de sesiones; cliente LDAP/AD conectado a `/api/auth/ldap/login` y como fallback en `/api/auth/login` (`LDAP_ENABLED=true`), más diagnóstico de conectividad. |
 | **Backup DB** | `BACKUP_ENABLED`, `BACKUP_SCHEDULE`, `BACKUP_RETENTION_DAYS`, `BACKUP_S3_BUCKET`, `BACKUP_RCLONE_REMOTE` | Automatización de backups PostgreSQL con retención y upload remoto. |
 
 ---

@@ -225,15 +225,15 @@ Login, signup, sesión y MFA.
 |---|---|---|---|---|
 | GET | `/api/auth/ldap-test` | Diagnostica la conexión LDAP del tenant. | roles OWNER | ADMIN | `200`, `401`, `403` |
 | POST | `/api/auth/ldap/login` | Autentica un usuario contra LDAP/Active Directory y emite sesión. | público | `200`, `401`, `403` |
-| POST | `/api/auth/login` | Inicia sesión con email y contraseña. | público | `200`, `400`, `401`, `429` |
+| POST | `/api/auth/login` | Inicia sesión con email y contraseña. | público | `200`, `400`, `401`, `403`, `429` |
 | POST | `/api/auth/logout` | Cierra la sesión y expira las cookies. | sesión | `200` |
 | GET | `/api/auth/me` | Devuelve la sesión actual. | sesión | `200` |
-| POST | `/api/auth/mfa/disable` | Desactiva MFA (exige un código TOTP vigente). | sesión | `200`, `400`, `401` |
+| POST | `/api/auth/mfa/disable` | Desactiva MFA (exige un código TOTP vigente). | sesión | `200`, `400`, `401`, `403`, `429` |
 | DELETE | `/api/auth/mfa/setup` | Desactiva MFA (exige un código TOTP vigente). | sesión | `200`, `400`, `401` |
 | GET | `/api/auth/mfa/setup` | Estado de MFA del usuario actual. | sesión | `200`, `401` |
 | POST | `/api/auth/mfa/setup` | Genera el secreto TOTP y la URI `otpauth`. | sesión | `200`, `401`, `409` |
-| POST | `/api/auth/mfa/verify` | Verifica el segundo factor y abre sesión. | público | `200`, `400`, `401` |
-| GET | `/api/auth/oidc/callback` | Callback OIDC / SSO tras la autenticación en el IdP. | público | `302`, `404`, `500` |
+| POST | `/api/auth/mfa/verify` | Verifica el segundo factor y abre sesión. | público | `200`, `400`, `401`, `404`, `429` |
+| GET | `/api/auth/oidc/callback` | Callback OIDC / SSO tras la autenticación en el IdP. | público | `302`, `404`, `429`, `500` |
 | GET | `/api/auth/oidc/login` | Inicia el flujo OIDC / SSO (Authorization Code + PKCE). | público | `302`, `404`, `500` |
 | POST | `/api/auth/signup` | Registra un usuario nuevo y su tenant. | público | `201`, `400`, `409`, `429` |
 | GET | `/api/security/mfa-policy` | Consulta si el tenant exige MFA obligatorio. | sesión | `200` |
@@ -303,7 +303,8 @@ Cuota propia por email **e** IP. Si el usuario tiene MFA activo responde
 | `200` | Sesión iniciada. | `LoginResponse \| MfaRequiredResponse` |
 | `400` | JSON inválido. | `Error` |
 | `401` | Credenciales inválidas. | `Error` |
-| `429` | Cuota de intentos excedida. | `RateLimitedError` |
+| `403` | Política del tenant exige configurar MFA (`code: "MFA_SETUP_REQUIRED"`, `mfaSetupRequired: true`, `tempToken`). | `{error: string, code: "MFA_SETUP_REQUIRED", mfaSetupRequired: true, tempToken: string}` |
+| `429` | Cuota de intentos excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body). | `Error` |
 
 <details><summary>Campos de <code>400</code></summary>
 
@@ -313,12 +314,14 @@ Cuota propia por email **e** IP. Si el usuario tiene MFA activo responde
 
 </details>
 
-<details><summary>Campos de <code>429</code></summary>
+<details><summary>Campos de <code>403</code></summary>
 
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `error` | `string` | sí | — |
-| `retryAfter` | `number` | no | — |
+| `code` | `"MFA_SETUP_REQUIRED"` | sí | — |
+| `mfaSetupRequired` | `true` | sí | — |
+| `tempToken` | `string` | sí | — |
 
 </details>
 
@@ -380,6 +383,8 @@ Degrada a `200 {user:null}` cuando no hay sesión válida: no es un error.
 | `200` | MFA desactivado. | `OkResponse` |
 | `400` | Código inválido o ausente. | `Error` |
 | `401` | Sin sesión. | `Error` |
+| `403` | Política del tenant exige MFA y no puede deshabilitarse. | `Error` |
+| `429` | Cuota de intentos MFA excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body). | `Error` |
 
 <details><summary>Campos de <code>200</code></summary>
 
@@ -497,9 +502,9 @@ Degrada a `200 {user:null}` cuando no hay sesión válida: no es un error.
 
 ### POST /api/auth/mfa/verify
 
-Acepta `{email,password,code}`, `{code}` o `{tempToken,code}`. Es la única
-operación de auth que **no** exige CSRF y la única que emite sólo la cookie de
-sesión (no la de CSRF).
+Acepta `{email,password,code}`, `{code}` o `{tempToken,code}`. Exento de CSRF
+como el resto de `/api/auth/*`; al abrir sesión emite tanto `ftth_session` como
+la cookie CSRF `ftth_csrf`.
 
 - **Guard:** público.
 - **Operation ID:** `verifyMfa`.
@@ -520,6 +525,8 @@ sesión (no la de CSRF).
 | `200` | Segundo_factor verificado. | `object` |
 | `400` | Cuerpo inválido. | `Error` |
 | `401` | Credencial, código o token inválido. | `Error` |
+| `404` | Usuario no encontrado. | `Error` |
+| `429` | Cuota de intentos MFA excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body). | `Error` |
 
 <details><summary>Campos de <code>400</code></summary>
 
@@ -549,8 +556,9 @@ en el tenant configurado y emite la sesión estándar `ftth_session`.
 
 | Código | Descripción | Cuerpo |
 |---|---|---|
-| `302` | Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, o a `/login?error=...` ante rechazo. | — |
+| `302` | Redirección a `/app` con sesión emitida, a `/login?mfa=required` si requiere TOTP, a `/login?mfa=setup_required` si requiere configurar MFA, o a `/login?error=...` ante rechazo. | — |
 | `404` | OIDC SSO no está habilitado (`OIDC_ENABLED` != `true`). | `Error` |
+| `429` | Cuota de intentos OIDC excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body). | `Error` |
 | `500` | Configuración OIDC inválida. | `Error` |
 
 <details><summary>Campos de <code>404</code></summary>
@@ -606,7 +614,7 @@ Genera `code_verifier` (PKCE S256), `state` y `nonce` firmados en una cookie
 | `201` | Usuario creado. | `SignupResponse` |
 | `400` | JSON inválido. | `Error` |
 | `409` | El email ya está registrado. | `Error` |
-| `429` | Cuota por IP excedida. | `RateLimitedError` |
+| `429` | Cuota por IP excedida; devuelve cabecera `retry-after` en segundos (sin `retryAfter` en el body). | `Error` |
 
 <details><summary>Campos de <code>201</code></summary>
 
@@ -622,15 +630,6 @@ Genera `code_verifier` (PKCE S256), `state` y `nonce` firmados en una cookie
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `error` | `string` | sí | — |
-
-</details>
-
-<details><summary>Campos de <code>429</code></summary>
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|---|---|
-| `error` | `string` | sí | — |
-| `retryAfter` | `number` | no | — |
 
 </details>
 
@@ -3578,6 +3577,6 @@ asumir cosas que el contrato real no garantiza.
 
 1. `GET /api/maintenance-windows` no chequea permiso, mientras que `POST` sí exige `manage_maintenance` (`api/maintenance-windows/route.ts:42` vs `:161`).
 2. `/api/vm/query` y `/api/vm/instant` no tienen autenticación y aceptan PromQL arbitrario del query string.
-3. El middleware exime de CSRF a todo `/api/auth/*`, y `POST /api/auth/mfa/verify` sets **sólo** la cookie de sesión, no la de CSRF (a diferencia de `/api/auth/login` y `/api/auth/signup`).
+3. El middleware exime de CSRF a todo `/api/auth/*`; al emitir sesión, `POST /api/auth/mfa/verify` setea tanto `ftth_session` como `ftth_csrf` (igual que `/api/auth/login` y `/api/auth/signup`).
 4. La forma del error 401 no es uniforme: casi todos devuelven `{error:'Not authenticated'}`; `/api/conversations/[id]` devuelve `{error:'No autenticado.'}` y `/api/ops/stream` devuelve texto plano `Unauthorized`.
 5. Sólo `/api/incidents` y `/api/predictions` usan paginación por cursor (`apps/web/lib/api/pagination.ts`: `DEFAULT_LIMIT=50`, `MAX_LIMIT=200`).
