@@ -7,3 +7,11 @@ export function escapeLogField(value: string): string {
       '\\u' + character.codePointAt(0)!.toString(16).padStart(4, '0'),
     );
 }
+
+export function formatMockNmsLog(method: string, path: string, status: number): string {
+  return JSON.stringify({
+    method: escapeLogField(method),
+    path: escapeLogField(path),
+    status,
+  });
+}

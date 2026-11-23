@@ -19,7 +19,7 @@ import http from 'node:http';
 import { smartoltMockResponse } from '@ftth-copilot/connectors-smartolt';
 import { mikrowispMockResponse } from '@ftth-copilot/connectors-mikrowisp';
 
-import { escapeLogField } from './lib/log-field.ts';
+import { formatMockNmsLog } from './lib/log-field.ts';
 
 const PORT = Number.parseInt(process.env['MOCK_NMS_PORT'] ?? '5515', 10);
 
@@ -42,7 +42,7 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(mockResponse.status, { 'content-type': 'application/json' });
   res.end(JSON.stringify(mockResponse.body));
-  console.log(`<-- ${escapeLogField(req.method ?? 'undefined')} ${escapeLogField(path)}  ->  ${mockResponse.status}`);
+  console.log(formatMockNmsLog(req.method ?? 'undefined', path, mockResponse.status));
 });
 
 server.listen(PORT, () => {
