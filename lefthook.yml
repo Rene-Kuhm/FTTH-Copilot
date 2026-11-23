@@ -2,7 +2,7 @@
 #
 # Install the hooks once per clone:
 #
-#   pnpm dlx lefthook install
+#   pnpm exec lefthook install
 #
 # The hooks are deliberately local and fast: they never build the monorepo,
 # they only run the checks that make sense against the files being staged.
@@ -11,16 +11,16 @@
 #   pre-commit  ESLint over the staged sources and Prettier over the staged
 #               configuration files
 #
-# The tools are pinned and invoked through `pnpm dlx`, because the repository
-# does not vendor them as workspace dependencies yet. Once they are added to
-# `devDependencies`, `pnpm exec <tool>` can replace every `pnpm dlx` call
-# below without changing the behavior.
+# Install hook tools as workspace development dependencies.
 
 min_version: 1.5.0
 
 pre-commit:
   parallel: true
   jobs:
+    - name: typecheck (changed packages)
+      run: node scripts/typecheck-staged.mjs
+
     # ────────────────────────────────────────────────────────────
     # Lint the staged sources with the configuration each area uses:
     # the shared flat config for the workspace packages, the Next.js
@@ -50,10 +50,10 @@ pre-commit:
     - name: prettier (configuration files)
       glob: "{.github/**,*.json,*.yml,*.yaml}"
       exclude: "{pnpm-lock.yaml,pnpm-workspace.yaml,.github/PULL_REQUEST_TEMPLATE/**}"
-      run: pnpm dlx prettier@3.9.10 --write --ignore-unknown {staged_files}
+      run: pnpm exec prettier --write --ignore-unknown {staged_files}
       stage_fixed: true
 
 commit-msg:
   commands:
     commitlint:
-      run: pnpm dlx @commitlint/cli@21.2.4 --edit {1}
+      run: pnpm exec commitlint --edit {1}
